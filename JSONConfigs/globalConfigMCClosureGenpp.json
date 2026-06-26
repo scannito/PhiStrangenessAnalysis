@@ -1,0 +1,30 @@
+{
+    "workflow": {
+        "active_tasks": [
+            "correlation_wpdg_task"
+        ]
+    },
+    "correlation_wpdg_task": {
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResults_136_gen_14aprile.root",
+        "base_path_data": "phi-strangeness-correlation/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResults_136_gen_14aprile.root",
+        "base_path_me": "phi-strangeness-correlation/phiStrangenessCorrelation/",
+        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Corrections.root",
+        "output_dir_proj": "../DataFile/pp/DeltaY/ProjData/",
+        "output_dir_final": "../DataFile/pp/DeltaY/FinalResults/",
+        "input_output_prefix": "MCClosureGen_",
+        "apply_mixed_events": true,
+        "apply_efficiency": false,
+        "apply_extrapolation": true,
+        "use_integrated_efficiency": true,
+        "use_projection_cache": true,
+        "is_pure_gen": true,
+        "delta_y_limits": [
+            1.0,
+            0.5,
+            0.1
+        ],
+        "use_legacy_extrapolation": true,
+        "extrapolation_config_file": "../JSONConfigs/extrapConfig.json"
+    }
+}

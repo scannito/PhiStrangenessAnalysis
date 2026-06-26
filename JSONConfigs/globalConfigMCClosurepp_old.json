@@ -1,0 +1,70 @@
+{
+    "workflow": {
+        "active_tasks": [
+            "purity_task",
+            "mc_task",
+            "phi_fit_task",
+            "correlation_task"
+        ]
+    },
+    "purity_task": {
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResults_136_10marzo.root",
+        "output_dir": "../DataFile/pp/DeltaY/Purities/",
+        "output_prefix": "MCClosure_",
+        "fit_config_file": "../JSONConfigs/fitConfig.json"
+    },
+    "mc_task": {
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136.root",
+        "mc_base_path": "phi-strangeness-correlation/phiStrangenessCorrelation/",
+        "output_dir": "../DataFile/pp/DeltaY/Corrections/"
+    },
+    "phi_fit_task": {
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResults_136_4marzo.root",
+        "base_path_data": "phi-strangeness-correlation_id44940/phiStrangenessCorrelation/",
+        "fit_config_file": "../JSONConfigs/fitConfig.json",
+        "fitter_type": "fitphisignalandbkg",
+        "output_dir_proj": "../DataFile/pp/DeltaY/ProjData/",
+        "input_output_prefix": "MCClosure_"
+    },
+    "correlation_task": {
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResults_136_4marzo.root",
+        "base_path_data": "phi-strangeness-correlation_id44940/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResults_136_4marzo.root",
+        "base_path_me": "phi-strangeness-correlation_id46273/phiStrangenessCorrelation/",
+        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Corrections.root",
+        "input_dir_purity": "../DataFile/pp/DeltaY/Purities/",
+        "input_dir_proj": "../DataFile/pp/DeltaY/ProjData/",
+        "output_dir_final": "../DataFile/pp/DeltaY/FinalResults/",
+        "input_output_prefix": "MCClosure_",
+        "apply_mixed_events": true,
+        "apply_efficiency": true,
+        "apply_purity": true,
+        "apply_extrapolation": false,
+        "use_integrated_efficiency": true,
+        "use_projection_cache": true,
+        "delta_y_limits": [
+            1.0,
+            0.5,
+            0.1
+        ],
+        "extrap_function": "LevyTsallis",
+        "extrap_fit_range": [
+            0.4,
+            6.0
+        ]
+    },
+    "data_task": {
+        "input_data_file": "../DataFile/pp/MCClosure/AnalysisResults_136_4marzo.root",
+        "input_me_file": "../DataFile/pp/MCClosure/AnalysisResults_136_4marzo.root",
+        "input_efficiency_file": "../DataFile/pp/Corrections/Corrections.root",
+        "base_path_data": "phi-strangeness-correlation_id44940/phiStrangenessCorrelation/",
+        "base_path_me": "phi-strangeness-correlation_id46273/phiStrangenessCorrelation/",
+        "output_dir_proj": "../DataFile/pp/ProjData/",
+        "output_dir_final": "../DataFile/pp/FinalResults/",
+        "output_prefix": "MCClosure_",
+        "apply_mixed_events": true,
+        "apply_efficiency": true,
+        "apply_purity": true,
+        "fit_config_file": "fitConfig.json"
+    }
+}

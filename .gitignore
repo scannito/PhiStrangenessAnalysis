@@ -1,0 +1,4 @@
+*.root
+*-workspace
+*.log
+*.DS_Store

@@ -1,0 +1,127 @@
+{
+    "workflow": {
+        "active_tasks": [
+            "purity_task",
+            "phi_fit_task_offline_efficiency",
+            "correlation_task_offline_efficiency",
+            "phi_fit_task_online_efficiency",
+            "correlation_task_online_efficiency",
+            "correlation_task_online_efficiency_no_phi"
+        ]
+    },
+    "purity_task": {
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_136_7maggio.root",
+        "fit_config_file": "../JSONConfigs/fitConfig.json",
+        "output_dir": "../DataFile/pp/DeltaY/Purities/",
+        "output_prefix": "MCClosure_"
+    },
+    "mc_base_settings": {
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_16aprile.root",
+        "mc_base_path": "phi-strangeness-correlation/phiStrangenessCorrelation/",
+        "output_dir": "../DataFile/pp/DeltaY/Corrections/",
+        "output_prefix": ""
+    },
+    "phi_fit_base_settings": {
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_136_7maggio.root",
+        "base_path_data": "phi-strangeness-correlation/phiStrangenessCorrelation/",
+        "fit_config_file": "../JSONConfigs/fitConfig.json",
+        "fitter_type": "dynamicroofitter",
+        "output_dir_proj": "../DataFile/pp/DeltaY/ProjData/",
+        "output_prefix": "MCClosure_"
+    },
+    "correlation_base_settings": {
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_136_7maggio.root",
+        "base_path_data": "phi-strangeness-correlation/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_136_7maggio.root",
+        "base_path_me": "phi-strangeness-correlation/phiStrangenessCorrelation/",
+        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Corrections.root",
+        "input_dir_purity": "../DataFile/pp/DeltaY/Purities/",
+        "input_dir_proj": "../DataFile/pp/DeltaY/ProjData/",
+        "output_dir_final": "../DataFile/pp/DeltaY/FinalResults/",
+        "purity_prefix": "MCClosure_",
+        "trigger_prefix": "MCClosure_",
+        "output_prefix": "MCClosure_",
+        "apply_mixed_events": true,
+        "apply_efficiency": true,
+        "apply_purity": true,
+        "apply_extrapolation": true,
+        "use_integrated_efficiency": true,
+        "active_corrections": [
+            "acceptance_efficiency",
+            "signal_loss",
+            "event_loss"
+        ],
+        "apply_efficiency_to": [
+            "Phi",
+            "K0S",
+            "Pi"
+        ],
+        "use_projection_cache": true,
+        "use_2d_me_normalization": false,
+        "delta_y_limits": [
+            1.0,
+            0.5,
+            0.1
+        ],
+        "use_legacy_extrapolation": false,
+        "extrapolation_config_file": "../JSONConfigs/extrapConfig.json"
+    },
+    "mc_task": {
+        "inherits": "mc_base_settings"
+    },
+    "mc_task_with_trigger": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_WTrigger_6maggio.root",
+        "output_prefix": "WTrigger_"
+    },
+    "phi_fit_task_offline_efficiency": {
+        "inherits": "phi_fit_base_settings",
+        "output_prefix": "MCClosure_OfflineEff_"
+    },
+    "phi_fit_task_online_efficiency": {
+        "inherits": "phi_fit_base_settings",
+        "base_path_data": "phi-strangeness-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
+        "output_prefix": "MCClosure_OnlineEff_"
+    },
+    "correlation_task_offline_efficiency": {
+        "inherits": "correlation_base_settings",
+        "trigger_prefix": "MCClosure_OfflineEff_",
+        "output_prefix": "MCClosure_OfflineEff_",
+        "active_corrections": [
+            "acceptance_efficiency"
+        ],
+        "use_projection_cache": false,
+        "use_2d_me_normalization": false,
+        "use_legacy_extrapolation": true
+    },
+    "correlation_task_online_efficiency": {
+        "inherits": "correlation_base_settings",
+        "base_path_data": "phi-strangeness-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
+        "base_path_me": "phi-strangeness-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
+        "trigger_prefix": "MCClosure_OnlineEff_",
+        "output_prefix": "MCClosure_OnlineEff_",
+        "apply_efficiency": false,
+        "use_projection_cache": false,
+        "use_2d_me_normalization": false,
+        "use_legacy_extrapolation": true
+    },
+    "correlation_task_online_efficiency_no_phi": {
+        "inherits": "correlation_base_settings",
+        "base_path_data": "phi-strangeness-correlation_OnlineEfficiencyNoPhi/phiStrangenessCorrelation/",
+        "base_path_me": "phi-strangeness-correlation_OnlineEfficiencyNoPhi/phiStrangenessCorrelation/",
+        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/WTrigger_Corrections.root",
+        "trigger_prefix": "MCClosure_OfflineEff_",
+        "output_prefix": "MCClosure_OnlineEff_NoPhi_",
+        "active_corrections": [
+            "signal_loss",
+            "event_loss"
+        ],
+        "apply_efficiency_to": [
+            "K0S",
+            "Pi"
+        ],
+        "use_projection_cache": false,
+        "use_2d_me_normalization": false,
+        "use_legacy_extrapolation": true
+    }
+}

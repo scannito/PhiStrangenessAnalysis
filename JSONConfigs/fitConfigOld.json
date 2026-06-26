@@ -1,0 +1,529 @@
+{
+    "phi": {
+        "observable": {
+            "name": "mass",
+            "title": "M(K^{+}K^{-}) (GeV/c^{2})",
+            "min": 0.995,
+            "max": 1.2
+        },
+        "fit_setup": {
+            "default": {
+                "sig_model": "Voigtian",
+                "bkg_model": "BkgSourav2",
+                "snap_to_bin": false,
+                "calculate_purity": false,
+                "integration_range": [
+                    1.0095,
+                    1.029
+                ],
+                "calculate_sideband": true,
+                "sideband_from_fit": false,
+                "sideband_range": [
+                    1.1,
+                    1.2
+                ],
+                "params": {
+                    "mean": [
+                        1.019,
+                        1.010,
+                        1.030
+                    ],
+                    "sigma": [
+                        0.001,
+                        0.0001,
+                        0.010
+                    ],
+                    "width": 0.00426,
+                    "c1": [
+                        -0.5,
+                        -0.8,
+                        2.0
+                    ],
+                    "c2": [
+                        0.1,
+                        0.0,
+                        1.0
+                    ],
+                    "c3": [
+                        2.0,
+                        0.0,
+                        20.0
+                    ],
+                    "nsig": [
+                        1000.0,
+                        0.0,
+                        10000000.0
+                    ],
+                    "nbkg": [
+                        1000.0,
+                        0.0,
+                        10000000.0
+                    ]
+                }
+            }
+        }
+    },
+    "k0s": {
+        "observable": {
+            "name": "mass",
+            "title": "M(#pi^{+}#pi^{-}) (GeV/c^{2})",
+            "min": 0.45,
+            "max": 0.55
+        },
+        "fit_setup": {
+            "default": {
+                "sig_model": "DSCB",
+                "bkg_model": "Chebychev1",
+                "snap_to_bin": false,
+                "integration_range": [
+                    0.475,
+                    0.515
+                ],
+                "calculate_purity": true,
+                "params": {
+                    "mean": [
+                        0.497,
+                        0.490,
+                        0.505
+                    ],
+                    "sigma": [
+                        0.004,
+                        0.002,
+                        0.008
+                    ],
+                    "alpha1": [
+                        1.2,
+                        0.5,
+                        5.0
+                    ],
+                    "n1": [
+                        5.0,
+                        1.0,
+                        150.0
+                    ],
+                    "alpha2": [
+                        1.2,
+                        0.5,
+                        5.0
+                    ],
+                    "n2": [
+                        5.0,
+                        1.0,
+                        150.0
+                    ],
+                    "c1": [
+                        -0.8,
+                        -1.0,
+                        1.0
+                    ],
+                    "nsig": [
+                        100000.0,
+                        0.0,
+                        1e8
+                    ],
+                    "nbkg": [
+                        50000.0,
+                        0.0,
+                        2.5e7
+                    ]
+                }
+            },
+            "bins": {
+                "mult0_pt4": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult0_pt5": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult1_pt4": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult1_pt5": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult2_pt4": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult2_pt5": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult3_pt4": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult3_pt5": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult4_pt4": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult4_pt5": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult5_pt4": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult5_pt5": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult6_pt4": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult6_pt5": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult7_pt4": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult7_pt5": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult8_pt4": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult8_pt5": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult9_pt4": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult9_pt5": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                }
+            }
+        }
+    },
+    "pi_tpc": {
+        "observable": {
+            "name": "nsigma",
+            "title": "n#sigma_{TPC} (#pi)",
+            "min": -10.0,
+            "max": 10.0
+        },
+        "fit_setup": {
+            "default": {
+                "sig_model": "Gaussian",
+                "bkg_model": "Exponential",
+                "snap_to_bin": false,
+                "integration_range": [
+                    -2.0,
+                    2.0
+                ],
+                "calculate_purity": true,
+                "params": {
+                    "mean": [
+                        0.0,
+                        -1.0,
+                        1.0
+                    ],
+                    "sigma": [
+                        1.0,
+                        0.5,
+                        2.5
+                    ],
+                    "slope": [
+                        -0.1,
+                        -1.0,
+                        0.0
+                    ],
+                    "nsig": [
+                        1e6,
+                        0.0,
+                        1e10
+                    ],
+                    "nbkg": [
+                        5e5,
+                        0.0,
+                        2e9
+                    ]
+                }
+            }
+        }
+    },
+    "pi_tof": {
+        "observable": {
+            "name": "nsigma",
+            "title": "n#sigma_{TOF} (#pi)",
+            "min": -10.0,
+            "max": 10.0
+        },
+        "fit_setup": {
+            "default": {
+                "sig_model": "Gaussian",
+                "bkg_model": "Exponential",
+                "snap_to_bin": false,
+                "integration_range": [
+                    -2.0,
+                    2.0
+                ],
+                "calculate_purity": true,
+                "params": {
+                    "mean": [
+                        0.0,
+                        -1.0,
+                        1.0
+                    ],
+                    "sigma": [
+                        1.0,
+                        0.5,
+                        2.5
+                    ],
+                    "slope": [
+                        -0.1,
+                        -1.0,
+                        0.0
+                    ],
+                    "nsig": [
+                        1e6,
+                        0.0,
+                        1e10
+                    ],
+                    "nbkg": [
+                        5e5,
+                        0.0,
+                        2e9
+                    ]
+                }
+            }
+        }
+    }
+}
