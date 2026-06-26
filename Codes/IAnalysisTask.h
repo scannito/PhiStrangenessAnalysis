@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AnalysisSettings.h"
+
 #include "rapidjson/document.h"
 
 #include <string>
@@ -14,7 +16,7 @@ class IAnalysisTask
   virtual std::string GetName() const = 0;
 
   // Initializes the task with global settings AND its specific JSON branch in memory
-  virtual void Init(const rapidjson::Value& taskConfig) = 0;
+  virtual void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) = 0;
 
   // Execute the main analysis loop (e.g., fitting, integrating, projecting)
   virtual void Run() = 0;

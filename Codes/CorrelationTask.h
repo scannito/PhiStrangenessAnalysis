@@ -2,6 +2,7 @@
 
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
+#include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
 // #include "CorrelationCalculator.h"
 #include "CorrelationCalculator2.h"
@@ -37,9 +38,11 @@ class CorrelationTask : public IAnalysisTask
  public:
   std::string GetName() const override { return "correlation_task"; }
 
-  void Init(const rapidjson::Value& taskConfig) override
+  void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
     std::cout << "[INFO] CorrelationTask: INITIALIZING..." << std::endl;
+
+    globalCfgs = globalSettings; // Store the global settings for later use
 
     // 1. Inherit global flags
     applyME = taskConfig["apply_mixed_events"].GetBool();
@@ -474,6 +477,8 @@ class CorrelationTask : public IAnalysisTask
   }
 
  private:
+  AnalysisSettings globalCfgs;
+
   std::string basePathData, basePathDataME;
 
   bool applyME{false}, applyEfficiency{false}, applyPurity{false}, applyExtrapolation{false};

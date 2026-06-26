@@ -126,7 +126,7 @@ class WorkflowManager
       rapidjson::Value finalTaskConfig = MergeTaskConfiguration(configBlockName);
 
       // Pass the fully assembled config to the task
-      task->Init(finalTaskConfig);
+      task->Init(finalTaskConfig, globalSettings);
       task->Run();
       task->Terminate();
 
@@ -147,6 +147,8 @@ class WorkflowManager
   // Contains the actual C++ pointers in the EXACT same order
   std::vector<std::unique_ptr<IAnalysisTask>> activeTasks;
 
+  AnalysisSettings globalSettings; // Holds the runtime configuration
+
   void LoadConfiguration(const std::string& configFile)
   {
     std::cout << "[INFO] WorkflowManager: Parsing master config file " << configFile << "..." << std::endl;
@@ -165,6 +167,10 @@ class WorkflowManager
       throw std::runtime_error("[FATAL] Invalid JSON syntax or missing 'global_settings' node!");
     }
 
+    // 1. Load Global Settings
+    ParseGlobalSettings();
+
+    // 2. Load Workflow Tasks
     if (!document.HasMember("workflow")) {
       throw std::runtime_error("[FATAL ERROR] Missing 'workflow' block in JSON!");
     }
@@ -179,6 +185,35 @@ class WorkflowManager
     }
 
     std::cout << "[INFO] WorkflowManager: Master configuration loaded successfully." << std::endl;
+  }
+
+  void ParseGlobalSettings()
+  {
+    if (!document.HasMember("global_binning")) {
+      std::cout << "[INFO] WorkflowManager: 'global_binning' missing in JSON. Using default historical binning." << std::endl;
+      return;
+    }
+
+    const auto& config = document["global_binning"];
+
+    auto overrideArray = [&](const char* key, std::vector<double>& targetVec) {
+      if (config.HasMember(key) && config[key].IsArray()) {
+        targetVec.clear();
+        for (const auto& v : config[key].GetArray()) {
+          targetVec.push_back(v.GetDouble());
+        }
+        std::cout << "  -> Overridden '" << key << "' binning from JSON." << std::endl;
+      }
+    };
+
+    std::cout << "[INFO] WorkflowManager: Applying custom binning from JSON..." << std::endl;
+
+    overrideArray("multiplicity", globalSettings.binsMult);
+    overrideArray("pt_phi", globalSettings.binspTPhi);
+    overrideArray("pt_k0s", globalSettings.binspTK0S);
+    overrideArray("pt_pi", globalSettings.binspTPi);
+
+    globalSettings.UpdateBinCounts();
   }
 
   // =========================================================================
