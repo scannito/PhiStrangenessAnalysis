@@ -110,8 +110,8 @@ class CorrelationTask : public IAnalysisTask
 
     // 3. Load Associated Data (THnSparse or Projected TH1 depending on useProjectionCache)
     assocParticles = {
-      {"K0S", "phiK0S", AnalysisConstants::nBinPtK0S, 1, AnalysisConstants::binspTK0S, AnalysisConstants::k0sMass},
-      {"Pi", "phiPi", AnalysisConstants::nBinPtPi, 2, AnalysisConstants::binspTPi, AnalysisConstants::piMass}};
+      {"K0S", "phiK0S", globalCfgs.nBinPtK0S, 1, globalCfgs.binspTK0S, AnalysisConstants::k0sMass},
+      {"Pi", "phiPi", globalCfgs.nBinPtPi, 2, globalCfgs.binspTPi, AnalysisConstants::piMass}};
 
     if (!useProjectionCache) {
       std::cout << "[INFO] CorrelationTask: Cache DISABLED. Loading heavy THnSparse data..." << std::endl;
@@ -226,9 +226,9 @@ class CorrelationTask : public IAnalysisTask
 
   void Run() override
   {
-    RunOptimized();
+    // RunOptimized();
 
-    // RunLegacy();
+    RunLegacy();
   }
 
   void Terminate() override
@@ -263,7 +263,7 @@ class CorrelationTask : public IAnalysisTask
 
       hRatioMeas->Divide(h1MultTrends[0][yIdx], h1MultTrends[1][yIdx], 2.0, 1.0);
 
-      AnalysisUtils::SetHistogramStyle(hRatioMeas, AnalysisConstants::multTrendColors[yIdx]);
+      AnalysisUtils::SetHistogramStyle(hRatioMeas, globalCfgs.GetMultTrendColor(yIdx));
       hRatioMeas->SetMarkerStyle(24);
       // hRatioMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
       // delete hRatio;
@@ -276,7 +276,7 @@ class CorrelationTask : public IAnalysisTask
 
         hRatioExtrap->Divide(h1MultTrendsExtrap[0][yIdx], h1MultTrendsExtrap[1][yIdx], 2.0, 1.0);
 
-        AnalysisUtils::SetHistogramStyle(hRatioExtrap, AnalysisConstants::multTrendColors[yIdx]);
+        AnalysisUtils::SetHistogramStyle(hRatioExtrap, globalCfgs.GetMultTrendColor(yIdx));
         hRatioExtrap->SetMarkerStyle(20);
       }
 
@@ -311,7 +311,7 @@ class CorrelationTask : public IAnalysisTask
 
         // Draw on the Summary Canvas
         cTrendMeas->cd();
-        AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx], AnalysisConstants::multTrendColors[yIdx]);
+        AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx], globalCfgs.GetMultTrendColor(yIdx));
         h1MultTrends[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
       }
       cTrendMeas->Write();
@@ -325,7 +325,7 @@ class CorrelationTask : public IAnalysisTask
           h1MultTrendsExtrap[pIdx][yIdx]->Write();
 
           cTrendExtrap->cd();
-          AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx], AnalysisConstants::multTrendColors[yIdx]);
+          AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx], globalCfgs.GetMultTrendColor(yIdx));
           h1MultTrendsExtrap[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
         }
         cTrendExtrap->Write();
@@ -361,7 +361,7 @@ class CorrelationTask : public IAnalysisTask
           // Set Y-axis title for clarity
           hRatioExtrapMeas->GetYaxis()->SetTitle("Yield_{Extrap} / Yield_{Meas}");
 
-          AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas, AnalysisConstants::multTrendColors[yIdx]);
+          AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas, globalCfgs.GetMultTrendColor(yIdx));
           hRatioExtrapMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
 
           delete hRatioExtrapMeas;
@@ -500,7 +500,7 @@ class CorrelationTask : public IAnalysisTask
   std::vector<LoadedPurity> purityCollection;
 
   // All accumulators and file vectors from the original task
-  std::vector<std::array<std::vector<TH1*>, AnalysisConstants::nBinMult>> h1PhiAssocNoPtPhi;
+  std::vector<std::vector<std::vector<TH1*>>> h1PhiAssocNoPtPhi;
   std::vector<double> deltaYLimits{1.0, 0.5, 0.1};
   std::vector<std::vector<TH1*>> h1MultTrends;
   std::vector<std::vector<TH1*>> h1MultTrendsExtrap;
@@ -596,6 +596,8 @@ class CorrelationTask : public IAnalysisTask
     for (size_t idx = 0; idx < allParticles.size(); ++idx) {
       const auto& p = allParticles[idx];
       correctionCollection[idx].name = p.name;
+      correctionCollection[idx].h1Corrections.resize(globalCfgs.nBinMult, nullptr);
+      correctionCollection[idx].h1CorrectionsEffMultInt.resize(globalCfgs.nBinMult, nullptr);
 
       // We use effParts to check if we should apply efficiency to this particle
       if (std::find(effParts.begin(), effParts.end(), p.name) == effParts.end())
@@ -606,7 +608,7 @@ class CorrelationTask : public IAnalysisTask
       // Note: Signal loss is typically not integrated, but we fetch it if requested for consistency
       // TH1F* hLossInt = fetchHist(p.titles[1] + "_multIntegrated", doSigLoss && useIntegratedEfficiency);
 
-      for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
+      for (int i = 0; i < globalCfgs.nBinMult; i++) {
         std::string iStr = std::to_string(i);
 
         // Fetch binned histograms ONLY if useIntegratedEfficiency is false
@@ -634,7 +636,7 @@ class CorrelationTask : public IAnalysisTask
         throw std::runtime_error("[FATAL] CorrelationTask: Missing integrated correction histograms for " + p.name);
       }
 
-      for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
+      for (int i = 0; i < globalCfgs.nBinMult; i++) {
         std::string effName = p.titles[0] + "_multBin" + std::to_string(i);
         std::string lossName = p.titles[1] + "_multBin" + std::to_string(i);
 
@@ -678,13 +680,14 @@ class CorrelationTask : public IAnalysisTask
     for (const auto& p : purityConfig) {
       LoadedPurity purity;
       purity.name = p.first;
+      purity.h1Purity.resize(globalCfgs.nBinMult, nullptr);
 
       TFile* filePurity = new TFile(p.second.c_str(), "READ");
       if (!filePurity || filePurity->IsZombie()) {
         throw std::runtime_error("[FATAL] CorrelationTask: Cannot open purity file: " + p.second);
       }
 
-      for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
+      for (int i = 0; i < globalCfgs.nBinMult; i++) {
         std::string hName = "h1" + p.first + "Purity_multBin" + std::to_string(i);
         TH1* h1Pur = static_cast<TH1*>(filePurity->Get(hName.c_str()));
         if (!h1Pur) {
@@ -707,7 +710,8 @@ class CorrelationTask : public IAnalysisTask
     // 1. Initialize structure for pT bin accumulation
     h1PhiAssocNoPtPhi.resize(assocParticles.size());
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-      for (int i{0}; i < AnalysisConstants::nBinMult; ++i) {
+      h1PhiAssocNoPtPhi[pIdx].resize(globalCfgs.nBinMult);
+      for (int i{0}; i < globalCfgs.nBinMult; ++i) {
         h1PhiAssocNoPtPhi[pIdx][i].resize(assocParticles[pIdx].nBinPt, nullptr);
       }
     }
@@ -734,7 +738,7 @@ class CorrelationTask : public IAnalysisTask
         std::string hName = std::format("h1MultTrend_{}_dy{}", p.name, dyNameStr);
         std::string hTitle = std::format("Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
-        TH1* hTrend = new TH1F(hName.c_str(), hTitle.c_str(), AnalysisConstants::nBinMult, AnalysisConstants::binsMult.data());
+        TH1* hTrend = new TH1F(hName.c_str(), hTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
         hTrend->SetDirectory(0);
         h1MultTrends[pIdx].push_back(hTrend);
 
@@ -742,7 +746,7 @@ class CorrelationTask : public IAnalysisTask
           std::string hExtrapName = std::format("h1MultTrendExtrap_{}_dy{}", p.name, dyNameStr);
           std::string hExtrapTitle = std::format("Extrapolated Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
-          TH1* hTrendExtrap = new TH1F(hExtrapName.c_str(), hExtrapTitle.c_str(), AnalysisConstants::nBinMult, AnalysisConstants::binsMult.data());
+          TH1* hTrendExtrap = new TH1F(hExtrapName.c_str(), hExtrapTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
           hTrendExtrap->SetDirectory(0);
           h1MultTrendsExtrap[pIdx].push_back(hTrendExtrap);
         }
@@ -878,7 +882,7 @@ class CorrelationTask : public IAnalysisTask
         hSpecExt->SetBinContent(1, 0.0);
         hSpecExt->SetBinError(1, 0.0);
 
-        AnalysisUtils::SetHistogramStyle(hSpecExt, AnalysisConstants::spectraColors[multBin]);
+        AnalysisUtils::SetHistogramStyle(hSpecExt, globalCfgs.GetSpectraColor(multBin));
         hSpecExt->GetListOfFunctions()->Add(extrapModel->Clone());
 
         fileOutputSpectra->cd();
@@ -919,7 +923,7 @@ class CorrelationTask : public IAnalysisTask
           h1Spectrum->Multiply(purityCollection[pIdx].h1Purity[multBin]);
         }
 
-        AnalysisUtils::SetHistogramStyle(h1Spectrum, AnalysisConstants::spectraColors[multBin]);
+        AnalysisUtils::SetHistogramStyle(h1Spectrum, globalCfgs.GetSpectraColor(multBin));
 
         // Draw and Write (Only draw the nominal Delta Y limit on the summary canvas)
         spectraCanvases[pIdx][yIdx]->cd();
@@ -951,7 +955,8 @@ class CorrelationTask : public IAnalysisTask
     double totalExtractTime = 0.0;
 
     // Setup Efficiency Pointers Once (Loop Hoisting)
-    using EffArray = std::array<TH1F*, AnalysisConstants::nBinMult>;
+    // using EffArray = std::array<TH1F*, AnalysisConstants::nBinMult>;
+    using EffArray = std::vector<TH1F*>;
     const EffArray* phiCorrs{nullptr};
     std::vector<const EffArray*> assocCorrs(assocParticles.size(), nullptr);
 
@@ -966,7 +971,7 @@ class CorrelationTask : public IAnalysisTask
       }
     }
 
-    for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
+    for (int i = 0; i < globalCfgs.nBinMult; i++) {
       AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
       double totalTriggerSignalPerMult = 0.0;
 
@@ -974,7 +979,7 @@ class CorrelationTask : public IAnalysisTask
       // auto phiCorrs = useIntegratedEfficiency ? correctionCollection[0].h1CorrectionsEffMultInt : correctionCollection[0].h1Corrections;
       TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i] : nullptr;
 
-      for (int j = 0; j < AnalysisConstants::nBinPtPhi; j++) {
+      for (int j = 0; j < globalCfgs.nBinPtPhi; j++) {
         AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
 
         // Read the values generated by PhiFitTask
@@ -1052,7 +1057,8 @@ class CorrelationTask : public IAnalysisTask
     // Hoisted to the top so both the Cache L2 branch and the calculation branch
     // can access them to properly normalize the trigger signals.
     // =========================================================================
-    using EffArray = std::array<TH1F*, AnalysisConstants::nBinMult>;
+    // using EffArray = std::array<TH1F*, AnalysisConstants::nBinMult>;
+    using EffArray = std::vector<TH1F*>;
     const EffArray* phiCorrs{nullptr};
     std::vector<const EffArray*> assocCorrs(assocParticles.size(), nullptr);
 
@@ -1074,13 +1080,13 @@ class CorrelationTask : public IAnalysisTask
     if (useSignalCache) {
       std::cout << "[INFO] CorrelationTask: Super Cache (Signal L2) is ON. Skipping Calculator." << std::endl;
 
-      for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
+      for (int i = 0; i < globalCfgs.nBinMult; i++) {
         // Recalculate total triggers to accurately normalize the final spectra
         // taking into account the efficiency!
         double totalTriggerSignalPerMult = 0.0;
         TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i] : nullptr;
 
-        for (int j = 0; j < AnalysisConstants::nBinPtPhi; j++) {
+        for (int j = 0; j < globalCfgs.nBinPtPhi; j++) {
           double triggerSignal = h2TriggerSignal->GetBinContent(i + 1, j + 1);
           double phiEff = h1EffPhi ? h1EffPhi->GetBinContent(j + 1) : 1.0;
           totalTriggerSignalPerMult += triggerSignal / phiEff;
@@ -1117,21 +1123,21 @@ class CorrelationTask : public IAnalysisTask
 
     // Global QA Accumulators Initialization
     std::vector<TH1*> h1QA_FullyIntegrated(assocParticles.size(), nullptr);
-    std::vector<std::vector<TH1*>> h1QA_ByMult(assocParticles.size(), std::vector<TH1*>(AnalysisConstants::nBinMult, nullptr));
-    std::vector<std::vector<TH1*>> h1QA_ByPtPhi(assocParticles.size(), std::vector<TH1*>(AnalysisConstants::nBinPtPhi, nullptr));
+    std::vector<std::vector<TH1*>> h1QA_ByMult(assocParticles.size(), std::vector<TH1*>(globalCfgs.nBinMult, nullptr));
+    std::vector<std::vector<TH1*>> h1QA_ByPtPhi(assocParticles.size(), std::vector<TH1*>(globalCfgs.nBinPtPhi, nullptr));
     std::vector<std::vector<std::vector<TH1*>>> h1QA_ByMult_ByPtPhi(
       assocParticles.size(), std::vector<std::vector<TH1*>>(
-                               AnalysisConstants::nBinMult, std::vector<TH1*>(AnalysisConstants::nBinPtPhi, nullptr)));
+                               globalCfgs.nBinMult, std::vector<TH1*>(globalCfgs.nBinPtPhi, nullptr)));
 
     // --- MULTIPLICITY LOOP (i) ---
-    for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
+    for (int i = 0; i < globalCfgs.nBinMult; i++) {
       AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
       double totalTriggerSignalPerMult = 0.0;
 
       TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i] : nullptr;
 
       // --- TRIGGER PT LOOP (j) ---
-      for (int j = 0; j < AnalysisConstants::nBinPtPhi; j++) {
+      for (int j = 0; j < globalCfgs.nBinPtPhi; j++) {
         AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
 
         double triggerSignal = h2TriggerSignal->GetBinContent(i + 1, j + 1);
@@ -1255,20 +1261,20 @@ class CorrelationTask : public IAnalysisTask
         delete h1QA_FullyIntegrated[pIdx];
       }
 
-      for (int i = 0; i < AnalysisConstants::nBinMult; ++i) {
+      for (int i = 0; i < globalCfgs.nBinMult; ++i) {
         if (h1QA_ByMult[pIdx][i]) {
           h1QA_ByMult[pIdx][i]->Write();
           delete h1QA_ByMult[pIdx][i];
         }
       }
-      for (int j = 0; j < AnalysisConstants::nBinPtPhi; ++j) {
+      for (int j = 0; j < globalCfgs.nBinPtPhi; ++j) {
         if (h1QA_ByPtPhi[pIdx][j]) {
           h1QA_ByPtPhi[pIdx][j]->Write();
           delete h1QA_ByPtPhi[pIdx][j];
         }
       }
-      for (int i = 0; i < AnalysisConstants::nBinMult; ++i) {
-        for (int j = 0; j < AnalysisConstants::nBinPtPhi; ++j) {
+      for (int i = 0; i < globalCfgs.nBinMult; ++i) {
+        for (int j = 0; j < globalCfgs.nBinPtPhi; ++j) {
           if (h1QA_ByMult_ByPtPhi[pIdx][i][j]) {
             h1QA_ByMult_ByPtPhi[pIdx][i][j]->Write();
             delete h1QA_ByMult_ByPtPhi[pIdx][i][j];

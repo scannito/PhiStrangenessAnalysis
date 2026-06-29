@@ -36,7 +36,7 @@ struct AnalysisSettings {
     return spectraColors[index % spectraColors.size()];
   }
 
-  int GetTrendColor(int index) const
+  int GetMultTrendColor(int index) const
   {
     return multTrendColors[index % multTrendColors.size()];
   }

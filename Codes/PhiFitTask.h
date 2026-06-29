@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnalysisConstants.h"
+#include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
 #include "DynamicRooFitter.h"
 #include "FitConfigManager.h"
@@ -24,9 +25,11 @@ class PhiFitTask : public IAnalysisTask
  public:
   std::string GetName() const override { return "phi_fit_task"; }
 
-  void Init(const rapidjson::Value& taskConfig) override
+  void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
     std::cout << "[INFO] PhiFitTask: INITIALIZING..." << std::endl;
+
+    globalCfgs = globalSettings; // Store the global settings for later use
 
     // 1. Input Configuration
     if (!taskConfig.HasMember("input_data_file") || !taskConfig.HasMember("base_path_data")) {
@@ -66,25 +69,25 @@ class PhiFitTask : public IAnalysisTask
 
     // Histograms to pass parameters to CorrelationTask
     h2TriggerSignal = new TH2D("h2TriggerSignal", "Raw Signal Yield;Multiplicity Bin;p_{T} Bin",
-                               AnalysisConstants::nBinMult, 0, AnalysisConstants::nBinMult,
-                               AnalysisConstants::nBinPtPhi, 0, AnalysisConstants::nBinPtPhi);
+                               globalCfgs.nBinMult, 0, globalCfgs.nBinMult,
+                               globalCfgs.nBinPtPhi, 0, globalCfgs.nBinPtPhi);
     h2TriggerBkgSigRegion = new TH2D("h2TriggerBkgSigRegion", "Bkg in Signal Region;Multiplicity Bin;p_{T} Bin",
-                                     AnalysisConstants::nBinMult, 0, AnalysisConstants::nBinMult,
-                                     AnalysisConstants::nBinPtPhi, 0, AnalysisConstants::nBinPtPhi);
+                                     globalCfgs.nBinMult, 0, globalCfgs.nBinMult,
+                                     globalCfgs.nBinPtPhi, 0, globalCfgs.nBinPtPhi);
     h2TriggerBkgSideRegion = new TH2D("h2TriggerBkgSideRegion", "Bkg in Sideband Region;Multiplicity Bin;p_{T} Bin",
-                                      AnalysisConstants::nBinMult, 0, AnalysisConstants::nBinMult,
-                                      AnalysisConstants::nBinPtPhi, 0, AnalysisConstants::nBinPtPhi);
+                                      globalCfgs.nBinMult, 0, globalCfgs.nBinMult,
+                                      globalCfgs.nBinPtPhi, 0, globalCfgs.nBinPtPhi);
     h2TriggerBkgRatio = new TH2D("h2TriggerBkgRatio", "Bkg(SigRegion)/Bkg(Sideband);Multiplicity Bin;p_{T} Bin",
-                                 AnalysisConstants::nBinMult, 0, AnalysisConstants::nBinMult,
-                                 AnalysisConstants::nBinPtPhi, 0, AnalysisConstants::nBinPtPhi);
+                                 globalCfgs.nBinMult, 0, globalCfgs.nBinMult,
+                                 globalCfgs.nBinPtPhi, 0, globalCfgs.nBinPtPhi);
   }
 
   void Run() override
   {
     std::cout << "[INFO] PhiFitTask: RUNNING TRIGGER SIGNAL EXTRACTION..." << std::endl;
 
-    for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
-      for (int j = 0; j < AnalysisConstants::nBinPtPhi; j++) {
+    for (int i = 0; i < globalCfgs.nBinMult; i++) {
+      for (int j = 0; j < globalCfgs.nBinPtPhi; j++) {
         std::string phiHistName = "h1PhiData_multBin" + std::to_string(i) + "_ptBin" + std::to_string(j);
         TH1* h1PhiData = static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), i + 1, i + 1, j + 1, j + 1));
         h1PhiData->SetDirectory(0);
@@ -169,6 +172,8 @@ class PhiFitTask : public IAnalysisTask
   }
 
  private:
+  AnalysisSettings globalCfgs;
+
   std::string basePathData;
   std::string fitterType{"dynamicroofitter"}; // Default fitting method
   TH3F* h3PhiData{nullptr};

@@ -2,6 +2,7 @@
 
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
+#include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
 
 #include "TCanvas.h"
@@ -85,10 +86,10 @@ class EfficiencyCalculator
 
   // Computes the 2D Total Efficiency map (Efficiency * Signal Loss) integrated over multiplicity
   // NOTE: The caller becomes the owner of the returned TH2 pointer and must delete it.
-  static TH2* Compute2DTotalMapMultIntegrated(const LoadedMC& data)
+  static TH2* Compute2DTotalMapMultIntegrated(const LoadedMC& data, const AnalysisSettings& cfg)
   {
     AnalysisUtils::AxisToCut axisToCutZVtx{0, 1, AnalysisConstants::nBinZVtx};
-    AnalysisUtils::AxisToCut axisToCutMult{1, 1, AnalysisConstants::nBinMult};
+    AnalysisUtils::AxisToCut axisToCutMult{1, 1, cfg.nBinMult};
 
     // Project Generator level 2D
     std::string h2GenName = "h2" + data.name + "MCGen_multInt_temp";
@@ -126,7 +127,7 @@ class EfficiencyCalculator
 
   // Computes 1D Efficiency and Signal Loss for a specific multiplicity bin
   // Returns a pair: {Efficiency 1D, Signal Loss 1D}. Caller owns the pointers.
-  static std::pair<TH1*, TH1*> Compute1DMaps(const LoadedMC& data, int multBin)
+  static std::pair<TH1*, TH1*> Compute1DMaps(const LoadedMC& data, const AnalysisSettings& cfg, int multBin)
   {
     AnalysisUtils::AxisToCut axisToCutZVtx{0, 1, AnalysisConstants::nBinZVtx};
     AnalysisUtils::AxisToCut axisToCutMult{1, multBin + 1, multBin + 1};
@@ -147,14 +148,14 @@ class EfficiencyCalculator
     TH1* h1Efficiency1D = static_cast<TH1*>(h1MCReco->Clone(h1EffName.c_str()));
     h1Efficiency1D->SetDirectory(0);
     h1Efficiency1D->Divide(h1MCReco, h1MCGenAssocReco, 1.0, 1.0, "B");
-    AnalysisUtils::SetHistogramStyle(h1Efficiency1D, AnalysisConstants::spectraColors[multBin]);
+    AnalysisUtils::SetHistogramStyle(h1Efficiency1D, cfg.GetSpectraColor(multBin));
 
     // 1D Signal Loss Calculation
     std::string h1SigName = "h1" + data.name + "SigLoss_multBin" + std::to_string(multBin);
     TH1* h1SignalLoss1D = static_cast<TH1*>(h1MCGenAssocReco->Clone(h1SigName.c_str()));
     h1SignalLoss1D->SetDirectory(0);
     h1SignalLoss1D->Divide(h1MCGenAssocReco, h1MCGen, 1.0, 1.0, "B");
-    AnalysisUtils::SetHistogramStyle(h1SignalLoss1D, AnalysisConstants::spectraColors[multBin]);
+    AnalysisUtils::SetHistogramStyle(h1SignalLoss1D, cfg.GetSpectraColor(multBin));
 
     // Clean up temporaries
     delete h1MCGen;
@@ -166,15 +167,15 @@ class EfficiencyCalculator
 
   // Computes 1D Efficiency and Signal Loss integrated over ALL multiplicity bins
   // Returns a pair: {Efficiency 1D, Signal Loss 1D}. Caller owns the pointers.
-  static std::pair<TH1*, TH1*> Compute1DMapsMultIntegrated(const LoadedMC& data)
+  static std::pair<TH1*, TH1*> Compute1DMapsMultIntegrated(const LoadedMC& data, const AnalysisSettings& cfg)
   {
     AnalysisUtils::AxisToCut axisToCutZVtx{0, 1, AnalysisConstants::nBinZVtx};
-    AnalysisUtils::AxisToCut axisToCutMult{1, 1, AnalysisConstants::nBinMult};
+    AnalysisUtils::AxisToCut axisToCutMult{1, 1, cfg.nBinMult};
     AnalysisUtils::AxisToCut axisToCutY{3, 1, AnalysisConstants::nBinY};
 
     // Project Generator level 1D (Integrated)
     std::string h1GenName = "h1" + data.name + "MCGen_Integrated_temp";
-    TH1* h1MCGen = data.h3MCGen->ProjectionY(h1GenName.c_str(), 1, AnalysisConstants::nBinMult, 1, AnalysisConstants::nBinY);
+    TH1* h1MCGen = data.h3MCGen->ProjectionY(h1GenName.c_str(), 1, cfg.nBinMult, 1, AnalysisConstants::nBinY);
     h1MCGen->SetDirectory(0);
 
     // Project Sparse levels 1D (Integrated)

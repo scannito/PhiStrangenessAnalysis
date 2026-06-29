@@ -2,6 +2,7 @@
 
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
+#include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
 #include "DynamicRooFitter.h"
 #include "FitConfigManager.h"
@@ -21,9 +22,11 @@ class PurityTask : public IAnalysisTask
   // Tells the WorkflowManager which JSON node to pass to this task
   std::string GetName() const override { return "purity_task"; }
 
-  void Init(const rapidjson::Value& taskConfig) override
+  void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
     std::cout << "[INFO] PurityTask: INITIALIZING..." << std::endl;
+
+    globalCfgs = globalSettings; // Store the global settings for later use
 
     // 1. Open input file, extract 3D histograms to RAM, and immediately close it
     if (!taskConfig.HasMember("input_data_file")) {
@@ -69,9 +72,9 @@ class PurityTask : public IAnalysisTask
 
     // 4. Setup the task list (assuming nBinPtK0S, binspTK0S, etc. are accessible globally or defined here)
     particleTasks = {
-      {"k0s", h3K0SData, AnalysisConstants::nBinPtK0S, AnalysisConstants::binspTK0S, fileOutputK0S, canvasPurityK0S},
-      {"pi_tpc", h3PiTPCData, AnalysisConstants::nBinPtPi, AnalysisConstants::binspTPi, fileOutputPi, canvasPurityPiTPC},
-      {"pi_tof", h3PiTOFData, AnalysisConstants::nBinPtPi, AnalysisConstants::binspTPi, fileOutputPi, canvasPurityPiTOF}};
+      {"k0s", h3K0SData, globalCfgs.nBinPtK0S, globalCfgs.binspTK0S, fileOutputK0S, canvasPurityK0S},
+      {"pi_tpc", h3PiTPCData, globalCfgs.nBinPtPi, globalCfgs.binspTPi, fileOutputPi, canvasPurityPiTPC},
+      {"pi_tof", h3PiTOFData, globalCfgs.nBinPtPi, globalCfgs.binspTPi, fileOutputPi, canvasPurityPiTOF}};
 
     // 5. Read task-specific settings from the JSON node (DOM)
     if (!taskConfig.HasMember("fit_config_file")) {
@@ -89,7 +92,7 @@ class PurityTask : public IAnalysisTask
   {
     std::cout << "[INFO] PurityTask: RUNNING FITS..." << std::endl;
 
-    for (int i{0}; i < AnalysisConstants::nBinMult; i++) {
+    for (int i{0}; i < globalCfgs.nBinMult; i++) {
       for (auto& task : particleTasks) {
         std::string hName = "h1" + task.name + "Purity_multBin" + std::to_string(i);
         TH1* h1PuritySpectrum = new TH1F(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)", task.nBinPt, task.binning.data());
@@ -121,7 +124,7 @@ class PurityTask : public IAnalysisTask
         }
 
         // Style and draw on the summary canvas
-        AnalysisUtils::SetHistogramStyle(h1PuritySpectrum, AnalysisConstants::spectraColors[i]);
+        AnalysisUtils::SetHistogramStyle(h1PuritySpectrum, globalCfgs.GetSpectraColor(i));
         task.canvas->cd();
         h1PuritySpectrum->DrawCopy(i == 0 ? "" : "SAME");
         task.outputFile->cd();
@@ -164,6 +167,8 @@ class PurityTask : public IAnalysisTask
   }
 
  private:
+  AnalysisSettings globalCfgs;
+
   TH3F* h3K0SData{nullptr};
   TH3F* h3PiTPCData{nullptr};
   TH3F* h3PiTOFData{nullptr};

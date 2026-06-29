@@ -95,8 +95,8 @@
             "acceptance_efficiency"
         ],
         "use_projection_cache": true,
-        "use_2d_me_normalization": true,
-        "do_more_qa": true,
+        "use_2d_me_normalization": false,
+        "do_more_qa": false,
         "use_legacy_extrapolation": true
     },
     "correlation_task_online_efficiency": {
@@ -107,8 +107,8 @@
         "output_prefix": "Data_OnlineEff_",
         "apply_efficiency": false,
         "use_projection_cache": true,
-        "use_2d_me_normalization": true,
-        "do_more_qa": true,
+        "use_2d_me_normalization": false,
+        "do_more_qa": false,
         "use_legacy_extrapolation": true
     },
     "correlation_task_online_efficiency_no_phi": {
@@ -127,8 +127,8 @@
             "Pi"
         ],
         "use_projection_cache": true,
-        "use_2d_me_normalization": true,
-        "do_more_qa": true,
+        "use_2d_me_normalization": false,
+        "do_more_qa": false,
         "use_legacy_extrapolation": true
     }
 }

@@ -1,6 +1,9 @@
 #pragma once
 
 // #include "CorrelationCalculator.h"
+#include "AnalysisConstants.h"
+#include "AnalysisDataStructures.h"
+#include "AnalysisSettings.h"
 #include "CorrelationCalculator2.h"
 #include "ExtrapolationModelFactory.h"
 #include "SpectrumExtrapolator.h"
@@ -35,9 +38,11 @@ class DataTask : public IAnalysisTask
  public:
   std::string GetName() const override { return "data_task"; }
 
-  void Init(const rapidjson::Value& taskConfig) override
+  void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
     std::cout << "[INFO] DataTask: INITIALIZING..." << std::endl;
+
+    globalCfgs = globalSettings;
 
     // 1. Inherit global flags
     applyME = taskConfig["apply_mixed_events"].GetBool();
@@ -90,8 +95,8 @@ class DataTask : public IAnalysisTask
 
     // 5. Define Associated Particles and load their THnSparse
     assocParticles = {
-      {"K0S", "phiK0S", AnalysisConstants::nBinPtK0S, 1, AnalysisConstants::binspTK0S, AnalysisConstants::k0sMass},
-      {"Pi", "phiPi", AnalysisConstants::nBinPtPi, 2, AnalysisConstants::binspTPi, AnalysisConstants::piMass}};
+      {"K0S", "phiK0S", globalCfgs.nBinPtK0S, 1, globalCfgs.binspTK0S, AnalysisConstants::k0sMass},
+      {"Pi", "phiPi", globalCfgs.nBinPtPi, 2, globalCfgs.binspTPi, AnalysisConstants::piMass}};
 
     loadedDataCollection.reserve(assocParticles.size());
 
@@ -151,7 +156,7 @@ class DataTask : public IAnalysisTask
         LoadedCorrections corrections;
         corrections.name = p.name;
 
-        for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
+        for (int i = 0; i < globalCfgs.nBinMult; i++) {
           TH1F* h1Eff = static_cast<TH1F*>(fileEffInput->Get((p.titles[0] + "_multBin" + std::to_string(i)).c_str()));
           TH1F* h1Loss = static_cast<TH1F*>(fileEffInput->Get((p.titles[1] + "_multBin" + std::to_string(i)).c_str()));
 
@@ -192,7 +197,7 @@ class DataTask : public IAnalysisTask
           throw std::runtime_error("[FATAL] DataTask: Cannot open purity file: " + p.second);
         }
 
-        for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
+        for (int i = 0; i < globalCfgs.nBinMult; i++) {
           std::string hName = "h1" + p.first + "Purity_multBin" + std::to_string(i);
           TH1* h1Pur = static_cast<TH1*>(filePurity->Get(hName.c_str()));
 
@@ -231,7 +236,8 @@ class DataTask : public IAnalysisTask
     // 10. Initialize Data Structures for Accumulation
     h1PhiAssocNoPtPhi.resize(assocParticles.size());
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-      for (int i{0}; i < AnalysisConstants::nBinMult; ++i) {
+      h1PhiAssocNoPtPhi[pIdx].resize(globalCfgs.nBinMult);
+      for (int i{0}; i < globalCfgs.nBinMult; ++i) {
         h1PhiAssocNoPtPhi[pIdx][i].resize(assocParticles[pIdx].nBinPt, nullptr);
       }
     }
@@ -286,7 +292,7 @@ class DataTask : public IAnalysisTask
         std::string hTitle = std::format("Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);Raw Yield",
                                          assocParticles[pIdx].name, dyTitleStr);
 
-        TH1* hTrend = new TH1F(hName.c_str(), hTitle.c_str(), AnalysisConstants::nBinMult, AnalysisConstants::binsMult.data());
+        TH1* hTrend = new TH1F(hName.c_str(), hTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
         hTrend->SetDirectory(0);
         h1MultTrends[pIdx].push_back(hTrend);
 
@@ -295,7 +301,7 @@ class DataTask : public IAnalysisTask
           // std::string hExtrapTitle = std::format("Extrapolated Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);Extrapolated Yield", assocParticles[pIdx].name, dyTitleStr);
           std::string hExtrapTitle = Form("Extrapolated Yield Trend %s |#Delta y| < %s;Multiplicity Percentile (%%);Extrapolated Yield", assocParticles[pIdx].name.c_str(), dyTitleStr.c_str());
 
-          TH1* hTrendExtrap = new TH1F(hExtrapName.c_str(), hExtrapTitle.c_str(), AnalysisConstants::nBinMult, AnalysisConstants::binsMult.data());
+          TH1* hTrendExtrap = new TH1F(hExtrapName.c_str(), hExtrapTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
           hTrendExtrap->SetDirectory(0);
           h1MultTrendsExtrap[pIdx].push_back(hTrendExtrap);
         }
@@ -319,11 +325,11 @@ class DataTask : public IAnalysisTask
     // Initialize the calculator once at the beginning of the Run
     CorrelationCalculator corrCalculator(applyME, false, false, false);
 
-    for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
+    for (int i = 0; i < globalCfgs.nBinMult; i++) {
       AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
       double totalTriggerSignalPerMult = 0.0;
 
-      for (int j = 0; j < AnalysisConstants::nBinPtPhi; j++) {
+      for (int j = 0; j < globalCfgs.nBinPtPhi; j++) {
         AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
 
         // --- 1. Fit the Phi Trigger ---
@@ -506,7 +512,7 @@ class DataTask : public IAnalysisTask
           hSpecExt->SetBinContent(1, 0.0);
           hSpecExt->SetBinError(1, 0.0);
 
-          AnalysisUtils::SetHistogramStyle(hSpecExt, AnalysisConstants::spectraColors[i]);
+          AnalysisUtils::SetHistogramStyle(hSpecExt, globalCfgs.GetSpectraColor(pIdx));
 
           hSpecExt->GetListOfFunctions()->Add(extrapModel->Clone());
 
@@ -536,7 +542,7 @@ class DataTask : public IAnalysisTask
           if (applyPurity)
             h1Spectrum->Multiply(purityCollection[pIdx].h1Purity[i]);
 
-          AnalysisUtils::SetHistogramStyle(h1Spectrum, AnalysisConstants::spectraColors[i]);
+          AnalysisUtils::SetHistogramStyle(h1Spectrum, globalCfgs.GetSpectraColor(pIdx));
 
           // Draw and Write (Only draw the nominal Delta Y limit on the summary canvas)
           if (yIdx == 0) {
@@ -591,7 +597,7 @@ class DataTask : public IAnalysisTask
       // Note: 2.0 factor scales K0S
       hRatio->Divide(h1MultTrends[0][yIdx], h1MultTrends[1][yIdx], 2.0, 1.0);
 
-      AnalysisUtils::SetHistogramStyle(hRatio, AnalysisConstants::multTrendColors[yIdx]);
+      AnalysisUtils::SetHistogramStyle(hRatio, globalCfgs.GetMultTrendColor(yIdx));
       hRatio->DrawCopy(yIdx == 0 ? "" : "SAME");
 
       // hRatio->Write();
@@ -609,7 +615,7 @@ class DataTask : public IAnalysisTask
 
         // Lo disegna nel Canvas
         cTrendMeas->cd();
-        AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx], AnalysisConstants::multTrendColors[yIdx]);
+        AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx], globalCfgs.GetMultTrendColor(yIdx));
         h1MultTrends[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
       }
       cTrendMeas->Write();
@@ -623,7 +629,7 @@ class DataTask : public IAnalysisTask
           h1MultTrendsExtrap[pIdx][yIdx]->Write();
 
           cTrendExtrap->cd();
-          AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx], AnalysisConstants::multTrendColors[yIdx]);
+          AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx], globalCfgs.GetMultTrendColor(yIdx));
           h1MultTrendsExtrap[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
         }
         cTrendExtrap->Write();
@@ -658,7 +664,7 @@ class DataTask : public IAnalysisTask
           // Set Y-axis title for clarity
           hRatioExtrapMeas->GetYaxis()->SetTitle("Yield_{Extrap} / Yield_{Meas}");
 
-          AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas, AnalysisConstants::multTrendColors[yIdx]);
+          AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas, globalCfgs.GetMultTrendColor(yIdx));
           hRatioExtrapMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
 
           delete hRatioExtrapMeas;
@@ -746,6 +752,8 @@ class DataTask : public IAnalysisTask
   }
 
  private:
+  AnalysisSettings globalCfgs;
+
   // --- Configuration & Flags ---
   std::string basePathData{
     "phi-strangeness-correlation/phiStrangenessCorrelation/"};
@@ -766,7 +774,7 @@ class DataTask : public IAnalysisTask
   TH1* hEventLoss{nullptr};
 
   // Accumulators for the final spectra: [ParticleIndex][MultBin][PtAssocBin]
-  std::vector<std::array<std::vector<TH1*>, AnalysisConstants::nBinMult>> h1PhiAssocNoPtPhi;
+  std::vector<std::vector<std::vector<TH1*>>> h1PhiAssocNoPtPhi;
 
   // DeltaY limit and corresponding multiplicity trend histograms
   std::vector<double> deltaYLimits{1.0, 0.5, 0.1};

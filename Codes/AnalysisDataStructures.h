@@ -21,13 +21,16 @@ struct AssocParticleConfig {
 
 struct LoadedCorrections {
   std::string name;
-  std::array<TH1F*, AnalysisConstants::nBinMult> h1Corrections{nullptr};
-  std::array<TH1F*, AnalysisConstants::nBinMult> h1CorrectionsEffMultInt{nullptr};
+  // std::array<TH1F*, AnalysisConstants::nBinMult> h1Corrections{nullptr};
+  std::vector<TH1F*> h1Corrections{nullptr};
+  // std::array<TH1F*, AnalysisConstants::nBinMult> h1CorrectionsEffMultInt{nullptr};
+  std::vector<TH1F*> h1CorrectionsEffMultInt{nullptr};
 };
 
 struct LoadedPurity {
   std::string name;
-  std::array<TH1*, AnalysisConstants::nBinMult> h1Purity{nullptr};
+  // std::array<TH1*, AnalysisConstants::nBinMult> h1Purity{nullptr};
+  std::vector<TH1*> h1Purity{nullptr};
 };
 
 struct ParticleTask {

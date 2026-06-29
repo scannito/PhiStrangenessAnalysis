@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnalysisConstants.h"
+#include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
 #include "EfficiencyCalculator.h"
 #include "IAnalysisTask.h"
@@ -23,9 +24,11 @@ class MCTask : public IAnalysisTask
   // Tells the WorkflowManager which JSON node to pass to this task
   std::string GetName() const override { return "mc_task"; }
 
-  void Init(const rapidjson::Value& taskConfig) override
+  void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
     std::cout << "[INFO] MCTask: INITIALIZING..." << std::endl;
+
+    globalCfgs = globalSettings; // Store the global settings for later use
 
     // 1. Check if MC input file is provided
     if (!taskConfig.HasMember("input_mc_file")) {
@@ -137,7 +140,7 @@ class MCTask : public IAnalysisTask
 
       // 1. Compute and save the 3D and 2D correction map
       TH3* h3TotalMap = EfficiencyCalculator::Compute3DTotalMap(data);
-      TH2* h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data);
+      TH2* h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data, globalCfgs);
 
       std::string fileMCOutputPerPartPath3D = outputDirectory + outputPrefix + "h3EffMap" + data.name + ".root";
       TFile* fileMCOutputPerPart3D = new TFile(fileMCOutputPerPartPath3D.c_str(), "RECREATE");
@@ -160,8 +163,8 @@ class MCTask : public IAnalysisTask
       fileMCOutput->cd();
 
       // Process 1D Spectra across multiplicity bins
-      for (int i{0}; i < AnalysisConstants::nBinMult; i++) {
-        auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMaps(data, i);
+      for (int i{0}; i < globalCfgs.nBinMult; i++) {
+        auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMaps(data, globalCfgs, i);
 
         // Draw on canvases
         data.canvasEfficiency->cd();
@@ -179,7 +182,7 @@ class MCTask : public IAnalysisTask
         delete h1SignalLoss1D;
       }
 
-      auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMapsMultIntegrated(data);
+      auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMapsMultIntegrated(data, globalCfgs);
 
       data.canvasEfficiency->cd();
       h1Efficiency1D->DrawCopy("SAME");
@@ -234,6 +237,8 @@ class MCTask : public IAnalysisTask
   }
 
  private:
+  AnalysisSettings globalCfgs;
+
   std::vector<LoadedMC> dataCollection;
 
   TFile* fileMCOutput{nullptr};

@@ -2,6 +2,7 @@
 
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
+#include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
 // #include "CorrelationCalculator.h"
 #include "CorrelationCalculator2.h"
@@ -34,9 +35,11 @@ class CorrelationWPDGTask : public IAnalysisTask
  public:
   std::string GetName() const override { return "correlation_wpdg_task"; }
 
-  void Init(const rapidjson::Value& taskConfig) override
+  void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
     std::cout << "[INFO] CorrelationWPDGTask: INITIALIZING..." << std::endl;
+
+    globalCfgs = globalSettings; // Store the global settings for later use
 
     // 1. Inherit global flags
     applyME = taskConfig["apply_mixed_events"].GetBool();
@@ -81,8 +84,8 @@ class CorrelationWPDGTask : public IAnalysisTask
     }
 
     assocParticles = {
-      {"K0S", "phiK0S", AnalysisConstants::nBinPtK0S, 1, AnalysisConstants::binspTK0S, AnalysisConstants::k0sMass},
-      {"Pi", "phiPi", AnalysisConstants::nBinPtPi, 2, AnalysisConstants::binspTPi, AnalysisConstants::piMass}};
+      {"K0S", "phiK0S", globalCfgs.nBinPtK0S, 1, globalCfgs.binspTK0S, AnalysisConstants::k0sMass},
+      {"Pi", "phiPi", globalCfgs.nBinPtPi, 2, globalCfgs.binspTPi, AnalysisConstants::piMass}};
 
     if (!useProjectionCache) {
       std::cout << "[INFO] CorrelationWPDGTask: Cache DISABLED. Loading heavy THnSparse data..." << std::endl;
@@ -202,7 +205,8 @@ class CorrelationWPDGTask : public IAnalysisTask
     }
 
     // Setup Efficiency Pointers Once (Loop Hoisting)
-    using EffArray = std::array<TH1F*, AnalysisConstants::nBinMult>;
+    // using EffArray = std::array<TH1F*, AnalysisConstants::nBinMult>;
+    using EffArray = std::vector<TH1F*>;
     const EffArray* phiCorrs{nullptr};
     std::vector<const EffArray*> assocCorrs(assocParticles.size(), nullptr);
 
@@ -215,7 +219,7 @@ class CorrelationWPDGTask : public IAnalysisTask
       }
     }
 
-    for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
+    for (int i = 0; i < globalCfgs.nBinMult; i++) {
       AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
       double totalTriggerSignalPerMult = 0.0;
 
@@ -223,7 +227,7 @@ class CorrelationWPDGTask : public IAnalysisTask
       // auto phiCorrs = useIntegratedEfficiency ? correctionCollection[0].h1CorrectionsEffMultInt : correctionCollection[0].h1Corrections;
       TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i] : nullptr;
 
-      for (int j = 0; j < AnalysisConstants::nBinPtPhi; j++) {
+      for (int j = 0; j < globalCfgs.nBinPtPhi; j++) {
         AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
 
         double triggerSignal{0.0};
@@ -319,7 +323,7 @@ class CorrelationWPDGTask : public IAnalysisTask
 
       hRatioMeas->Divide(h1MultTrends[0][yIdx], h1MultTrends[1][yIdx], 2.0, 1.0);
 
-      AnalysisUtils::SetHistogramStyle(hRatioMeas, AnalysisConstants::multTrendColors[yIdx]);
+      AnalysisUtils::SetHistogramStyle(hRatioMeas, globalCfgs.GetMultTrendColor(yIdx));
       hRatioMeas->SetMarkerStyle(24);
 
       TH1* hRatioExtrap{nullptr};
@@ -330,7 +334,7 @@ class CorrelationWPDGTask : public IAnalysisTask
 
         hRatioExtrap->Divide(h1MultTrendsExtrap[0][yIdx], h1MultTrendsExtrap[1][yIdx], 2.0, 1.0);
 
-        AnalysisUtils::SetHistogramStyle(hRatioExtrap, AnalysisConstants::multTrendColors[yIdx]);
+        AnalysisUtils::SetHistogramStyle(hRatioExtrap, globalCfgs.GetMultTrendColor(yIdx));
         hRatioExtrap->SetMarkerStyle(20);
       }
 
@@ -364,7 +368,7 @@ class CorrelationWPDGTask : public IAnalysisTask
 
         // Draw on the Summary Canvas
         cTrendMeas->cd();
-        AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx], AnalysisConstants::multTrendColors[yIdx]);
+        AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx], globalCfgs.GetMultTrendColor(yIdx));
         h1MultTrends[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
       }
       cTrendMeas->Write();
@@ -378,7 +382,7 @@ class CorrelationWPDGTask : public IAnalysisTask
           h1MultTrendsExtrap[pIdx][yIdx]->Write();
 
           cTrendExtrap->cd();
-          AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx], AnalysisConstants::multTrendColors[yIdx]);
+          AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx], globalCfgs.GetMultTrendColor(yIdx));
           h1MultTrendsExtrap[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
         }
         cTrendExtrap->Write();
@@ -414,7 +418,7 @@ class CorrelationWPDGTask : public IAnalysisTask
           // Set Y-axis title for clarity
           hRatioExtrapMeas->GetYaxis()->SetTitle("Yield_{Extrap} / Yield_{Meas}");
 
-          AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas, AnalysisConstants::multTrendColors[yIdx]);
+          AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas, globalCfgs.GetMultTrendColor(yIdx));
           hRatioExtrapMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
 
           delete hRatioExtrapMeas;
@@ -507,6 +511,8 @@ class CorrelationWPDGTask : public IAnalysisTask
   }
 
  private:
+  AnalysisSettings globalCfgs;
+
   std::string basePathData, basePathDataME;
   bool applyME{false}, applyEfficiency{false}, applyExtrapolation{false};
   bool useIntegratedEfficiency{false}, useProjectionCache{false}, useSignalCache{false}, doMoreQA{false};
@@ -519,7 +525,7 @@ class CorrelationWPDGTask : public IAnalysisTask
   std::vector<LoadedCorrections> correctionCollection;
 
   // All accumulators and file vectors from the original task
-  std::vector<std::array<std::vector<TH1*>, AnalysisConstants::nBinMult>> h1PhiAssocNoPtPhi;
+  std::vector<std::vector<std::vector<TH1*>>> h1PhiAssocNoPtPhi;
   std::vector<double> deltaYLimits{1.0, 0.5, 0.1};
   std::vector<std::vector<TH1*>> h1MultTrends;
   std::vector<std::vector<TH1*>> h1MultTrendsExtrap;
@@ -573,7 +579,7 @@ class CorrelationWPDGTask : public IAnalysisTask
         throw std::runtime_error("[FATAL] CorrelationWPDGTask: Missing integrated correction histograms for " + p.name);
       }
 
-      for (int i = 0; i < AnalysisConstants::nBinMult; i++) {
+      for (int i = 0; i < globalCfgs.nBinMult; i++) {
         std::string effName = p.titles[0] + "_multBin" + std::to_string(i);
         std::string lossName = p.titles[1] + "_multBin" + std::to_string(i);
 
@@ -607,7 +613,8 @@ class CorrelationWPDGTask : public IAnalysisTask
     // 1. Initialize structure for pT bin accumulation
     h1PhiAssocNoPtPhi.resize(assocParticles.size());
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-      for (int i{0}; i < AnalysisConstants::nBinMult; ++i) {
+      h1PhiAssocNoPtPhi[pIdx].resize(globalCfgs.nBinMult);
+      for (int i{0}; i < globalCfgs.nBinMult; ++i) {
         h1PhiAssocNoPtPhi[pIdx][i].resize(assocParticles[pIdx].nBinPt, nullptr);
       }
     }
@@ -634,7 +641,7 @@ class CorrelationWPDGTask : public IAnalysisTask
         std::string hName = std::format("h1MultTrend_{}_dy{}", p.name, dyNameStr);
         std::string hTitle = std::format("Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
-        TH1* hTrend = new TH1F(hName.c_str(), hTitle.c_str(), AnalysisConstants::nBinMult, AnalysisConstants::binsMult.data());
+        TH1* hTrend = new TH1F(hName.c_str(), hTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
         hTrend->SetDirectory(0);
         h1MultTrends[pIdx].push_back(hTrend);
 
@@ -642,7 +649,7 @@ class CorrelationWPDGTask : public IAnalysisTask
           std::string hExtrapName = std::format("h1MultTrendExtrap_{}_dy{}", p.name, dyNameStr);
           std::string hExtrapTitle = std::format("Extrapolated Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
-          TH1* hTrendExtrap = new TH1F(hExtrapName.c_str(), hExtrapTitle.c_str(), AnalysisConstants::nBinMult, AnalysisConstants::binsMult.data());
+          TH1* hTrendExtrap = new TH1F(hExtrapName.c_str(), hExtrapTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
           hTrendExtrap->SetDirectory(0);
           h1MultTrendsExtrap[pIdx].push_back(hTrendExtrap);
         }
@@ -773,7 +780,7 @@ class CorrelationWPDGTask : public IAnalysisTask
         hSpecExt->SetBinContent(1, 0.0);
         hSpecExt->SetBinError(1, 0.0);
 
-        AnalysisUtils::SetHistogramStyle(hSpecExt, AnalysisConstants::spectraColors[multBin]);
+        AnalysisUtils::SetHistogramStyle(hSpecExt, globalCfgs.GetSpectraColor(multBin));
         hSpecExt->GetListOfFunctions()->Add(extrapModel->Clone());
 
         fileOutputSpectra->cd();
@@ -809,7 +816,7 @@ class CorrelationWPDGTask : public IAnalysisTask
           h1Spectrum->Scale(1.0 / (effectiveTriggers * 2.0 * dyLimit));
         }
 
-        AnalysisUtils::SetHistogramStyle(h1Spectrum, AnalysisConstants::spectraColors[multBin]);
+        AnalysisUtils::SetHistogramStyle(h1Spectrum, globalCfgs.GetSpectraColor(multBin));
 
         // Draw and Write (Only draw the nominal Delta Y limit on the summary canvas)
         spectraCanvases[pIdx][yIdx]->cd();
