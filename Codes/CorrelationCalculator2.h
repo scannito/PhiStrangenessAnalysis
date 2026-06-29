@@ -28,16 +28,18 @@ class CorrelationCalculator
   // Used to extract the signal for the final spectra (Projects onto Delta y)
   TH1* ExtractCorrectedSignal(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
                               double totalEff, double triggerBkgRatio, const std::string& histNameBase,
-                              TDirectory* ioDir = nullptr, TDirectory* qaDir = nullptr) const
+                              TDirectory* ioDir = nullptr, TDirectory* qaDir = nullptr, AxisTarget targetAxis = AxisTarget::DeltaY_Y,
+                              bool applyOrthogonalCut = false, double cutMin = -1.0, double cutMax = 1.0) const
   {
     if (use2DME) {
-      return Process2DExtraction(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir, qaDir, AxisTarget::DeltaY_Y);
+      return Process2DExtraction(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir, qaDir, targetAxis,
+                                 applyOrthogonalCut, cutMin, cutMax);
     } else {
       return Extract1D(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir);
     }
   }
 
-  // Used to extract the QA (Projects onto Delta Phi with optional cuts on Delta y)
+  /*// Used to extract the QA (Projects onto Delta Phi with optional cuts on Delta y)
   TH1* ExtractDeltaPhi(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
                        double totalEff, double triggerBkgRatio, const std::string& histNameBase,
                        TDirectory* ioDir = nullptr, TDirectory* qaDir = nullptr,
@@ -45,7 +47,7 @@ class CorrelationCalculator
   {
     return Process2DExtraction(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir, qaDir,
                                AxisTarget::DeltaPhi_X, applyOrthogonalCut, cutMin, cutMax);
-  }
+  }*/
 
  private:
   bool applyME{true}, useCacheMode{false}, use2DME{false}, doMoreQA{false};
@@ -139,19 +141,22 @@ class CorrelationCalculator
       }
     }
 
-    double normMESig = GetZeroZeroAvg(h2MESignal);
-    if (normMESig > 0)
-      h2MESignal->Scale(1.0 / normMESig);
-    double normMESb = GetZeroZeroAvg(h2MESideband);
-    if (normMESb > 0)
-      h2MESideband->Scale(1.0 / normMESb);
+    // 2. ME normalization (if requested)
+    if (applyME) {
+      double normMESig = GetZeroZeroAvg(h2MESignal);
+      if (normMESig > 0)
+        h2MESignal->Scale(1.0 / normMESig);
+      double normMESb = GetZeroZeroAvg(h2MESideband);
+      if (normMESb > 0)
+        h2MESideband->Scale(1.0 / normMESb);
+    }
 
-    // 2. Efficiency Correction
+    // 3. Efficiency Correction
     h2Signal->Scale(1.0 / totalEff);
     // Sideband Scaling
     h2Sideband->Scale(triggerBkgRatio / totalEff);
 
-    // 3. 2D Division
+    // 4. 2D Division
     if (applyME && h2MESignal)
       h2Signal->Divide(h2MESignal);
 
@@ -163,63 +168,108 @@ class CorrelationCalculator
       // h2Sideband->Scale(triggerBkgRatio / totalEff);
     }
 
-    // 4. Orthogonal Cut (If requested)
-    if (applyOrthogonalCut) {
-      if (targetAxis == AxisTarget::DeltaPhi_X) {
-        // If projecting onto X, cut the Y axis (Delta y)
-        int binMin = h2Signal->GetYaxis()->FindBin(cutMin + 1e-6);
-        int binMax = h2Signal->GetYaxis()->FindBin(cutMax - 1e-6);
-        h2Signal->GetYaxis()->SetRange(binMin, binMax);
-        if (h2Sideband)
-          h2Sideband->GetYaxis()->SetRange(binMin, binMax);
-      } else {
-        // If projecting onto Y, cut the X axis (Delta Phi)
-        int binMin = h2Signal->GetXaxis()->FindBin(cutMin + 1e-6);
-        int binMax = h2Signal->GetXaxis()->FindBin(cutMax - 1e-6);
-        h2Signal->GetXaxis()->SetRange(binMin, binMax);
-        if (h2Sideband)
-          h2Sideband->GetXaxis()->SetRange(binMin, binMax);
-      }
-    }
+    TH1* h1Final1D{nullptr};
 
-    // 5. 1D Projection
-    TH1* h1Sig1D{nullptr};
-    TH1* h1Side1D{nullptr};
-
-    std::string projSuffix = (targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy";
-
-    if (targetAxis == AxisTarget::DeltaPhi_X) {
-      h1Sig1D = h2Signal->ProjectionX((histNameBase + "Signal1D" + projSuffix).c_str());
-      if (h2Sideband)
-        h1Side1D = h2Sideband->ProjectionX((histNameBase + "Sideband1D" + projSuffix).c_str());
-    } else {
-      h1Sig1D = h2Signal->ProjectionY((histNameBase + "Signal1D" + projSuffix).c_str());
-      if (h2Sideband)
-        h1Side1D = h2Sideband->ProjectionY((histNameBase + "Sideband1D" + projSuffix).c_str());
-    }
-
-    h1Sig1D->SetDirectory(0);
-    if (h1Side1D)
-      h1Side1D->SetDirectory(0);
-
-    // 6. Final 1D Subtraction
-    TH1* h1Final1D = static_cast<TH1*>(h1Sig1D->Clone((histNameBase + "Final" + projSuffix).c_str()));
-    h1Final1D->SetDirectory(0);
-    if (h1Side1D && triggerBkgRatio > 0) {
-      h1Final1D->Add(h1Side1D, -1);
-    }
-
+    // 5. Uncut QA (if requested)
     if (qaDir && doMoreQA) {
       qaDir->cd();
-      h2Signal->Write((histNameBase + "Signal2D_MECorrected").c_str());
-      h2Sideband->Write((histNameBase + "Sideband2D_MECorrected").c_str());
-      h1Sig1D->Write();
-      if (h1Side1D)
-        h1Side1D->Write();
-      h1Final1D->Write();
+      h2Signal->Write((histNameBase + "Signal2D_MECorrected_Uncut").c_str());
+      if (h2Sideband)
+        h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Uncut").c_str());
+
+      // QA: X axis (Delta Phi)
+      TH1* h1QA_X_Sig = h2Signal->ProjectionX((histNameBase + "Signal1D_dPhi_Uncut").c_str());
+      TH1* h1QA_X_Sb = h2Sideband ? h2Sideband->ProjectionX((histNameBase + "Sideband1D_dPhi_Uncut").c_str()) : nullptr;
+      TH1* h1QA_X_Final = static_cast<TH1*>(h1QA_X_Sig->Clone((histNameBase + "Final_dPhi_Uncut").c_str()));
+      if (h1QA_X_Sb && triggerBkgRatio > 0)
+        h1QA_X_Final->Add(h1QA_X_Sb, -1);
+
+      // QA: Y axis (Delta y)
+      TH1* h1QA_Y_Sig = h2Signal->ProjectionY((histNameBase + "Signal1D_dy_Uncut").c_str());
+      TH1* h1QA_Y_Sb = h2Sideband ? h2Sideband->ProjectionY((histNameBase + "Sideband1D_dy_Uncut").c_str()) : nullptr;
+      TH1* h1QA_Y_Final = static_cast<TH1*>(h1QA_Y_Sig->Clone((histNameBase + "Final_dy_Uncut").c_str()));
+      if (h1QA_Y_Sb && triggerBkgRatio > 0)
+        h1QA_Y_Final->Add(h1QA_Y_Sb, -1);
+
+      if (!applyOrthogonalCut) {
+        TH1* targetQA = (targetAxis == AxisTarget::DeltaPhi_X) ? h1QA_X_Final : h1QA_Y_Final;
+        h1Final1D = static_cast<TH1*>(targetQA->Clone((histNameBase + "Final" + ((targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy")).c_str()));
+        h1Final1D->SetDirectory(0);
+      }
+
+      h1QA_X_Sig->Write();
+      if (h1QA_X_Sb)
+        h1QA_X_Sb->Write();
+      h1QA_X_Final->Write();
+      delete h1QA_X_Sig;
+      if (h1QA_X_Sb)
+        delete h1QA_X_Sb;
+      delete h1QA_X_Final;
+
+      h1QA_Y_Sig->Write();
+      if (h1QA_Y_Sb)
+        h1QA_Y_Sb->Write();
+      h1QA_Y_Final->Write();
+      delete h1QA_Y_Sig;
+      if (h1QA_Y_Sb)
+        delete h1QA_Y_Sb;
+      delete h1QA_Y_Final;
     }
 
-    // 7. Cleanup
+    if (!h1Final1D) {
+      // 6. Orthogonal Cut (If requested)
+      if (applyOrthogonalCut) {
+        if (targetAxis == AxisTarget::DeltaPhi_X) {
+          // If projecting onto X, cut the Y axis (Delta y)
+          int binMin = h2Signal->GetYaxis()->FindBin(cutMin + 1e-6);
+          int binMax = h2Signal->GetYaxis()->FindBin(cutMax - 1e-6);
+          h2Signal->GetYaxis()->SetRange(binMin, binMax);
+          if (h2Sideband)
+            h2Sideband->GetYaxis()->SetRange(binMin, binMax);
+        } else {
+          // If projecting onto Y, cut the X axis (Delta Phi)
+          int binMin = h2Signal->GetXaxis()->FindBin(cutMin + 1e-6);
+          int binMax = h2Signal->GetXaxis()->FindBin(cutMax - 1e-6);
+          h2Signal->GetXaxis()->SetRange(binMin, binMax);
+          if (h2Sideband)
+            h2Sideband->GetXaxis()->SetRange(binMin, binMax);
+        }
+      }
+
+      TH1* h1Sig1D = (targetAxis == AxisTarget::DeltaPhi_X)
+                       ? h2Signal->ProjectionX((histNameBase + "Signal1D_dPhi").c_str())
+                       : h2Signal->ProjectionY((histNameBase + "Signal1D_dy").c_str());
+      h1Sig1D->SetDirectory(0);
+
+      TH1* h1Side1D = nullptr;
+      if (h2Sideband) {
+        h1Side1D = (targetAxis == AxisTarget::DeltaPhi_X)
+                     ? h2Sideband->ProjectionX((histNameBase + "Sideband1D_dPhi").c_str())
+                     : h2Sideband->ProjectionY((histNameBase + "Sideband1D_dy").c_str());
+        h1Side1D->SetDirectory(0);
+      }
+
+      h1Final1D = static_cast<TH1*>(h1Sig1D->Clone((histNameBase + "Final" + ((targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy")).c_str()));
+      h1Final1D->SetDirectory(0);
+      if (h1Side1D && triggerBkgRatio > 0) {
+        h1Final1D->Add(h1Side1D, -1);
+      }
+
+      if (qaDir && doMoreQA && applyOrthogonalCut) {
+        qaDir->cd();
+        h2Signal->Write((histNameBase + "Signal2D_MECorrected_Cut").c_str());
+        h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Cut").c_str());
+        h1Sig1D->Write();
+        if (h1Side1D)
+          h1Side1D->Write();
+        h1Final1D->Write();
+      }
+
+      delete h1Sig1D;
+      if (h1Side1D)
+        delete h1Side1D;
+    }
+
     delete h2Signal;
     if (h2Sideband)
       delete h2Sideband;
@@ -228,9 +278,6 @@ class CorrelationCalculator
       if (h2MESideband)
         delete h2MESideband;
     }
-    delete h1Sig1D;
-    if (h1Side1D)
-      delete h1Side1D;
 
     return h1Final1D;
   }

@@ -60,6 +60,7 @@
         ],
         "use_projection_cache": true,
         "use_2d_me_normalization": false,
+        "projection_axis": "delta_y",
         "use_signal_cache": false,
         "do_more_qa": false,
         "delta_y_limits": [

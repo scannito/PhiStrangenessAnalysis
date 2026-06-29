@@ -65,6 +65,19 @@ class CorrelationTask : public IAnalysisTask
       useLegacyExtrapolation = taskConfig["use_legacy_extrapolation"].GetBool();
     }
 
+    if (taskConfig.HasMember("projection_axis") && taskConfig["projection_axis"].IsString()) {
+      std::string pAxis = taskConfig["projection_axis"].GetString();
+      if (pAxis == "DeltaPhi" || pAxis == "delta_phi") {
+        projectionAxis = CorrelationCalculator::AxisTarget::DeltaPhi_X;
+        std::cout << "[INFO] CorrelationTask: Physics projection axis set to Delta Phi (X)." << std::endl;
+      } else if (pAxis == "DeltaY" || pAxis == "delta_y") {
+        projectionAxis = CorrelationCalculator::AxisTarget::DeltaY_Y;
+        std::cout << "[INFO] CorrelationTask: Physics projection axis set to Delta Y (Y)." << std::endl;
+      } else {
+        std::cerr << "[WARNING] CorrelationTask: Unknown projection_axis '" << pAxis << "'. Defaulting to DeltaY." << std::endl;
+      }
+    }
+
     // Prefix handling: search specific key -> Search fallback -> Search legacy
     auto getPrefix = [](const rapidjson::Value& config, const std::string& specificKey, const std::string& fallbackKey) -> std::string {
       // 1. Search for the highly specific prefix (e.g., "purity_prefix")
@@ -498,6 +511,8 @@ class CorrelationTask : public IAnalysisTask
   std::vector<LoadedAssocData> loadedDataCollection;
   std::vector<LoadedCorrections> correctionCollection;
   std::vector<LoadedPurity> purityCollection;
+
+  CorrelationCalculator::AxisTarget projectionAxis{CorrelationCalculator::AxisTarget::DeltaY_Y};
 
   // All accumulators and file vectors from the original task
   std::vector<std::vector<std::vector<TH1*>>> h1PhiAssocNoPtPhi;
@@ -949,10 +964,10 @@ class CorrelationTask : public IAnalysisTask
   void RunLegacy()
   {
     std::cout << "[INFO] CorrelationTask: RUNNING CORRELATIONS..." << std::endl;
-    CorrelationCalculator corrCalculator(applyME, useProjectionCache, use2DMENormalization, doMoreQA);
+    CorrelationCalculator corrCalculator(applyME, useProjectionCache, false, doMoreQA);
 
-    auto startRun = std::chrono::high_resolution_clock::now();
-    double totalExtractTime = 0.0;
+    // auto startRun = std::chrono::high_resolution_clock::now();
+    // double totalExtractTime = 0.0;
 
     // Setup Efficiency Pointers Once (Loop Hoisting)
     // using EffArray = std::array<TH1F*, AnalysisConstants::nBinMult>;
@@ -1010,16 +1025,17 @@ class CorrelationTask : public IAnalysisTask
             std::string histNameBase = "h1Phi" + config.name + "Data";
             std::string suffix = "_multBin" + std::to_string(i) + "_ptPhiBin" + std::to_string(j) + "_pt" + config.name + "Bin" + std::to_string(k);
 
-            auto startExtract = std::chrono::high_resolution_clock::now();
+            // auto startExtract = std::chrono::high_resolution_clock::now();
 
             TDirectory* currentQADir = doMoreQA ? filesPhiAssocQAOutput[pIdx] : nullptr;
 
             // Call the calculator: project, scale, apply ME, subtract, and save intermediate files
             TH1* h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, axesToCut, totalEff, triggerBkgRatio,
-                                                                       histNameBase + suffix, filesPhiAssocDataOutput[pIdx], currentQADir);
+                                                                       histNameBase + suffix, filesPhiAssocDataOutput[pIdx], currentQADir,
+                                                                       CorrelationCalculator::AxisTarget::DeltaY_Y);
 
-            auto endExtract = std::chrono::high_resolution_clock::now();
-            totalExtractTime += std::chrono::duration<double>(endExtract - startExtract).count();
+            // auto endExtract = std::chrono::high_resolution_clock::now();
+            // totalExtractTime += std::chrono::duration<double>(endExtract - startExtract).count();
 
             if (j == 0) {
               std::string accumName = "h1Phi" + config.name + "DataSignal_multBin" + std::to_string(i) + "_pt" + config.name + "Bin" + std::to_string(k);
@@ -1037,7 +1053,7 @@ class CorrelationTask : public IAnalysisTask
       GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
     }
 
-    auto endRun = std::chrono::high_resolution_clock::now();
+    /*auto endRun = std::chrono::high_resolution_clock::now();
     double totalRunTime = std::chrono::duration<double>(endRun - startRun).count();
 
     std::cout << "\n================= TIMING SUMMARY =================" << std::endl;
@@ -1045,7 +1061,7 @@ class CorrelationTask : public IAnalysisTask
     std::cout << "ExtractCorrectedSignal    : " << totalExtractTime << " s ("
               << (totalExtractTime / totalRunTime) * 100.0 << " %)" << std::endl;
     std::cout << "Other operations (Spectra): " << (totalRunTime - totalExtractTime) << " s" << std::endl;
-    std::cout << "====================================================" << std::endl;
+    std::cout << "====================================================" << std::endl;*/
   }
 
   void RunOptimized()
@@ -1121,13 +1137,12 @@ class CorrelationTask : public IAnalysisTask
     // Pass doMoreQA to the constructor to enable/disable 2D QA dumps
     CorrelationCalculator corrCalculator(applyME, useProjectionCache, use2DMENormalization, doMoreQA);
 
-    // Global QA Accumulators Initialization
+    /*// Global QA Accumulators Initialization
     std::vector<TH1*> h1QA_FullyIntegrated(assocParticles.size(), nullptr);
     std::vector<std::vector<TH1*>> h1QA_ByMult(assocParticles.size(), std::vector<TH1*>(globalCfgs.nBinMult, nullptr));
     std::vector<std::vector<TH1*>> h1QA_ByPtPhi(assocParticles.size(), std::vector<TH1*>(globalCfgs.nBinPtPhi, nullptr));
-    std::vector<std::vector<std::vector<TH1*>>> h1QA_ByMult_ByPtPhi(
-      assocParticles.size(), std::vector<std::vector<TH1*>>(
-                               globalCfgs.nBinMult, std::vector<TH1*>(globalCfgs.nBinPtPhi, nullptr)));
+    std::vector<std::vector<std::vector<TH1*>>> h1QA_ByMult_ByPtPhi(assocParticles.size(), std::vector<std::vector<TH1*>>(
+                                                                                             globalCfgs.nBinMult, std::vector<TH1*>(globalCfgs.nBinPtPhi, nullptr)));*/
 
     // --- MULTIPLICITY LOOP (i) ---
     for (int i = 0; i < globalCfgs.nBinMult; i++) {
@@ -1170,7 +1185,8 @@ class CorrelationTask : public IAnalysisTask
             // -----------------------------------------------------------------
             TH1* h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
               data, axesToCut, totalEff, triggerBkgRatio,
-              baseNameStd + suffix, filesPhiAssocDataOutput[pIdx], currentQADir);
+              baseNameStd + suffix, filesPhiAssocDataOutput[pIdx], currentQADir,
+              projectionAxis);
 
             // Accumulate into the standard pT arrays (Summing over PtPhi dimension)
             if (j == 0) {
@@ -1182,7 +1198,7 @@ class CorrelationTask : public IAnalysisTask
             }
             delete h1FinalSignal;
 
-            // -----------------------------------------------------------------
+            /*// -----------------------------------------------------------------
             // B) QA EXTRACTION (Delta Phi 1D)
             // -----------------------------------------------------------------
             std::string tmpNameQA = "tmpQA_" + config.name + suffix;
@@ -1225,7 +1241,7 @@ class CorrelationTask : public IAnalysisTask
               }
 
               delete h1BinQADPhi;
-            }
+            }*/
           } // End k
         } // End pIdx
       } // End j
@@ -1250,7 +1266,7 @@ class CorrelationTask : public IAnalysisTask
       GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
     } // End i
 
-    // =========================================================================
+    /*// =========================================================================
     // FINAL SAVING OF TOPOLOGICAL QA MATRICES
     // =========================================================================
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
@@ -1281,6 +1297,6 @@ class CorrelationTask : public IAnalysisTask
           }
         }
       }
-    }
+    }*/
   }
 };
