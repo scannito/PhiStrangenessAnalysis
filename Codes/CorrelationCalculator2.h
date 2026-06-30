@@ -9,13 +9,15 @@
 #include "THnSparse.h"
 
 #include <iostream>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 class CorrelationCalculator
 {
  public:
-  enum class AxisTarget { DeltaPhi_X,
+  enum class AxisTarget { DeltaPhi_X = 0,
                           DeltaY_Y };
 
   CorrelationCalculator(bool useMixedEvents, bool useCache, bool use2D, bool doMoreQA)
@@ -29,11 +31,10 @@ class CorrelationCalculator
   TH1* ExtractCorrectedSignal(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
                               double totalEff, double triggerBkgRatio, const std::string& histNameBase,
                               TDirectory* ioDir = nullptr, TDirectory* qaDir = nullptr, AxisTarget targetAxis = AxisTarget::DeltaY_Y,
-                              bool applyOrthogonalCut = false, double cutMin = -1.0, double cutMax = 1.0) const
+                              std::optional<std::pair<double, double>> orthogonalCut = std::nullopt) const
   {
     if (use2DME) {
-      return Process2DExtraction(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir, qaDir, targetAxis,
-                                 applyOrthogonalCut, cutMin, cutMax);
+      return Process2DExtraction(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir, qaDir, targetAxis, orthogonalCut);
     } else {
       return Extract1D(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir);
     }
@@ -81,7 +82,7 @@ class CorrelationCalculator
   TH1* Process2DExtraction(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
                            double totalEff, double triggerBkgRatio, const std::string& histNameBase,
                            TDirectory* ioDir, TDirectory* qaDir, AxisTarget targetAxis,
-                           bool applyOrthogonalCut = false, double cutMin = -1.0, double cutMax = 1.0) const
+                           std::optional<std::pair<double, double>> orthogonalCut = std::nullopt) const
   {
     TH2* h2Signal{nullptr};
     TH2* h2Sideband{nullptr};
@@ -191,7 +192,7 @@ class CorrelationCalculator
       if (h1QA_Y_Sb && triggerBkgRatio > 0)
         h1QA_Y_Final->Add(h1QA_Y_Sb, -1);
 
-      if (!applyOrthogonalCut) {
+      if (!orthogonalCut) {
         TH1* targetQA = (targetAxis == AxisTarget::DeltaPhi_X) ? h1QA_X_Final : h1QA_Y_Final;
         h1Final1D = static_cast<TH1*>(targetQA->Clone((histNameBase + "Final" + ((targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy")).c_str()));
         h1Final1D->SetDirectory(0);
@@ -218,7 +219,8 @@ class CorrelationCalculator
 
     if (!h1Final1D) {
       // 6. Orthogonal Cut (If requested)
-      if (applyOrthogonalCut) {
+      if (orthogonalCut) {
+        auto [cutMin, cutMax] = *orthogonalCut;
         if (targetAxis == AxisTarget::DeltaPhi_X) {
           // If projecting onto X, cut the Y axis (Delta y)
           int binMin = h2Signal->GetYaxis()->FindBin(cutMin + 1e-6);
@@ -255,7 +257,7 @@ class CorrelationCalculator
         h1Final1D->Add(h1Side1D, -1);
       }
 
-      if (qaDir && doMoreQA && applyOrthogonalCut) {
+      if (qaDir && doMoreQA && orthogonalCut) {
         qaDir->cd();
         h2Signal->Write((histNameBase + "Signal2D_MECorrected_Cut").c_str());
         h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Cut").c_str());

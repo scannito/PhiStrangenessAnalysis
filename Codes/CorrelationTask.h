@@ -36,6 +36,9 @@
 class CorrelationTask : public IAnalysisTask
 {
  public:
+  enum class RunMode { Legacy = 0,
+                       Optimized };
+
   std::string GetName() const override { return "correlation_task"; }
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
@@ -76,6 +79,10 @@ class CorrelationTask : public IAnalysisTask
       } else {
         std::cerr << "[WARNING] CorrelationTask: Unknown projection_axis '" << pAxis << "'. Defaulting to DeltaY." << std::endl;
       }
+    }
+
+    if (taskConfig.HasMember("run_mode") && taskConfig["run_mode"].IsInt()) {
+      runMode = static_cast<RunMode>(taskConfig["run_mode"].GetInt());
     }
 
     // Prefix handling: search specific key -> Search fallback -> Search legacy
@@ -239,9 +246,16 @@ class CorrelationTask : public IAnalysisTask
 
   void Run() override
   {
-    // RunOptimized();
-
-    RunLegacy();
+    switch (runMode) {
+      case RunMode::Legacy:
+        RunLegacy();
+        break;
+      case RunMode::Optimized:
+        RunOptimized();
+        break;
+      default:
+        throw std::runtime_error("[FATAL ERROR] CorrelationTask: Unknown run mode!");
+    }
   }
 
   void Terminate() override
@@ -491,6 +505,8 @@ class CorrelationTask : public IAnalysisTask
 
  private:
   AnalysisSettings globalCfgs;
+
+  RunMode runMode{RunMode::Legacy};
 
   std::string basePathData, basePathDataME;
 

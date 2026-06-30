@@ -43,6 +43,7 @@
         "purity_prefix": "Data_",
         "trigger_prefix": "Data_",
         "output_prefix": "Data_",
+        "run_mode": 0,
         "apply_mixed_events": true,
         "apply_efficiency": true,
         "apply_purity": true,
@@ -95,9 +96,8 @@
         "active_corrections": [
             "acceptance_efficiency"
         ],
-        "use_projection_cache": true,
-        "use_2d_me_normalization": false,
-        "do_more_qa": false,
+        "use_projection_cache": false,
+        "use_2d_me_normalization": true,
         "use_legacy_extrapolation": true
     },
     "correlation_task_online_efficiency": {
@@ -107,9 +107,9 @@
         "trigger_prefix": "Data_OnlineEff_",
         "output_prefix": "Data_OnlineEff_",
         "apply_efficiency": false,
-        "use_projection_cache": true,
-        "use_2d_me_normalization": false,
-        "do_more_qa": false,
+        "use_projection_cache": false,
+        "use_2d_me_normalization": true,
+        "do_more_qa": true,
         "use_legacy_extrapolation": true
     },
     "correlation_task_online_efficiency_no_phi": {
@@ -127,9 +127,8 @@
             "K0S",
             "Pi"
         ],
-        "use_projection_cache": true,
-        "use_2d_me_normalization": false,
-        "do_more_qa": false,
+        "use_projection_cache": false,
+        "use_2d_me_normalization": true,
         "use_legacy_extrapolation": true
     }
 }

@@ -203,7 +203,6 @@ class ExtrapolationModelFactory
           f1->FixParameter(i, scaledVal);
         } else {
           f1->SetParameter(i, scaledVal);
-
           f1->SetParError(i, std::abs(scaledVal) * 0.05 + 0.001);
 
           // Apply parameter limits only if a valid range is provided in JSON (min < max)
