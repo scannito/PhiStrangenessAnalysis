@@ -202,13 +202,16 @@ class DynamicRooFitter
     return results;
   }
 
-  void SaveFitCanvas(TFile* fileOutput, const std::string& canvasName)
+  void SaveFitCanvas(TDirectory* dirOutput, const std::string& canvasName)
   {
     if (!fitResult) {
       throw std::runtime_error("[FATAL ERROR] You must call DoFit() before drawing the canvas!");
     }
 
     auto [minRange, maxRange] = CalculateIntegrationLimits();
+
+    if (dirOutput)
+      dirOutput->cd();
 
     TCanvas* cFit = new TCanvas(canvasName.c_str(), "Fit Canvas", 800, 800);
     cFit->SetLogy();
@@ -258,8 +261,10 @@ class DynamicRooFitter
       line4->Draw("SAME");
     }
 
-    fileOutput->cd();
-    cFit->Write();
+    if (dirOutput) {
+      dirOutput->cd();
+      cFit->Write(nullptr, TObject::kOverwrite);
+    }
 
     // Memory cleanup to prevent RAM leaks inside the analysis loop
     delete line1;

@@ -86,6 +86,8 @@ class PhiFitTask : public IAnalysisTask
   {
     std::cout << "[INFO] PhiFitTask: RUNNING TRIGGER SIGNAL EXTRACTION..." << std::endl;
 
+    TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(filePhiDataOutput, {globalCfgs.binningName, "Fits"}, false);
+
     for (int i = 0; i < globalCfgs.nBinMult; i++) {
       for (int j = 0; j < globalCfgs.nBinPtPhi; j++) {
         std::string phiHistName = "h1PhiData_multBin" + std::to_string(i) + "_ptBin" + std::to_string(j);
@@ -115,11 +117,11 @@ class PhiFitTask : public IAnalysisTask
           triggerBkgSideRegion = fitPhiSignalAndBkg.GetBkgInSideRegion();
           triggerBkgRatio = (triggerBkgSideRegion > 0) ? (triggerBkgSigRegion / triggerBkgSideRegion) : 0;
 
-          filePhiDataOutput->cd();
+          fitDir->cd();
           TCanvas* cFit = new TCanvas(("cFit_Phi_mult" + std::to_string(i) + "_pt" + std::to_string(j)).c_str());
           h1PhiData->Draw();
           // fitVoigtBkgSourav->DrawCopy("SAME");
-          cFit->Write();
+          cFit->Write(nullptr, TObject::kOverwrite);
           delete cFit;
           delete fitVoigtBkgSourav;
         } else if (fitterType == "dynamicroofitter") {
@@ -138,7 +140,7 @@ class PhiFitTask : public IAnalysisTask
           triggerBkgRatio = (triggerBkgSideRegion > 0) ? (triggerBkgSigRegion / triggerBkgSideRegion) : 0;
 
           std::string canvasName = "cFit_Phi_mult" + std::to_string(i) + "_pt" + std::to_string(j);
-          fitter.SaveFitCanvas(filePhiDataOutput, canvasName);
+          fitter.SaveFitCanvas(fitDir, canvasName);
         } else {
           throw std::runtime_error("[FATAL] PhiFitTask: Unknown fitter_type: " + fitterType);
         }
@@ -157,11 +159,14 @@ class PhiFitTask : public IAnalysisTask
   void Terminate() override
   {
     std::cout << "[INFO] PhiFitTask: TERMINATING..." << std::endl;
-    filePhiDataOutput->cd();
-    h2TriggerSignal->Write();
-    h2TriggerBkgSigRegion->Write();
-    h2TriggerBkgSideRegion->Write();
-    h2TriggerBkgRatio->Write();
+
+    TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(filePhiDataOutput, {globalCfgs.binningName, "Summary"}, false);
+    summaryDir->cd();
+
+    h2TriggerSignal->Write(nullptr, TObject::kOverwrite);
+    h2TriggerBkgSigRegion->Write(nullptr, TObject::kOverwrite);
+    h2TriggerBkgSideRegion->Write(nullptr, TObject::kOverwrite);
+    h2TriggerBkgRatio->Write(nullptr, TObject::kOverwrite);
 
     filePhiDataOutput->Close();
     delete filePhiDataOutput;

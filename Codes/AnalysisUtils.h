@@ -210,4 +210,13 @@ inline TDirectory* GetOrCreatePath(TDirectory* baseDir, const std::vector<std::s
 
   return currentDir;
 }
+
+inline std::string VectorToPath(const std::vector<std::string>& path)
+{
+  std::string fullPath = "";
+  for (const auto& dir : path) {
+    fullPath += dir + "/";
+  }
+  return fullPath;
+}
 } // namespace AnalysisUtils

@@ -118,8 +118,12 @@ class CorrelationTask : public IAnalysisTask
       throw std::runtime_error("[FATAL] CorrelationTask: Missing PhiFitTask output file: " + phiDataName);
     }
 
-    h2TriggerSignal = static_cast<TH2D*>(filePhiDataInput->Get("h2TriggerSignal"));
-    h2TriggerBkgRatio = static_cast<TH2D*>(filePhiDataInput->Get("h2TriggerBkgRatio"));
+    std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
+
+    std::string folderPath = AnalysisUtils::VectorToPath(summaryPath);
+
+    h2TriggerSignal = static_cast<TH2D*>(filePhiDataInput->Get((folderPath + "h2TriggerSignal").c_str()));
+    h2TriggerBkgRatio = static_cast<TH2D*>(filePhiDataInput->Get((folderPath + "h2TriggerBkgRatio").c_str()));
     if (!h2TriggerSignal || !h2TriggerBkgRatio) {
       throw std::runtime_error("[FATAL] CorrelationTask: Missing trigger stats in " + phiDataName);
     }
@@ -711,6 +715,9 @@ class CorrelationTask : public IAnalysisTask
       {"k0s", purityDir + purityPrefix + "K0SPurity.root"},
       {"pi_tpc", purityDir + purityPrefix + "PiPurity.root"}};
 
+    std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
+    std::string folderPath = AnalysisUtils::VectorToPath(summaryPath);
+
     for (const auto& p : purityConfig) {
       LoadedPurity purity;
       purity.name = p.first;
@@ -722,7 +729,7 @@ class CorrelationTask : public IAnalysisTask
       }
 
       for (int i = 0; i < globalCfgs.nBinMult; i++) {
-        std::string hName = "h1" + p.first + "Purity_multBin" + std::to_string(i);
+        std::string hName = folderPath + "h1" + p.first + "Purity_multBin" + std::to_string(i);
         TH1* h1Pur = static_cast<TH1*>(filePurity->Get(hName.c_str()));
         if (!h1Pur) {
           throw std::runtime_error("[FATAL] CorrelationTask: Missing purity histogram: " + hName + " in " + p.second);

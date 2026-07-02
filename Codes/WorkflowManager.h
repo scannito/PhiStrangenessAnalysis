@@ -196,6 +196,10 @@ class WorkflowManager
 
     const auto& config = document["global_binning"];
 
+    if (config.HasMember("binning_name")) {
+      globalSettings.binningName = config["binning_name"].GetString();
+    }
+
     auto overrideArray = [&](const char* key, std::vector<double>& targetVec) {
       if (config.HasMember(key) && config[key].IsArray()) {
         targetVec.clear();

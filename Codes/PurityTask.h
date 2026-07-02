@@ -92,8 +92,17 @@ class PurityTask : public IAnalysisTask
   {
     std::cout << "[INFO] PurityTask: RUNNING FITS..." << std::endl;
 
+    std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
+
     for (int i{0}; i < globalCfgs.nBinMult; i++) {
       for (auto& task : particleTasks) {
+        std::vector<std::string> fitPath = {globalCfgs.binningName, "Fits"};
+        if (task.name == "pi_tpc" || task.name == "pi_tof")
+          fitPath.push_back(task.name);
+
+        TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(task.outputFile, summaryPath, false);
+        TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(task.outputFile, fitPath, false);
+
         std::string hName = "h1" + task.name + "Purity_multBin" + std::to_string(i);
         TH1* h1PuritySpectrum = new TH1F(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)", task.nBinPt, task.binning.data());
         h1PuritySpectrum->SetDirectory(0);
@@ -117,7 +126,7 @@ class PurityTask : public IAnalysisTask
 
           // Save diagnostic plot directly to the task's output file
           std::string cName = "cFit_" + task.name + "_m" + std::to_string(i) + "_p" + std::to_string(k);
-          fitter.SaveFitCanvas(task.outputFile, cName);
+          fitter.SaveFitCanvas(fitDir, cName);
 
           // Cleanup temporary 1D histogram
           delete h1Data;
@@ -127,8 +136,11 @@ class PurityTask : public IAnalysisTask
         AnalysisUtils::SetHistogramStyle(h1PuritySpectrum, globalCfgs.GetSpectraColor(i));
         task.canvas->cd();
         h1PuritySpectrum->DrawCopy(i == 0 ? "" : "SAME");
-        task.outputFile->cd();
-        h1PuritySpectrum->Write();
+
+        if (summaryDir) {
+          summaryDir->cd();
+          h1PuritySpectrum->Write(nullptr, TObject::kOverwrite);
+        }
 
         // Cleanup temporary spectrum
         delete h1PuritySpectrum;
@@ -140,13 +152,22 @@ class PurityTask : public IAnalysisTask
   {
     std::cout << "[INFO] PurityTask: TERMINATING AND SAVING..." << std::endl;
 
-    // 1. Save the summary canvases
-    fileOutputK0S->cd();
-    canvasPurityK0S->Write();
+    std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
 
-    fileOutputPi->cd();
-    canvasPurityPiTPC->Write();
-    canvasPurityPiTOF->Write();
+    // 1. Save the summary canvases
+    TDirectory* k0sSummaryDir = AnalysisUtils::GetOrCreatePath(fileOutputK0S, summaryPath, false);
+    if (k0sSummaryDir) {
+      k0sSummaryDir->cd();
+      canvasPurityK0S->Write(nullptr, TObject::kOverwrite);
+    }
+
+    // 2. Save the summary canvases in the Pion file
+    TDirectory* piSummaryDir = AnalysisUtils::GetOrCreatePath(fileOutputPi, summaryPath, false);
+    if (piSummaryDir) {
+      piSummaryDir->cd();
+      canvasPurityPiTPC->Write(nullptr, TObject::kOverwrite);
+      canvasPurityPiTOF->Write(nullptr, TObject::kOverwrite);
+    }
 
     // 2. Close the output files safely
     fileOutputK0S->Close();
