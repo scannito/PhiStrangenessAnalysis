@@ -171,4 +171,43 @@ inline void SetHistogramStyle(TH1* h1, int color)
   h1->GetYaxis()->SetTitleOffset(1.0);
   h1->GetYaxis()->SetLabelSize(0.045);
 }
+
+// ------------------------------------------------------------------------------
+// TFile navigation utility
+// ------------------------------------------------------------------------------
+
+inline TDirectory* GetOrCreatePath(TDirectory* baseDir, const std::vector<std::string>& pathNodes, bool isReadOnly = false)
+{
+  if (!baseDir)
+    return nullptr;
+
+  TDirectory* currentDir = baseDir;
+
+  for (const auto& node : pathNodes) {
+    if (node.empty())
+      continue;
+
+    // Search for the subdirectory in the current level
+    TDirectory* nextDir = currentDir->GetDirectory(node.c_str());
+    if (!nextDir) {
+      if (isReadOnly) {
+        // In read-only mode, do not create anything; fail silently (Cache Miss)
+        return nullptr;
+      } else {
+        nextDir = currentDir->mkdir(node.c_str());
+      }
+
+      // Safety check (e.g., disk full, file closed, permission denied)
+      if (!nextDir) {
+        std::cerr << "[ERROR] AnalysisUtils::GetOrCreatePath - Failed to create TDirectory '" << node << "'." << std::endl;
+        return nullptr;
+      }
+    }
+
+    // Move down one level for the next iteration
+    currentDir = nextDir;
+  }
+
+  return currentDir;
+}
 } // namespace AnalysisUtils

@@ -5,6 +5,8 @@
 #include <vector>
 
 struct AnalysisSettings {
+  std::string binningName{"FullDifferential"}; // Name of the binning scheme (used for I/O directory naming)
+
   // Default historical values (fallback if JSON does not specify them)
   std::vector<double> binsMult{0.0, 1.0, 5.0, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 70.0, 100.0};
   std::vector<double> binspTPhi{0.4, 0.8, 1.4, 2.0, 2.8, 4.0, 6.0, 10.0};

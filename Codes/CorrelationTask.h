@@ -263,11 +263,9 @@ class CorrelationTask : public IAnalysisTask
     // 1. Write the Ratios and Trends
     // =========================================================================
     std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
-    TDirectory* targetSpectraDir = fileOutputSpectra->GetDirectory(dirName.c_str());
-    if (!targetSpectraDir) {
-      targetSpectraDir = fileOutputSpectra->mkdir(dirName.c_str());
-    }
-    targetSpectraDir->cd();
+    TDirectory* targetSpectraDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra, {globalCfgs.binningName, dirName});
+    if (targetSpectraDir)
+      targetSpectraDir->cd();
 
     TCanvas* canvasRatioMultTrend = new TCanvas("canvasRatioMultTrend", "Ratio Mult Trend", 800, 600);
     canvasRatioMultTrend->cd();
@@ -800,10 +798,7 @@ class CorrelationTask : public IAnalysisTask
   void GenerateSpectraAndTrends(int multBin, double totalTriggerSignalPerMult)
   {
     std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
-    TDirectory* targetSpectraDir = fileOutputSpectra->GetDirectory(dirName.c_str());
-    if (!targetSpectraDir) {
-      targetSpectraDir = fileOutputSpectra->mkdir(dirName.c_str());
-    }
+    TDirectory* targetSpectraDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra, {globalCfgs.binningName, dirName});
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];
@@ -1013,6 +1008,9 @@ class CorrelationTask : public IAnalysisTask
       }
     }
 
+    std::string dirName{"Extract1D"};
+    std::vector<std::string> logicalPath{globalCfgs.binningName, dirName};
+
     for (int i = 0; i < globalCfgs.nBinMult; i++) {
       AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
       double totalTriggerSignalPerMult = 0.0;
@@ -1038,18 +1036,13 @@ class CorrelationTask : public IAnalysisTask
           // auto assocCorrs = useIntegratedEfficiency ? correctionCollection[config.effIndex].h1CorrectionsEffMultInt : correctionCollection[config.effIndex].h1Corrections;
           TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i] : nullptr;
 
-          std::string dirName{"Extract1D"};
+          TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx], logicalPath, useProjectionCache);
 
-          TDirectory* targetDir{nullptr};
-          if (filesPhiAssocDataOutput[pIdx]) {
-            targetDir = filesPhiAssocDataOutput[pIdx]->GetDirectory(dirName.c_str());
-
-            if (!targetDir && !useProjectionCache) {
-              targetDir = filesPhiAssocDataOutput[pIdx]->mkdir(dirName.c_str());
-            }
+          // Retrieve or create the appropriate QA directory for this particle
+          TDirectory* currentQADir = nullptr;
+          if (doMoreQA && filesPhiAssocQAOutput[pIdx]) {
+            currentQADir = AnalysisUtils::GetOrCreatePath(filesPhiAssocQAOutput[pIdx], logicalPath, false);
           }
-
-          TDirectory* currentQADir = doMoreQA ? filesPhiAssocQAOutput[pIdx] : nullptr;
 
           for (int k = 0; k < config.nBinPt; k++) {
             AnalysisUtils::AxisToCut axisToCutPtAssoc{2, k + 1, k + 1};
@@ -1126,14 +1119,15 @@ class CorrelationTask : public IAnalysisTask
       }
     }
 
+    std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
+    std::vector<std::string> logicalPath{globalCfgs.binningName, dirName};
+
     // =========================================================================
     // MODE A: SUPER CACHE MANAGEMENT (LEVEL 2)
     // If active, completely bypasses the CorrelationCalculator and heavy loops.
     // =========================================================================
     if (useSignalCache) {
       std::cout << "[INFO] CorrelationTask: Super Cache (Signal L2) is ON. Skipping Calculator." << std::endl;
-
-      std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
 
       for (int i = 0; i < globalCfgs.nBinMult; i++) {
         // Recalculate total triggers to accurately normalize the final spectra
@@ -1150,7 +1144,7 @@ class CorrelationTask : public IAnalysisTask
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
 
-          TDirectory* sourceDir = filesPhiAssocDataOutput[pIdx]->GetDirectory(dirName.c_str());
+          TDirectory* sourceDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx], logicalPath, true);
           if (!sourceDir) {
             throw std::runtime_error("[FATAL] Cache L2 missing: Directory " + dirName + " not found!");
           }
@@ -1188,8 +1182,6 @@ class CorrelationTask : public IAnalysisTask
     // Pass doMoreQA to the constructor to enable/disable 2D QA dumps
     CorrelationCalculator corrCalculator(applyME, useProjectionCache, use2DMENormalization, doMoreQA);
 
-    std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
-
     // --- MULTIPLICITY LOOP (i) ---
     for (int i = 0; i < globalCfgs.nBinMult; i++) {
       AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
@@ -1212,17 +1204,12 @@ class CorrelationTask : public IAnalysisTask
           const auto& data = loadedDataCollection[pIdx];
           TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i] : nullptr;
 
-          TDirectory* targetDir{nullptr};
-          if (filesPhiAssocDataOutput[pIdx]) {
-            targetDir = filesPhiAssocDataOutput[pIdx]->GetDirectory(dirName.c_str());
+          TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx], logicalPath, useProjectionCache);
 
-            if (!targetDir && !useProjectionCache) {
-              targetDir = filesPhiAssocDataOutput[pIdx]->mkdir(dirName.c_str());
-            }
+          TDirectory* currentQADir{nullptr};
+          if (doMoreQA && filesPhiAssocQAOutput[pIdx]) {
+            currentQADir = AnalysisUtils::GetOrCreatePath(filesPhiAssocQAOutput[pIdx], logicalPath, false);
           }
-
-          // Retrieve the appropriate QA directory for this particle
-          TDirectory* currentQADir = doMoreQA ? filesPhiAssocQAOutput[pIdx] : nullptr;
 
           // --- ASSOCIATED PT LOOP (k) ---
           for (int k = 0; k < config.nBinPt; k++) {
@@ -1306,7 +1293,7 @@ class CorrelationTask : public IAnalysisTask
       std::cout << "[INFO] Multiplicity bin " << i << " completed. Committing results to Level 2 Cache..." << std::endl;
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        TDirectory* targetDir = filesPhiAssocDataOutput[pIdx]->GetDirectory(dirName.c_str());
+        TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx], logicalPath, false);
         if (targetDir)
           targetDir->cd();
         for (int k = 0; k < assocParticles[pIdx].nBinPt; k++) {
