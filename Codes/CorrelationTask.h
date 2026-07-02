@@ -210,17 +210,15 @@ class CorrelationTask : public IAnalysisTask
     }
 
     // 5. Initialize output
-    std::string cacheMarker = use2DMENormalization ? "_2D_" : "";
-    std::string projMode = useProjectionCache ? "READ" : "RECREATE";
+    std::string projMode = useProjectionCache ? "READ" : "UPDATE";
 
     std::string basePathFinal = taskConfig["output_dir_final"].GetString();
-    std::string phiSpectraName = basePathFinal + outputPrefix + cacheMarker + "PhiAssocSpectra.root";
-    fileOutputSpectra = new TFile(phiSpectraName.c_str(), "RECREATE");
+    std::string phiSpectraName = basePathFinal + outputPrefix + "PhiAssocSpectra.root";
+    fileOutputSpectra = new TFile(phiSpectraName.c_str(), "UPDATE");
 
     for (const auto& p : assocParticles) {
       // Avoid overwriting for better caching
-      std::string fName = basePathProj + outputPrefix + "Phi" + p.name + cacheMarker + "DataHistograms.root";
-
+      std::string fName = basePathProj + outputPrefix + "Phi" + p.name + "DataHistograms.root";
       TFile* fProj = new TFile(fName.c_str(), projMode.c_str());
       if (useProjectionCache && (!fProj || fProj->IsZombie())) {
         throw std::runtime_error("[FATAL] Missing cache file: " + fName + ". Please run with 'use_projection_cache': false first!");
@@ -229,7 +227,6 @@ class CorrelationTask : public IAnalysisTask
 
       if (doMoreQA) {
         std::string fQAName = basePathProj + outputPrefix + "Phi" + p.name + "QAHistograms.root";
-
         TFile* fQA = new TFile(fQAName.c_str(), "RECREATE");
         filesPhiAssocQAOutput.push_back(fQA);
       }
@@ -265,7 +262,12 @@ class CorrelationTask : public IAnalysisTask
     // =========================================================================
     // 1. Write the Ratios and Trends
     // =========================================================================
-    fileOutputSpectra->cd();
+    std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
+    TDirectory* targetSpectraDir = fileOutputSpectra->GetDirectory(dirName.c_str());
+    if (!targetSpectraDir) {
+      targetSpectraDir = fileOutputSpectra->mkdir(dirName.c_str());
+    }
+    targetSpectraDir->cd();
 
     TCanvas* canvasRatioMultTrend = new TCanvas("canvasRatioMultTrend", "Ratio Mult Trend", 800, 600);
     canvasRatioMultTrend->cd();
@@ -326,7 +328,7 @@ class CorrelationTask : public IAnalysisTask
     }
 
     legend->Draw("SAME");
-    canvasRatioMultTrend->Write();
+    canvasRatioMultTrend->Write(nullptr, TObject::kOverwrite);
 
     // Write Yield Trends (Measured and Extrapolated)
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
@@ -334,14 +336,15 @@ class CorrelationTask : public IAnalysisTask
       TCanvas* cTrendMeas = new TCanvas(cNameMeas.c_str(), "Measured Yield Trend", 800, 600);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
-        h1MultTrends[pIdx][yIdx]->Write();
+        h1MultTrends[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
         // Draw on the Summary Canvas
         cTrendMeas->cd();
         AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx], globalCfgs.GetMultTrendColor(yIdx));
         h1MultTrends[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
       }
-      cTrendMeas->Write();
+      targetSpectraDir->cd();
+      cTrendMeas->Write(nullptr, TObject::kOverwrite);
       delete cTrendMeas;
 
       if (applyExtrapolation) {
@@ -349,13 +352,14 @@ class CorrelationTask : public IAnalysisTask
         TCanvas* cTrendExtrap = new TCanvas(cNameExtrap.c_str(), "Extrapolated Yield Trend", 800, 600);
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
-          h1MultTrendsExtrap[pIdx][yIdx]->Write();
+          h1MultTrendsExtrap[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
           cTrendExtrap->cd();
           AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx], globalCfgs.GetMultTrendColor(yIdx));
           h1MultTrendsExtrap[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
         }
-        cTrendExtrap->Write();
+        targetSpectraDir->cd();
+        cTrendExtrap->Write(nullptr, TObject::kOverwrite);
         delete cTrendExtrap;
       }
     }
@@ -394,7 +398,8 @@ class CorrelationTask : public IAnalysisTask
           delete hRatioExtrapMeas;
         }
 
-        cRatioExtrapMeas->Write();
+        targetSpectraDir->cd();
+        cRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
         delete cRatioExtrapMeas;
       }
     }
@@ -404,8 +409,8 @@ class CorrelationTask : public IAnalysisTask
     // =========================================================================
     for (const auto& canvasVec : spectraCanvases) {
       for (auto* canvas : canvasVec) {
-        fileOutputSpectra->cd();
-        canvas->Write();
+        targetSpectraDir->cd();
+        canvas->Write(nullptr, TObject::kOverwrite);
         delete canvas;
       }
     }
@@ -794,6 +799,12 @@ class CorrelationTask : public IAnalysisTask
 
   void GenerateSpectraAndTrends(int multBin, double totalTriggerSignalPerMult)
   {
+    std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
+    TDirectory* targetSpectraDir = fileOutputSpectra->GetDirectory(dirName.c_str());
+    if (!targetSpectraDir) {
+      targetSpectraDir = fileOutputSpectra->mkdir(dirName.c_str());
+    }
+
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];
       const auto& purity = purityCollection[pIdx];
@@ -844,8 +855,8 @@ class CorrelationTask : public IAnalysisTask
           extrapModel->SetLineWidth(2);
           extrapModel->Draw("SAME");
 
-          fileOutputSpectra->cd();
-          cDebug->Write();
+          targetSpectraDir->cd();
+          cDebug->Write(nullptr, TObject::kOverwrite);
           delete cDebug;
         }
 
@@ -916,8 +927,8 @@ class CorrelationTask : public IAnalysisTask
         AnalysisUtils::SetHistogramStyle(hSpecExt, globalCfgs.GetSpectraColor(multBin));
         hSpecExt->GetListOfFunctions()->Add(extrapModel->Clone());
 
-        fileOutputSpectra->cd();
-        hSpecExt->Write();
+        targetSpectraDir->cd();
+        hSpecExt->Write(nullptr, TObject::kOverwrite);
         delete hSpecExt;
       };
 
@@ -960,8 +971,8 @@ class CorrelationTask : public IAnalysisTask
         spectraCanvases[pIdx][yIdx]->cd();
         h1Spectrum->DrawCopy(multBin == 0 ? "" : "SAME");
 
-        fileOutputSpectra->cd();
-        h1Spectrum->Write();
+        targetSpectraDir->cd();
+        h1Spectrum->Write(nullptr, TObject::kOverwrite);
 
         AnalysisUtils::constructMultTrend(h1MultTrends[pIdx][yIdx], h1Spectrum, multBin, false);
 
@@ -1027,6 +1038,19 @@ class CorrelationTask : public IAnalysisTask
           // auto assocCorrs = useIntegratedEfficiency ? correctionCollection[config.effIndex].h1CorrectionsEffMultInt : correctionCollection[config.effIndex].h1Corrections;
           TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i] : nullptr;
 
+          std::string dirName{"Extract1D"};
+
+          TDirectory* targetDir{nullptr};
+          if (filesPhiAssocDataOutput[pIdx]) {
+            targetDir = filesPhiAssocDataOutput[pIdx]->GetDirectory(dirName.c_str());
+
+            if (!targetDir && !useProjectionCache) {
+              targetDir = filesPhiAssocDataOutput[pIdx]->mkdir(dirName.c_str());
+            }
+          }
+
+          TDirectory* currentQADir = doMoreQA ? filesPhiAssocQAOutput[pIdx] : nullptr;
+
           for (int k = 0; k < config.nBinPt; k++) {
             AnalysisUtils::AxisToCut axisToCutPtAssoc{2, k + 1, k + 1};
 
@@ -1043,12 +1067,9 @@ class CorrelationTask : public IAnalysisTask
 
             // auto startExtract = std::chrono::high_resolution_clock::now();
 
-            TDirectory* currentQADir = doMoreQA ? filesPhiAssocQAOutput[pIdx] : nullptr;
-
             // Call the calculator: project, scale, apply ME, subtract, and save intermediate files
             TH1* h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, axesToCut, totalEff, triggerBkgRatio,
-                                                                       histNameBase + suffix, filesPhiAssocDataOutput[pIdx], currentQADir,
-                                                                       CorrelationCalculator::AxisTarget::DeltaY_Y);
+                                                                       histNameBase + suffix, targetDir, currentQADir);
 
             // auto endExtract = std::chrono::high_resolution_clock::now();
             // totalExtractTime += std::chrono::duration<double>(endExtract - startExtract).count();
@@ -1112,6 +1133,8 @@ class CorrelationTask : public IAnalysisTask
     if (useSignalCache) {
       std::cout << "[INFO] CorrelationTask: Super Cache (Signal L2) is ON. Skipping Calculator." << std::endl;
 
+      std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
+
       for (int i = 0; i < globalCfgs.nBinMult; i++) {
         // Recalculate total triggers to accurately normalize the final spectra
         // taking into account the efficiency!
@@ -1126,12 +1149,18 @@ class CorrelationTask : public IAnalysisTask
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
+
+          TDirectory* sourceDir = filesPhiAssocDataOutput[pIdx]->GetDirectory(dirName.c_str());
+          if (!sourceDir) {
+            throw std::runtime_error("[FATAL] Cache L2 missing: Directory " + dirName + " not found!");
+          }
+
           for (int k = 0; k < config.nBinPt; k++) {
             // Reconstruct the exact name used during the initial save
             std::string cacheName = "h1Phi" + config.name + "Final_multBin" + std::to_string(i) + "_ptBin" + std::to_string(k);
 
             // Direct read from the previously processed file (opened in READ mode)
-            h1PhiAssocNoPtPhi[pIdx][i][k] = static_cast<TH1*>(filesPhiAssocDataOutput[pIdx]->Get(cacheName.c_str()));
+            h1PhiAssocNoPtPhi[pIdx][i][k] = static_cast<TH1*>(sourceDir->Get(cacheName.c_str()));
 
             if (!h1PhiAssocNoPtPhi[pIdx][i][k]) {
               throw std::runtime_error("[FATAL] Cache L2 missing for: " + cacheName + ". Run with use_signal_cache: false first!");
@@ -1150,15 +1179,16 @@ class CorrelationTask : public IAnalysisTask
     // MODE B: STANDARD CALCULATION (If L2 Cache is disabled)
     // The CorrelationCalculator is invoked here (managing L1 Cache internally)
     // =========================================================================
-    // Pass doMoreQA to the constructor to enable/disable 2D QA dumps
-    CorrelationCalculator corrCalculator(applyME, useProjectionCache, use2DMENormalization, doMoreQA);
-
     /*// Global QA Accumulators Initialization
     std::vector<TH1*> h1QA_FullyIntegrated(assocParticles.size(), nullptr);
     std::vector<std::vector<TH1*>> h1QA_ByMult(assocParticles.size(), std::vector<TH1*>(globalCfgs.nBinMult, nullptr));
     std::vector<std::vector<TH1*>> h1QA_ByPtPhi(assocParticles.size(), std::vector<TH1*>(globalCfgs.nBinPtPhi, nullptr));
     std::vector<std::vector<std::vector<TH1*>>> h1QA_ByMult_ByPtPhi(assocParticles.size(), std::vector<std::vector<TH1*>>(
                                                                                              globalCfgs.nBinMult, std::vector<TH1*>(globalCfgs.nBinPtPhi, nullptr)));*/
+    // Pass doMoreQA to the constructor to enable/disable 2D QA dumps
+    CorrelationCalculator corrCalculator(applyME, useProjectionCache, use2DMENormalization, doMoreQA);
+
+    std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
 
     // --- MULTIPLICITY LOOP (i) ---
     for (int i = 0; i < globalCfgs.nBinMult; i++) {
@@ -1182,6 +1212,15 @@ class CorrelationTask : public IAnalysisTask
           const auto& data = loadedDataCollection[pIdx];
           TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i] : nullptr;
 
+          TDirectory* targetDir{nullptr};
+          if (filesPhiAssocDataOutput[pIdx]) {
+            targetDir = filesPhiAssocDataOutput[pIdx]->GetDirectory(dirName.c_str());
+
+            if (!targetDir && !useProjectionCache) {
+              targetDir = filesPhiAssocDataOutput[pIdx]->mkdir(dirName.c_str());
+            }
+          }
+
           // Retrieve the appropriate QA directory for this particle
           TDirectory* currentQADir = doMoreQA ? filesPhiAssocQAOutput[pIdx] : nullptr;
 
@@ -1199,10 +1238,8 @@ class CorrelationTask : public IAnalysisTask
             // -----------------------------------------------------------------
             // A) STANDARD EXTRACTION (For Spectra & Yields)
             // -----------------------------------------------------------------
-            TH1* h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
-              data, axesToCut, totalEff, triggerBkgRatio,
-              baseNameStd + suffix, filesPhiAssocDataOutput[pIdx], currentQADir,
-              projectionAxis);
+            TH1* h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, axesToCut, totalEff, triggerBkgRatio,
+                                                                       baseNameStd + suffix, targetDir, currentQADir, projectionAxis);
 
             // Accumulate into the standard pT arrays (Summing over PtPhi dimension)
             if (j == 0) {
@@ -1267,13 +1304,16 @@ class CorrelationTask : public IAnalysisTask
       // Written only once per multiplicity bin after trigger aggregation
       // =======================================================================
       std::cout << "[INFO] Multiplicity bin " << i << " completed. Committing results to Level 2 Cache..." << std::endl;
+
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        filesPhiAssocDataOutput[pIdx]->cd();
+        TDirectory* targetDir = filesPhiAssocDataOutput[pIdx]->GetDirectory(dirName.c_str());
+        if (targetDir)
+          targetDir->cd();
         for (int k = 0; k < assocParticles[pIdx].nBinPt; k++) {
           if (h1PhiAssocNoPtPhi[pIdx][i][k]) {
             std::string saveName = "h1Phi" + assocParticles[pIdx].name + "Final_multBin" + std::to_string(i) + "_ptBin" + std::to_string(k);
             h1PhiAssocNoPtPhi[pIdx][i][k]->SetName(saveName.c_str());
-            h1PhiAssocNoPtPhi[pIdx][i][k]->Write();
+            h1PhiAssocNoPtPhi[pIdx][i][k]->Write(nullptr, TObject::kOverwrite);
           }
         }
       }
@@ -1286,29 +1326,29 @@ class CorrelationTask : public IAnalysisTask
     // FINAL SAVING OF TOPOLOGICAL QA MATRICES
     // =========================================================================
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-      filesPhiAssocDataOutput[pIdx]->cd();
+      targetDir->cd();
 
       if (h1QA_FullyIntegrated[pIdx]) {
-        h1QA_FullyIntegrated[pIdx]->Write();
+        h1QA_FullyIntegrated[pIdx]->Write(nullptr, TObject::kOverwrite);
         delete h1QA_FullyIntegrated[pIdx];
       }
 
       for (int i = 0; i < globalCfgs.nBinMult; ++i) {
         if (h1QA_ByMult[pIdx][i]) {
-          h1QA_ByMult[pIdx][i]->Write();
+          h1QA_ByMult[pIdx][i]->Write(nullptr, TObject::kOverwrite);
           delete h1QA_ByMult[pIdx][i];
         }
       }
       for (int j = 0; j < globalCfgs.nBinPtPhi; ++j) {
         if (h1QA_ByPtPhi[pIdx][j]) {
-          h1QA_ByPtPhi[pIdx][j]->Write();
+          h1QA_ByPtPhi[pIdx][j]->Write(nullptr, TObject::kOverwrite);
           delete h1QA_ByPtPhi[pIdx][j];
         }
       }
       for (int i = 0; i < globalCfgs.nBinMult; ++i) {
         for (int j = 0; j < globalCfgs.nBinPtPhi; ++j) {
           if (h1QA_ByMult_ByPtPhi[pIdx][i][j]) {
-            h1QA_ByMult_ByPtPhi[pIdx][i][j]->Write();
+            h1QA_ByMult_ByPtPhi[pIdx][i][j]->Write(nullptr, TObject::kOverwrite);
             delete h1QA_ByMult_ByPtPhi[pIdx][i][j];
           }
         }

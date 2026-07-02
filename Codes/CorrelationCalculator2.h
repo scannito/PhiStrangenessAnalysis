@@ -34,7 +34,7 @@ class CorrelationCalculator
                               std::optional<std::pair<double, double>> orthogonalCut = std::nullopt) const
   {
     if (use2DME) {
-      return Process2DExtraction(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir, qaDir, targetAxis, orthogonalCut);
+      return Extract2D(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir, qaDir, targetAxis, orthogonalCut);
     } else {
       return Extract1D(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir);
     }
@@ -76,13 +76,43 @@ class CorrelationCalculator
            4.0;
   }
 
+  double GetZeroAvg(TH1* h) const
+  {
+    if (!h)
+      return 0.0;
+    int bx_left = h->GetXaxis()->FindBin(-1e-6);
+    int bx_right = h->GetXaxis()->FindBin(1e-6);
+
+    // If zero falls exactly in the center of a single bin
+    if (bx_left == bx_right) {
+      return h->GetBinContent(bx_left);
+    }
+
+    // If zero falls on the intersection of 2 bins
+    return (h->GetBinContent(bx_left) + h->GetBinContent(bx_right)) / 2.0;
+  }
+
+  double GetZeroAvgFromFit(TH1* h, double fitRange = 0.5) const
+  {
+    if (!h)
+      return 0.0;
+
+    // Fit a constant in the range [-fitRange, fitRange]
+    TF1* fitFunc = new TF1("fitFunc", "[0] + [1]*abs(x) + [2]*x*x", -fitRange, fitRange);
+    h->Fit(fitFunc, "RQ"); // R = use range, Q = quiet mode
+
+    double fitValue = fitFunc->GetParameter(0);
+    delete fitFunc;
+    return fitValue;
+  }
+
   // =========================================================================
   // UNIVERSAL 2D ENGINE
   // =========================================================================
-  TH1* Process2DExtraction(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
-                           double totalEff, double triggerBkgRatio, const std::string& histNameBase,
-                           TDirectory* ioDir, TDirectory* qaDir, AxisTarget targetAxis,
-                           std::optional<std::pair<double, double>> orthogonalCut = std::nullopt) const
+  TH1* Extract2D(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
+                 double totalEff, double triggerBkgRatio, const std::string& histNameBase,
+                 TDirectory* ioDir, TDirectory* qaDir, AxisTarget targetAxis,
+                 std::optional<std::pair<double, double>> orthogonalCut = std::nullopt) const
   {
     TH2* h2Signal{nullptr};
     TH2* h2Sideband{nullptr};
@@ -131,25 +161,47 @@ class CorrelationCalculator
 
       if (ioDir) {
         ioDir->cd();
-        h2Signal->Write();
+        h2Signal->Write(nullptr, TObject::kOverwrite);
         if (h2Sideband)
-          h2Sideband->Write();
+          h2Sideband->Write(nullptr, TObject::kOverwrite);
         if (applyME) {
-          h2MESignal->Write();
+          h2MESignal->Write(nullptr, TObject::kOverwrite);
           if (h2MESideband)
-            h2MESideband->Write();
+            h2MESideband->Write(nullptr, TObject::kOverwrite);
         }
       }
     }
 
     // 2. ME normalization (if requested)
     if (applyME) {
-      double normMESig = GetZeroZeroAvg(h2MESignal);
+      if (h2MESignal) {
+        TH1* h1MEProjY = h2MESignal->ProjectionY("tempMEProjY_Sig");
+        double a0_Sig = GetZeroAvgFromFit(h1MEProjY);
+        double nBinsPhi_Sig = h2MESignal->GetNbinsX();
+        double normMESig = a0_Sig / nBinsPhi_Sig;
+
+        if (normMESig > 0)
+          h2MESignal->Scale(1.0 / normMESig);
+        delete h1MEProjY;
+      }
+
+      if (h2MESideband) {
+        TH1* h1MEProjY_Sb = h2MESideband->ProjectionY("tempMEProjY_Sb");
+        double a0_Sb = GetZeroAvgFromFit(h1MEProjY_Sb);
+        double nBinsPhi_Sb = h2MESideband->GetNbinsX();
+        double normMESb = a0_Sb / nBinsPhi_Sb;
+
+        if (normMESb > 0)
+          h2MESideband->Scale(1.0 / normMESb);
+        delete h1MEProjY_Sb;
+      }
+
+      /*double normMESig = GetZeroZeroAvg(h2MESignal);
       if (normMESig > 0)
         h2MESignal->Scale(1.0 / normMESig);
       double normMESb = GetZeroZeroAvg(h2MESideband);
       if (normMESb > 0)
-        h2MESideband->Scale(1.0 / normMESb);
+        h2MESideband->Scale(1.0 / normMESb);*/
     }
 
     // 3. Efficiency Correction
@@ -338,13 +390,13 @@ class CorrelationCalculator
 
       if (ioDir) {
         ioDir->cd();
-        h1Signal->Write();
+        h1Signal->Write(nullptr, TObject::kOverwrite);
         if (h1Sideband)
-          h1Sideband->Write();
+          h1Sideband->Write(nullptr, TObject::kOverwrite);
         if (applyME) {
-          h1MESignal->Write();
+          h1MESignal->Write(nullptr, TObject::kOverwrite);
           if (h1MESideband)
-            h1MESideband->Write();
+            h1MESideband->Write(nullptr, TObject::kOverwrite);
         }
       }
     }
