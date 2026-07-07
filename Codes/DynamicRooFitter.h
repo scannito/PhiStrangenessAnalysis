@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AnalysisDataStructures.h"
 #include "AnalysisUtils.h"
 #include "FitConfigManager.h"
 
@@ -305,7 +306,7 @@ class DynamicRooFitter
     }
 
     // Extract the [val, min, max, isConstant] struct from the map
-    const FitParam& p = config.model.params.at(name);
+    const MathParam& p = config.model.params.at(name);
 
     RooRealVar* var{nullptr};
 

@@ -7,7 +7,9 @@
 #include "THnSparse.h"
 
 #include <array>
+#include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 struct AssocParticleConfig {
@@ -54,4 +56,59 @@ struct LoadedAssocData {
   THnSparseF* h5DataSideband{nullptr};
   THnSparseF* h5DataMESignal{nullptr};
   THnSparseF* h5DataMESideband{nullptr};
+};
+
+// ============================================================================
+// MATHEMATICAL PARAMETER
+// ============================================================================
+// Unifies FitParam and ExtrapParam into a single, clean structure
+struct MathParam {
+  double val{0.0};
+  double min{0.0};
+  double max{0.0};
+  bool isConstant{false};
+};
+
+// ============================================================================
+// FIT CONFIGURATION STRUCTURES
+// ============================================================================
+struct ObservableConfig {
+  std::string name;
+  std::string title;
+  double min;
+  double max;
+};
+
+struct ModelConfig {
+  std::string sigModel;
+  std::string bkgModel;
+  std::map<std::string, MathParam> params; // Uses the unified MathParam
+};
+
+struct IntegrationConfig {
+  bool useFixedRange{true};
+  std::pair<double, double> range{0.0, 0.0};
+  double nSigma{3.0};
+  bool snapToBin{false};
+  bool calculatePurity{false};
+  bool calculateSideband{false};
+  bool sidebandFromFit{true};
+  std::pair<double, double> sidebandRange{0.0, 0.0};
+};
+
+struct FitConfig {
+  ObservableConfig obs;
+  ModelConfig model;
+  IntegrationConfig integration;
+};
+
+// ============================================================================
+// EXTRAPOLATION CONFIGURATION STRUCTURES
+// ============================================================================
+struct ExtrapConfig {
+  std::string model;
+  std::pair<double, double> domainRange{0.0, 15.0};
+  std::pair<double, double> fitRange{0.0, 0.0};
+  std::map<std::string, MathParam> params; // Uses the unified MathParam
+  double mass{0.0};                        // Injected dynamically at runtime by the Task
 };
