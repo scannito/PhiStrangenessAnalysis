@@ -26,6 +26,7 @@
 #include <chrono>
 #include <format>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -223,6 +224,15 @@ class CorrelationTask : public IAnalysisTask
       std::string extrapFile = taskConfig["extrapolation_config_file"].GetString();
       extrapConfigManager = new ExtrapConfigManager(extrapFile);
       std::cout << "[INFO] CorrelationTask: Extrapolation configuration loaded successfully." << std::endl;
+
+      for (const auto& p : assocParticles) {
+        bool hasCfg = extrapConfigManager->HasConfig(p.name);
+        doExtrapolationPerParticle[p.name] = hasCfg;
+        if (!hasCfg) {
+          std::cout << "[INFO] CorrelationTask: No extrapolation config found for '"
+                    << p.name << "'. Skipping extrapolation for this species." << std::endl;
+        }
+      }
     }
 
     // 5. Initialize output
@@ -350,8 +360,11 @@ class CorrelationTask : public IAnalysisTask
 
       double numScale = GetYieldScaleFactor(num.name);
       double denScale = GetYieldScaleFactor(den.name);
-
       std::string axisLabel = !yieldRatioLabel.empty() ? yieldRatioLabel : num.name + "/" + den.name;
+
+      bool numHasExtrap = doExtrapolationPerParticle.count(num.name) && doExtrapolationPerParticle.at(num.name);
+      bool denHasExtrap = doExtrapolationPerParticle.count(den.name) && doExtrapolationPerParticle.at(den.name);
+      bool doExtrapRatio = applyExtrapolation && (numHasExtrap || denHasExtrap);
 
       std::string canvasName = std::format("canvasRatio_{}_{}_MultTrend", num.name, den.name);
       TCanvas* canvasRatio = new TCanvas(canvasName.c_str(), "Ratio Mult Trend", 800, 600);
@@ -376,11 +389,14 @@ class CorrelationTask : public IAnalysisTask
         hRatioMeas->SetMarkerStyle(24);
 
         TH1* hRatioExtrap{nullptr};
-        if (applyExtrapolation) {
+        if (doExtrapRatio) {
+          TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[0][yIdx] : h1MultTrends[0][yIdx];
+          TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[1][yIdx] : h1MultTrends[1][yIdx];
+
           std::string ratioExtrapName = std::format("Ratio_{}_{}_Extrap_dy{}", num.name, den.name, dyNameStr);
-          hRatioExtrap = static_cast<TH1*>(h1MultTrendsExtrap[0][yIdx]->Clone(ratioExtrapName.c_str()));
+          hRatioExtrap = static_cast<TH1*>(hNumTrend->Clone(ratioExtrapName.c_str()));
           hRatioExtrap->SetDirectory(0);
-          hRatioExtrap->Divide(h1MultTrendsExtrap[0][yIdx], h1MultTrendsExtrap[1][yIdx], numScale, denScale);
+          hRatioExtrap->Divide(hNumTrend, hDenTrend, numScale, denScale);
           AnalysisUtils::SetHistogramStyle(hRatioExtrap, globalCfgs.GetMultTrendColor(yIdx));
           hRatioExtrap->SetMarkerStyle(20);
         }
@@ -432,7 +448,9 @@ class CorrelationTask : public IAnalysisTask
       cTrendMeas->Write(nullptr, TObject::kOverwrite);
       delete cTrendMeas;
 
-      if (applyExtrapolation) {
+      bool hasExtrapTrend = !h1MultTrendsExtrap.empty() && !h1MultTrendsExtrap[pIdx].empty();
+
+      if (hasExtrapTrend) {
         std::string cNameExtrap = std::format("cTrend_Extrap_{}", assocParticles[pIdx].name);
         TCanvas* cTrendExtrap = new TCanvas(cNameExtrap.c_str(), "Extrapolated Yield Trend", 800, 600);
 
@@ -452,43 +470,45 @@ class CorrelationTask : public IAnalysisTask
     // =========================================================================
     // 3. Write Extrapolated vs Measured Ratios, per species (independent block)
     // =========================================================================
-    if (applyExtrapolation) {
-      for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        std::string canvasName = std::format("cRatio_ExtrapVsMeas_{}", assocParticles[pIdx].name);
-        TCanvas* cRatioExtrapMeas = new TCanvas(canvasName.c_str(), "Extrap / Measured Ratio", 800, 600);
-        cRatioExtrapMeas->cd();
+    for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
+      bool hasExtrapTrend = !h1MultTrendsExtrap.empty() && !h1MultTrendsExtrap[pIdx].empty();
+      if (!hasExtrapTrend)
+        continue;
 
-        for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
-          double dyLimit = deltaYLimits[yIdx];
-          // std::string dyStr = std::format("{:.2f}", dyLimit);
-          std::string dyStr = Form("%.2f", dyLimit);
-          std::replace(dyStr.begin(), dyStr.end(), '.', '_');
+      std::string canvasName = std::format("cRatio_ExtrapVsMeas_{}", assocParticles[pIdx].name);
+      TCanvas* cRatioExtrapMeas = new TCanvas(canvasName.c_str(), "Extrap / Measured Ratio", 800, 600);
+      cRatioExtrapMeas->cd();
 
-          std::string ratioName = std::format("Ratio_Extrap_Meas_{}_dy{}", assocParticles[pIdx].name, dyStr);
-          // std::string title = std::format("Extrap/Measured Contribution {} |#Delta y| < {:.2f}", assocParticles[pIdx].name, dyLimit);
-          std::string title = Form("Extrap/Measured Contribution %s |#Delta y| < %.2f", assocParticles[pIdx].name.c_str(), dyLimit);
+      for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
+        double dyLimit = deltaYLimits[yIdx];
+        // std::string dyStr = std::format("{:.2f}", dyLimit);
+        std::string dyStr = Form("%.2f", dyLimit);
+        std::replace(dyStr.begin(), dyStr.end(), '.', '_');
 
-          // Clone the extrapolated trend to safely divide it
-          TH1* hRatioExtrapMeas = static_cast<TH1*>(h1MultTrendsExtrap[pIdx][yIdx]->Clone(ratioName.c_str()));
-          hRatioExtrapMeas->SetTitle(title.c_str());
-          hRatioExtrapMeas->SetDirectory(0);
+        std::string ratioName = std::format("Ratio_Extrap_Meas_{}_dy{}", assocParticles[pIdx].name, dyStr);
+        // std::string title = std::format("Extrap/Measured Contribution {} |#Delta y| < {:.2f}", assocParticles[pIdx].name, dyLimit);
+        std::string title = Form("Extrap/Measured Contribution %s |#Delta y| < %.2f", assocParticles[pIdx].name.c_str(), dyLimit);
 
-          // Perform division: Yield_{Extrap} / Yield_{Measured}
-          hRatioExtrapMeas->Divide(h1MultTrendsExtrap[pIdx][yIdx], h1MultTrends[pIdx][yIdx], 1.0, 1.0);
+        // Clone the extrapolated trend to safely divide it
+        TH1* hRatioExtrapMeas = static_cast<TH1*>(h1MultTrendsExtrap[pIdx][yIdx]->Clone(ratioName.c_str()));
+        hRatioExtrapMeas->SetTitle(title.c_str());
+        hRatioExtrapMeas->SetDirectory(0);
 
-          // Set Y-axis title for clarity
-          hRatioExtrapMeas->GetYaxis()->SetTitle("Yield_{Extrap} / Yield_{Meas}");
+        // Perform division: Yield_{Extrap} / Yield_{Measured}
+        hRatioExtrapMeas->Divide(h1MultTrendsExtrap[pIdx][yIdx], h1MultTrends[pIdx][yIdx], 1.0, 1.0);
 
-          AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas, globalCfgs.GetMultTrendColor(yIdx));
-          hRatioExtrapMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
+        // Set Y-axis title for clarity
+        hRatioExtrapMeas->GetYaxis()->SetTitle("Yield_{Extrap} / Yield_{Meas}");
 
-          delete hRatioExtrapMeas;
-        }
+        AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas, globalCfgs.GetMultTrendColor(yIdx));
+        hRatioExtrapMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
 
-        targetSpectraDir->cd();
-        cRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
-        delete cRatioExtrapMeas;
+        delete hRatioExtrapMeas;
       }
+
+      targetSpectraDir->cd();
+      cRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
+      delete cRatioExtrapMeas;
     }
 
     // =========================================================================
@@ -628,6 +648,8 @@ class CorrelationTask : public IAnalysisTask
   // std::vector<LoadedPurity> purityCollection;
 
   CorrelationCalculator::AxisTarget projectionAxis{CorrelationCalculator::AxisTarget::DeltaY_Y};
+
+  std::map<std::string, bool> doExtrapolationPerParticle;
 
   // All accumulators and file vectors from the original task
   std::vector<std::vector<std::vector<TH1*>>> h1PhiAssocNoPtPhi;
@@ -906,6 +928,7 @@ class CorrelationTask : public IAnalysisTask
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& p = assocParticles[pIdx];
+      bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.count(p.name) && doExtrapolationPerParticle.at(p.name);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
@@ -922,7 +945,7 @@ class CorrelationTask : public IAnalysisTask
         hTrend->SetDirectory(0);
         h1MultTrends[pIdx].push_back(hTrend);
 
-        if (applyExtrapolation) {
+        if (doExtrapForThis) {
           std::string hExtrapName = std::format("h1MultTrendExtrap_{}_dy{}", p.name, dyNameStr);
           std::string hExtrapTitle = std::format("Extrapolated Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
@@ -948,6 +971,7 @@ class CorrelationTask : public IAnalysisTask
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];
+      bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.count(config.name) && doExtrapolationPerParticle.at(config.name);
 
       // const auto& purity = purityCollection[pIdx];
 
@@ -1129,7 +1153,7 @@ class CorrelationTask : public IAnalysisTask
         AnalysisUtils::constructMultTrend(h1MultTrends[pIdx][yIdx], h1Spectrum, multBin, false);
 
         // Extrapolate and Fill Trend
-        if (applyExtrapolation /* && multBin == 0 && yIdx == 0*/) {
+        if (doExtrapForThis) {
           double extY = 0.0, extE = 0.0;
           extrapolateSpectrum(h1Spectrum, extY, extE);
           AnalysisUtils::constructMultTrend(h1MultTrendsExtrap[pIdx][yIdx], h1Spectrum, multBin, true, extY, extE);

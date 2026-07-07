@@ -52,6 +52,11 @@ class ExtrapConfigManager
     }
   }
 
+  bool HasConfig(const std::string& particle) const
+  {
+    return isLoaded && document.HasMember(particle.c_str());
+  }
+
   // Queries the RAM to get the configuration for a specific particle and multiplicity bin
   ExtrapConfig GetConfig(const std::string& particle, int multBin) const
   {
