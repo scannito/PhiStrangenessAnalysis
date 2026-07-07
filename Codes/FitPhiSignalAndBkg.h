@@ -12,7 +12,7 @@ inline double BkgSourav(double* x, double* par)
 {
   double mass = x[0];
 
-  double arg = mass - 2 * AnalysisConstants::kaonMass;
+  double arg = mass - 2 * AnalysisConstants::GetMass("K");
   if (arg < 0.0) {
     arg = 0.0;
   }
@@ -29,7 +29,7 @@ inline double BkgMattia(double* x, double* par)
 {
   double mass = x[0];
 
-  return par[0] * std::pow(mass - 2 * AnalysisConstants::kaonMass, par[1]) * std::exp(par[2] * (mass - 2 * AnalysisConstants::kaonMass) + par[3] * std::pow(mass - 2 * AnalysisConstants::kaonMass, 2) + par[4] * std::pow(mass - 2 * AnalysisConstants::kaonMass, 3));
+  return par[0] * std::pow(mass - 2 * AnalysisConstants::GetMass("K"), par[1]) * std::exp(par[2] * (mass - 2 * AnalysisConstants::GetMass("K")) + par[3] * std::pow(mass - 2 * AnalysisConstants::GetMass("K"), 2) + par[4] * std::pow(mass - 2 * AnalysisConstants::GetMass("K"), 3));
 }
 
 inline double VoigtBkgMattia(double* x, double* par)

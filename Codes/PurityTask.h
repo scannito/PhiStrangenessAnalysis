@@ -71,10 +71,13 @@ class PurityTask : public IAnalysisTask
     canvasPurityPiTOF = new TCanvas("canvasPiTOFPurity", "Pi TOF Purity", 800, 600);
 
     // 4. Setup the task list (assuming nBinPtK0S, binspTK0S, etc. are accessible globally or defined here)
+    const auto& binPtK0S = globalCfgs.GetPtBinning("K0S");
+    const auto& binPtPi = globalCfgs.GetPtBinning("Pi");
+
     particleTasks = {
-      {"k0s", h3K0SData, globalCfgs.nBinPtK0S, globalCfgs.binspTK0S, fileOutputK0S, canvasPurityK0S},
-      {"pi_tpc", h3PiTPCData, globalCfgs.nBinPtPi, globalCfgs.binspTPi, fileOutputPi, canvasPurityPiTPC},
-      {"pi_tof", h3PiTOFData, globalCfgs.nBinPtPi, globalCfgs.binspTPi, fileOutputPi, canvasPurityPiTOF}};
+      {"k0s", h3K0SData, static_cast<int>(binPtK0S.size()) - 1, binPtK0S, fileOutputK0S, canvasPurityK0S},
+      {"pi_tpc", h3PiTPCData, static_cast<int>(binPtPi.size()) - 1, binPtPi, fileOutputPi, canvasPurityPiTPC},
+      {"pi_tof", h3PiTOFData, static_cast<int>(binPtPi.size()) - 1, binPtPi, fileOutputPi, canvasPurityPiTOF}};
 
     // 5. Read task-specific settings from the JSON node (DOM)
     if (!taskConfig.HasMember("fit_config_file")) {

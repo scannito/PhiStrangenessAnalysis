@@ -1,10 +1,12 @@
 {
     "global_binning": {
         "binning_name": "PtPhi_Integrated",
-        "pt_phi": [
-            0.4,
-            10.0
-        ]
+        "pt_binning": {
+            "Phi": [
+                0.4,
+                10.0
+            ]
+        }
     },
     "workflow": {
         "active_tasks": [
@@ -46,6 +48,16 @@
         "trigger_prefix": "Data_",
         "output_prefix": "Data_",
         "run_mode": 0,
+        "associated_particles": [
+            {
+                "name": "K0S",
+                "dir_name": "phiK0S"
+            },
+            {
+                "name": "Pi",
+                "dir_name": "phiPi"
+            }
+        ],
         "apply_mixed_events": true,
         "apply_efficiency": true,
         "apply_purity": true,
@@ -61,6 +73,18 @@
             "K0S",
             "Pi"
         ],
+        "purity_sources": [
+            {
+                "name": "K0S",
+                "purity_key": "k0s",
+                "file_suffix": "K0SPurity.root"
+            },
+            {
+                "name": "Pi",
+                "purity_key": "pi_tpc",
+                "file_suffix": "PiPurity.root"
+            }
+        ],
         "use_projection_cache": true,
         "use_2d_me_normalization": false,
         "projection_axis": "delta_y",
@@ -72,7 +96,8 @@
             0.1
         ],
         "use_legacy_extrapolation": false,
-        "extrapolation_config_file": "../JSONConfigs/extrapConfig.json"
+        "extrapolation_config_file": "../JSONConfigs/extrapConfig.json",
+        "yield_ratio_label": "2K_{S}^{0}/(#pi^{+}+#pi^{-})"
     },
     "mc_task": {
         "inherits": "mc_base_settings"

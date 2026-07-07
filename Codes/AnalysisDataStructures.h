@@ -14,7 +14,7 @@ struct AssocParticleConfig {
   std::string name;    // e.g., "K0S", "Pi"
   std::string dirName; // e.g., "phiK0S", "phiPi"
   int nBinPt;
-  int effIndex; // Index in the corrections array (0 is Phi, 1 is K0S, 2 is Pi)
+  // int effIndex; // Index in the corrections array (0 is Phi, 1 is K0S, 2 is Pi)
   std::vector<double> binning;
   double mass;
 };

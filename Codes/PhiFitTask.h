@@ -67,19 +67,17 @@ class PhiFitTask : public IAnalysisTask
     std::string phiDataName = basePathProj + prefix + "PhiDataHistograms.root";
     filePhiDataOutput = new TFile(phiDataName.c_str(), "RECREATE");
 
+    const int nBinPtPhi = globalCfgs.GetNBinPt("Phi");
+
     // Histograms to pass parameters to CorrelationTask
     h2TriggerSignal = new TH2D("h2TriggerSignal", "Raw Signal Yield;Multiplicity Bin;p_{T} Bin",
-                               globalCfgs.nBinMult, 0, globalCfgs.nBinMult,
-                               globalCfgs.nBinPtPhi, 0, globalCfgs.nBinPtPhi);
+                               globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
     h2TriggerBkgSigRegion = new TH2D("h2TriggerBkgSigRegion", "Bkg in Signal Region;Multiplicity Bin;p_{T} Bin",
-                                     globalCfgs.nBinMult, 0, globalCfgs.nBinMult,
-                                     globalCfgs.nBinPtPhi, 0, globalCfgs.nBinPtPhi);
+                                     globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
     h2TriggerBkgSideRegion = new TH2D("h2TriggerBkgSideRegion", "Bkg in Sideband Region;Multiplicity Bin;p_{T} Bin",
-                                      globalCfgs.nBinMult, 0, globalCfgs.nBinMult,
-                                      globalCfgs.nBinPtPhi, 0, globalCfgs.nBinPtPhi);
+                                      globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
     h2TriggerBkgRatio = new TH2D("h2TriggerBkgRatio", "Bkg(SigRegion)/Bkg(Sideband);Multiplicity Bin;p_{T} Bin",
-                                 globalCfgs.nBinMult, 0, globalCfgs.nBinMult,
-                                 globalCfgs.nBinPtPhi, 0, globalCfgs.nBinPtPhi);
+                                 globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
   }
 
   void Run() override
@@ -88,8 +86,10 @@ class PhiFitTask : public IAnalysisTask
 
     TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(filePhiDataOutput, {globalCfgs.binningName, "Fits"}, false);
 
+    const int nBinPtPhi = globalCfgs.GetNBinPt("Phi");
+
     for (int i = 0; i < globalCfgs.nBinMult; i++) {
-      for (int j = 0; j < globalCfgs.nBinPtPhi; j++) {
+      for (int j = 0; j < nBinPtPhi; j++) {
         std::string phiHistName = "h1PhiData_multBin" + std::to_string(i) + "_ptBin" + std::to_string(j);
         TH1* h1PhiData = static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), i + 1, i + 1, j + 1, j + 1));
         h1PhiData->SetDirectory(0);

@@ -3,162 +3,116 @@
 #include "AnalysisDataStructures.h"
 #include "AnalysisUtils.h"
 
+#include "TDirectory.h"
 #include "TH1.h"
 #include "TH2.h"
 #include "THnSparse.h"
 
 #include <iostream>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 class CorrelationCalculator
 {
  public:
-  CorrelationCalculator(bool useMixedEvents, bool useCache, bool use2D) : applyME(useMixedEvents), useCacheMode(useCache), use2DME(use2D) {}
+  enum class AxisTarget { DeltaPhi_X = 0,
+                          DeltaY_Y };
 
-  // Public wrapper that routes to the correct extraction logic
+  CorrelationCalculator(bool useMixedEvents, bool useCache, bool use2D, bool doMoreQA)
+    : applyME(useMixedEvents), useCacheMode(useCache), use2DME(use2D), doMoreQA(doMoreQA) {}
+
+  // =========================================================================
+  // Public Wrappers (Called by the Task)
+  // =========================================================================
+
+  // Used to extract the signal for the final spectra (Projects onto Delta y)
   TH1* ExtractCorrectedSignal(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
                               double totalEff, double triggerBkgRatio, const std::string& histNameBase,
-                              TDirectory* ioDir = nullptr) const
+                              TDirectory* ioDir = nullptr, TDirectory* qaDir = nullptr, AxisTarget targetAxis = AxisTarget::DeltaY_Y,
+                              std::optional<std::pair<double, double>> orthogonalCut = std::nullopt) const
   {
     if (use2DME) {
-      return Extract2D(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir);
+      return Extract2D(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir, qaDir, targetAxis, orthogonalCut);
     } else {
       return Extract1D(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir);
     }
   }
 
-  /*// Returns the fully corrected 1D histogram of the associated signal.
-  // Accepts an optional TDirectory* to save intermediate steps to disk.
-  TH1* ExtractCorrectedSignal(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
-                              double totalEff, double triggerBkgRatio, const std::string& histNameBase,
-                              TDirectory* ioDir = nullptr) const
-  {
-    TH1* h1Signal{nullptr};
-    TH1* h1Sideband{nullptr};
-    TH1* h1MESignal{nullptr};
-    TH1* h1MESideband{nullptr};
-
-    // 1. Histogram retrieval: either from cache or projecting the THnSparse on the fly
-    if (useCacheMode) { // In cache mode, we expect the histograms to be already projected and stored in the provided TDirectory
-      if (!ioDir) {
-        std::cerr << "\n[FATAL ERROR] CorrelationCalculator: Cache mode requested but no ioDir provided!\n"
-                  << std::endl;
-        std::exit(1);
-      }
-
-      h1Signal = static_cast<TH1*>(ioDir->Get((histNameBase + "Signal").c_str()));
-      if (!h1Signal) {
-        std::cerr << "\n[FATAL] Cache missing: " << histNameBase << "Signal" << std::endl;
-        std::exit(1);
-      }
-      h1Signal->SetDirectory(0);
-
-      h1Sideband = static_cast<TH1*>(ioDir->Get((histNameBase + "Sideband").c_str()));
-      if (h1Sideband)
-        h1Sideband->SetDirectory(0);
-
-      if (applyME) {
-        h1MESignal = static_cast<TH1*>(ioDir->Get((histNameBase + "MESignal").c_str()));
-        if (!h1MESignal) {
-          std::cerr << "\n[FATAL] Cache missing: " << histNameBase << "MESignal" << std::endl;
-          std::exit(1);
-        }
-        h1MESignal->SetDirectory(0);
-
-        h1MESideband = static_cast<TH1*>(ioDir->Get((histNameBase + "MESideband").c_str()));
-        if (h1MESideband)
-          h1MESideband->SetDirectory(0);
-      }
-    } else { // If not using cache, we need to project the THnSparse on the fly
-      if (!data.h5DataSignal || data.h5DataSignal->IsZombie()) {
-        throw std::runtime_error("[FATAL] CorrelationCalculator: Mandatory Signal THnSparse is missing for " + data.name);
-      }
-      h1Signal = AnalysisUtils::projectTHnSparse<TH1>(data.h5DataSignal, axesToCut, {3}, histNameBase + "Signal");
-
-      // Project Sideband ONLY if the sparse exists
-      if (data.h5DataSideband) {
-        h1Sideband = AnalysisUtils::projectTHnSparse<TH1>(data.h5DataSideband, axesToCut, {3}, histNameBase + "Sideband");
-      }
-
-      if (applyME) {
-        if (!data.h5DataMESignal || data.h5DataMESignal->IsZombie()) {
-          throw std::runtime_error("[FATAL] CorrelationCalculator: ME is enabled, but mandatory ME Signal THnSparse is missing for " + data.name);
-        }
-        h1MESignal = AnalysisUtils::projectTHnSparse<TH1>(data.h5DataMESignal, axesToCut, {3}, histNameBase + "MESignal");
-
-        if (data.h5DataMESideband && h1Sideband) {
-          h1MESideband = AnalysisUtils::projectTHnSparse<TH1>(data.h5DataMESideband, axesToCut, {3}, histNameBase + "MESideband");
-        }
-      }
-
-      // --- SAVE RAW DATA ---
-      if (ioDir) {
-        ioDir->cd();
-        h1Signal->Write();
-        if (h1Sideband)
-          h1Sideband->Write();
-        if (applyME) {
-          h1MESignal->Write();
-          if (h1MESideband)
-            h1MESideband->Write();
-        }
-      }
-    }
-
-    // 2. Efficiency Correction
-    h1Signal->Scale(1.0 / totalEff);
-
-    // 3. Mixed Event Correction (if enabled)
-    if (applyME) {
-      auto [normMESignal, errSig] = AnalysisUtils::IntegralAndErrorPair(h1MESignal, -0.1, 0.1);
-      if (normMESignal > 0)
-        h1MESignal->Scale(2.0 / normMESignal);
-      h1Signal->Divide(h1MESignal);
-    }
-
-    if (h1Sideband) {
-      if (applyME && h1MESideband) {
-        auto [normMESideband, errSide] = AnalysisUtils::IntegralAndErrorPair(h1MESideband, -0.1, 0.1);
-        if (normMESideband > 0)
-          h1MESideband->Scale(2.0 / normMESideband);
-        h1Sideband->Divide(h1MESideband);
-      }
-
-      // 4. Background Subtraction (Sideband Scaling & Subtraction)
-      h1Sideband->Scale(triggerBkgRatio / totalEff);
-
-      // --- SAVE SCALED SIDEBAND ---
-      if (ioDir && !useCacheMode) {
-        ioDir->cd();
-        h1Sideband->Write((std::string(h1Sideband->GetName()) + "_Scaled").c_str());
-      }
-    }
-
-    // 5. Create final histogram: Signal - Scaled Sideband
-    TH1* h1FinalSignal = static_cast<TH1*>(h1Signal->Clone(histNameBase.c_str()));
-    h1FinalSignal->SetDirectory(0);
-    if (h1Sideband && triggerBkgRatio > 0)
-      h1FinalSignal->Add(h1Sideband, -1);
-
-    // 6. Memory cleanup for temporary objects
-    delete h1Signal;
-    if (h1Sideband)
-      delete h1Sideband;
-    if (applyME) {
-      delete h1MESignal;
-      if (h1MESideband)
-        delete h1MESideband;
-    }
-
-    return h1FinalSignal;
-  }*/
-
-  // New 2D extraction -> 1D Projection along Delta Phi (X Axis)
+  /*// Used to extract the QA (Projects onto Delta Phi with optional cuts on Delta y)
   TH1* ExtractDeltaPhi(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
                        double totalEff, double triggerBkgRatio, const std::string& histNameBase,
-                       TDirectory* ioDir = nullptr,
-                       bool applyDyCut = false, double dyMin = -1.0, double dyMax = 1.0) const
+                       TDirectory* ioDir = nullptr, TDirectory* qaDir = nullptr,
+                       bool applyOrthogonalCut = false, double cutMin = -1.0, double cutMax = 1.0) const
+  {
+    return Process2DExtraction(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir, qaDir,
+                               AxisTarget::DeltaPhi_X, applyOrthogonalCut, cutMin, cutMax);
+  }*/
+
+ private:
+  bool applyME{true}, useCacheMode{false}, use2DME{false}, doMoreQA{false};
+
+  // =========================================================================
+  // Helper: Safe calculation of the average around (0,0)
+  // =========================================================================
+  double GetZeroZeroAvg(TH2* h) const
+  {
+    if (!h)
+      return 0.0;
+    int bx_left = h->GetXaxis()->FindBin(-1e-6);
+    int bx_right = h->GetXaxis()->FindBin(1e-6);
+    int by_down = h->GetYaxis()->FindBin(-1e-6);
+    int by_up = h->GetYaxis()->FindBin(1e-6);
+
+    // If zero falls exactly in the center of a single bin
+    if (bx_left == bx_right && by_down == by_up) {
+      return h->GetBinContent(bx_left, by_down);
+    }
+
+    // If zero falls on the intersection of 4 bins
+    return (h->GetBinContent(bx_left, by_down) + h->GetBinContent(bx_left, by_up) +
+            h->GetBinContent(bx_right, by_down) + h->GetBinContent(bx_right, by_up)) /
+           4.0;
+  }
+
+  double GetZeroAvg(TH1* h) const
+  {
+    if (!h)
+      return 0.0;
+    int bx_left = h->GetXaxis()->FindBin(-1e-6);
+    int bx_right = h->GetXaxis()->FindBin(1e-6);
+
+    // If zero falls exactly in the center of a single bin
+    if (bx_left == bx_right) {
+      return h->GetBinContent(bx_left);
+    }
+
+    // If zero falls on the intersection of 2 bins
+    return (h->GetBinContent(bx_left) + h->GetBinContent(bx_right)) / 2.0;
+  }
+
+  double GetZeroAvgFromFit(TH1* h, double fitRange = 0.5) const
+  {
+    if (!h)
+      return 0.0;
+
+    // Fit a constant in the range [-fitRange, fitRange]
+    TF1* fitFunc = new TF1("fitFunc", "[0] + [1]*abs(x) + [2]*x*x", -fitRange, fitRange);
+    h->Fit(fitFunc, "RQ"); // R = use range, Q = quiet mode
+
+    double fitValue = fitFunc->GetParameter(0);
+    delete fitFunc;
+    return fitValue;
+  }
+
+  // =========================================================================
+  // UNIVERSAL 2D ENGINE
+  // =========================================================================
+  TH1* Extract2D(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
+                 double totalEff, double triggerBkgRatio, const std::string& histNameBase,
+                 TDirectory* ioDir, TDirectory* qaDir, AxisTarget targetAxis,
+                 std::optional<std::pair<double, double>> orthogonalCut = std::nullopt) const
   {
     TH2* h2Signal{nullptr};
     TH2* h2Sideband{nullptr};
@@ -170,10 +124,11 @@ class CorrelationCalculator
     std::string nameMESig2D = histNameBase + "MESignal2D";
     std::string nameMESb2D = histNameBase + "MESideband2D";
 
-    // 1. Extraction or Projection from THnSparse (Raw 2D)
+    // 1. Loading / Projection (Axes 3 = Delta y, 4 = Delta Phi)
     if (useCacheMode) {
       if (!ioDir)
         throw std::runtime_error("[FATAL] Cache mode requested but no ioDir provided!");
+
       h2Signal = static_cast<TH2*>(ioDir->Get(nameSig2D.c_str()));
       if (!h2Signal)
         throw std::runtime_error("[FATAL] Cache missing: " + nameSig2D);
@@ -192,138 +147,198 @@ class CorrelationCalculator
           h2MESideband->SetDirectory(0);
       }
     } else {
-      std::vector<int> projAxes = {3, 4}; // 3 = Delta Y, 4 = Delta Phi
-
+      std::vector<int> projAxes = {3, 4}; // Y = Delta y, X = Delta Phi
       h2Signal = AnalysisUtils::projectTHnSparse<TH2>(data.h5DataSignal, axesToCut, projAxes, nameSig2D);
       if (data.h5DataSideband)
         h2Sideband = AnalysisUtils::projectTHnSparse<TH2>(data.h5DataSideband, axesToCut, projAxes, nameSb2D);
 
       if (applyME) {
         h2MESignal = AnalysisUtils::projectTHnSparse<TH2>(data.h5DataMESignal, axesToCut, projAxes, nameMESig2D);
-        if (data.h5DataMESideband && h2Sideband)
+        if (data.h5DataMESideband && h2Sideband) {
           h2MESideband = AnalysisUtils::projectTHnSparse<TH2>(data.h5DataMESideband, axesToCut, projAxes, nameMESb2D);
+        }
       }
 
-      // Save Raw 2D histograms
       if (ioDir) {
         ioDir->cd();
-        h2Signal->Write();
+        h2Signal->Write(nullptr, TObject::kOverwrite);
         if (h2Sideband)
-          h2Sideband->Write();
-        /*if (applyME) {
-          if (h2MESignal)
-            h2MESignal->Write();
+          h2Sideband->Write(nullptr, TObject::kOverwrite);
+        if (applyME) {
+          h2MESignal->Write(nullptr, TObject::kOverwrite);
           if (h2MESideband)
-            h2MESideband->Write();
-        }*/
+            h2MESideband->Write(nullptr, TObject::kOverwrite);
+        }
       }
     }
 
-    // 2. Efficiency Correction
+    // 2. ME normalization (if requested)
+    if (applyME) {
+      if (h2MESignal) {
+        TH1* h1MEProjY = h2MESignal->ProjectionY("tempMEProjY_Sig");
+        double a0_Sig = GetZeroAvgFromFit(h1MEProjY);
+        double nBinsPhi_Sig = h2MESignal->GetNbinsX();
+        double normMESig = a0_Sig / nBinsPhi_Sig;
+
+        if (normMESig > 0)
+          h2MESignal->Scale(1.0 / normMESig);
+        delete h1MEProjY;
+      }
+
+      if (h2MESideband) {
+        TH1* h1MEProjY_Sb = h2MESideband->ProjectionY("tempMEProjY_Sb");
+        double a0_Sb = GetZeroAvgFromFit(h1MEProjY_Sb);
+        double nBinsPhi_Sb = h2MESideband->GetNbinsX();
+        double normMESb = a0_Sb / nBinsPhi_Sb;
+
+        if (normMESb > 0)
+          h2MESideband->Scale(1.0 / normMESb);
+        delete h1MEProjY_Sb;
+      }
+
+      /*double normMESig = GetZeroZeroAvg(h2MESignal);
+      if (normMESig > 0)
+        h2MESignal->Scale(1.0 / normMESig);
+      double normMESb = GetZeroZeroAvg(h2MESideband);
+      if (normMESb > 0)
+        h2MESideband->Scale(1.0 / normMESb);*/
+    }
+
+    // 3. Efficiency Correction
     h2Signal->Scale(1.0 / totalEff);
+    // Sideband Scaling
+    h2Sideband->Scale(triggerBkgRatio / totalEff);
 
-    // 3. 2D Division: SE / ME to create Corrected 2D histograms
-    if (applyME && h2MESignal) {
-      double widthX = h2MESignal->GetXaxis()->GetBinWidth(h2MESignal->GetXaxis()->FindBin(0.0));
-      double widthY = h2MESignal->GetYaxis()->GetBinWidth(h2MESignal->GetYaxis()->FindBin(0.0));
-      auto [normMESignal, errSig] = AnalysisUtils::IntegralAndErrorPair(h2MESignal, -widthX, widthX, -widthY, widthY);
-      if (normMESignal > 0)
-        h2MESignal->Scale(4.0 / normMESignal);
-      if (ioDir && !useCacheMode) {
-        ioDir->cd();
-        h2MESignal->Write();
-      }
-
-      h2Signal->Divide(h2MESignal); // <-- Now h2Signal is the CORRECTED 2D SIGNAL
-      if (ioDir && !useCacheMode) {
-        ioDir->cd();
-        h2Signal->Write((histNameBase + "Signal2D_MECorrected").c_str());
-      }
-    }
+    // 4. 2D Division
+    if (applyME && h2MESignal)
+      h2Signal->Divide(h2MESignal);
 
     if (h2Sideband) {
-      if (applyME && h2MESideband) {
-        double widthX = h2MESideband->GetXaxis()->GetBinWidth(h2MESideband->GetXaxis()->FindBin(0.0));
-        double widthY = h2MESideband->GetYaxis()->GetBinWidth(h2MESideband->GetYaxis()->FindBin(0.0));
-        auto [normMESideband, errSide] = AnalysisUtils::IntegralAndErrorPair(h2MESideband, -widthX, widthX, -widthY, widthY);
-        if (normMESideband > 0)
-          h2MESideband->Scale(4.0 / normMESideband);
-        if (ioDir && !useCacheMode) {
-          ioDir->cd();
-          h2MESideband->Write();
-        }
+      if (applyME && h2MESideband)
+        h2Sideband->Divide(h2MESideband);
 
-        h2Sideband->Divide(h2MESideband); // <-- Now h2Sideband is the CORRECTED 2D SIDEBAND
-        if (ioDir && !useCacheMode) {
-          ioDir->cd();
-          h2Sideband->Write((histNameBase + "Sideband2D_MECorrected").c_str());
-        }
-      }
-
-      // Sideband scaling
-      h2Sideband->Scale(triggerBkgRatio / totalEff);
-      if (ioDir && !useCacheMode) {
-        ioDir->cd();
-        h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Scaled").c_str());
-      }
+      // Sideband Scaling
+      // h2Sideband->Scale(triggerBkgRatio / totalEff);
     }
 
-    // Restrict Delta Y range (Y Axis) before projection
-    if (applyDyCut) {
-      int binMin = h2Signal->GetYaxis()->FindBin(dyMin + 1e-6);
-      int binMax = h2Signal->GetYaxis()->FindBin(dyMax - 1e-6);
-      h2Signal->GetYaxis()->SetRange(binMin, binMax);
+    TH1* h1Final1D{nullptr};
+
+    // 5. Uncut QA (if requested)
+    if (qaDir && doMoreQA) {
+      qaDir->cd();
+      h2Signal->Write((histNameBase + "Signal2D_MECorrected_Uncut").c_str());
       if (h2Sideband)
-        h2Sideband->GetYaxis()->SetRange(binMin, binMax);
+        h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Uncut").c_str());
+
+      // QA: X axis (Delta Phi)
+      TH1* h1QA_X_Sig = h2Signal->ProjectionX((histNameBase + "Signal1D_dPhi_Uncut").c_str());
+      TH1* h1QA_X_Sb = h2Sideband ? h2Sideband->ProjectionX((histNameBase + "Sideband1D_dPhi_Uncut").c_str()) : nullptr;
+      TH1* h1QA_X_Final = static_cast<TH1*>(h1QA_X_Sig->Clone((histNameBase + "Final_dPhi_Uncut").c_str()));
+      if (h1QA_X_Sb && triggerBkgRatio > 0)
+        h1QA_X_Final->Add(h1QA_X_Sb, -1);
+
+      // QA: Y axis (Delta y)
+      TH1* h1QA_Y_Sig = h2Signal->ProjectionY((histNameBase + "Signal1D_dy_Uncut").c_str());
+      TH1* h1QA_Y_Sb = h2Sideband ? h2Sideband->ProjectionY((histNameBase + "Sideband1D_dy_Uncut").c_str()) : nullptr;
+      TH1* h1QA_Y_Final = static_cast<TH1*>(h1QA_Y_Sig->Clone((histNameBase + "Final_dy_Uncut").c_str()));
+      if (h1QA_Y_Sb && triggerBkgRatio > 0)
+        h1QA_Y_Final->Add(h1QA_Y_Sb, -1);
+
+      if (!orthogonalCut) {
+        TH1* targetQA = (targetAxis == AxisTarget::DeltaPhi_X) ? h1QA_X_Final : h1QA_Y_Final;
+        h1Final1D = static_cast<TH1*>(targetQA->Clone((histNameBase + "Final" + ((targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy")).c_str()));
+        h1Final1D->SetDirectory(0);
+      }
+
+      h1QA_X_Sig->Write();
+      if (h1QA_X_Sb)
+        h1QA_X_Sb->Write();
+      h1QA_X_Final->Write();
+      delete h1QA_X_Sig;
+      if (h1QA_X_Sb)
+        delete h1QA_X_Sb;
+      delete h1QA_X_Final;
+
+      h1QA_Y_Sig->Write();
+      if (h1QA_Y_Sb)
+        h1QA_Y_Sb->Write();
+      h1QA_Y_Final->Write();
+      delete h1QA_Y_Sig;
+      if (h1QA_Y_Sb)
+        delete h1QA_Y_Sb;
+      delete h1QA_Y_Final;
     }
 
-    // 4. Projection onto X Axis (Delta Phi) for both cases
-    TH1* h1Signal1D = h2Signal->ProjectionX((histNameBase + "Signal_1D_dPhi").c_str());
-    h1Signal1D->SetDirectory(0);
+    if (!h1Final1D) {
+      // 6. Orthogonal Cut (If requested)
+      if (orthogonalCut) {
+        auto [cutMin, cutMax] = *orthogonalCut;
+        if (targetAxis == AxisTarget::DeltaPhi_X) {
+          // If projecting onto X, cut the Y axis (Delta y)
+          int binMin = h2Signal->GetYaxis()->FindBin(cutMin + 1e-6);
+          int binMax = h2Signal->GetYaxis()->FindBin(cutMax - 1e-6);
+          h2Signal->GetYaxis()->SetRange(binMin, binMax);
+          if (h2Sideband)
+            h2Sideband->GetYaxis()->SetRange(binMin, binMax);
+        } else {
+          // If projecting onto Y, cut the X axis (Delta Phi)
+          int binMin = h2Signal->GetXaxis()->FindBin(cutMin + 1e-6);
+          int binMax = h2Signal->GetXaxis()->FindBin(cutMax - 1e-6);
+          h2Signal->GetXaxis()->SetRange(binMin, binMax);
+          if (h2Sideband)
+            h2Sideband->GetXaxis()->SetRange(binMin, binMax);
+        }
+      }
 
-    TH1* h1Sideband1D{nullptr};
-    if (h2Sideband) {
-      h1Sideband1D = h2Sideband->ProjectionX((histNameBase + "Sideband_1D_dPhi_Scaled").c_str());
-      h1Sideband1D->SetDirectory(0);
+      TH1* h1Sig1D = (targetAxis == AxisTarget::DeltaPhi_X)
+                       ? h2Signal->ProjectionX((histNameBase + "Signal1D_dPhi").c_str())
+                       : h2Signal->ProjectionY((histNameBase + "Signal1D_dy").c_str());
+      h1Sig1D->SetDirectory(0);
+
+      TH1* h1Side1D = nullptr;
+      if (h2Sideband) {
+        h1Side1D = (targetAxis == AxisTarget::DeltaPhi_X)
+                     ? h2Sideband->ProjectionX((histNameBase + "Sideband1D_dPhi").c_str())
+                     : h2Sideband->ProjectionY((histNameBase + "Sideband1D_dy").c_str());
+        h1Side1D->SetDirectory(0);
+      }
+
+      h1Final1D = static_cast<TH1*>(h1Sig1D->Clone((histNameBase + "Final" + ((targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy")).c_str()));
+      h1Final1D->SetDirectory(0);
+      if (h1Side1D && triggerBkgRatio > 0) {
+        h1Final1D->Add(h1Side1D, -1);
+      }
+
+      if (qaDir && doMoreQA && orthogonalCut) {
+        qaDir->cd();
+        h2Signal->Write((histNameBase + "Signal2D_MECorrected_Cut").c_str());
+        h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Cut").c_str());
+        h1Sig1D->Write();
+        if (h1Side1D)
+          h1Side1D->Write();
+        h1Final1D->Write();
+      }
+
+      delete h1Sig1D;
+      if (h1Side1D)
+        delete h1Side1D;
     }
 
-    // -> SAVE INTERMEDIATE 1D PROJECTIONS <-
-    if (ioDir && !useCacheMode) {
-      ioDir->cd();
-      h1Signal1D->Write();
-      if (h1Sideband1D)
-        h1Sideband1D->Write();
-    }
-
-    // 5. Final 1D Subtraction
-    TH1* h1FinalSignal1D = static_cast<TH1*>(h1Signal1D->Clone((histNameBase + "Final_dPhi").c_str()));
-    h1FinalSignal1D->SetDirectory(0);
-    if (h1Sideband1D && triggerBkgRatio > 0)
-      h1FinalSignal1D->Add(h1Sideband1D, -1);
-    if (ioDir && !useCacheMode)
-      h1FinalSignal1D->Write();
-
-    // 6. Memory Cleanup
     delete h2Signal;
     if (h2Sideband)
       delete h2Sideband;
     if (applyME) {
-      if (h2MESignal)
-        delete h2MESignal;
+      delete h2MESignal;
       if (h2MESideband)
         delete h2MESideband;
     }
-    delete h1Signal1D;
-    if (h1Sideband1D)
-      delete h1Sideband1D;
 
-    return h1FinalSignal1D;
+    return h1Final1D;
   }
 
- private:
-  bool applyME{true}, useCacheMode{false}, use2DME{false};
-
-  // Standard 1D extraction (original logic)
+  // =========================================================================
+  // ORIGINAL 1D ENGINE (Untouched, used if use2DME = false)
+  // =========================================================================
   TH1* Extract1D(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
                  double totalEff, double triggerBkgRatio, const std::string& histNameBase,
                  TDirectory* ioDir) const
@@ -375,13 +390,13 @@ class CorrelationCalculator
 
       if (ioDir) {
         ioDir->cd();
-        h1Signal->Write();
+        h1Signal->Write(nullptr, TObject::kOverwrite);
         if (h1Sideband)
-          h1Sideband->Write();
+          h1Sideband->Write(nullptr, TObject::kOverwrite);
         if (applyME) {
-          h1MESignal->Write();
+          h1MESignal->Write(nullptr, TObject::kOverwrite);
           if (h1MESideband)
-            h1MESideband->Write();
+            h1MESideband->Write(nullptr, TObject::kOverwrite);
         }
       }
     }
@@ -426,128 +441,5 @@ class CorrelationCalculator
     }
 
     return h1FinalSignal;
-  }
-
-  // New 2D extraction -> Projection to 1D
-  TH1* Extract2D(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
-                 double totalEff, double triggerBkgRatio, const std::string& histNameBase,
-                 TDirectory* ioDir) const
-  {
-    TH2* h2Signal{nullptr};
-    TH2* h2Sideband{nullptr};
-    TH2* h2MESignal{nullptr};
-    TH2* h2MESideband{nullptr};
-
-    // Cache names have "2D" appended to prevent loading 1D caches into TH2 pointers
-    std::string nameSig2D = histNameBase + "Signal2D";
-    std::string nameSb2D = histNameBase + "Sideband2D";
-    std::string nameMESig2D = histNameBase + "MESignal2D";
-    std::string nameMESb2D = histNameBase + "MESideband2D";
-
-    // 1. Load from cache or project THnSparse
-    if (useCacheMode) {
-      if (!ioDir)
-        throw std::runtime_error("[FATAL] Cache mode requested but no ioDir provided!");
-
-      h2Signal = static_cast<TH2*>(ioDir->Get(nameSig2D.c_str()));
-      if (!h2Signal)
-        throw std::runtime_error("[FATAL] Cache missing: " + nameSig2D + ". Please run with 'use_projection_cache': false.");
-      h2Signal->SetDirectory(0);
-
-      h2Sideband = static_cast<TH2*>(ioDir->Get(nameSb2D.c_str()));
-      if (h2Sideband)
-        h2Sideband->SetDirectory(0);
-
-      if (applyME) {
-        h2MESignal = static_cast<TH2*>(ioDir->Get(nameMESig2D.c_str()));
-        if (!h2MESignal)
-          throw std::runtime_error("[FATAL] Cache missing: " + nameMESig2D);
-        h2MESignal->SetDirectory(0);
-
-        h2MESideband = static_cast<TH2*>(ioDir->Get(nameMESb2D.c_str()));
-        if (h2MESideband)
-          h2MESideband->SetDirectory(0);
-      }
-    } else {
-      // Projecting on {3, 4}. Axis 3 (Delta Y) becomes Y, Axis 4 (Delta Phi) becomes X.
-      std::vector<int> projAxes = {3, 4};
-
-      if (!data.h5DataSignal)
-        throw std::runtime_error("[FATAL] Missing Signal THnSparse for " + data.name);
-
-      h2Signal = AnalysisUtils::projectTHnSparse<TH2>(data.h5DataSignal, axesToCut, projAxes, nameSig2D);
-      if (data.h5DataSideband)
-        h2Sideband = AnalysisUtils::projectTHnSparse<TH2>(data.h5DataSideband, axesToCut, projAxes, nameSb2D);
-
-      if (applyME) {
-        if (!data.h5DataMESignal)
-          throw std::runtime_error("[FATAL] Missing ME Signal THnSparse for " + data.name);
-        h2MESignal = AnalysisUtils::projectTHnSparse<TH2>(data.h5DataMESignal, axesToCut, projAxes, nameMESig2D);
-        if (data.h5DataMESideband && h2Sideband)
-          h2MESideband = AnalysisUtils::projectTHnSparse<TH2>(data.h5DataMESideband, axesToCut, projAxes, nameMESb2D);
-      }
-
-      if (ioDir) {
-        ioDir->cd();
-        h2Signal->Write();
-        if (h2Sideband)
-          h2Sideband->Write();
-        if (applyME) {
-          h2MESignal->Write();
-          if (h2MESideband)
-            h2MESideband->Write();
-        }
-      }
-    }
-
-    // 2. Efficiency Correction (2D)
-    h2Signal->Scale(1.0 / totalEff);
-
-    // 3. Mixed Event Normalization & Division (2D)
-    if (applyME) {
-      double widthX = h2MESignal->GetXaxis()->GetBinWidth(h2MESignal->GetXaxis()->FindBin(0.0));
-      double widthY = h2MESignal->GetYaxis()->GetBinWidth(h2MESignal->GetYaxis()->FindBin(0.0));
-      auto [normMESignal, errSig] = AnalysisUtils::IntegralAndErrorPair(h2MESignal, -widthX, widthX, -widthY, widthY);
-      if (normMESignal > 0) {
-        h2MESignal->Scale(4.0 / normMESignal);
-      }
-
-      h2Signal->Divide(h2MESignal);
-    }
-
-    if (h2Sideband) {
-      if (applyME && h2MESideband) {
-        double widthX = h2MESideband->GetXaxis()->GetBinWidth(h2MESideband->GetXaxis()->FindBin(0.0));
-        double widthY = h2MESideband->GetYaxis()->GetBinWidth(h2MESideband->GetYaxis()->FindBin(0.0));
-        auto [normMESideband, errSide] = AnalysisUtils::IntegralAndErrorPair(h2MESideband, -widthX, widthX, -widthY, widthY);
-        if (normMESideband > 0)
-          h2MESideband->Scale(4.0 / normMESideband);
-        h2Sideband->Divide(h2MESideband);
-      }
-      h2Sideband->Scale(triggerBkgRatio / totalEff);
-    }
-
-    // 4. Background Subtraction (2D)
-    TH2* h2FinalSignal = static_cast<TH2*>(h2Signal->Clone((histNameBase + "Final2DTemp").c_str()));
-    if (h2Sideband && triggerBkgRatio > 0) {
-      h2FinalSignal->Add(h2Sideband, -1);
-    }
-
-    // 5. Final Projection to 1D: Delta Y is the Y axis
-    TH1* h1FinalSignal1D = h2FinalSignal->ProjectionY(histNameBase.c_str());
-    h1FinalSignal1D->SetDirectory(0); // Disconnect from current file directory
-
-    // 6. Cleanup of temporary 2D histograms
-    delete h2Signal;
-    delete h2FinalSignal;
-    if (h2Sideband)
-      delete h2Sideband;
-    if (applyME) {
-      delete h2MESignal;
-      if (h2MESideband)
-        delete h2MESideband;
-    }
-
-    return h1FinalSignal1D;
   }
 };

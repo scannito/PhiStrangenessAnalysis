@@ -1,8 +1,7 @@
 #pragma once
 
 #include "CorrelationTask.h"
-#include "CorrelationWPDGTask.h"
-#include "DataTask.h"
+// #include "CorrelationWPDGTask.h"
 #include "IAnalysisTask.h"
 #include "MCTask.h"
 #include "PhiFitTask.h"
@@ -33,25 +32,6 @@ class WorkflowManager
   {
     std::cout << "[INFO] WorkflowManager: Building analysis workflow..." << std::endl;
 
-    /*// Initialize the appropriate tasks
-    for (const std::string& taskName : activeTasksList) {
-      if (taskName == "purity_task") {
-        activeTasks.push_back(std::make_unique<PurityTask>());
-      } else if (taskName == "mc_task") {
-        activeTasks.push_back(std::make_unique<MCTask>());
-      } else if (taskName == "data_task") {
-        activeTasks.push_back(std::make_unique<DataTask>());
-      } else if (taskName == "phi_fit_task") {
-        activeTasks.push_back(std::make_unique<PhiFitTask>());
-      } else if (taskName == "correlation_task") {
-        activeTasks.push_back(std::make_unique<CorrelationTask>());
-      } else if (taskName == "correlation_wpdg_task") {
-        activeTasks.push_back(std::make_unique<CorrelationWPDGTask>());
-      } else {
-        std::cerr << "[WARNING] Unknown task requested: '" << taskName << "'. Skipping." << std::endl;
-      }
-    }*/
-
     // Define our "Task Registry" (Factory Pattern)
     // It is a list of pairs: { "task_prefix_name", Lambda_function_to_create_the_task }
     using TaskFactory = std::function<std::unique_ptr<IAnalysisTask>()>;
@@ -61,9 +41,8 @@ class WorkflowManager
     std::vector<std::pair<std::string, TaskFactory>> taskRegistry = {
       {"purity_task", []() { return std::make_unique<PurityTask>(); }},
       {"mc_task", []() { return std::make_unique<MCTask>(); }},
-      {"data_task", []() { return std::make_unique<DataTask>(); }},
       {"phi_fit_task", []() { return std::make_unique<PhiFitTask>(); }},
-      {"correlation_wpdg_task", []() { return std::make_unique<CorrelationWPDGTask>(); }},
+      /*{"correlation_wpdg_task", []() { return std::make_unique<CorrelationWPDGTask>(); }},*/
       {"correlation_task", []() { return std::make_unique<CorrelationTask>(); }}};
 
     // Map to track used prefixes per task type ---
@@ -200,22 +179,26 @@ class WorkflowManager
       globalSettings.binningName = config["binning_name"].GetString();
     }
 
-    auto overrideArray = [&](const char* key, std::vector<double>& targetVec) {
-      if (config.HasMember(key) && config[key].IsArray()) {
-        targetVec.clear();
-        for (const auto& v : config[key].GetArray()) {
-          targetVec.push_back(v.GetDouble());
-        }
-        std::cout << "  -> Overridden '" << key << "' binning from JSON." << std::endl;
+    // Override multiplicity binning if specified in JSON
+    if (config.HasMember("multiplicity") && config["multiplicity"].IsArray()) {
+      globalSettings.binsMult.clear();
+      for (const auto& v : config["multiplicity"].GetArray())
+        globalSettings.binsMult.push_back(v.GetDouble());
+      std::cout << "  -> Overridden 'multiplicity' binning from JSON." << std::endl;
+    }
+
+    // pT binning per species (e.g., Phi, K0S, Pi) can be overridden in the JSON as well
+    if (config.HasMember("pt_binning") && config["pt_binning"].IsObject()) {
+      for (auto& m : config["pt_binning"].GetObject()) {
+        std::string species = m.name.GetString();
+        std::vector<double> bins;
+        for (const auto& v : m.value.GetArray())
+          bins.push_back(v.GetDouble());
+
+        globalSettings.speciesPtBinning[species] = std::move(bins);
+        std::cout << "  -> Overridden pT binning for species '" << species << "' from JSON." << std::endl;
       }
-    };
-
-    std::cout << "[INFO] WorkflowManager: Applying custom binning from JSON..." << std::endl;
-
-    overrideArray("multiplicity", globalSettings.binsMult);
-    overrideArray("pt_phi", globalSettings.binspTPhi);
-    overrideArray("pt_k0s", globalSettings.binspTK0S);
-    overrideArray("pt_pi", globalSettings.binspTPi);
+    }
 
     globalSettings.UpdateBinCounts();
   }

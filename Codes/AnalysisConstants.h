@@ -10,9 +10,24 @@
 namespace AnalysisConstants
 {
 // --- Physics Constants ---
-inline constexpr double kaonMass{0.49367}; // PDG mass of chaged kaon in GeV/c^2
+inline const std::map<std::string, double> particleMass{
+  {"Phi", 1.019461}, // PDG mass of Phi meson in GeV/c^2
+  {"K", 0.49367},    // PDG mass of charged kaon in GeV/c^2
+  {"K0S", 0.497611}, // PDG mass of K0S in GeV/c^2
+  {"Pi", 0.139570},  // PDG mass of charged pion in GeV/c^2
+};
+
+inline double GetMass(const std::string& name)
+{
+  auto it = particleMass.find(name);
+  if (it == particleMass.end())
+    throw std::runtime_error("[FATAL] AnalysisConstants: Unknown particle '" + name + "'");
+  return it->second;
+}
+
+/*inline constexpr double kaonMass{0.49367}; // PDG mass of chaged kaon in GeV/c^2
 inline constexpr double k0sMass{0.497611}; // PDG mass of K0S in GeV/c^2
-inline constexpr double piMass{0.139570};  // PDG mass of charged pion in GeV/c^2
+inline constexpr double piMass{0.139570};  // PDG mass of charged pion in GeV/c^2*/
 
 /*// --- Binning Dimensions ---
 inline constexpr int nBinMult{10};

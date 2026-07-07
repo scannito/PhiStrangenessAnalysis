@@ -4,8 +4,7 @@
 #include "AnalysisDataStructures.h"
 #include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
-// #include "CorrelationCalculator.h"
-#include "CorrelationCalculator2.h"
+#include "CorrelationCalculator.h"
 #include "ExtrapConfigManager.h"
 #include "ExtrapolationModelFactory.h"
 #include "IAnalysisTask.h"
@@ -85,6 +84,10 @@ class CorrelationTask : public IAnalysisTask
       runMode = static_cast<RunMode>(taskConfig["run_mode"].GetInt());
     }
 
+    if (taskConfig.HasMember("yield_ratio_label") && taskConfig["yield_ratio_label"].IsString()) {
+      yieldRatioLabel = taskConfig["yield_ratio_label"].GetString();
+    }
+
     // Prefix handling: search specific key -> Search fallback -> Search legacy
     auto getPrefix = [](const rapidjson::Value& config, const std::string& specificKey, const std::string& fallbackKey) -> std::string {
       // 1. Search for the highly specific prefix (e.g., "purity_prefix")
@@ -133,9 +136,18 @@ class CorrelationTask : public IAnalysisTask
     delete filePhiDataInput;
 
     // 3. Load Associated Data (THnSparse or Projected TH1 depending on useProjectionCache)
-    assocParticles = {
+    assocParticles.clear();
+    for (const auto& sp : taskConfig["associated_particles"].GetArray()) {
+      std::string name = sp["name"].GetString();
+      std::string dirName = sp["dir_name"].GetString();
+
+      const auto& binning = globalCfgs.GetPtBinning(name);
+
+      assocParticles.emplace_back(name, dirName, static_cast<int>(binning.size()) - 1, binning, AnalysisConstants::GetMass(name));
+    }
+    /*assocParticles = {
       {"K0S", "phiK0S", globalCfgs.nBinPtK0S, 1, globalCfgs.binspTK0S, AnalysisConstants::k0sMass},
-      {"Pi", "phiPi", globalCfgs.nBinPtPi, 2, globalCfgs.binspTPi, AnalysisConstants::piMass}};
+      {"Pi", "phiPi", globalCfgs.nBinPtPi, 2, globalCfgs.binspTPi, AnalysisConstants::piMass}};*/
 
     if (!useProjectionCache) {
       std::cout << "[INFO] CorrelationTask: Cache DISABLED. Loading heavy THnSparse data..." << std::endl;
@@ -264,14 +276,14 @@ class CorrelationTask : public IAnalysisTask
     std::cout << "[INFO] CorrelationTask: TERMINATING AND CLEANING UP..." << std::endl;
 
     // =========================================================================
-    // 1. Write the Ratios and Trends
+    // 1. Write the Yield Ratio (only if exactly 2 associated particles)
     // =========================================================================
     std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
     TDirectory* targetSpectraDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra, {globalCfgs.binningName, dirName});
     if (targetSpectraDir)
       targetSpectraDir->cd();
 
-    TCanvas* canvasRatioMultTrend = new TCanvas("canvasRatioMultTrend", "Ratio Mult Trend", 800, 600);
+    /*TCanvas* canvasRatioMultTrend = new TCanvas("canvasRatioMultTrend", "Ratio Mult Trend", 800, 600);
     canvasRatioMultTrend->cd();
 
     TLegend* legend = new TLegend(0.7, 0.7, 0.9, 0.9);
@@ -330,9 +342,80 @@ class CorrelationTask : public IAnalysisTask
     }
 
     legend->Draw("SAME");
-    canvasRatioMultTrend->Write(nullptr, TObject::kOverwrite);
+    canvasRatioMultTrend->Write(nullptr, TObject::kOverwrite);*/
 
-    // Write Yield Trends (Measured and Extrapolated)
+    if (assocParticles.size() == 2) {
+      const auto& num = assocParticles[0];
+      const auto& den = assocParticles[1];
+
+      double numScale = GetYieldScaleFactor(num.name);
+      double denScale = GetYieldScaleFactor(den.name);
+
+      std::string axisLabel = !yieldRatioLabel.empty() ? yieldRatioLabel : num.name + "/" + den.name;
+
+      std::string canvasName = std::format("canvasRatio_{}_{}_MultTrend", num.name, den.name);
+      TCanvas* canvasRatio = new TCanvas(canvasName.c_str(), "Ratio Mult Trend", 800, 600);
+      canvasRatio->cd();
+
+      TLegend* legend = new TLegend(0.7, 0.7, 0.9, 0.9);
+      legend->SetNColumns(2);
+      legend->SetLineWidth(0);
+
+      for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
+        double dyLimit = deltaYLimits[yIdx];
+        std::string dyTitleStr = Form("%.2f", dyLimit);
+        std::string dyNameStr = dyTitleStr;
+        std::replace(dyNameStr.begin(), dyNameStr.end(), '.', '_');
+
+        std::string ratioMeasName = std::format("Ratio_{}_{}_Meas_dy{}", num.name, den.name, dyNameStr);
+        TH1* hRatioMeas = static_cast<TH1*>(h1MultTrends[0][yIdx]->Clone(ratioMeasName.c_str()));
+        hRatioMeas->SetTitle(("Ratio;Multiplicity Percentile (%);" + axisLabel).c_str());
+        hRatioMeas->SetDirectory(0);
+        hRatioMeas->Divide(h1MultTrends[0][yIdx], h1MultTrends[1][yIdx], numScale, denScale);
+        AnalysisUtils::SetHistogramStyle(hRatioMeas, globalCfgs.GetMultTrendColor(yIdx));
+        hRatioMeas->SetMarkerStyle(24);
+
+        TH1* hRatioExtrap{nullptr};
+        if (applyExtrapolation) {
+          std::string ratioExtrapName = std::format("Ratio_{}_{}_Extrap_dy{}", num.name, den.name, dyNameStr);
+          hRatioExtrap = static_cast<TH1*>(h1MultTrendsExtrap[0][yIdx]->Clone(ratioExtrapName.c_str()));
+          hRatioExtrap->SetDirectory(0);
+          hRatioExtrap->Divide(h1MultTrendsExtrap[0][yIdx], h1MultTrendsExtrap[1][yIdx], numScale, denScale);
+          AnalysisUtils::SetHistogramStyle(hRatioExtrap, globalCfgs.GetMultTrendColor(yIdx));
+          hRatioExtrap->SetMarkerStyle(20);
+        }
+
+        double globalMax = hRatioMeas->GetMaximum();
+        double globalMin = hRatioMeas->GetMinimum();
+        if (hRatioExtrap) {
+          globalMax = std::max(globalMax, hRatioExtrap->GetMaximum());
+          globalMin = std::min(globalMin, hRatioExtrap->GetMinimum());
+        }
+        hRatioMeas->GetYaxis()->SetRangeUser(globalMin * 0.9, globalMax * 1.2);
+
+        hRatioMeas->Draw(yIdx == 0 ? "" : "SAME");
+        if (hRatioExtrap)
+          hRatioExtrap->Draw("SAME");
+
+        legend->AddEntry(hRatioMeas, std::format("Meas. |#Delta y| < {}", dyTitleStr).c_str(), "p");
+        if (hRatioExtrap)
+          legend->AddEntry(hRatioExtrap, std::format("Extrap. |#Delta y| < {}", dyTitleStr).c_str(), "p");
+      }
+
+      legend->Draw("SAME");
+      targetSpectraDir->cd();
+      canvasRatio->Write(nullptr, TObject::kOverwrite);
+
+      delete legend;
+      delete canvasRatio;
+    } else {
+      std::cout << "[INFO] CorrelationTask: Skipping yield ratio (need exactly 2 associated particles, found "
+                << assocParticles.size() << ")." << std::endl;
+    }
+
+    // =========================================================================
+    // 2. Write Yield Trends (Measured and Extrapolated), per species
+    // =========================================================================
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       std::string cNameMeas = std::format("cTrend_Meas_{}", assocParticles[pIdx].name);
       TCanvas* cTrendMeas = new TCanvas(cNameMeas.c_str(), "Measured Yield Trend", 800, 600);
@@ -366,7 +449,9 @@ class CorrelationTask : public IAnalysisTask
       }
     }
 
-    // Write Extrapolated vs Measured Ratios
+    // =========================================================================
+    // 3. Write Extrapolated vs Measured Ratios, per species (independent block)
+    // =========================================================================
     if (applyExtrapolation) {
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
         std::string canvasName = std::format("cRatio_ExtrapVsMeas_{}", assocParticles[pIdx].name);
@@ -407,7 +492,7 @@ class CorrelationTask : public IAnalysisTask
     }
 
     // =========================================================================
-    // 2. Write Canvases
+    // 4. Write Canvases
     // =========================================================================
     for (const auto& canvasVec : spectraCanvases) {
       for (auto* canvas : canvasVec) {
@@ -419,7 +504,7 @@ class CorrelationTask : public IAnalysisTask
     spectraCanvases.clear();
 
     // =========================================================================
-    // 3. Close Files
+    // 5. Close Files
     // =========================================================================
     fileOutputSpectra->Close();
     delete fileOutputSpectra;
@@ -435,7 +520,7 @@ class CorrelationTask : public IAnalysisTask
     }
 
     // =========================================================================
-    // 4. Memory Cleanup for RAM-resident objects
+    // 6. Memory Cleanup for RAM-resident objects
     // =========================================================================
 
     // Clean up Extrapolation configuration
@@ -450,7 +535,7 @@ class CorrelationTask : public IAnalysisTask
     if (h2TriggerBkgRatio)
       delete h2TriggerBkgRatio;
 
-    delete canvasRatioMultTrend;
+    // delete canvasRatioMultTrend;
 
     // Clean up Trends
     for (auto& particleTrends : h1MultTrends) {
@@ -480,15 +565,19 @@ class CorrelationTask : public IAnalysisTask
     }
 
     // Clean up Efficiency histograms
-    for (auto& corr : correctionCollection) {
+    for (auto& [name, corr] : correctionCollection) {
       for (auto& h1 : corr.h1Corrections) {
+        if (h1)
+          delete h1;
+      }
+      for (auto& h1 : corr.h1CorrectionsEffMultInt) {
         if (h1)
           delete h1;
       }
     }
 
     // Clean up Purity histograms
-    for (auto& pur : purityCollection) {
+    for (auto& [name, pur] : purityCollection) {
       for (auto& h1 : pur.h1Purity) {
         if (h1)
           delete h1;
@@ -532,8 +621,11 @@ class CorrelationTask : public IAnalysisTask
 
   std::vector<AssocParticleConfig> assocParticles;
   std::vector<LoadedAssocData> loadedDataCollection;
-  std::vector<LoadedCorrections> correctionCollection;
-  std::vector<LoadedPurity> purityCollection;
+
+  std::map<std::string, LoadedCorrections> correctionCollection;
+  std::map<std::string, LoadedPurity> purityCollection;
+  // std::vector<LoadedCorrections> correctionCollection;
+  // std::vector<LoadedPurity> purityCollection;
 
   CorrelationCalculator::AxisTarget projectionAxis{CorrelationCalculator::AxisTarget::DeltaY_Y};
 
@@ -550,6 +642,8 @@ class CorrelationTask : public IAnalysisTask
   TFile* fileOutputSpectra{nullptr};
   std::vector<TFile*> filesPhiAssocDataOutput, filesPhiAssocQAOutput;
   std::vector<std::vector<TCanvas*>> spectraCanvases;
+
+  std::string yieldRatioLabel{""};
 
   void LoadCorrections(const rapidjson::Value& taskConfig)
   {
@@ -623,7 +717,40 @@ class CorrelationTask : public IAnalysisTask
       return hRes;
     };
 
-    // Particle definitions for corrections mapping
+    correctionCollection.clear();
+
+    for (const std::string& name : effParts) {
+      LoadedCorrections corr;
+      corr.name = name;
+      corr.h1Corrections.resize(globalCfgs.nBinMult, nullptr);
+      corr.h1CorrectionsEffMultInt.resize(globalCfgs.nBinMult, nullptr);
+
+      // Naming convention for histograms based on particle name
+      std::string effHistBase = "h1" + name + "Efficiency";
+      std::string sigLossHistBase = "h1" + name + "SigLoss";
+
+      // Fetch integrated histograms ONLY if useIntegratedEfficiency is true
+      TH1F* hEffInt = fetchHist(effHistBase + "_multIntegrated", doAccEfficiency && useIntegratedEfficiency);
+      // Note: Signal loss is typically not integrated, but we fetch it if requested for consistency
+      // TH1F* hLossInt = fetchHist(sigLossHistBase + "_multIntegrated", doSigLoss && useIntegratedEfficiency);
+
+      for (int i = 0; i < globalCfgs.nBinMult; i++) {
+        std::string iStr = std::to_string(i);
+
+        // Fetch binned histograms ONLY if useIntegratedEfficiency is false
+        TH1F* hEffBin = fetchHist(effHistBase + "_multBin" + iStr, doAccEfficiency && !useIntegratedEfficiency);
+        // Note: Signal loss is typically not integrated, so we fetch the binned version if signal loss correction is requested,
+        // regardless of the useIntegratedEfficiency flag
+        TH1F* hLossBin = fetchHist(sigLossHistBase + "_multBin" + iStr, doSigLoss);
+
+        corr.h1Corrections[i] = combineHists(hEffBin, hLossBin, "h1Corrected_" + name + "_multBin" + iStr);
+        corr.h1CorrectionsEffMultInt[i] = combineHists(hEffInt, hLossBin, "h1Corrected_" + name + "_multInt" + iStr);
+      }
+
+      correctionCollection[name] = std::move(corr);
+    }
+
+    /*// Particle definitions for corrections mapping
     std::vector<ParticleConfig<2>> allParticles = {
       {"Phi", {"h1PhiEfficiency", "h1PhiSigLoss"}},
       {"K0S", {"h1K0SEfficiency", "h1K0SSigLoss"}},
@@ -656,9 +783,9 @@ class CorrelationTask : public IAnalysisTask
         TH1F* hLossBin = fetchHist(p.titles[1] + "_multBin" + iStr, doSigLoss);
 
         correctionCollection[idx].h1Corrections[i] = combineHists(hEffBin, hLossBin, "h1Corrected_" + p.name + "_multBin" + iStr);
-        correctionCollection[idx].h1CorrectionsEffMultInt[i] = combineHists(hEffInt, hLossBin, "h1Corrected_" + p.name + "_multInt_clone" + iStr);
+        correctionCollection[idx].h1CorrectionsEffMultInt[i] = combineHists(hEffInt, hLossBin, "h1Corrected_" + p.name + "_multInt" + iStr);
       }
-    }
+    }*/
 
     /*for (const auto& p : allParticles) {
       LoadedCorrections corrections;
@@ -708,40 +835,52 @@ class CorrelationTask : public IAnalysisTask
     if (!taskConfig.HasMember("input_dir_purity")) {
       throw std::runtime_error("[FATAL ERROR] CorrelationTask: 'input_dir_purity' missing in JSON!");
     }
+    if (!taskConfig.HasMember("purity_sources") || !taskConfig["purity_sources"].IsArray()) {
+      throw std::runtime_error("[FATAL ERROR] CorrelationTask: 'purity_sources' missing or invalid in JSON!");
+    }
 
     std::string purityDir = taskConfig["input_dir_purity"].GetString();
 
-    std::vector<std::pair<std::string, std::string>> purityConfig = {
+    /*std::vector<std::pair<std::string, std::string>> purityConfig = {
       {"k0s", purityDir + purityPrefix + "K0SPurity.root"},
-      {"pi_tpc", purityDir + purityPrefix + "PiPurity.root"}};
+      {"pi_tpc", purityDir + purityPrefix + "PiPurity.root"}};*/
 
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
     std::string folderPath = AnalysisUtils::VectorToPath(summaryPath);
 
-    for (const auto& p : purityConfig) {
+    purityCollection.clear();
+
+    for (const auto& src : taskConfig["purity_sources"].GetArray()) {
+      std::string name = src["name"].GetString();
+      std::string purityKey = src["purity_key"].GetString();
+      std::string fileSuffix = src["file_suffix"].GetString();
+
+      std::string purityFilePath = purityDir + purityPrefix + fileSuffix;
+
       LoadedPurity purity;
-      purity.name = p.first;
+      purity.name = name;
       purity.h1Purity.resize(globalCfgs.nBinMult, nullptr);
 
-      TFile* filePurity = new TFile(p.second.c_str(), "READ");
+      TFile* filePurity = new TFile(purityFilePath.c_str(), "READ");
       if (!filePurity || filePurity->IsZombie()) {
-        throw std::runtime_error("[FATAL] CorrelationTask: Cannot open purity file: " + p.second);
+        throw std::runtime_error("[FATAL] CorrelationTask: Cannot open purity file: " + purityFilePath);
       }
 
       for (int i = 0; i < globalCfgs.nBinMult; i++) {
-        std::string hName = folderPath + "h1" + p.first + "Purity_multBin" + std::to_string(i);
+        std::string hName = folderPath + "h1" + purityKey + "Purity_multBin" + std::to_string(i);
         TH1* h1Pur = static_cast<TH1*>(filePurity->Get(hName.c_str()));
         if (!h1Pur) {
-          throw std::runtime_error("[FATAL] CorrelationTask: Missing purity histogram: " + hName + " in " + p.second);
+          throw std::runtime_error("[FATAL] CorrelationTask: Missing purity histogram: " + hName + " in " + purityFilePath);
         }
 
         purity.h1Purity[i] = static_cast<TH1*>(h1Pur->Clone());
         purity.h1Purity[i]->SetDirectory(0);
       }
-      purityCollection.push_back(purity);
 
       filePurity->Close();
       delete filePurity;
+
+      purityCollection[name] = std::move(purity); // Store in the map for quick access
     }
     std::cout << "[INFO] CorrelationTask: Purities loaded successfully." << std::endl;
   }
@@ -809,7 +948,17 @@ class CorrelationTask : public IAnalysisTask
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];
-      const auto& purity = purityCollection[pIdx];
+
+      // const auto& purity = purityCollection[pIdx];
+
+      const LoadedPurity* purity{nullptr};
+      if (applyPurity) {
+        auto it = purityCollection.find(config.name);
+        if (it == purityCollection.end()) {
+          throw std::runtime_error("[FATAL] CorrelationTask: Missing purity data for particle '" + config.name + "'");
+        }
+        purity = &it->second;
+      }
 
       // Lambda function to extrapolate spectra
       auto extrapolateSpectrum = [&](TH1* hSpec, double& extY, double& extE) {
@@ -964,7 +1113,8 @@ class CorrelationTask : public IAnalysisTask
 
         // Apply Purity if enabled
         if (applyPurity) {
-          h1Spectrum->Multiply(purityCollection[pIdx].h1Purity[multBin]);
+          // h1Spectrum->Multiply(purityCollection[pIdx].h1Purity[multBin]);
+          h1Spectrum->Multiply(purity->h1Purity[multBin]);
         }
 
         AnalysisUtils::SetHistogramStyle(h1Spectrum, globalCfgs.GetSpectraColor(multBin));
@@ -990,6 +1140,11 @@ class CorrelationTask : public IAnalysisTask
     }
   }
 
+  static double GetYieldScaleFactor(const std::string& name)
+  {
+    return (name == "K0S") ? 2.0 : 1.0;
+  }
+
   void RunLegacy()
   {
     std::cout << "[INFO] CorrelationTask: RUNNING CORRELATIONS..." << std::endl;
@@ -1005,15 +1160,18 @@ class CorrelationTask : public IAnalysisTask
     std::vector<const EffArray*> assocCorrs(assocParticles.size(), nullptr);
 
     if (applyEfficiency && !correctionCollection.empty()) {
-      phiCorrs = useIntegratedEfficiency ? &correctionCollection[0].h1CorrectionsEffMultInt : &correctionCollection[0].h1Corrections;
+      auto itPhi = correctionCollection.find("Phi");
+      if (itPhi != correctionCollection.end())
+        phiCorrs = useIntegratedEfficiency ? &itPhi->second.h1CorrectionsEffMultInt : &itPhi->second.h1Corrections;
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        size_t effIdx = assocParticles[pIdx].effIndex;
-        if (correctionCollection.size() > effIdx) {
-          assocCorrs[pIdx] = useIntegratedEfficiency ? &correctionCollection[effIdx].h1CorrectionsEffMultInt : &correctionCollection[effIdx].h1Corrections;
-        }
+        auto it = correctionCollection.find(assocParticles[pIdx].name);
+        if (it != correctionCollection.end())
+          assocCorrs[pIdx] = useIntegratedEfficiency ? &it->second.h1CorrectionsEffMultInt : &it->second.h1Corrections;
       }
     }
+
+    const int nBinPtPhi = globalCfgs.GetNBinPt("Phi");
 
     std::string dirName{"Extract1D"};
     std::vector<std::string> logicalPath{globalCfgs.binningName, dirName};
@@ -1026,7 +1184,7 @@ class CorrelationTask : public IAnalysisTask
       // auto phiCorrs = useIntegratedEfficiency ? correctionCollection[0].h1CorrectionsEffMultInt : correctionCollection[0].h1Corrections;
       TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i] : nullptr;
 
-      for (int j = 0; j < globalCfgs.nBinPtPhi; j++) {
+      for (int j = 0; j < nBinPtPhi; j++) {
         AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
 
         // Read the values generated by PhiFitTask
@@ -1116,15 +1274,18 @@ class CorrelationTask : public IAnalysisTask
     std::vector<const EffArray*> assocCorrs(assocParticles.size(), nullptr);
 
     if (applyEfficiency && !correctionCollection.empty()) {
-      phiCorrs = useIntegratedEfficiency ? &correctionCollection[0].h1CorrectionsEffMultInt : &correctionCollection[0].h1Corrections;
+      auto itPhi = correctionCollection.find("Phi");
+      if (itPhi != correctionCollection.end())
+        phiCorrs = useIntegratedEfficiency ? &itPhi->second.h1CorrectionsEffMultInt : &itPhi->second.h1Corrections;
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        size_t effIdx = assocParticles[pIdx].effIndex;
-        if (correctionCollection.size() > effIdx) {
-          assocCorrs[pIdx] = useIntegratedEfficiency ? &correctionCollection[effIdx].h1CorrectionsEffMultInt : &correctionCollection[effIdx].h1Corrections;
-        }
+        auto it = correctionCollection.find(assocParticles[pIdx].name);
+        if (it != correctionCollection.end())
+          assocCorrs[pIdx] = useIntegratedEfficiency ? &it->second.h1CorrectionsEffMultInt : &it->second.h1Corrections;
       }
     }
+
+    const int nBinPtPhi = globalCfgs.GetNBinPt("Phi");
 
     std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
     std::vector<std::string> logicalPath{globalCfgs.binningName, dirName};
@@ -1142,7 +1303,7 @@ class CorrelationTask : public IAnalysisTask
         double totalTriggerSignalPerMult = 0.0;
         TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i] : nullptr;
 
-        for (int j = 0; j < globalCfgs.nBinPtPhi; j++) {
+        for (int j = 0; j < nBinPtPhi; j++) {
           double triggerSignal = h2TriggerSignal->GetBinContent(i + 1, j + 1);
           double phiEff = h1EffPhi ? h1EffPhi->GetBinContent(j + 1) : 1.0;
           totalTriggerSignalPerMult += triggerSignal / phiEff;
@@ -1183,9 +1344,9 @@ class CorrelationTask : public IAnalysisTask
     /*// Global QA Accumulators Initialization
     std::vector<TH1*> h1QA_FullyIntegrated(assocParticles.size(), nullptr);
     std::vector<std::vector<TH1*>> h1QA_ByMult(assocParticles.size(), std::vector<TH1*>(globalCfgs.nBinMult, nullptr));
-    std::vector<std::vector<TH1*>> h1QA_ByPtPhi(assocParticles.size(), std::vector<TH1*>(globalCfgs.nBinPtPhi, nullptr));
+    std::vector<std::vector<TH1*>> h1QA_ByPtPhi(assocParticles.size(), std::vector<TH1*>(nBinPtPhi, nullptr));
     std::vector<std::vector<std::vector<TH1*>>> h1QA_ByMult_ByPtPhi(assocParticles.size(), std::vector<std::vector<TH1*>>(
-                                                                                             globalCfgs.nBinMult, std::vector<TH1*>(globalCfgs.nBinPtPhi, nullptr)));*/
+                                                                                             globalCfgs.nBinMult, std::vector<TH1*>(nBinPtPhi, nullptr)));*/
     // Pass doMoreQA to the constructor to enable/disable 2D QA dumps
     CorrelationCalculator corrCalculator(applyME, useProjectionCache, use2DMENormalization, doMoreQA);
 
@@ -1197,7 +1358,7 @@ class CorrelationTask : public IAnalysisTask
       TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i] : nullptr;
 
       // --- TRIGGER PT LOOP (j) ---
-      for (int j = 0; j < globalCfgs.nBinPtPhi; j++) {
+      for (int j = 0; j < nBinPtPhi; j++) {
         AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
 
         double triggerSignal = h2TriggerSignal->GetBinContent(i + 1, j + 1);
