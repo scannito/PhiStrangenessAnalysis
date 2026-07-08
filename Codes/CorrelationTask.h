@@ -555,6 +555,9 @@ class CorrelationTask : public IAnalysisTask
     if (h2TriggerBkgRatio)
       delete h2TriggerBkgRatio;
 
+    if (hEventLoss)
+      delete hEventLoss;
+
     // delete canvasRatioMultTrend;
 
     // Clean up Trends
@@ -685,7 +688,7 @@ class CorrelationTask : public IAnalysisTask
         activeCorrections.push_back(val.GetString());
       }
     } else {
-      std::cerr << "[WARNING] 'active_corrections' missing or not an array. Applying NO corrections!" << std::endl;
+      std::cout << "[INFO] 'active_corrections' missing or not an array. Applying NO corrections!" << std::endl;
     }
 
     // Lambda to quickly check if a specific correction was requested in the JSON
@@ -1228,7 +1231,7 @@ class CorrelationTask : public IAnalysisTask
           TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx], logicalPath, useProjectionCache);
 
           // Retrieve or create the appropriate QA directory for this particle
-          TDirectory* currentQADir = nullptr;
+          TDirectory* currentQADir{nullptr};
           if (doMoreQA && filesPhiAssocQAOutput[pIdx]) {
             currentQADir = AnalysisUtils::GetOrCreatePath(filesPhiAssocQAOutput[pIdx], logicalPath, false);
           }
