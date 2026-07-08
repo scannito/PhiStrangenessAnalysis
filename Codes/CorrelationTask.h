@@ -212,6 +212,7 @@ class CorrelationTask : public CorrelationTaskBase
 
   std::map<std::string, LoadedPurity> purityCollection;
 
+  void LoadPurities(const rapidjson::Value& taskConfig)
   {
     if (!taskConfig.HasMember("input_dir_purity"))
       throw std::runtime_error("[FATAL ERROR] CorrelationTask: 'input_dir_purity' missing in JSON!");
