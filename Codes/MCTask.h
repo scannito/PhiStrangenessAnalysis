@@ -1,18 +1,21 @@
 #pragma once
 
 #include "AnalysisConstants.h"
+#include "AnalysisDataStructures.h"
 #include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
 #include "EfficiencyCalculator.h"
 #include "IAnalysisTask.h"
 
 #include "TCanvas.h"
+#include "TDirectory.h"
 #include "TFile.h"
 #include "TH1.h"
 #include "TH3F.h"
 #include "THnSparse.h"
 
-#include <array>
+#include <algorithm>
+#include <filesystem>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -34,6 +37,9 @@ class MCTask : public IAnalysisTask
     if (!taskConfig.HasMember("input_mc_file")) {
       throw std::runtime_error("[FATAL ERROR] MCTask: 'input_mc_file' missing in JSON!");
     }
+    if (!taskConfig.HasMember("mc_particles") || !taskConfig["mc_particles"].IsArray()) {
+      throw std::runtime_error("[FATAL ERROR] MCTask: 'mc_particles' array missing in JSON!");
+    }
 
     std::string inputFile = taskConfig["input_mc_file"].GetString();
     // Open the input file temporarily
@@ -50,11 +56,43 @@ class MCTask : public IAnalysisTask
     outputDirectory = taskConfig["output_dir"].GetString();
     outputPrefix = taskConfig.HasMember("output_prefix") ? taskConfig["output_prefix"].GetString() : "";
 
-    // 3. Define the particles and their respective histogram paths
-    std::vector<ParticleConfig<3>> particles = {
+    // CCDB-ready per-particle maps live under outputDirectory/{binningName}/ on disk,
+    // since the ROOT object inside must be named literally "ccdb_object" with no
+    // internal subfolder. Ensure the directory exists — TFile won't create it.
+    ccdbOutputDir = outputDirectory + globalCfgs.binningName + "/";
+    std::error_code ec;
+    std::filesystem::create_directories(ccdbOutputDir, ec);
+    if (ec) {
+      throw std::runtime_error("[FATAL] MCTask: Cannot create output directory '" + ccdbOutputDir + "': " + ec.message());
+    }
+
+    // 3. Build the particle list from JSON.
+    // By convention, histogram paths follow "{dirName}/h3{Name}MCGen",
+    // "{dirName}/h4{Name}MCGenAssocReco", "{dirName}/h4{Name}MCReco", where
+    // dirName defaults to the lowercased particle name. Set "dir_name"
+    // explicitly in the JSON entry to override the convention when needed
+    std::vector<ParticleConfig<3>> particles;
+    for (const auto& p : taskConfig["mc_particles"].GetArray()) {
+      std::string name = p["name"].GetString();
+
+      std::string dirName;
+      if (p.HasMember("dir_name") && p["dir_name"].IsString()) {
+        dirName = p["dir_name"].GetString();
+      } else {
+        dirName = name;
+        std::transform(dirName.begin(), dirName.end(), dirName.begin(), ::tolower);
+      }
+
+      particles.push_back({name, {dirName + "/h3" + name + "MCGen", dirName + "/h4" + name + "MCGenAssocReco", dirName + "/h4" + name + "MCReco"}});
+    }
+
+    /*std::vector<ParticleConfig<3>> particles = {
       {"Phi", {"phi/h3PhiMCGen", "phi/h4PhiMCGenAssocReco", "phi/h4PhiMCReco"}},
       {"K0S", {"k0s/h3K0SMCGen", "k0s/h4K0SMCGenAssocReco", "k0s/h4K0SMCReco"}},
-      {"Pi", {"pi/h3PiMCGen", "pi/h4PiMCGenAssocReco", "pi/h4PiMCReco"}}};
+      {"Pi", {"pi/h3PiMCGen", "pi/h4PiMCGenAssocReco", "pi/h4PiMCReco"}}};*/
+
+    if (taskConfig.HasMember("particle_correction_mode"))
+      particleCorrectionMode = static_cast<EfficiencyCalculator::ParticleCorrectionMode>(taskConfig["particle_correction_mode"].GetInt());
 
     dataCollection.reserve(particles.size());
 
@@ -71,6 +109,12 @@ class MCTask : public IAnalysisTask
 
       if (!data.h3MCGen || !data.h4MCGenAssocReco || !data.h4MCReco) {
         std::cerr << "[WARNING] MCTask: Missing one or more histograms for " << data.name << ". Skipping." << std::endl;
+        if (data.h3MCGen)
+          delete data.h3MCGen;
+        if (data.h4MCGenAssocReco)
+          delete data.h4MCGenAssocReco;
+        if (data.h4MCReco)
+          delete data.h4MCReco;
         continue;
       }
 
@@ -104,7 +148,7 @@ class MCTask : public IAnalysisTask
 
     // 7. Open the master output file for corrections
     std::string outPath = outputDirectory + outputPrefix + "Corrections.root";
-    fileMCOutput = new TFile(outPath.c_str(), "RECREATE");
+    fileMCOutput = new TFile(outPath.c_str(), "UPDATE");
     if (!fileMCOutput || fileMCOutput->IsZombie()) {
       throw std::runtime_error("[FATAL] MCTask: Cannot create output file: " + outPath);
     }
@@ -116,8 +160,6 @@ class MCTask : public IAnalysisTask
   {
     std::cout << "[INFO] MCTask: RUNNING EFFICIENCY COMPUTATIONS..." << std::endl;
 
-    fileMCOutput->cd();
-
     if (hEventMultGenAssocReco && hEventMultGen) {
       std::cout << " ---> Computing Global Event Efficiency (Event Loss)..." << std::endl;
 
@@ -125,7 +167,10 @@ class MCTask : public IAnalysisTask
       TH1* hEventLoss = EfficiencyCalculator::ComputeEventEfficiency(hEventMultGenAssocReco, hEventMultGen);
 
       if (hEventLoss) {
-        hEventLoss->Write();
+        TDirectory* evLossDir = AnalysisUtils::GetOrCreatePath(fileMCOutput, {globalCfgs.binningName, "EvLoss"}, false);
+        if (evLossDir)
+          evLossDir->cd();
+        hEventLoss->Write(nullptr, TObject::kOverwrite);
         delete hEventLoss;
       }
     }
@@ -139,19 +184,27 @@ class MCTask : public IAnalysisTask
       data.h3MCGen->Sumw2();
 
       // 1. Compute and save the 3D and 2D correction map
-      TH3* h3TotalMap = EfficiencyCalculator::Compute3DTotalMap(data);
-      TH2* h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data, globalCfgs);
+      TH3* h3TotalMap = EfficiencyCalculator::Compute3DTotalMap(data, particleCorrectionMode);
+      TH2* h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data, globalCfgs, particleCorrectionMode);
 
-      std::string fileMCOutputPerPartPath3D = outputDirectory + outputPrefix + "h3EffMap" + data.name + ".root";
+      std::string fileMCOutputPerPartPath3D = ccdbOutputDir + outputPrefix + "h3EffMap" + data.name + ".root";
       TFile* fileMCOutputPerPart3D = new TFile(fileMCOutputPerPartPath3D.c_str(), "RECREATE");
+      if (!fileMCOutputPerPart3D || fileMCOutputPerPart3D->IsZombie()) {
+        throw std::runtime_error("[FATAL] MCTask: Cannot create CCDB output file: " + fileMCOutputPerPartPath3D);
+      }
       fileMCOutputPerPart3D->cd();
-      h3TotalMap->Write();
+      h3TotalMap->SetName("ccdb_object");
+      h3TotalMap->Write(nullptr, TObject::kOverwrite);
       fileMCOutputPerPart3D->Close();
 
-      std::string fileMCOutputPerPartPath2D = outputDirectory + outputPrefix + "h2EffMap" + data.name + ".root";
+      std::string fileMCOutputPerPartPath2D = ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root";
       TFile* fileMCOutputPerPart2D = new TFile(fileMCOutputPerPartPath2D.c_str(), "RECREATE");
+      if (!fileMCOutputPerPart2D || fileMCOutputPerPart2D->IsZombie()) {
+        throw std::runtime_error("[FATAL] MCTask: Cannot create CCDB output file: " + fileMCOutputPerPartPath2D);
+      }
       fileMCOutputPerPart2D->cd();
-      h2TotalMapMultInt->Write();
+      h2TotalMapMultInt->SetName("ccdb_object");
+      h2TotalMapMultInt->Write(nullptr, TObject::kOverwrite);
       fileMCOutputPerPart2D->Close();
 
       delete fileMCOutputPerPart3D;
@@ -160,7 +213,8 @@ class MCTask : public IAnalysisTask
       delete h2TotalMapMultInt;
 
       // 2. Compute 1D Spectra across multiplicity bins
-      fileMCOutput->cd();
+      TDirectory* accEffMultDir = AnalysisUtils::GetOrCreatePath(fileMCOutput, {globalCfgs.binningName, "AccEff", "MultBin"}, false);
+      TDirectory* sigLossMultDir = AnalysisUtils::GetOrCreatePath(fileMCOutput, {globalCfgs.binningName, "SigLoss", "MultBin"}, false);
 
       // Process 1D Spectra across multiplicity bins
       for (int i{0}; i < globalCfgs.nBinMult; i++) {
@@ -174,8 +228,14 @@ class MCTask : public IAnalysisTask
         h1SignalLoss1D->DrawCopy(i == 0 ? "" : "SAME");
 
         // Write to file
-        h1Efficiency1D->Write();
-        h1SignalLoss1D->Write();
+        if (accEffMultDir) {
+          accEffMultDir->cd();
+          h1Efficiency1D->Write(nullptr, TObject::kOverwrite);
+        }
+        if (sigLossMultDir) {
+          sigLossMultDir->cd();
+          h1SignalLoss1D->Write(nullptr, TObject::kOverwrite);
+        }
 
         // Memory cleanup
         delete h1Efficiency1D;
@@ -190,9 +250,16 @@ class MCTask : public IAnalysisTask
       data.canvasSignalLoss->cd();
       h1SignalLoss1D->DrawCopy("SAME");
 
-      h1Efficiency1D->Write();
-      h1SignalLoss1D->Write();
+      if (accEffMultDir) {
+        accEffMultDir->cd();
+        h1Efficiency1D->Write(nullptr, TObject::kOverwrite);
+      }
+      if (sigLossMultDir) {
+        sigLossMultDir->cd();
+        h1SignalLoss1D->Write(nullptr, TObject::kOverwrite);
+      }
 
+      // Memory cleanup
       delete h1Efficiency1D;
       delete h1SignalLoss1D;
     }
@@ -202,16 +269,23 @@ class MCTask : public IAnalysisTask
   {
     std::cout << "[INFO] MCTask: TERMINATING AND CLEANING UP..." << std::endl;
 
-    fileMCOutput->cd();
+    TDirectory* accEffSummaryDir = AnalysisUtils::GetOrCreatePath(fileMCOutput, {globalCfgs.binningName, "AccEff", "Summary"}, false);
+    TDirectory* sigLossSummaryDir = AnalysisUtils::GetOrCreatePath(fileMCOutput, {globalCfgs.binningName, "SigLoss", "Summary"}, false);
 
     // Save all diagnostic canvases and free the memory for the loaded objects
     for (auto& data : dataCollection) {
       if (data.canvasEfficiency) {
-        data.canvasEfficiency->Write();
+        if (accEffSummaryDir) {
+          accEffSummaryDir->cd();
+          data.canvasEfficiency->Write(nullptr, TObject::kOverwrite);
+        }
         delete data.canvasEfficiency;
       }
       if (data.canvasSignalLoss) {
-        data.canvasSignalLoss->Write();
+        if (sigLossSummaryDir) {
+          sigLossSummaryDir->cd();
+          data.canvasSignalLoss->Write(nullptr, TObject::kOverwrite);
+        }
         delete data.canvasSignalLoss;
       }
 
@@ -244,10 +318,13 @@ class MCTask : public IAnalysisTask
   TFile* fileMCOutput{nullptr};
 
   std::string outputDirectory;
+  std::string ccdbOutputDir;
   std::string outputPrefix{""};
   std::string mcBasePath{"phi-strangeness-correlation/phiStrangenessCorrelation/"};
 
   // --- Variables for Global Event Loss ---
   TH1F* hEventMultGenAssocReco{nullptr};
   TH1F* hEventMultGen{nullptr};
+
+  EfficiencyCalculator::ParticleCorrectionMode particleCorrectionMode{EfficiencyCalculator::ParticleCorrectionMode::EfficiencyOnly};
 };

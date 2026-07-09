@@ -2,8 +2,10 @@
 
 #include "AnalysisConstants.h"
 
+#include "TCanvas.h"
 #include "TH1.h"
 #include "TH1F.h"
+#include "TH3F.h"
 #include "THnSparse.h"
 
 #include <array>
@@ -56,6 +58,17 @@ struct LoadedAssocData {
   THnSparseF* h5DataSideband{nullptr};
   THnSparseF* h5DataMESignal{nullptr};
   THnSparseF* h5DataMESideband{nullptr};
+};
+
+// Structure to hold the loaded MC data and canvases in RAM
+struct LoadedMC {
+  std::string name;
+  TH3F* h3MCGen{nullptr};
+  THnSparseF* h4MCGenAssocReco{nullptr};
+  THnSparseF* h4MCReco{nullptr};
+
+  TCanvas* canvasEfficiency{nullptr};
+  TCanvas* canvasSignalLoss{nullptr};
 };
 
 // ============================================================================

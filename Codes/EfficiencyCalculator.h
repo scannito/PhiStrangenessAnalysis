@@ -15,20 +15,16 @@
 #include <utility>
 #include <vector>
 
-// Structure to hold the loaded MC data and canvases in RAM
-struct LoadedMC {
-  std::string name;
-  TH3F* h3MCGen{nullptr};
-  THnSparseF* h4MCGenAssocReco{nullptr};
-  THnSparseF* h4MCReco{nullptr};
-
-  TCanvas* canvasEfficiency{nullptr};
-  TCanvas* canvasSignalLoss{nullptr};
-};
-
 class EfficiencyCalculator
 {
  public:
+  // Enum to specify the type of correction to compute
+  enum class ParticleCorrectionMode {
+    EfficiencyOnly = 0,
+    SignalLossOnly,
+    Combined
+  };
+
   // Purely static class
   EfficiencyCalculator() = delete;
 
@@ -52,7 +48,7 @@ class EfficiencyCalculator
 
   // Computes the 3D Total Efficiency map (Efficiency * Signal Loss)
   // NOTE: The caller becomes the owner of the returned TH3 pointer and must delete it.
-  static TH3* Compute3DTotalMap(const LoadedMC& data)
+  static TH3* Compute3DTotalMap(const LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
   {
     AnalysisUtils::AxisToCut axisToCutZVtx{0, 1, AnalysisConstants::nBinZVtx};
 
@@ -69,11 +65,28 @@ class EfficiencyCalculator
     TH3* h3SignalLoss = static_cast<TH3*>(h3MCGenAssocReco->Clone(("h3" + data.name + "SignalLossTemp").c_str()));
     h3SignalLoss->Divide(h3MCGenAssocReco, data.h3MCGen, 1.0, 1.0, "B");
 
-    // Compute total 3D correction map: Efficiency * Signal Loss
+    // Compute total 3D correction map: Efficiency, Signal Loss or Efficiency * Signal Loss
+    TH3* h3TotalMap{nullptr};
+    switch (mode) {
+      case ParticleCorrectionMode::EfficiencyOnly:
+        h3TotalMap = static_cast<TH3*>(h3Efficiency->Clone("ccdb_object"));
+        break;
+
+      case ParticleCorrectionMode::SignalLossOnly:
+        h3TotalMap = static_cast<TH3*>(h3SignalLoss->Clone("ccdb_object"));
+        break;
+
+      case ParticleCorrectionMode::Combined:
+        h3TotalMap = static_cast<TH3*>(h3Efficiency->Clone("ccdb_object"));
+        h3TotalMap->Multiply(h3SignalLoss);
+        break;
+    }
+
     // TH3 *h3TotalMap = static_cast<TH3 *>(h3Efficiency->Clone(("h3EffMap" + data.name).c_str()));
-    TH3* h3TotalMap = static_cast<TH3*>(h3Efficiency->Clone("ccdb_object"));
-    h3TotalMap->SetDirectory(0);
-    // h3TotalMap->Multiply(h3SignalLoss);
+    // TH3* h3TotalMap = static_cast<TH3*>(h3Efficiency->Clone("ccdb_object"));
+
+    if (h3TotalMap)
+      h3TotalMap->SetDirectory(0);
 
     // Clean up temporaries to prevent memory leaks
     delete h3MCGenAssocReco;
@@ -86,7 +99,7 @@ class EfficiencyCalculator
 
   // Computes the 2D Total Efficiency map (Efficiency * Signal Loss) integrated over multiplicity
   // NOTE: The caller becomes the owner of the returned TH2 pointer and must delete it.
-  static TH2* Compute2DTotalMapMultIntegrated(const LoadedMC& data, const AnalysisSettings& cfg)
+  static TH2* Compute2DTotalMapMultIntegrated(const LoadedMC& data, const AnalysisSettings& cfg, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
   {
     AnalysisUtils::AxisToCut axisToCutZVtx{0, 1, AnalysisConstants::nBinZVtx};
     AnalysisUtils::AxisToCut axisToCutMult{1, 1, cfg.nBinMult};
@@ -109,12 +122,29 @@ class EfficiencyCalculator
     TH2* h2SignalLoss = static_cast<TH2*>(h2MCGenAssocReco->Clone(("h2" + data.name + "SignalLossTemp").c_str()));
     h2SignalLoss->Divide(h2MCGenAssocReco, h2MCGen, 1.0, 1.0, "B");
 
-    // Compute total 2D correction map: Efficiency * Signal Loss
+    // Compute total 2D correction map: Efficiency, Signal Loss or Efficiency * Signal Loss
+    TH2* h2TotalMapMultInt{nullptr};
+    switch (mode) {
+      case ParticleCorrectionMode::EfficiencyOnly:
+        h2TotalMapMultInt = static_cast<TH2*>(h2Efficiency->Clone("ccdb_object"));
+        break;
+
+      case ParticleCorrectionMode::SignalLossOnly:
+        h2TotalMapMultInt = static_cast<TH2*>(h2SignalLoss->Clone("ccdb_object"));
+        break;
+
+      case ParticleCorrectionMode::Combined:
+        h2TotalMapMultInt = static_cast<TH2*>(h2Efficiency->Clone("ccdb_object"));
+        h2TotalMapMultInt->Multiply(h2SignalLoss);
+        break;
+    }
+
     // TH2 *h2TotalMap = static_cast<TH2 *>(h2Efficiency->Clone(("h2EffMap" + data.name).c_str()));
-    TH2* h2TotalMapMultInt = static_cast<TH2*>(h2Efficiency->Clone("ccdb_object"));
+    // TH2* h2TotalMapMultInt = static_cast<TH2*>(h2Efficiency->Clone("ccdb_object"));
     // TH2* h2TotalMapMultInt = static_cast<TH2*>(h2SignalLoss->Clone("ccdb_object"));
-    h2TotalMapMultInt->SetDirectory(0);
-    // h2TotalMapMultInt->Multiply(h2SignalLoss);
+
+    if (h2TotalMapMultInt)
+      h2TotalMapMultInt->SetDirectory(0);
 
     // Clean up temporaries to prevent memory leaks
     delete h2MCGenAssocReco;

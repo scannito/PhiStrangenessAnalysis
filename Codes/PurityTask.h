@@ -13,6 +13,7 @@
 #include "TH3F.h"
 
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -32,24 +33,15 @@ class PurityTask : public IAnalysisTask
     if (!taskConfig.HasMember("input_data_file")) {
       throw std::runtime_error("[FATAL] PurityTask: 'input_data_file' missing in JSON!");
     }
+    if (!taskConfig.HasMember("purity_particles") || !taskConfig["purity_particles"].IsArray()) {
+      throw std::runtime_error("[FATAL] PurityTask: 'purity_particles' array missing in JSON!");
+    }
 
     std::string inputFile = taskConfig["input_data_file"].GetString();
     TFile* fileInput = new TFile(inputFile.c_str(), "READ");
     if (!fileInput || fileInput->IsZombie()) {
       throw std::runtime_error("[FATAL] PurityTask: Cannot open input file!");
     }
-
-    h3K0SData = static_cast<TH3F*>(fileInput->Get("k0s-reduced-cand-producer/k0sReducedCandidates/h3K0sCandidatesMass"));
-    h3PiTPCData = static_cast<TH3F*>(fileInput->Get("pion-track-producer/pionTracks/h3PionTPCnSigma"));
-    h3PiTOFData = static_cast<TH3F*>(fileInput->Get("pion-track-producer/pionTracks/h3PionTOFnSigma"));
-
-    // Decouple histograms from the file so they survive in RAM when the file closes
-    h3K0SData->SetDirectory(0);
-    h3PiTPCData->SetDirectory(0);
-    h3PiTOFData->SetDirectory(0);
-
-    fileInput->Close();
-    delete fileInput;
 
     // 2. Open Output files
     std::string outputDir = taskConfig["output_dir"].GetString();
@@ -59,14 +51,72 @@ class PurityTask : public IAnalysisTask
     if (taskConfig.HasMember("output_prefix"))
       prefix = taskConfig["output_prefix"].GetString();
 
-    std::string outK0S = outputDir + prefix + "K0SPurity.root";
+    for (const auto& particle : taskConfig["purity_particles"].GetArray()) {
+      std::string name = particle["name"].GetString();
+      std::string purityKey = particle["purity_key"].GetString();
+      std::string histName = particle["hist_name"].GetString();
+      std::string outputFileSuffix = particle["output_file_suffix"].GetString();
+
+      TH3F* h3Source = static_cast<TH3F*>(fileInput->Get(histName.c_str()));
+      if (!h3Source) {
+        throw std::runtime_error("[FATAL] PurityTask: Missing histogram '" + histName + "' for particle '" + name + "'!");
+      }
+      h3Source->SetDirectory(0);
+
+      std::string outputFileName = outputDir + prefix + outputFileSuffix;
+
+      // Reuse an already-open file if another particle points to the same suffix
+      TFile* outputFile{nullptr};
+      auto it = outputFiles.find(outputFileName);
+      if (it != outputFiles.end()) {
+        outputFile = it->second;
+      } else {
+        outputFile = new TFile(outputFileName.c_str(), "RECREATE");
+        if (!outputFile || outputFile->IsZombie()) {
+          throw std::runtime_error("[FATAL] PurityTask: Cannot create output file '" + outputFileName + "'!");
+        }
+        outputFiles[outputFileName] = outputFile;
+      }
+
+      std::string canvasName = "canvas" + purityKey + "Purity";
+      std::string canvasTitle = purityKey + " Purity";
+      TCanvas* canvas = new TCanvas(canvasName.c_str(), canvasTitle.c_str(), 800, 600);
+
+      const auto& binning = globalCfgs.GetPtBinning(name);
+      particleTasks.emplace_back(purityKey, h3Source, static_cast<int>(binning.size()) - 1, binning, outputFile, canvas);
+    }
+
+    fileInput->Close();
+    delete fileInput;
+
+    /*h3K0SData = static_cast<TH3F*>(fileInput->Get("k0s-reduced-cand-producer/k0sReducedCandidates/h3K0sCandidatesMass"));
+    h3PiTPCData = static_cast<TH3F*>(fileInput->Get("pion-track-producer/pionTracks/h3PionTPCnSigma"));
+    h3PiTOFData = static_cast<TH3F*>(fileInput->Get("pion-track-producer/pionTracks/h3PionTOFnSigma"));
+
+    // Decouple histograms from the file so they survive in RAM when the file closes
+    h3K0SData->SetDirectory(0);
+    h3PiTPCData->SetDirectory(0);
+    h3PiTOFData->SetDirectory(0);*/
+
+    // fileInput->Close();
+    // delete fileInput;
+
+    /*// 2. Open Output files
+    std::string outputDir = taskConfig["output_dir"].GetString();
+
+    // Prefix to specify the type of analysis (Data vs MCClosure)
+    std::string prefix = "";
+    if (taskConfig.HasMember("output_prefix"))
+      prefix = taskConfig["output_prefix"].GetString();*/
+
+    /*std::string outK0S = outputDir + prefix + "K0SPurity.root";
     std::string outPi = outputDir + prefix + "PiPurity.root";
 
     fileOutputK0S = new TFile(outK0S.c_str(), "RECREATE");
-    fileOutputPi = new TFile(outPi.c_str(), "RECREATE");
+    fileOutputPi = new TFile(outPi.c_str(), "RECREATE");*/
 
     // 3. Create Canvases
-    canvasPurityK0S = new TCanvas("canvasK0SPurity", "K0S Purity", 800, 600);
+    /*canvasPurityK0S = new TCanvas("canvasK0SPurity", "K0S Purity", 800, 600);
     canvasPurityPiTPC = new TCanvas("canvasPiTPCPurity", "Pi TPC Purity", 800, 600);
     canvasPurityPiTOF = new TCanvas("canvasPiTOFPurity", "Pi TOF Purity", 800, 600);
 
@@ -77,7 +127,7 @@ class PurityTask : public IAnalysisTask
     particleTasks = {
       {"k0s", h3K0SData, static_cast<int>(binPtK0S.size()) - 1, binPtK0S, fileOutputK0S, canvasPurityK0S},
       {"pi_tpc", h3PiTPCData, static_cast<int>(binPtPi.size()) - 1, binPtPi, fileOutputPi, canvasPurityPiTPC},
-      {"pi_tof", h3PiTOFData, static_cast<int>(binPtPi.size()) - 1, binPtPi, fileOutputPi, canvasPurityPiTOF}};
+      {"pi_tof", h3PiTOFData, static_cast<int>(binPtPi.size()) - 1, binPtPi, fileOutputPi, canvasPurityPiTOF}};*/
 
     // 5. Read task-specific settings from the JSON node (DOM)
     if (!taskConfig.HasMember("fit_config_file")) {
@@ -157,7 +207,35 @@ class PurityTask : public IAnalysisTask
 
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
 
-    // 1. Save the summary canvases
+    // 1. Save each particle's summary canvas into its own output file
+    for (auto& task : particleTasks) {
+      TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(task.outputFile, summaryPath, false);
+      if (summaryDir) {
+        summaryDir->cd();
+        task.canvas->Write(nullptr, TObject::kOverwrite);
+      }
+    }
+
+    // 2. Close output files (one Close/delete per distinct file, see note below)
+    for (auto& [name, file] : outputFiles) {
+      if (file) {
+        file->Close();
+        delete file;
+      }
+    }
+
+    // 3. Free up RAM
+    for (auto& task : particleTasks) {
+      if (task.canvas)
+        delete task.canvas;
+      if (task.h3Source)
+        delete task.h3Source;
+    }
+
+    if (fitConfigManager)
+      delete fitConfigManager;
+
+    /*// 1. Save the summary canvases
     TDirectory* k0sSummaryDir = AnalysisUtils::GetOrCreatePath(fileOutputK0S, summaryPath, false);
     if (k0sSummaryDir) {
       k0sSummaryDir->cd();
@@ -185,7 +263,7 @@ class PurityTask : public IAnalysisTask
     delete h3K0SData;
     delete h3PiTPCData;
     delete h3PiTOFData;
-    delete fitConfigManager;
+    delete fitConfigManager;*/
 
     std::cout << "[INFO] PurityTask: DONE." << std::endl;
   }
@@ -193,7 +271,7 @@ class PurityTask : public IAnalysisTask
  private:
   AnalysisSettings globalCfgs;
 
-  TH3F* h3K0SData{nullptr};
+  /*TH3F* h3K0SData{nullptr};
   TH3F* h3PiTPCData{nullptr};
   TH3F* h3PiTOFData{nullptr};
 
@@ -202,7 +280,9 @@ class PurityTask : public IAnalysisTask
 
   TCanvas* canvasPurityK0S{nullptr};
   TCanvas* canvasPurityPiTPC{nullptr};
-  TCanvas* canvasPurityPiTOF{nullptr};
+  TCanvas* canvasPurityPiTOF{nullptr};*/
+
+  std::map<std::string, TFile*> outputFiles;
 
   std::vector<ParticleTask> particleTasks;
   FitConfigManager* fitConfigManager{nullptr};
