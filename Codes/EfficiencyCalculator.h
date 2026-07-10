@@ -155,6 +155,51 @@ class EfficiencyCalculator
     return h2TotalMapMultInt;
   }
 
+  // Builds a "twin" TH2 where each bin content is the bin ERROR of the source
+  // histogram (instead of its value). Useful for spotting low-statistics regions.
+  // Caller owns the returned pointer and must delete it.
+  static TH2* BuildErrorMap(const TH2* h2Source, const std::string& name)
+  {
+    if (!h2Source)
+      return nullptr;
+
+    TH2* h2Error = static_cast<TH2*>(h2Source->Clone(name.c_str()));
+    h2Error->Reset();
+    h2Error->SetDirectory(0);
+
+    for (int ix = 1; ix <= h2Source->GetNbinsX(); ++ix) {
+      for (int iy = 1; iy <= h2Source->GetNbinsY(); ++iy) {
+        h2Error->SetBinContent(ix, iy, h2Source->GetBinError(ix, iy));
+      }
+    }
+
+    return h2Error;
+  }
+
+  // Same as BuildErrorMap, but returns the RELATIVE error (error / content) per
+  // bin. Bins with zero content are left at 0 to avoid division by zero.
+  // Caller owns the returned pointer and must delete it.
+  static TH2* BuildRelativeErrorMap(const TH2* h2Source, const std::string& name)
+  {
+    if (!h2Source)
+      return nullptr;
+
+    TH2* h2RelError = static_cast<TH2*>(h2Source->Clone(name.c_str()));
+    h2RelError->Reset();
+    h2RelError->SetDirectory(0);
+
+    for (int ix = 1; ix <= h2Source->GetNbinsX(); ++ix) {
+      for (int iy = 1; iy <= h2Source->GetNbinsY(); ++iy) {
+        double content = h2Source->GetBinContent(ix, iy);
+        double error = h2Source->GetBinError(ix, iy);
+        if (content != 0.0)
+          h2RelError->SetBinContent(ix, iy, error / content);
+      }
+    }
+
+    return h2RelError;
+  }
+
   // Computes 1D Efficiency and Signal Loss for a specific multiplicity bin
   // Returns a pair: {Efficiency 1D, Signal Loss 1D}. Caller owns the pointers.
   static std::pair<TH1*, TH1*> Compute1DMaps(const LoadedMC& data, const AnalysisSettings& cfg, int multBin)

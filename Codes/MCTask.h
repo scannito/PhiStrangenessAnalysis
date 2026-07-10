@@ -185,7 +185,6 @@ class MCTask : public IAnalysisTask
 
       // 1. Compute and save the 3D and 2D correction map
       TH3* h3TotalMap = EfficiencyCalculator::Compute3DTotalMap(data, particleCorrectionMode);
-      TH2* h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data, globalCfgs, particleCorrectionMode);
 
       std::string fileMCOutputPerPartPath3D = ccdbOutputDir + outputPrefix + "h3EffMap" + data.name + ".root";
       TFile* fileMCOutputPerPart3D = new TFile(fileMCOutputPerPartPath3D.c_str(), "RECREATE");
@@ -197,6 +196,8 @@ class MCTask : public IAnalysisTask
       h3TotalMap->Write(nullptr, TObject::kOverwrite);
       fileMCOutputPerPart3D->Close();
 
+      TH2* h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data, globalCfgs, particleCorrectionMode);
+
       std::string fileMCOutputPerPartPath2D = ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root";
       TFile* fileMCOutputPerPart2D = new TFile(fileMCOutputPerPartPath2D.c_str(), "RECREATE");
       if (!fileMCOutputPerPart2D || fileMCOutputPerPart2D->IsZombie()) {
@@ -207,10 +208,30 @@ class MCTask : public IAnalysisTask
       h2TotalMapMultInt->Write(nullptr, TObject::kOverwrite);
       fileMCOutputPerPart2D->Close();
 
+      // QA: error/relative-error maps alongside the CCDB map
+      TH2* h2TotalMapMultIntError = EfficiencyCalculator::BuildErrorMap(h2TotalMapMultInt, "h2EffMapError" + data.name);
+      TH2* h2TotalMapMultIntRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2TotalMapMultInt, "h2EffMapRelError" + data.name);
+
+      std::string fileMCOutputPerPartErrorPath2D = ccdbOutputDir + outputPrefix + "h2EffMapError" + data.name + ".root";
+      TFile* fileMCOutputPerPartError2D = new TFile(fileMCOutputPerPartErrorPath2D.c_str(), "RECREATE");
+      if (!fileMCOutputPerPartError2D || fileMCOutputPerPartError2D->IsZombie()) {
+        throw std::runtime_error("[FATAL] MCTask: Cannot create CCDB output file: " + fileMCOutputPerPartErrorPath2D);
+      }
+      fileMCOutputPerPartError2D->cd();
+      // h2TotalMapMultIntError->SetName("ccdb_object");
+      if (h2TotalMapMultIntError)
+        h2TotalMapMultIntError->Write(nullptr, TObject::kOverwrite);
+      // h2TotalMapMultIntRelError->SetName("ccdb_object");
+      if (h2TotalMapMultIntRelError)
+        h2TotalMapMultIntRelError->Write(nullptr, TObject::kOverwrite);
+      fileMCOutputPerPartError2D->Close();
+
       delete fileMCOutputPerPart3D;
       delete fileMCOutputPerPart2D;
       delete h3TotalMap;
       delete h2TotalMapMultInt;
+      delete h2TotalMapMultIntError;
+      delete h2TotalMapMultIntRelError;
 
       // 2. Compute 1D Spectra across multiplicity bins
       TDirectory* accEffMultDir = AnalysisUtils::GetOrCreatePath(fileMCOutput, {globalCfgs.binningName, "AccEff", "MultBin"}, false);
