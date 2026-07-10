@@ -4,7 +4,7 @@
 if [ "$#" -eq 0 ]; then
     echo "Error: No configuration keyword provided."
     echo "Usage: $0 <keyword>"
-    echo "Available keywords: data, mcclosure, mcclosurewpdg, mcclosuregen"
+    echo "Available keywords: data, mc, mcclosure, mcclosurewpdg, mcclosuregen"
     exit 1
 fi
 
@@ -16,6 +16,9 @@ JSON_PATH=""
 case "$KEYWORD" in
     "data")
         JSON_PATH="../JSONConfigs/globalConfigData${COLL_SYS}.json"
+        ;;
+    "mc")
+        JSON_PATH="../JSONConfigs/globalConfigMC${COLL_SYS}.json"
         ;;
     "mcclosure")
         JSON_PATH="../JSONConfigs/globalConfigMCClosure${COLL_SYS}.json"

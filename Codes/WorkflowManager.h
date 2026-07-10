@@ -192,8 +192,25 @@ class WorkflowManager
       for (auto& m : config["pt_binning"].GetObject()) {
         std::string species = m.name.GetString();
         std::vector<double> bins;
-        for (const auto& v : m.value.GetArray())
-          bins.push_back(v.GetDouble());
+
+        for (const auto& v : m.value.GetArray()) {
+          if (v.IsNumber()) {
+            // If it is already a number in the JSON, parse it directly
+            bins.push_back(v.GetDouble());
+          } else if (v.IsString()) {
+            // If it is a string, attempt to cast it to a double
+            try {
+              bins.push_back(std::stod(v.GetString()));
+            } catch (const std::invalid_argument& e) {
+              throw std::runtime_error("[FATAL ERROR] Cannot cast the string '" +
+                                       std::string(v.GetString()) + "' to a number for species: " + species);
+            }
+          } else {
+            // Unsupported type (e.g., boolean, null, or a nested array)
+            throw std::runtime_error("[FATAL ERROR] Invalid binning value for species: " + species +
+                                     ". It must be either a number or a string.");
+          }
+        }
 
         globalSettings.speciesPtBinning[species] = std::move(bins);
         std::cout << "  -> Overridden pT binning for species '" << species << "' from JSON." << std::endl;
