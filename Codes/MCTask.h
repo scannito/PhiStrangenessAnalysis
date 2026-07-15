@@ -17,6 +17,7 @@
 #include <algorithm>
 #include <filesystem>
 #include <iostream>
+#include <map>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -33,20 +34,14 @@ class MCTask : public IAnalysisTask
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
-    // 1. Check if MC input file is provided
-    if (!taskConfig.HasMember("input_mc_file")) {
-      throw std::runtime_error("[FATAL ERROR] MCTask: 'input_mc_file' missing in JSON!");
-    }
+    // 1. Check if a list of particle to compute MC corrections is provided
     if (!taskConfig.HasMember("mc_particles") || !taskConfig["mc_particles"].IsArray()) {
       throw std::runtime_error("[FATAL ERROR] MCTask: 'mc_particles' array missing in JSON!");
     }
 
-    std::string inputFile = taskConfig["input_mc_file"].GetString();
-    // Open the input file temporarily
-    TFile* fileMCInput = new TFile(inputFile.c_str(), "READ");
-    if (!fileMCInput || fileMCInput->IsZombie()) {
-      throw std::runtime_error("[FATAL] MCTask: Cannot open MC input file: " + inputFile);
-    }
+    // 'input_mc_file' is now an optional TASK-LEVEL DEFAULT: used by particles that
+    // don't specify their own "input_mc_file".
+    std::string defaultInputFile = taskConfig.HasMember("input_mc_file") ? taskConfig["input_mc_file"].GetString() : "";
 
     // 2. Allow JSON to override the internal ROOT directory base path
     if (taskConfig.HasMember("mc_base_path")) {
@@ -66,12 +61,32 @@ class MCTask : public IAnalysisTask
       throw std::runtime_error("[FATAL] MCTask: Cannot create output directory '" + ccdbOutputDir + "': " + ec.message());
     }
 
-    // 3. Build the particle list from JSON.
+    if (taskConfig.HasMember("particle_correction_mode"))
+      particleCorrectionMode = static_cast<EfficiencyCalculator::ParticleCorrectionMode>(taskConfig["particle_correction_mode"].GetInt());
+
+    // Input files may be shared across particles (default) or overridden per
+    // particle via "input_mc_file". Open each distinct file only once.
+    std::map<std::string, TFile*> openInputFiles;
+
+    auto getOrOpenFile = [&](const std::string& path) -> TFile* {
+      auto it = openInputFiles.find(path);
+      if (it != openInputFiles.end())
+        return it->second;
+      TFile* f = new TFile(path.c_str(), "READ");
+      if (!f || f->IsZombie())
+        throw std::runtime_error("[FATAL] MCTask: Cannot open MC input file: " + path);
+      openInputFiles[path] = f;
+      return f;
+    };
+
+    dataCollection.reserve(taskConfig["mc_particles"].Size());
+
+    // 3+4. Build the particle list from JSON and load its histograms directly.
     // By convention, histogram paths follow "{dirName}/h3{Name}MCGen",
     // "{dirName}/h4{Name}MCGenAssocReco", "{dirName}/h4{Name}MCReco", where
-    // dirName defaults to the lowercased particle name. Set "dir_name"
-    // explicitly in the JSON entry to override the convention when needed
-    std::vector<ParticleConfig<3>> particles;
+    // dirName defaults to the lowercased particle name ("dir_name" overrides it).
+    // Each entry may specify its own "input_mc_file" — useful when different
+    // species live in different MC production files (e.g. K0S vs Xi vs Pi).
     for (const auto& p : taskConfig["mc_particles"].GetArray()) {
       std::string name = p["name"].GetString();
 
@@ -83,32 +98,28 @@ class MCTask : public IAnalysisTask
         std::transform(dirName.begin(), dirName.end(), dirName.begin(), ::tolower);
       }
 
-      particles.push_back({name, {dirName + "/h3" + name + "MCGen", dirName + "/h4" + name + "MCGenAssocReco", dirName + "/h4" + name + "MCReco"}});
-    }
+      std::string particleInputFile = (p.HasMember("input_mc_file") && p["input_mc_file"].IsString())
+                                        ? p["input_mc_file"].GetString()
+                                        : defaultInputFile;
+      if (particleInputFile.empty()) {
+        throw std::runtime_error("[FATAL ERROR] MCTask: No input file for particle '" + name +
+                                 "' (neither task-level 'input_mc_file' nor a per-particle override was provided)!");
+      }
 
-    /*std::vector<ParticleConfig<3>> particles = {
-      {"Phi", {"phi/h3PhiMCGen", "phi/h4PhiMCGenAssocReco", "phi/h4PhiMCReco"}},
-      {"K0S", {"k0s/h3K0SMCGen", "k0s/h4K0SMCGenAssocReco", "k0s/h4K0SMCReco"}},
-      {"Pi", {"pi/h3PiMCGen", "pi/h4PiMCGenAssocReco", "pi/h4PiMCReco"}}};*/
+      TFile* fileMCInput = getOrOpenFile(particleInputFile);
 
-    if (taskConfig.HasMember("particle_correction_mode"))
-      particleCorrectionMode = static_cast<EfficiencyCalculator::ParticleCorrectionMode>(taskConfig["particle_correction_mode"].GetInt());
-
-    dataCollection.reserve(particles.size());
-
-    // 4. Load the histograms into RAM
-    for (const auto& config : particles) {
       LoadedMC data;
-      data.name = config.name;
-      data.h3MCGen = static_cast<TH3F*>(fileMCInput->Get((mcBasePath + config.titles[0]).c_str()));
+      data.name = name;
+      data.h3MCGen = static_cast<TH3F*>(fileMCInput->Get((mcBasePath + dirName + "/h3" + name + "MCGen").c_str()));
       if (data.h3MCGen) {
         data.h3MCGen->SetDirectory(0);
       }
-      data.h4MCGenAssocReco = static_cast<THnSparseF*>(fileMCInput->Get((mcBasePath + config.titles[1]).c_str()));
-      data.h4MCReco = static_cast<THnSparseF*>(fileMCInput->Get((mcBasePath + config.titles[2]).c_str()));
+      data.h4MCGenAssocReco = static_cast<THnSparseF*>(fileMCInput->Get((mcBasePath + dirName + "/h4" + name + "MCGenAssocReco").c_str()));
+      data.h4MCReco = static_cast<THnSparseF*>(fileMCInput->Get((mcBasePath + dirName + "/h4" + name + "MCReco").c_str()));
 
       if (!data.h3MCGen || !data.h4MCGenAssocReco || !data.h4MCReco) {
-        std::cerr << "[WARNING] MCTask: Missing one or more histograms for " << data.name << ". Skipping." << std::endl;
+        std::cerr << "[WARNING] MCTask: Missing one or more histograms for " << data.name
+                  << " in '" << particleInputFile << "'. Skipping." << std::endl;
         if (data.h3MCGen)
           delete data.h3MCGen;
         if (data.h4MCGenAssocReco)
@@ -118,7 +129,6 @@ class MCTask : public IAnalysisTask
         continue;
       }
 
-      // Initialize the diagnostic canvases for this particle
       std::string cEffName = "c_" + data.name + "_Efficiency";
       std::string cSigName = "c_" + data.name + "_SignalLoss";
       data.canvasEfficiency = new TCanvas(cEffName.c_str(), cEffName.c_str(), 800, 600);
@@ -127,24 +137,35 @@ class MCTask : public IAnalysisTask
       dataCollection.push_back(data);
     }
 
-    // 5. Load Event-Level Histograms for Global Event Loss
-    std::string genAssocRecoEventPath = mcBasePath + "event/hGenMCAssocRecoMultiplicityPercent";
-    std::string genEventPath = mcBasePath + "event/hGenMCMultiplicityPercent";
+    // 5. Load Event-Level Histograms for Global Event Loss.
+    // O2 always produces these for every MC file regardless of which particle(s)
+    // it contains, so they're identical duplicates across all opened files —
+    // simply read them from whichever file happens to be open already.
+    if (!openInputFiles.empty()) {
+      TFile* anyFile = openInputFiles.begin()->second;
 
-    hEventMultGenAssocReco = static_cast<TH1F*>(fileMCInput->Get(genAssocRecoEventPath.c_str()));
-    hEventMultGen = static_cast<TH1F*>(fileMCInput->Get(genEventPath.c_str()));
+      std::string genAssocRecoEventPath = mcBasePath + "event/hGenMCAssocRecoMultiplicityPercent";
+      std::string genEventPath = mcBasePath + "event/hGenMCMultiplicityPercent";
 
-    if (!hEventMultGenAssocReco || !hEventMultGen) {
-      std::cerr << "[WARNING] MCTask: Missing Event Multiplicity histograms. Event Loss will not be computed!" << std::endl;
+      hEventMultGenAssocReco = static_cast<TH1F*>(anyFile->Get(genAssocRecoEventPath.c_str()));
+      hEventMultGen = static_cast<TH1F*>(anyFile->Get(genEventPath.c_str()));
+
+      if (!hEventMultGenAssocReco || !hEventMultGen) {
+        std::cerr << "[WARNING] MCTask: Missing Event Multiplicity histograms. Event Loss will not be computed!" << std::endl;
+      } else {
+        hEventMultGenAssocReco->SetDirectory(0);
+        hEventMultGen->SetDirectory(0);
+      }
     } else {
-      hEventMultGenAssocReco->SetDirectory(0);
-      hEventMultGen->SetDirectory(0);
+      std::cerr << "[WARNING] MCTask: No input files were opened. Event Loss will not be computed!" << std::endl;
     }
 
-    // 6. Close the input file IMMEDIATELY. All required objects are now safely residing in RAM.
-    fileMCInput->Close();
-    delete fileMCInput;
-    std::cout << "[INFO] MCTask: Input file closed safely. Data loaded in RAM." << std::endl;
+    // 6. Close the input files IMMEDIATELY. All required objects are now safely residing in RAM.
+    for (auto& [path, file] : openInputFiles) {
+      file->Close();
+      delete file;
+    }
+    std::cout << "[INFO] MCTask: Input file(s) closed safely. Data loaded in RAM." << std::endl;
 
     // 7. Open the master output file for corrections
     std::string outPath = outputDirectory + outputPrefix + "Corrections.root";
