@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CorrelationTask.h"
-// #include "CorrelationWPDGTask.h"
+#include "CorrelationWPDGTask.h"
 #include "IAnalysisTask.h"
 #include "MCTask.h"
 #include "PhiFitTask.h"
@@ -42,7 +42,7 @@ class WorkflowManager
       {"purity_task", []() { return std::make_unique<PurityTask>(); }},
       {"mc_task", []() { return std::make_unique<MCTask>(); }},
       {"phi_fit_task", []() { return std::make_unique<PhiFitTask>(); }},
-      /*{"correlation_wpdg_task", []() { return std::make_unique<CorrelationWPDGTask>(); }},*/
+      {"correlation_wpdg_task", []() { return std::make_unique<CorrelationWPDGTask>(); }},
       {"correlation_task", []() { return std::make_unique<CorrelationTask>(); }}};
 
     // Map to track used prefixes per task type ---
