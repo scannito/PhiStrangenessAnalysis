@@ -129,6 +129,15 @@ class MCTask : public IAnalysisTask
         continue;
       }
 
+      if (p.HasMember("rebinning_pt") && p["rebinning_pt"].IsArray()) {
+        std::vector<double> bins;
+        bins.reserve(p["rebinning_pt"].Size());
+        for (const auto& v : p["rebinning_pt"].GetArray()) {
+          bins.push_back(v.GetDouble());
+        }
+        data.rebinningPt = std::move(bins);
+      }
+
       std::string cEffName = "c_" + data.name + "_Efficiency";
       std::string cSigName = "c_" + data.name + "_SignalLoss";
       data.canvasEfficiency = new TCanvas(cEffName.c_str(), cEffName.c_str(), 800, 600);
@@ -262,6 +271,12 @@ class MCTask : public IAnalysisTask
       for (int i{0}; i < globalCfgs.nBinMult; i++) {
         auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMaps(data, globalCfgs, i);
 
+        // If required, rebin the 1D histograms according to the provided binning
+        if (data.rebinningPt) {
+          h1Efficiency1D->Rebin(data.rebinningPt.value().size() - 1, (h1Efficiency1D->GetName() + "_rebinned").c_str(), data.rebinningPt.value().data());
+          h1SignalLoss1D->Rebin(data.rebinningPt.value().size() - 1, (h1SignalLoss1D->GetName() + "_rebinned").c_str(), data.rebinningPt.value().data());
+        }
+
         // Draw on canvases
         data.canvasEfficiency->cd();
         h1Efficiency1D->DrawCopy(i == 0 ? "" : "SAME");
@@ -286,12 +301,20 @@ class MCTask : public IAnalysisTask
 
       auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMapsMultIntegrated(data, globalCfgs);
 
+      // If required, rebin the 1D histograms according to the provided binning
+      if (data.rebinningPt) {
+        h1Efficiency1D->Rebin(data.rebinningPt.value().size() - 1, (h1Efficiency1D->GetName() + "_rebinned").c_str(), data.rebinningPt.value().data());
+        h1SignalLoss1D->Rebin(data.rebinningPt.value().size() - 1, (h1SignalLoss1D->GetName() + "_rebinned").c_str(), data.rebinningPt.value().data());
+      }
+
+      // Draw on canvases
       data.canvasEfficiency->cd();
       h1Efficiency1D->DrawCopy("SAME");
 
       data.canvasSignalLoss->cd();
       h1SignalLoss1D->DrawCopy("SAME");
 
+      // Write to file
       if (accEffMultDir) {
         accEffMultDir->cd();
         h1Efficiency1D->Write(nullptr, TObject::kOverwrite);

@@ -67,6 +67,8 @@ struct LoadedMC {
   THnSparseF* h4MCGenAssocReco{nullptr};
   THnSparseF* h4MCReco{nullptr};
 
+  std::optional<std::vector<double>> rebinningPt;
+
   TCanvas* canvasEfficiency{nullptr};
   TCanvas* canvasSignalLoss{nullptr};
 };
