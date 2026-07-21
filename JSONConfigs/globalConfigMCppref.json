@@ -148,7 +148,7 @@
     },
     "mc_base_settings": {
         "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_Bneg_16aprile.root",
-        "mc_base_path": "phi-strangeness-correlation/phiStrangenessCorrelation/",
+        "mc_base_path": "phi-strange-correlation/phiStrangenessCorrelation/",
         "output_dir": "../DataFile/pp_ref/DeltaY/Corrections/",
         "output_prefix": "",
         "mc_particles": [

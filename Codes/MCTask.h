@@ -402,7 +402,7 @@ class MCTask : public IAnalysisTask
   std::string outputDirectory;
   std::string ccdbOutputDir;
   std::string outputPrefix{""};
-  std::string mcBasePath{"phi-strangeness-correlation/phiStrangenessCorrelation/"};
+  std::string mcBasePath{"phi-strange-correlation/phiStrangenessCorrelation/"};
 
   // --- Variables for Global Event Loss ---
   TH1F* hEventMultGenAssocReco{nullptr};

@@ -146,7 +146,7 @@
     },
     "mc_base_settings": {
         "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_PtMod_6luglio.root",
-        "mc_base_path": "phi-strangeness-correlation/phiStrangenessCorrelation/",
+        "mc_base_path": "phi-strange-correlation/phiStrangenessCorrelation/",
         "output_dir": "../DataFile/pp/DeltaY/Corrections/",
         "output_prefix": "",
         "mc_particles": [
