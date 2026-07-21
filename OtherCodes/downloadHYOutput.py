@@ -206,9 +206,9 @@ if __name__ == "__main__":
     args = parse_arguments()
 
     # Batch Mode (JSON or YAML)
-    if args.batch_json:
-        if not os.path.isfile(args.batch_json):
-            print(f"Error: Batch JSON file not found at '{args.batch_json}'")
+    if args.batch_file:
+        if not os.path.isfile(args.batch_file):
+            print(f"Error: Batch file not found at '{args.batch_file}'")
             exit(1)
             
         file_ext = os.path.splitext(args.batch_file)[1].lower()
