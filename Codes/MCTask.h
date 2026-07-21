@@ -135,6 +135,9 @@ class MCTask : public IAnalysisTask
         for (const auto& v : p["rebinning_pt"].GetArray()) {
           bins.push_back(v.GetDouble());
         }
+        if (bins.size() < 2) {
+          throw std::runtime_error("[FATAL ERROR] MCTask: 'rebinning_pt' for particle '" + name + "' must have at least 2 edges!");
+        }
         data.rebinningPt = std::move(bins);
       }
 
@@ -273,8 +276,15 @@ class MCTask : public IAnalysisTask
 
         // If required, rebin the 1D histograms according to the provided binning
         if (data.rebinningPt) {
-          h1Efficiency1D->Rebin(data.rebinningPt.value().size() - 1, (h1Efficiency1D->GetName() + "_rebinned").c_str(), data.rebinningPt.value().data());
-          h1SignalLoss1D->Rebin(data.rebinningPt.value().size() - 1, (h1SignalLoss1D->GetName() + "_rebinned").c_str(), data.rebinningPt.value().data());
+          const auto& bins = data.rebinningPt.value();
+
+          auto* rebinnedEff = static_cast<TH1D*>(h1Efficiency1D->Rebin(bins.size() - 1, (std::string(h1Efficiency1D->GetName()) + "_rebinned").c_str(), bins.data()));
+          delete h1Efficiency1D;
+          h1Efficiency1D = rebinnedEff;
+
+          auto* rebinnedLoss = static_cast<TH1D*>(h1SignalLoss1D->Rebin(bins.size() - 1, (std::string(h1SignalLoss1D->GetName()) + "_rebinned").c_str(), bins.data()));
+          delete h1SignalLoss1D;
+          h1SignalLoss1D = rebinnedLoss;
         }
 
         // Draw on canvases
@@ -303,8 +313,15 @@ class MCTask : public IAnalysisTask
 
       // If required, rebin the 1D histograms according to the provided binning
       if (data.rebinningPt) {
-        h1Efficiency1D->Rebin(data.rebinningPt.value().size() - 1, (h1Efficiency1D->GetName() + "_rebinned").c_str(), data.rebinningPt.value().data());
-        h1SignalLoss1D->Rebin(data.rebinningPt.value().size() - 1, (h1SignalLoss1D->GetName() + "_rebinned").c_str(), data.rebinningPt.value().data());
+        const auto& bins = data.rebinningPt.value();
+
+        auto* rebinnedEff = static_cast<TH1D*>(h1Efficiency1D->Rebin(bins.size() - 1, (std::string(h1Efficiency1D->GetName()) + "_rebinned").c_str(), bins.data()));
+        delete h1Efficiency1D;
+        h1Efficiency1D = rebinnedEff;
+
+        auto* rebinnedLoss = static_cast<TH1D*>(h1SignalLoss1D->Rebin(bins.size() - 1, (std::string(h1SignalLoss1D->GetName()) + "_rebinned").c_str(), bins.data()));
+        delete h1SignalLoss1D;
+        h1SignalLoss1D = rebinnedLoss;
       }
 
       // Draw on canvases
