@@ -167,20 +167,22 @@
     },
     "mc_task_2024": {
         "inherits": "mc_base_settings",
-        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2024_PtMod_20luglio.root"
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2024_PtMod_20luglio.root",
+        "output_prefix": "2024_"
     },
     "mc_task_2024_wtrigger": {
         "inherits": "mc_base_settings",
         "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2024_PtMod_WTrigger_20luglio.root",
-        "output_prefix": "WTrigger_"
+        "output_prefix": "2024_WTrigger_"
     },
     "mc_task_2026": {
         "inherits": "mc_base_settings",
-        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_PtMod_20luglio.root"
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_PtMod_20luglio.root",
+        "output_prefix": "2026_"
     },
     "mc_task_2026_wtrigger": {
         "inherits": "mc_base_settings",
         "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_PtMod_WTrigger_20luglio.root",
-        "output_prefix": "WTrigger_"
+        "output_prefix": "2026_WTrigger_"
     }
 }
