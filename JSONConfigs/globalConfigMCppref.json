@@ -138,16 +138,18 @@
     },
     "workflow": {
         "active_tasks": [
-            "mc_task_2024",
-            "mc_task_2024_wtrigger",
-            "mc_task_2026",
-            "mc_task_2026_wtrigger"
+            "mc_task_Bpos",
+            "mc_task_Bpos_wtrigger",
+            "mc_task_Bneg",
+            "mc_task_Bneg_wtrigger",
+            "mc_task_strange_injected",
+            "mc_task_strange_injected_wtrigger"
         ]
     },
     "mc_base_settings": {
-        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_PtMod_6luglio.root",
+        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_Bneg_16aprile.root",
         "mc_base_path": "phi-strangeness-correlation/phiStrangenessCorrelation/",
-        "output_dir": "../DataFile/pp/DeltaY/Corrections/",
+        "output_dir": "../DataFile/pp_ref/DeltaY/Corrections/",
         "output_prefix": "",
         "mc_particles": [
             {
@@ -165,22 +167,28 @@
         ],
         "particle_correction_mode": 0
     },
-    "mc_task_2024": {
+    "mc_task_Bpos": {
         "inherits": "mc_base_settings",
-        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2024_PtMod_20luglio.root"
+        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_PtMod_Bpos_20luglio.root"
     },
-    "mc_task_2024_wtrigger": {
+    "mc_task_Bpos_wtrigger": {
         "inherits": "mc_base_settings",
-        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2024_PtMod_WTrigger_20luglio.root",
-        "output_prefix": "WTrigger_"
+        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_PtMod_Bpos_20luglio.root"
     },
-    "mc_task_2026": {
+    "mc_task_Bneg": {
         "inherits": "mc_base_settings",
-        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_PtMod_20luglio.root"
+        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_PtMod_Bneg_20luglio.root"
     },
-    "mc_task_2026_wtrigger": {
+    "mc_task_Bneg_wtrigger": {
         "inherits": "mc_base_settings",
-        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_PtMod_WTrigger_20luglio.root",
-        "output_prefix": "WTrigger_"
+        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_PtMod_Bneg_WTrigger_20luglio.root"
+    },
+    "mc_task_strange_injected": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_StrInj_PtMod_20luglio.root"
+    },
+    "mc_task_strange_injected_wtrigger": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_StrInj_PtMod_WTrigger_20luglio.root"
     }
 }
