@@ -2,6 +2,7 @@ import os
 import json
 import subprocess
 import argparse
+import tempfile
 
 # Try to import yaml, but don't crash if it's missing unless the user tries to use a YAML file
 try:
@@ -9,11 +10,37 @@ try:
 except ImportError:
     yaml = None
 
-# --- CONFIGURATION ---
-KEY_FILE = os.path.expanduser("~/.globus/userkey.pem")
-CERT_FILE = os.path.expanduser("~/.globus/usercert.pem")
+# --- CONFIGURATION & SMART GRID AUTHENTICATION ---
 DEFAULT_OUTPUT_DIR = os.path.abspath("./")
 
+# Check for a temporary active Grid token/proxy.
+# Respect $TMPDIR (on macOS this is NOT /tmp, e.g. /var/folders/.../T/),
+# and check for the JAliEn python-client token files (tokencert/tokenkey)
+# in addition to the legacy VOMS proxy filename (x509up_u<uid>).
+uid = os.getuid()
+tmpdir = tempfile.gettempdir()
+
+token_cert = os.path.join(tmpdir, f"tokencert_{uid}.pem")
+token_key = os.path.join(tmpdir, f"tokenkey_{uid}.pem")
+voms_proxy = os.path.join(tmpdir, f"x509up_u{uid}")
+
+if os.path.exists(token_cert) and os.path.exists(token_key):
+    # JAliEn python client token (from 'alien.py token-init')
+    CERT_FILE = token_cert
+    KEY_FILE = token_key
+elif os.path.exists(voms_proxy):
+    # Legacy VOMS/Globus proxy (from 'voms-proxy-init' / 'grid-proxy-init')
+    KEY_FILE = voms_proxy
+    CERT_FILE = voms_proxy
+else:
+    # No proxy/token found: fallback to original keys (will request the PEM passphrase)
+    print("⚠️  WARNING: No active Grid token/proxy found.")
+    print("You will be prompted for your PEM passphrase on every curl connection.")
+    print("Tip: Run 'alien.py token-init' before running this script.\n")
+    KEY_FILE = os.path.expanduser("~/.globus/userkey.pem")
+    CERT_FILE = os.path.expanduser("~/.globus/usercert.pem")
+
+# --- FUNCTIONS ---
 def parse_arguments():
     """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Download merged files from the Grid (Hyperloop/JAliEn).")
@@ -124,7 +151,7 @@ def download_per_run_files(train_id, target_file, output_base_dir):
                 continue
 
             print(f"  -> Downloading: {alien_file_path} \n     to {local_file_path}")
-            cmd = f"alien_cp -q {alien_file_path} file:{local_file_path}"
+            cmd = f"alien.py cp {alien_file_path} file:{local_file_path}"
             res = run_cmd(cmd)
             
             if res.returncode == 0:
@@ -182,7 +209,7 @@ def download_unified_file(train_id, target_file, output_base_dir, custom_name=No
         return
 
     print(f"Downloading unified file to {local_file_path} ...")
-    cmd = f"alien_cp -q {alien_file_path} file:{local_file_path}"
+    cmd = f"alien.py cp {alien_file_path} file:{local_file_path}"
     res = run_cmd(cmd)
     
     if res.returncode == 0:
