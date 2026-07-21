@@ -174,7 +174,7 @@
     },
     "mc_task_Bpos_wtrigger": {
         "inherits": "mc_base_settings",
-        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_PtMod_Bpos_20luglio.root",
+        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_PtMod_WTrigger_Bpos_20luglio.root",
         "output_prefix": "Bpos_WTrigger_"
     },
     "mc_task_Bneg": {
@@ -184,7 +184,7 @@
     },
     "mc_task_Bneg_wtrigger": {
         "inherits": "mc_base_settings",
-        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_PtMod_Bneg_WTrigger_20luglio.root",
+        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_PtMod_WTrigger_Bneg_20luglio.root",
         "output_prefix": "Bneg_WTrigger_"
     },
     "mc_task_strange_injected": {
