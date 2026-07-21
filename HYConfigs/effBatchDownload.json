@@ -1,0 +1,52 @@
+[
+    {
+        "train_id": 721757,
+        "output_dir": "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC",
+        "output_name": "AnalysisResultsMC_536_StrInj_PtMod_20luglio.root"
+    },
+    {
+        "train_id": 721758,
+        "output_dir": "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC",
+        "output_name": "AnalysisResultsMC_536_StrInj_PtMod_WTrigger_20luglio.root"
+    },
+    {
+        "train_id": 721838,
+        "output_dir": "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC",
+        "output_name": "AnalysisResultsMC_136_2024_PtMod_20luglio.root"
+    },
+    {
+        "train_id": 721839,
+        "output_dir": "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC",
+        "output_name": "AnalysisResultsMC_136_2024_PtMod_WTrigger_20luglio.root"
+    },
+    {
+        "train_id": 721868,
+        "output_dir": "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC",
+        "output_name": "AnalysisResultsMC_136_2026_PtMod_20luglio.root"
+    },
+    {
+        "train_id": 721869,
+        "output_dir": "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC",
+        "output_name": "AnalysisResultsMC_136_2026_PtMod_WTrigger_20luglio.root"
+    },
+    {
+        "train_id": 721896,
+        "output_dir": "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC",
+        "output_name": "AnalysisResultsMC_536_PtMod_Bneg_20luglio.root"
+    },
+    {
+        "train_id": 721897,
+        "output_dir": "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC",
+        "output_name": "AnalysisResultsMC_536_PtMod_WTrigger_Bneg_20luglio.root"
+    },
+    {
+        "train_id": 721911,
+        "output_dir": "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC",
+        "output_name": "AnalysisResultsMC_536_PtMod_Bpos_20luglio.root"
+    },
+    {
+        "train_id": 721912,
+        "output_dir": "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC",
+        "output_name": "AnalysisResultsMC_536_PtMod_WTrigger_Bpos_20luglio.root"
+    }
+]

@@ -1,0 +1,52 @@
+# This is a YAML configuration file for batch downloading merged files from the Grid (Hyperloop/JAliEn).
+# Each entry in the list corresponds to a specific train ID and its associated download parameters.
+
+# LHC26b1 (strangeness-injected pp reference) MC
+- train_id: 721757
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
+  output_name: "AnalysisResultsMC_536_StrInj_PtMod_20luglio.root"
+
+# LHC26b1 (strangeness-injected pp reference) with phi trigger MC
+- train_id: 721758
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
+  output_name: "AnalysisResultsMC_536_StrInj_PtMod_WTrigger_20luglio.root"
+
+# LHC24f4d (pp) MC
+- train_id: 721838
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
+  output_name: "AnalysisResultsMC_136_2024_PtMod_20luglio.root"
+
+# LHC24f4d (pp) with phi trigger MC
+- train_id: 721839
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
+  output_name: "AnalysisResultsMC_136_2024_PtMod_WTrigger_20luglio.root"
+
+# LHC26e9 (pp) MC
+- train_id: 721868
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
+  output_name: "AnalysisResultsMC_136_2026_PtMod_20luglio.root"
+
+# LHC26e9 (pp) with phi trigger MC
+- train_id: 721869
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
+  output_name: "AnalysisResultsMC_136_2026_PtMod_WTrigger_20luglio.root"
+
+# LHC25b4b6 (pp reference in B-- config) MC
+- train_id: 721896
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
+  output_name: "AnalysisResultsMC_536_PtMod_Bneg_20luglio.root"
+
+# LHC25b4b6 (pp reference in B-- config) with phi trigger MC
+- train_id: 721897
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
+  output_name: "AnalysisResultsMC_536_PtMod_WTrigger_Bneg_20luglio.root"
+
+# LHC25b4a6 (pp reference in B++ config) MC
+- train_id: 721911
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
+  output_name: "AnalysisResultsMC_536_PtMod_Bpos_20luglio.root"
+
+# LHC25b4a6 (pp reference in B++ config) with phi trigger MC
+- train_id: 721912
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
+  output_name: "AnalysisResultsMC_536_PtMod_WTrigger_Bpos_20luglio.root"

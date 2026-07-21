@@ -3,6 +3,12 @@ import json
 import subprocess
 import argparse
 
+# Try to import yaml, but don't crash if it's missing unless the user tries to use a YAML file
+try:
+    import yaml
+except ImportError:
+    yaml = None
+
 # --- CONFIGURATION ---
 KEY_FILE = os.path.expanduser("~/.globus/userkey.pem")
 CERT_FILE = os.path.expanduser("~/.globus/usercert.pem")
@@ -11,10 +17,10 @@ DEFAULT_OUTPUT_DIR = os.path.abspath("./")
 def parse_arguments():
     """Parses command-line arguments."""
     parser = argparse.ArgumentParser(description="Download merged files from the Grid (Hyperloop/JAliEn).")
-    # Batch option
-    parser.add_argument("--batch-json", default=None,
-                        help="Path to a JSON file containing a list of trains to process in batch mode.")
-    # Single mode options (required only if --batch-json is not used)
+    # Batch option (can be JSON or YAML)
+    parser.add_argument("--batch-file", default=None,
+                        help="Path to a JSON or YAML file containing a list of trains to process.")
+    # Single mode options (required only if --batch-file is not used)
     parser.add_argument("--train-id", default=None, help="The train ID to download files for.")
     parser.add_argument("--target-file", choices=["AnalysisResults.root", "AO2D.root"], default="AnalysisResults.root",
                         help="Specify which file to download: 'AnalysisResults.root' or 'AO2D.root'.")
@@ -22,8 +28,8 @@ def parse_arguments():
                         help="Directory to save downloaded files. Defaults to the current directory.")
     parser.add_argument("--output-name", default=None,
                         help="Custom name for the downloaded file (only applied in --unified mode).")
-    parser.add_argument("--unified", action="store_true",
-                        help="Download the single unified global file for the whole train instead of per-run files.")
+    parser.add_argument("--per-run", action="store_true",
+                    help="Disable unified download and download files for each individual run.")
     return parser.parse_args()
 
 def run_cmd(cmd):
@@ -187,9 +193,9 @@ def download_unified_file(train_id, target_file, output_base_dir, custom_name=No
         print(f"-> Error: Could not download the unified file from {alien_file_path}")
         print(f"-> The JSON file has been kept for debugging: {json_path}")
 
-def process_single_train(train_id, target_file, output_dir, output_name, unified):
+def process_single_train(train_id, target_file, output_dir, output_name, per_run):
     """Dispatches the execution to either unified or per-run mode."""
-    if unified:
+    if not per_run:
         print(f"\n--- MODE: UNIFIED DOWNLOAD [Train ID: {train_id}] ---")
         download_unified_file(train_id, target_file, output_dir, output_name)
     else:
@@ -199,29 +205,40 @@ def process_single_train(train_id, target_file, output_dir, output_name, unified
 if __name__ == "__main__":
     args = parse_arguments()
 
-    # Batch Mode
+    # Batch Mode (JSON or YAML)
     if args.batch_json:
         if not os.path.isfile(args.batch_json):
             print(f"Error: Batch JSON file not found at '{args.batch_json}'")
             exit(1)
             
-        print(f"=== STARTING BATCH PROCESSING FROM: {args.batch_json} ===")
-        with open(args.batch_json) as batch_file:
-            trains_list = json.load(batch_file)
+        file_ext = os.path.splitext(args.batch_file)[1].lower()
+        
+        # Parse based on file extension
+        if file_ext in ['.yaml', '.yml']:
+            if yaml is None:
+                print("Error: PyYAML is not installed. Run 'pip install pyyaml' to use YAML files.")
+                exit(1)
+            print(f"=== STARTING BATCH PROCESSING FROM YAML: {args.batch_file} ===")
+            with open(args.batch_file) as f:
+                trains_list = yaml.safe_load(f)
+        else:
+            print(f"=== STARTING BATCH PROCESSING FROM JSON: {args.batch_file} ===")
+            with open(args.batch_file) as f:
+                trains_list = json.load(f)
             
         for index, item in enumerate(trains_list):
             t_id = item.get("train_id")
             t_file = item.get("target_file", "AnalysisResults.root")
             o_dir = item.get("output_dir", DEFAULT_OUTPUT_DIR)
             o_name = item.get("output_name", None)
-            is_unified = item.get("unified", False)
+            is_per_run = item.get("per_run", False)
             
             if not t_id:
                 print(f"Warning: Missing 'train_id' in batch entry #{index+1}. Skipping.")
                 continue
                 
             print(f"\nProcessing batch item {index+1}/{len(trains_list)}")
-            process_single_train(t_id, t_file, o_dir, o_name, is_unified)
+            process_single_train(t_id, t_file, o_dir, o_name, is_per_run)
         print("\n=== BATCH PROCESSING COMPLETED ===")
 
     # Standard Mode (Single Train via CLI parameters)
@@ -229,4 +246,4 @@ if __name__ == "__main__":
         if not args.train_id:
             print("Error: You must provide either --train-id or --batch-json to run the script.")
             exit(1)
-        process_single_train(args.train_id, args.target_file, args.output_dir, args.output_name, args.unified)
+        process_single_train(args.train_id, args.target_file, args.output_dir, args.output_name, args.per_run)
