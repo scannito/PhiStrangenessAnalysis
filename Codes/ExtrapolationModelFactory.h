@@ -20,61 +20,6 @@ class ExtrapolationModelFactory
 
   // MAIN FACTORY METHOD
   // Creates a dynamically configured TF1 based on the ExtrapConfig structure
-  /*static std::unique_ptr<TF1> CreateModel(const ExtrapConfig& config, double histMaxVal)
-  {
-    std::unique_ptr<TF1> f1;
-
-    if (config.model == "LevyTsallis") {
-      f1 = std::make_unique<TF1>("fLevyTsallis", LevyTsallisFunc, config.fitRange.first, config.fitRange.second, 4);
-
-      // Param 0: Mass (Fixed to physical value)
-      f1->FixParameter(0, config.mass);
-      f1->SetParName(0, "mass");
-
-      // Dynamic shape parameters from JSON
-      ApplyParam(f1.get(), 1, "n", config);
-      ApplyParam(f1.get(), 2, "T", config);
-
-      // Scale normalization by the maximum value of the histogram for better initial guesses
-      ApplyParam(f1.get(), 3, "norm", config, histMaxVal);
-    } else if (config.model == "BoseEinstein") {
-      f1 = std::make_unique<TF1>("fBoseEinstein", BoseEinsteinFunc, config.fitRange.first, config.fitRange.second, 3);
-
-      f1->FixParameter(0, config.mass);
-      f1->SetParName(0, "mass");
-
-      ApplyParam(f1.get(), 1, "T", config);
-      ApplyParam(f1.get(), 2, "norm", config, histMaxVal);
-    } else if (config.model == "BlastWave") {
-      f1 = std::make_unique<TF1>("fBlastWave", BlastWaveFunc, config.fitRange.first, config.fitRange.second, 5);
-
-      f1->FixParameter(0, config.mass);
-      f1->SetParName(0, "mass");
-
-      ApplyParam(f1.get(), 1, "beta", config);
-      ApplyParam(f1.get(), 2, "temp", config);
-      ApplyParam(f1.get(), 3, "n", config);
-      ApplyParam(f1.get(), 4, "norm", config, histMaxVal);
-    } else if (config.model == "MtExponential") {
-      f1 = std::make_unique<TF1>("fMtExp", MtExponentialFunc, config.fitRange.first, config.fitRange.second, 3);
-
-      f1->FixParameter(0, config.mass);
-      f1->SetParName(0, "mass");
-
-      ApplyParam(f1.get(), 1, "T", config);
-      ApplyParam(f1.get(), 2, "norm", config, histMaxVal);
-    } else if (config.model == "PtExponential") {
-      // Note: PtExponential does not depend on mass
-      f1 = std::make_unique<TF1>("fPtExp", PtExponentialFunc, config.fitRange.first, config.fitRange.second, 2);
-
-      ApplyParam(f1.get(), 0, "T", config);
-      ApplyParam(f1.get(), 1, "norm", config, histMaxVal);
-    } else {
-      throw std::runtime_error("[FATAL] ExtrapolationModelFactory: Unknown model requested -> " + config.model);
-    }
-
-    return f1;
-  }*/
   static std::unique_ptr<TF1> CreateModel(const ExtrapConfig& config, double histMaxVal)
   {
     std::unique_ptr<TF1> f1;
@@ -217,31 +162,6 @@ class ExtrapolationModelFactory
       }
     }
   }
-
-  /*// PARAMETER INJECTION HELPER
-  // Automatically reads limits and values from JSON and applies scaling
-  static void ApplyParam(TF1* f1, int idx, const std::string& name, const ExtrapConfig& config, double scale = 1.0)
-  {
-    if (config.params.count(name)) {
-      const auto& param = config.params.at(name);
-
-      double scaledVal = param.val * scale;
-      double scaledMin = param.min * scale;
-      double scaledMax = param.max * scale;
-
-      f1->SetParameter(idx, scaledVal);
-      f1->SetParName(idx, name.c_str());
-
-      // Only apply limits if the user explicitly provided a valid range in the JSON (min < max)
-      // E.g., if JSON has [2.0, 0.0, 0.0], the parameter is left unbounded
-      if (scaledMin < scaledMax) {
-        f1->SetParLimits(idx, scaledMin, scaledMax);
-      }
-    } else {
-      std::cerr << "[WARNING] ExtrapolationModelFactory: Parameter '" << name
-                << "' missing in JSON config for model '" << config.model << "'!" << std::endl;
-    }
-  }*/
 
   // INNER MATHEMATICAL IMPLEMENTATIONS
   static double LevyTsallisFunc(double* x, double* p)

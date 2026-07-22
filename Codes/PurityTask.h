@@ -89,47 +89,7 @@ class PurityTask : public IAnalysisTask
     fileInput->Close();
     delete fileInput;
 
-    /*h3K0SData = static_cast<TH3F*>(fileInput->Get("k0s-reduced-cand-producer/k0sReducedCandidates/h3K0sCandidatesMass"));
-    h3PiTPCData = static_cast<TH3F*>(fileInput->Get("pion-track-producer/pionTracks/h3PionTPCnSigma"));
-    h3PiTOFData = static_cast<TH3F*>(fileInput->Get("pion-track-producer/pionTracks/h3PionTOFnSigma"));
-
-    // Decouple histograms from the file so they survive in RAM when the file closes
-    h3K0SData->SetDirectory(0);
-    h3PiTPCData->SetDirectory(0);
-    h3PiTOFData->SetDirectory(0);*/
-
-    // fileInput->Close();
-    // delete fileInput;
-
-    /*// 2. Open Output files
-    std::string outputDir = taskConfig["output_dir"].GetString();
-
-    // Prefix to specify the type of analysis (Data vs MCClosure)
-    std::string prefix = "";
-    if (taskConfig.HasMember("output_prefix"))
-      prefix = taskConfig["output_prefix"].GetString();*/
-
-    /*std::string outK0S = outputDir + prefix + "K0SPurity.root";
-    std::string outPi = outputDir + prefix + "PiPurity.root";
-
-    fileOutputK0S = new TFile(outK0S.c_str(), "RECREATE");
-    fileOutputPi = new TFile(outPi.c_str(), "RECREATE");*/
-
-    // 3. Create Canvases
-    /*canvasPurityK0S = new TCanvas("canvasK0SPurity", "K0S Purity", 800, 600);
-    canvasPurityPiTPC = new TCanvas("canvasPiTPCPurity", "Pi TPC Purity", 800, 600);
-    canvasPurityPiTOF = new TCanvas("canvasPiTOFPurity", "Pi TOF Purity", 800, 600);
-
-    // 4. Setup the task list (assuming nBinPtK0S, binspTK0S, etc. are accessible globally or defined here)
-    const auto& binPtK0S = globalCfgs.GetPtBinning("K0S");
-    const auto& binPtPi = globalCfgs.GetPtBinning("Pi");
-
-    particleTasks = {
-      {"k0s", h3K0SData, static_cast<int>(binPtK0S.size()) - 1, binPtK0S, fileOutputK0S, canvasPurityK0S},
-      {"pi_tpc", h3PiTPCData, static_cast<int>(binPtPi.size()) - 1, binPtPi, fileOutputPi, canvasPurityPiTPC},
-      {"pi_tof", h3PiTOFData, static_cast<int>(binPtPi.size()) - 1, binPtPi, fileOutputPi, canvasPurityPiTOF}};*/
-
-    // 5. Read task-specific settings from the JSON node (DOM)
+    // 3. Read task-specific settings from the JSON node (DOM)
     if (!taskConfig.HasMember("fit_config_file")) {
       throw std::runtime_error("[FATAL] PurityTask: 'fit_config_file' missing in JSON!");
     }
@@ -137,7 +97,7 @@ class PurityTask : public IAnalysisTask
     // Keep the fit configuration file completely separated for physics tuning
     std::string fitCfgPath = taskConfig["fit_config_file"].GetString();
 
-    // 6. Initialize specific mathematical tools
+    // 4. Initialize specific mathematical tools
     fitConfigManager = new FitConfigManager(fitCfgPath);
   }
 
@@ -235,52 +195,11 @@ class PurityTask : public IAnalysisTask
     if (fitConfigManager)
       delete fitConfigManager;
 
-    /*// 1. Save the summary canvases
-    TDirectory* k0sSummaryDir = AnalysisUtils::GetOrCreatePath(fileOutputK0S, summaryPath, false);
-    if (k0sSummaryDir) {
-      k0sSummaryDir->cd();
-      canvasPurityK0S->Write(nullptr, TObject::kOverwrite);
-    }
-
-    // 2. Save the summary canvases in the Pion file
-    TDirectory* piSummaryDir = AnalysisUtils::GetOrCreatePath(fileOutputPi, summaryPath, false);
-    if (piSummaryDir) {
-      piSummaryDir->cd();
-      canvasPurityPiTPC->Write(nullptr, TObject::kOverwrite);
-      canvasPurityPiTOF->Write(nullptr, TObject::kOverwrite);
-    }
-
-    // 2. Close the output files safely
-    fileOutputK0S->Close();
-    fileOutputPi->Close();
-
-    // 3. Free up RAM (clean pointers)
-    delete fileOutputK0S;
-    delete fileOutputPi;
-    delete canvasPurityK0S;
-    delete canvasPurityPiTPC;
-    delete canvasPurityPiTOF;
-    delete h3K0SData;
-    delete h3PiTPCData;
-    delete h3PiTOFData;
-    delete fitConfigManager;*/
-
     std::cout << "[INFO] PurityTask: DONE." << std::endl;
   }
 
  private:
   AnalysisSettings globalCfgs;
-
-  /*TH3F* h3K0SData{nullptr};
-  TH3F* h3PiTPCData{nullptr};
-  TH3F* h3PiTOFData{nullptr};
-
-  TFile* fileOutputK0S{nullptr};
-  TFile* fileOutputPi{nullptr};
-
-  TCanvas* canvasPurityK0S{nullptr};
-  TCanvas* canvasPurityPiTPC{nullptr};
-  TCanvas* canvasPurityPiTOF{nullptr};*/
 
   std::map<std::string, TFile*> outputFiles;
 

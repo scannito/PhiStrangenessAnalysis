@@ -82,9 +82,6 @@ class EfficiencyCalculator
         break;
     }
 
-    // TH3 *h3TotalMap = static_cast<TH3 *>(h3Efficiency->Clone(("h3EffMap" + data.name).c_str()));
-    // TH3* h3TotalMap = static_cast<TH3*>(h3Efficiency->Clone("ccdb_object"));
-
     if (h3TotalMap)
       h3TotalMap->SetDirectory(0);
 
@@ -138,10 +135,6 @@ class EfficiencyCalculator
         h2TotalMapMultInt->Multiply(h2SignalLoss);
         break;
     }
-
-    // TH2 *h2TotalMap = static_cast<TH2 *>(h2Efficiency->Clone(("h2EffMap" + data.name).c_str()));
-    // TH2* h2TotalMapMultInt = static_cast<TH2*>(h2Efficiency->Clone("ccdb_object"));
-    // TH2* h2TotalMapMultInt = static_cast<TH2*>(h2SignalLoss->Clone("ccdb_object"));
 
     if (h2TotalMapMultInt)
       h2TotalMapMultInt->SetDirectory(0);

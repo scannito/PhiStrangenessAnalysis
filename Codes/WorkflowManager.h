@@ -75,25 +75,6 @@ class WorkflowManager
     std::cout << "WorkflowManager: Running analysis workflow..." << std::endl;
     std::cout << "------------------------------------------------" << std::endl;
 
-    // A task is fully completed (Init -> Run -> Terminate) before the next one starts.
-    // This guarantees that output files from Task A are available on disk for Task B.
-    /*for (auto& task : activeTasks) {
-      std::string taskName = task->GetName();
-      std::cout << "\n>>> [STARTING TASK] " << taskName << " <<<" << std::endl;
-
-      if (!document.HasMember(taskName.c_str())) {
-        throw std::runtime_error("[FATAL ERROR] Missing JSON config block for: " + taskName);
-      }
-
-      task->Init(document[taskName.c_str()]);
-      task->Run();
-      task->Terminate();
-
-      std::cout << ">>> [TASK COMPLETED] " << taskName << " <<<" << std::endl;
-
-      std::cout << "------------------------------------------------" << std::endl;
-    }*/
-
     for (size_t i = 0; i < activeTasks.size(); ++i) {
       auto& task = activeTasks[i];
 

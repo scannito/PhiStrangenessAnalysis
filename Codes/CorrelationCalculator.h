@@ -40,16 +40,6 @@ class CorrelationCalculator
     }
   }
 
-  /*// Used to extract the QA (Projects onto Delta Phi with optional cuts on Delta y)
-  TH1* ExtractDeltaPhi(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
-                       double totalEff, double triggerBkgRatio, const std::string& histNameBase,
-                       TDirectory* ioDir = nullptr, TDirectory* qaDir = nullptr,
-                       bool applyOrthogonalCut = false, double cutMin = -1.0, double cutMax = 1.0) const
-  {
-    return Process2DExtraction(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir, qaDir,
-                               AxisTarget::DeltaPhi_X, applyOrthogonalCut, cutMin, cutMax);
-  }*/
-
  private:
   bool applyME{true}, useCacheMode{false}, use2DME{false}, doMoreQA{false};
 
@@ -195,13 +185,6 @@ class CorrelationCalculator
           h2MESideband->Scale(1.0 / normMESb);
         delete h1MEProjY_Sb;
       }
-
-      /*double normMESig = GetZeroZeroAvg(h2MESignal);
-      if (normMESig > 0)
-        h2MESignal->Scale(1.0 / normMESig);
-      double normMESb = GetZeroZeroAvg(h2MESideband);
-      if (normMESb > 0)
-        h2MESideband->Scale(1.0 / normMESb);*/
     }
 
     // 3. Efficiency Correction
@@ -216,9 +199,6 @@ class CorrelationCalculator
     if (h2Sideband) {
       if (applyME && h2MESideband)
         h2Sideband->Divide(h2MESideband);
-
-      // Sideband Scaling
-      // h2Sideband->Scale(triggerBkgRatio / totalEff);
     }
 
     TH1* h1Final1D{nullptr};
