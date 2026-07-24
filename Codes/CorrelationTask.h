@@ -235,6 +235,16 @@ class CorrelationTask : public CorrelationTaskBase
       purity.name = name;
       purity.h1Purity.resize(globalCfgs.nBinMult, nullptr);
 
+      std::vector<double> targetBinning;
+      if (name == "Phi") {
+        targetBinning = globalCfgs.GetPtBinning("Phi");
+      } else {
+        auto it = std::find_if(assocParticles.begin(), assocParticles.end(), [&](const AssocParticleConfig& p) { return p.name == name; });
+        if (it == assocParticles.end())
+          throw std::runtime_error("[FATAL] CorrelationTask: Unknown particle name in 'purity_sources': " + name);
+        targetBinning = it->binning;
+      }
+
       TFile* filePurity = new TFile(purityFilePath.c_str(), "READ");
       if (!filePurity || filePurity->IsZombie())
         throw std::runtime_error("[FATAL] CorrelationTask: Cannot open purity file: " + purityFilePath);
@@ -245,8 +255,10 @@ class CorrelationTask : public CorrelationTaskBase
         if (!h1Pur)
           throw std::runtime_error("[FATAL] CorrelationTask: Missing purity histogram: " + hName + " in " + purityFilePath);
 
-        purity.h1Purity[i] = static_cast<TH1*>(h1Pur->Clone());
-        purity.h1Purity[i]->SetDirectory(0);
+        TH1F* rebinnedPur = AnalysisUtils::RebinToTargetBinning(h1Pur, targetBinning, "CorrelationTaskBase::LoadPurities");
+        rebinnedPur->SetDirectory(0);
+
+        purity.h1Purity[i] = static_cast<TH1*>(rebinnedPur);
       }
 
       filePurity->Close();
