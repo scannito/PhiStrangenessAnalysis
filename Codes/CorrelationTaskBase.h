@@ -504,13 +504,14 @@ class CorrelationTaskBase : public IAnalysisTask
     }
 
     // LAMBDA HELPER 1: Load the histogram and throw an error if missing
-    auto fetchHist = [&](const std::string& name, bool apply) -> TH1F* {
+    auto fetchHist = [&](const std::string& name, bool apply, const std::vector<double>& targetBinning) -> TH1F* {
       if (!apply)
         return nullptr;
       auto h = static_cast<TH1F*>(fileEffInput->Get(name.c_str()));
       if (!h)
         throw std::runtime_error("[FATAL] Missing required histogram: " + name);
-      return h;
+
+      return AnalysisUtils::RebinToTargetBinning(h, targetBinning, "CorrelationTaskBase::LoadCorrections");
     };
 
     // LAMBDA HELPER 2: Clone and multiply (if both are needed) safely
@@ -532,12 +533,22 @@ class CorrelationTaskBase : public IAnalysisTask
       corr.h1Corrections.resize(globalCfgs.nBinMult, nullptr);
       corr.h1CorrectionsEffMultInt.resize(globalCfgs.nBinMult, nullptr);
 
+      std::vector<double> targetBinning;
+      if (name == "Phi") {
+        targetBinning = globalCfgs.GetPtBinning("Phi");
+      } else {
+        auto it = std::find_if(assocParticles.begin(), assocParticles.end(), [&](const AssocParticleConfig& p) { return p.name == name; });
+        if (it == assocParticles.end())
+          throw std::runtime_error("[FATAL] Unknown particle name in 'apply_efficiency_to': " + name);
+        targetBinning = it->binningPt;
+      }
+
       // Naming convention for histograms based on particle name
       std::string effHistBase = "h1" + name + "Efficiency";
       std::string sigLossHistBase = "h1" + name + "SigLoss";
 
       // Fetch integrated histograms ONLY if useIntegratedEfficiency is true
-      TH1F* hEffInt = fetchHist(effHistBase + "_multIntegrated", doAccEfficiency && useIntegratedEfficiency);
+      TH1F* hEffInt = fetchHist(effHistBase + "_multIntegrated", doAccEfficiency && useIntegratedEfficiency, targetBinning);
       // Note: Signal loss is typically not integrated, but we fetch it if requested for consistency
       // TH1F* hLossInt = fetchHist(sigLossHistBase + "_multIntegrated", doSigLoss && useIntegratedEfficiency);
 
@@ -545,10 +556,10 @@ class CorrelationTaskBase : public IAnalysisTask
         std::string iStr = std::to_string(i);
 
         // Fetch binned histograms ONLY if useIntegratedEfficiency is false
-        TH1F* hEffBin = fetchHist(effHistBase + "_multBin" + iStr, doAccEfficiency && !useIntegratedEfficiency);
+        TH1F* hEffBin = fetchHist(effHistBase + "_multBin" + iStr, doAccEfficiency && !useIntegratedEfficiency, targetBinning);
         // Note: Signal loss is typically not integrated, so we fetch the binned version if signal loss correction is requested,
         // regardless of the useIntegratedEfficiency flag
-        TH1F* hLossBin = fetchHist(sigLossHistBase + "_multBin" + iStr, doSigLoss);
+        TH1F* hLossBin = fetchHist(sigLossHistBase + "_multBin" + iStr, doSigLoss, targetBinning);
 
         corr.h1Corrections[i] = combineHists(hEffBin, hLossBin, "h1Corrected_" + name + "_multBin" + iStr);
         corr.h1CorrectionsEffMultInt[i] = combineHists(hEffInt, hLossBin, "h1Corrected_" + name + "_multInt" + iStr);

@@ -2,3 +2,4 @@
 *-workspace
 *.log
 *.DS_Store
+*_C*

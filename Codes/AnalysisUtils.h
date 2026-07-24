@@ -219,4 +219,32 @@ inline std::string VectorToPath(const std::vector<std::string>& path)
   }
   return fullPath;
 }
+
+// -----------------------------------------------------------------------------
+// Rebinng utilities
+// -----------------------------------------------------------------------------
+
+inline bool IsRebinCompatible(const TH1* hSource, const std::vector<double>& targetBins, double epsilon = 1e-9)
+{
+  for (double edge : targetBins) {
+    int bin = hSource->GetXaxis()->FindFixBin(edge);
+    double lowEdge = hSource->GetXaxis()->GetBinLowEdge(bin);
+    double upEdge = hSource->GetXaxis()->GetBinLowEdge(bin + 1);
+    if (std::abs(lowEdge - edge) > epsilon && std::abs(upEdge - edge) > epsilon)
+      return false;
+  }
+  return true;
+}
+
+inline TH1F* RebinToTargetBinning(TH1F* h, const std::vector<double>& targetBins, const std::string& errCtx)
+{
+  if (!IsRebinCompatible(h, targetBins))
+    throw std::runtime_error("[FATAL] " + errCtx + ": Histogram '" + std::string(h->GetName()) +
+                             "' binning is not compatible with analysis binning (bin edges do not align).");
+
+  int nTargetBins = static_cast<int>(targetBins.size()) - 1;
+  TH1F* hRebinned = static_cast<TH1F*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBins.data()));
+  delete h;
+  return hRebinned;
+}
 } // namespace AnalysisUtils
