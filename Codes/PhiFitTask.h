@@ -7,8 +7,11 @@
 #include "FitConfigManager.h"
 #include "FitPhiSignalAndBkg.h"
 #include "IAnalysisTask.h"
+#include "JsonConfigHelpers.h"
+#include "RootIOHelpers.h"
 
 #include "TCanvas.h"
+#include "TDirectory.h"
 #include "TF1.h"
 #include "TFile.h"
 #include "TH1.h"
@@ -17,6 +20,7 @@
 #include "TH3F.h"
 
 #include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
 
@@ -32,7 +36,14 @@ class PhiFitTask : public IAnalysisTask
     globalCfgs = globalSettings; // Store the global settings for later use
 
     // 1. Input Configuration
-    if (!taskConfig.HasMember("input_data_file") || !taskConfig.HasMember("base_path_data")) {
+    std::string inputFile = RequireString(taskConfig, "input_data_file", "PhiFitTask");
+    std::unique_ptr<TFile> fileDataInput = OpenOrThrow(inputFile, "READ", "PhiFitTask");
+
+    basePathData = RequireString(taskConfig, "base_path_data", "PhiFitTask");
+    h3PhiData = GetOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", "PhiFitTask");
+
+    /*if (!taskConfig.HasMember("input_data_file") || !taskConfig.HasMember("base_path_data"))
+    {
       throw std::runtime_error("[FATAL ERROR] PhiFitTask: Missing input_data_file or base_path_data in JSON!");
     }
     std::string inputFile = taskConfig["input_data_file"].GetString();
@@ -48,43 +59,51 @@ class PhiFitTask : public IAnalysisTask
       throw std::runtime_error("[FATAL] PhiFitTask: Missing h3PhiData!");
     h3PhiData->SetDirectory(0);
     fileDataInput->Close();
-    delete fileDataInput;
+    delete fileDataInput;*/
 
     // 2. Fit Configuration
-    if (!taskConfig.HasMember("fit_config_file")) {
+    std::string fitCfgPath = RequireString(taskConfig, "fit_config_file", "PhiFitTask");
+    fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
+    /*if (!taskConfig.HasMember("fit_config_file")) {
       throw std::runtime_error("[FATAL ERROR] PhiFitTask: 'fit_config_file' missing in JSON!");
     }
-    fitConfigManager = new FitConfigManager(taskConfig["fit_config_file"].GetString());
+    fitConfigManager = new FitConfigManager(taskConfig["fit_config_file"].GetString());*/
 
     if (taskConfig.HasMember("fitter_type")) {
       fitterType = taskConfig["fitter_type"].GetString();
     }
 
     // 3. Output Configuration
-    std::string basePathProj = taskConfig["output_dir_proj"].GetString();
+    std::string basePathProj = RequireString(taskConfig, "output_dir_proj", "PhiFitTask");
+    // std::string basePathProj = taskConfig["output_dir_proj"].GetString();
     std::string prefix = taskConfig.HasMember("output_prefix") ? taskConfig["output_prefix"].GetString() : "";
 
     std::string phiDataName = basePathProj + prefix + "PhiDataHistograms.root";
-    filePhiDataOutput = new TFile(phiDataName.c_str(), "RECREATE");
+    filePhiDataOutput = OpenOrThrow(phiDataName, "RECREATE", "PhiFitTask");
+    // filePhiDataOutput = new TFile(phiDataName.c_str(), "RECREATE");
 
     const int nBinPtPhi = globalCfgs.GetNBinPt("Phi");
 
     // Histograms to pass parameters to CorrelationTask
     h2TriggerSignal = new TH2D("h2TriggerSignal", "Raw Signal Yield;Multiplicity Bin;p_{T} Bin",
                                globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
+    h2TriggerSignal->SetDirectory(0);
     h2TriggerBkgSigRegion = new TH2D("h2TriggerBkgSigRegion", "Bkg in Signal Region;Multiplicity Bin;p_{T} Bin",
                                      globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
+    h2TriggerBkgSigRegion->SetDirectory(0);
     h2TriggerBkgSideRegion = new TH2D("h2TriggerBkgSideRegion", "Bkg in Sideband Region;Multiplicity Bin;p_{T} Bin",
                                       globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
+    h2TriggerBkgSideRegion->SetDirectory(0);
     h2TriggerBkgRatio = new TH2D("h2TriggerBkgRatio", "Bkg(SigRegion)/Bkg(Sideband);Multiplicity Bin;p_{T} Bin",
                                  globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
+    h2TriggerBkgRatio->SetDirectory(0);
   }
 
   void Run() override
   {
     std::cout << "[INFO] PhiFitTask: RUNNING TRIGGER SIGNAL EXTRACTION..." << std::endl;
 
-    TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(filePhiDataOutput, {globalCfgs.binningName, "Fits"}, false);
+    TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Fits"}, false);
 
     const int nBinPtPhi = globalCfgs.GetNBinPt("Phi");
 
@@ -160,7 +179,7 @@ class PhiFitTask : public IAnalysisTask
   {
     std::cout << "[INFO] PhiFitTask: TERMINATING..." << std::endl;
 
-    TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(filePhiDataOutput, {globalCfgs.binningName, "Summary"}, false);
+    TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Summary"}, false);
     summaryDir->cd();
 
     h2TriggerSignal->Write(nullptr, TObject::kOverwrite);
@@ -168,10 +187,15 @@ class PhiFitTask : public IAnalysisTask
     h2TriggerBkgSideRegion->Write(nullptr, TObject::kOverwrite);
     h2TriggerBkgRatio->Write(nullptr, TObject::kOverwrite);
 
-    filePhiDataOutput->Close();
-    delete filePhiDataOutput;
+    if (filePhiDataOutput)
+      filePhiDataOutput->Close();
+
+    delete h2TriggerSignal;
+    delete h2TriggerBkgSigRegion;
+    delete h2TriggerBkgSideRegion;
+    delete h2TriggerBkgRatio;
+
     delete h3PhiData;
-    delete fitConfigManager;
 
     std::cout << "[INFO] PhiFitTask: DONE." << std::endl;
   }
@@ -183,10 +207,14 @@ class PhiFitTask : public IAnalysisTask
   std::string fitterType{"dynamicroofitter"}; // Default fitting method
   TH3F* h3PhiData{nullptr};
 
-  TFile* filePhiDataOutput{nullptr};
+  // TFile* filePhiDataOutput{nullptr};
+  std::unique_ptr<TFile> filePhiDataOutput;
+
   TH2D* h2TriggerSignal{nullptr};
   TH2D* h2TriggerBkgSigRegion{nullptr};
   TH2D* h2TriggerBkgSideRegion{nullptr};
   TH2D* h2TriggerBkgRatio{nullptr};
-  FitConfigManager* fitConfigManager{nullptr};
+
+  // FitConfigManager* fitConfigManager{nullptr};
+  std::unique_ptr<FitConfigManager> fitConfigManager;
 };

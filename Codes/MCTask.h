@@ -35,9 +35,10 @@ class MCTask : public IAnalysisTask
     globalCfgs = globalSettings; // Store the global settings for later use
 
     // 1. Check if a list of particle to compute MC corrections is provided
-    if (!taskConfig.HasMember("mc_particles") || !taskConfig["mc_particles"].IsArray()) {
+    auto particles = RequireArray(taskConfig, "mc_particles", "MCTask");
+    /*if (!taskConfig.HasMember("mc_particles") || !taskConfig["mc_particles"].IsArray()) {
       throw std::runtime_error("[FATAL ERROR] MCTask: 'mc_particles' array missing in JSON!");
-    }
+    }*/
 
     // 'input_mc_file' is now an optional TASK-LEVEL DEFAULT: used by particles that
     // don't specify their own "input_mc_file".
@@ -66,20 +67,21 @@ class MCTask : public IAnalysisTask
 
     // Input files may be shared across particles (default) or overridden per
     // particle via "input_mc_file". Open each distinct file only once.
-    std::map<std::string, TFile*> openInputFiles;
+    std::map<std::string, std::shared_ptr<TFile>> openInputFiles;
 
-    auto getOrOpenFile = [&](const std::string& path) -> TFile* {
+    auto getOrOpenFile = [&](const std::string& path) -> std::shared_ptr<TFile> {
       auto it = openInputFiles.find(path);
       if (it != openInputFiles.end())
         return it->second;
-      TFile* f = new TFile(path.c_str(), "READ");
+      std::shared_ptr<TFile> f = OpenOrThrow(path, "READ", "MCTask");
+      /*TFile* f = new TFile(path.c_str(), "READ");
       if (!f || f->IsZombie())
-        throw std::runtime_error("[FATAL] MCTask: Cannot open MC input file: " + path);
+        throw std::runtime_error("[FATAL] MCTask: Cannot open MC input file: " + path);*/
       openInputFiles[path] = f;
       return f;
     };
 
-    dataCollection.reserve(taskConfig["mc_particles"].Size());
+    dataCollection.reserve(particles.Size());
 
     // 3+4. Build the particle list from JSON and load its histograms directly.
     // By convention, histogram paths follow "{dirName}/h3{Name}MCGen",
@@ -87,7 +89,7 @@ class MCTask : public IAnalysisTask
     // dirName defaults to the lowercased particle name ("dir_name" overrides it).
     // Each entry may specify its own "input_mc_file" — useful when different
     // species live in different MC production files (e.g. K0S vs Xi vs Pi).
-    for (const auto& p : taskConfig["mc_particles"].GetArray()) {
+    for (const auto& p : particles) {
       std::string name = p["name"].GetString();
 
       std::string dirName;
@@ -106,11 +108,20 @@ class MCTask : public IAnalysisTask
                                  "' (neither task-level 'input_mc_file' nor a per-particle override was provided)!");
       }
 
-      TFile* fileMCInput = getOrOpenFile(particleInputFile);
+      std::shared_ptr<TFile> fileMCInput = getOrOpenFile(particleInputFile);
 
       LoadedMC data;
       data.name = name;
-      data.h3MCGen = static_cast<TH3F*>(fileMCInput->Get((mcBasePath + dirName + "/h3" + name + "MCGen").c_str()));
+
+      std::string h3MCGenName = mcBasePath + dirName + "/h3" + name + "MCGen";
+      std::string h4MCGenAssocRecoName = mcBasePath + dirName + "/h4" + name + "MCGenAssocReco";
+      std::string h4MCRecoName = mcBasePath + dirName + "/h4" + name + "MCReco";
+
+      data.h3MCGen = GetOrThrow<TH3F>(fileMCInput.get(), h3MCGenName, "MCTask");
+      data.h4MCGenAssocReco = GetOrThrow<THnSparseF>(fileMCInput.get(), h4MCGenAssocRecoName, "MCTask");
+      data.h4MCReco = GetOrThrow<THnSparseF>(fileMCInput.get(), h4MCRecoName, "MCTask");
+
+      /*data.h3MCGen = static_cast<TH3F*>(fileMCInput->Get((mcBasePath + dirName + "/h3" + name + "MCGen").c_str()));
       if (data.h3MCGen) {
         data.h3MCGen->SetDirectory(0);
       }
@@ -120,6 +131,7 @@ class MCTask : public IAnalysisTask
       if (!data.h3MCGen || !data.h4MCGenAssocReco || !data.h4MCReco) {
         std::cerr << "[WARNING] MCTask: Missing one or more histograms for " << data.name
                   << " in '" << particleInputFile << "'. Skipping." << std::endl;
+
         if (data.h3MCGen)
           delete data.h3MCGen;
         if (data.h4MCGenAssocReco)
@@ -127,7 +139,7 @@ class MCTask : public IAnalysisTask
         if (data.h4MCReco)
           delete data.h4MCReco;
         continue;
-      }
+      }*/
 
       if (p.HasMember("rebinning_pt") && p["rebinning_pt"].IsArray()) {
         std::vector<double> bins;
@@ -154,7 +166,7 @@ class MCTask : public IAnalysisTask
     // it contains, so they're identical duplicates across all opened files —
     // simply read them from whichever file happens to be open already.
     if (!openInputFiles.empty()) {
-      TFile* anyFile = openInputFiles.begin()->second;
+      std::shared_ptr<TFile> anyFile = openInputFiles.begin()->second;
 
       std::string genAssocRecoEventPath = mcBasePath + "event/hGenMCAssocRecoMultiplicityPercent";
       std::string genEventPath = mcBasePath + "event/hGenMCMultiplicityPercent";
@@ -172,19 +184,19 @@ class MCTask : public IAnalysisTask
       std::cerr << "[WARNING] MCTask: No input files were opened. Event Loss will not be computed!" << std::endl;
     }
 
-    // 6. Close the input files IMMEDIATELY. All required objects are now safely residing in RAM.
-    for (auto& [path, file] : openInputFiles) {
-      file->Close();
-      delete file;
+    for (auto& [name, file] : openInputFiles) {
+      if (file) {
+        file->Close();
+      }
     }
-    std::cout << "[INFO] MCTask: Input file(s) closed safely. Data loaded in RAM." << std::endl;
 
-    // 7. Open the master output file for corrections
+    // 6. Open the master output file for corrections
     std::string outPath = outputDirectory + outputPrefix + "Corrections.root";
-    fileMCOutput = new TFile(outPath.c_str(), "UPDATE");
+    fileMCOutput = OpenOrThrow(outPath, "UPDATE", "MCTask");
+    /*fileMCOutput = new TFile(outPath.c_str(), "UPDATE");
     if (!fileMCOutput || fileMCOutput->IsZombie()) {
       throw std::runtime_error("[FATAL] MCTask: Cannot create output file: " + outPath);
-    }
+    }*/
 
     std::cout << "[INFO] MCTask: Initialization complete." << std::endl;
   }
@@ -200,7 +212,7 @@ class MCTask : public IAnalysisTask
       TH1* hEventLoss = EfficiencyCalculator::ComputeEventEfficiency(hEventMultGenAssocReco, hEventMultGen);
 
       if (hEventLoss) {
-        TDirectory* evLossDir = AnalysisUtils::GetOrCreatePath(fileMCOutput, {globalCfgs.binningName, "EvLoss"}, false);
+        TDirectory* evLossDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "EvLoss"}, false);
         if (evLossDir)
           evLossDir->cd();
         hEventLoss->Write(nullptr, TObject::kOverwrite);
@@ -220,36 +232,39 @@ class MCTask : public IAnalysisTask
       TH3* h3TotalMap = EfficiencyCalculator::Compute3DTotalMap(data, particleCorrectionMode);
 
       std::string fileMCOutputPerPartPath3D = ccdbOutputDir + outputPrefix + "h3EffMap" + data.name + ".root";
-      TFile* fileMCOutputPerPart3D = new TFile(fileMCOutputPerPartPath3D.c_str(), "RECREATE");
+      std::unique_ptr<TFile> fileMCOutputPerPart3D = OpenOrThrow(fileMCOutputPerPartPath3D, "RECREATE", "MCTask");
+      /*TFile* fileMCOutputPerPart3D = new TFile(fileMCOutputPerPartPath3D.c_str(), "RECREATE");
       if (!fileMCOutputPerPart3D || fileMCOutputPerPart3D->IsZombie()) {
         throw std::runtime_error("[FATAL] MCTask: Cannot create CCDB output file: " + fileMCOutputPerPartPath3D);
-      }
+      }*/
       fileMCOutputPerPart3D->cd();
       h3TotalMap->SetName("ccdb_object");
       h3TotalMap->Write(nullptr, TObject::kOverwrite);
-      fileMCOutputPerPart3D->Close();
+      // fileMCOutputPerPart3D->Close();
 
       TH2* h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data, globalCfgs, particleCorrectionMode);
 
       std::string fileMCOutputPerPartPath2D = ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root";
-      TFile* fileMCOutputPerPart2D = new TFile(fileMCOutputPerPartPath2D.c_str(), "RECREATE");
+      std::unique_ptr<TFile> fileMCOutputPerPart2D = OpenOrThrow(fileMCOutputPerPartPath2D, "RECREATE", "MCTask");
+      /*TFile* fileMCOutputPerPart2D = new TFile(fileMCOutputPerPartPath2D.c_str(), "RECREATE");
       if (!fileMCOutputPerPart2D || fileMCOutputPerPart2D->IsZombie()) {
         throw std::runtime_error("[FATAL] MCTask: Cannot create CCDB output file: " + fileMCOutputPerPartPath2D);
-      }
+      }*/
       fileMCOutputPerPart2D->cd();
       h2TotalMapMultInt->SetName("ccdb_object");
       h2TotalMapMultInt->Write(nullptr, TObject::kOverwrite);
-      fileMCOutputPerPart2D->Close();
+      // fileMCOutputPerPart2D->Close();
 
       // QA: error/relative-error maps alongside the CCDB map
       TH2* h2TotalMapMultIntError = EfficiencyCalculator::BuildErrorMap(h2TotalMapMultInt, "h2EffMapError" + data.name);
       TH2* h2TotalMapMultIntRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2TotalMapMultInt, "h2EffMapRelError" + data.name);
 
       std::string fileMCOutputPerPartErrorPath2D = ccdbOutputDir + outputPrefix + "h2EffMapError" + data.name + ".root";
-      TFile* fileMCOutputPerPartError2D = new TFile(fileMCOutputPerPartErrorPath2D.c_str(), "RECREATE");
+      std::unique_ptr<TFile> fileMCOutputPerPartError2D = OpenOrThrow(fileMCOutputPerPartErrorPath2D, "RECREATE", "MCTask");
+      /*TFile* fileMCOutputPerPartError2D = new TFile(fileMCOutputPerPartErrorPath2D.c_str(), "RECREATE");
       if (!fileMCOutputPerPartError2D || fileMCOutputPerPartError2D->IsZombie()) {
         throw std::runtime_error("[FATAL] MCTask: Cannot create CCDB output file: " + fileMCOutputPerPartErrorPath2D);
-      }
+      }*/
       fileMCOutputPerPartError2D->cd();
       // h2TotalMapMultIntError->SetName("ccdb_object");
       if (h2TotalMapMultIntError)
@@ -257,18 +272,16 @@ class MCTask : public IAnalysisTask
       // h2TotalMapMultIntRelError->SetName("ccdb_object");
       if (h2TotalMapMultIntRelError)
         h2TotalMapMultIntRelError->Write(nullptr, TObject::kOverwrite);
-      fileMCOutputPerPartError2D->Close();
+      // fileMCOutputPerPartError2D->Close();
 
-      delete fileMCOutputPerPart3D;
-      delete fileMCOutputPerPart2D;
       delete h3TotalMap;
       delete h2TotalMapMultInt;
       delete h2TotalMapMultIntError;
       delete h2TotalMapMultIntRelError;
 
       // 2. Compute 1D Spectra across multiplicity bins
-      TDirectory* accEffMultDir = AnalysisUtils::GetOrCreatePath(fileMCOutput, {globalCfgs.binningName, "AccEff", "MultBin"}, false);
-      TDirectory* sigLossMultDir = AnalysisUtils::GetOrCreatePath(fileMCOutput, {globalCfgs.binningName, "SigLoss", "MultBin"}, false);
+      TDirectory* accEffMultDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "AccEff", "MultBin"}, false);
+      TDirectory* sigLossMultDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "SigLoss", "MultBin"}, false);
 
       // Process 1D Spectra across multiplicity bins
       for (int i{0}; i < globalCfgs.nBinMult; i++) {
@@ -351,8 +364,8 @@ class MCTask : public IAnalysisTask
   {
     std::cout << "[INFO] MCTask: TERMINATING AND CLEANING UP..." << std::endl;
 
-    TDirectory* accEffSummaryDir = AnalysisUtils::GetOrCreatePath(fileMCOutput, {globalCfgs.binningName, "AccEff", "Summary"}, false);
-    TDirectory* sigLossSummaryDir = AnalysisUtils::GetOrCreatePath(fileMCOutput, {globalCfgs.binningName, "SigLoss", "Summary"}, false);
+    TDirectory* accEffSummaryDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "AccEff", "Summary"}, false);
+    TDirectory* sigLossSummaryDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "SigLoss", "Summary"}, false);
 
     // Save all diagnostic canvases and free the memory for the loaded objects
     for (auto& data : dataCollection) {
@@ -385,9 +398,8 @@ class MCTask : public IAnalysisTask
     if (hEventMultGen)
       delete hEventMultGen;
 
-    // Close and delete the output file
-    fileMCOutput->Close();
-    delete fileMCOutput;
+    if (fileMCOutput)
+      fileMCOutput->Close();
 
     std::cout << "[INFO] MCTask: DONE." << std::endl;
   }
@@ -397,7 +409,7 @@ class MCTask : public IAnalysisTask
 
   std::vector<LoadedMC> dataCollection;
 
-  TFile* fileMCOutput{nullptr};
+  std::shared_ptr<TFile> fileMCOutput{nullptr};
 
   std::string outputDirectory;
   std::string ccdbOutputDir;
