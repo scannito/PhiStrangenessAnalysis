@@ -251,7 +251,7 @@ class CorrelationTask : public CorrelationTaskBase
 
       for (int i = 0; i < globalCfgs.nBinMult; i++) {
         std::string hName = folderPath + "h1" + purityKey + "Purity_multBin" + std::to_string(i);
-        TH1* h1Pur = static_cast<TH1*>(filePurity->Get(hName.c_str()));
+        TH1F* h1Pur = static_cast<TH1F*>(filePurity->Get(hName.c_str()));
         if (!h1Pur)
           throw std::runtime_error("[FATAL] CorrelationTask: Missing purity histogram: " + hName + " in " + purityFilePath);
 
