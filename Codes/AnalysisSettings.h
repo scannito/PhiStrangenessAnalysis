@@ -7,7 +7,7 @@
 #include <vector>
 
 struct AnalysisSettings {
-  std::string binningName{"FullDifferential"}; // Name of the binning scheme (used for I/O directory naming)
+  std::string binningName{"NewFullDifferential"}; // Name of the binning scheme (used for I/O directory naming)
 
   // Default historical values (fallback if JSON does not specify them)
   std::vector<double> binsMult{0.0, 1.0, 5.0, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 70.0, 100.0};
@@ -15,7 +15,8 @@ struct AnalysisSettings {
 
   std::map<std::string, std::vector<double>> speciesPtBinning{
     {"Phi", {0.4, 0.8, 1.4, 2.0, 2.8, 4.0, 6.0, 10.0}},
-    {"K0S", {0.1, 0.5, 0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0}},
+    {"K0S", {0.0, 0.3, 0.5, 0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0}},
+    {"Xi", {0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0}},
     {"Pi", {0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0}}};
 
   // Color palettes

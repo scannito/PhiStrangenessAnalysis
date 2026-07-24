@@ -1,0 +1,42 @@
+# This is a YAML configuration file for batch downloading merged files from the Grid (Hyperloop/JAliEn).
+# Each entry in the list corresponds to a specific train ID and its associated download parameters.
+
+# LHC26ac_pass1_Thin_medium (pp) Data
+- train_id: 723935
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_PtMod_23luglio.root"
+
+# LHC24_pass1_MinBias (pp) Data
+- train_id: 724370
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2024_PtMod_24luglio.root"
+
+# LHC24ap_pass1_medium (pp reference in B++ config w/ & w/o strangeness injection) Data
+- train_id: 724642
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/Data"
+  output_name: "AnalysisResults_536_PtMod_Bpos_24luglio.root"
+
+# LHC24f4d (pp) closure with PDG MC
+- train_id: 724660
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MCClosure"
+  output_name: "AnalysisResultsMCclosure_wpdg_136_2024_PtMod_24luglio.root"
+
+# LHC24aq_pass1_medium (pp reference in B-- config w/ & w/o strangeness injection) Data
+- train_id: 724718
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/Data"
+  output_name: "AnalysisResults_536_PtMod_Bneg_24luglio.root"
+
+# LHC26e9 (pp) closure with PDG MC
+- train_id: 724719
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MCClosure"
+  output_name: "AnalysisResultsMCclosure_wpdg_136_2026_PtMod_24luglio.root"
+
+# LHC25b4b6 (pp reference in B-- config w/ & w/o strangeness injection) closure with PDG MC
+- train_id: 724741
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MCClosure"
+  output_name: "AnalysisResultsMCclosure_wpdg_536_PtMod_Bneg_23luglio.root"
+
+# LHC25b4a6 (pp reference in B++ config w/ & w/o strangeness injection) closure with PDG MC
+- train_id: 724770
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MCClosure"
+  output_name: "AnalysisResultsMCclosure_wpdg_536_PtMod_Bpos_24luglio.root"

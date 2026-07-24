@@ -114,7 +114,7 @@ struct FitConfig {
 };
 
 // ============================================================================
-// EXTRAPOLATION CONFIGURATION STRUCTURES
+// EXTRAPOLATION CONFIGURATION STRUCTURE
 // ============================================================================
 struct ExtrapConfig {
   std::string model;
@@ -122,4 +122,10 @@ struct ExtrapConfig {
   std::pair<double, double> fitRange{0.0, 0.0};
   std::map<std::string, MathParam> params; // Uses the unified MathParam
   double mass{0.0};                        // Injected dynamically at runtime by the Task
+};
+
+struct YieldRatioConfig {
+  std::string num;
+  std::string den;
+  std::string label;
 };
