@@ -47,8 +47,10 @@ template <typename T>
 inline T* GetOrWarn(TDirectory* dir, const std::string& objPath, const std::string& warnCtx, bool detachFromFile = true)
 {
   T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
-  if (!obj)
+  if (!obj) {
     std::cerr << "[WARNING] " << warnCtx << ": Missing object '" << objPath << "'" << std::endl;
+    return nullptr;
+  }
 
   if constexpr (std::is_base_of_v<TH1, T>) {
     if (detachFromFile)

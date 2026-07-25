@@ -287,8 +287,6 @@ class CorrelationTask : public CorrelationTaskBase
         purity.h1Purity[i] = std::unique_ptr<TH1F>(rebinnedPur);
       }
 
-      filePurity->Close();
-      delete filePurity;
       purityCollection[name] = std::move(purity);
     }
     std::cout << "[INFO] CorrelationTask: Purities loaded successfully." << std::endl;
