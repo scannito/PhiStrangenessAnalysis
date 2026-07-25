@@ -203,6 +203,7 @@ class WorkflowManager
 
   // =========================================================================
   // HELPER: Merge base settings with task-specific overrides (Inheritance)
+  // Supports N-levels of inheritance via recursion.
   // =========================================================================
   rapidjson::Value MergeTaskConfiguration(const std::string& taskName)
   {
@@ -218,15 +219,9 @@ class WorkflowManager
       return rapidjson::Value(specificConfig, document.GetAllocator());
     }
 
-    // Get the name of the base configuration block
+    // 1. Recursively fetch the base configuration that this task inherits from
     std::string baseName = specificConfig["inherits"].GetString();
-    if (!document.HasMember(baseName.c_str())) {
-      throw std::runtime_error("[FATAL ERROR] Base config block '" + baseName + "' not found!");
-    }
-
-    // 1. Create a deep copy of the BASE block in memory
-    rapidjson::Value mergedConfig;
-    mergedConfig.CopyFrom(document[baseName.c_str()], document.GetAllocator());
+    rapidjson::Value mergedConfig = MergeTaskConfiguration(baseName);
 
     // 2. Iterate over the SPECIFIC block and overwrite/add members to the base copy
     for (auto& m : specificConfig.GetObject()) {
