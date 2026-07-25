@@ -64,7 +64,7 @@ class PurityTask : public IAnalysisTask
       std::string histName = particle["hist_name"].GetString();
       std::string outputFileSuffix = particle["output_file_suffix"].GetString();
 
-      TH3F* h3Source = GetOrThrow<TH3F>(fileInput.get(), histName, "PurityTask");
+      std::unique_ptr<TH3F> h3Source = GetUniqueOrThrow<TH3F>(fileInput.get(), histName, "PurityTask");
       /*TH3F* h3Source = static_cast<TH3F*>(fileInput->Get(histName.c_str()));
       if (!h3Source) {
         throw std::runtime_error("[FATAL] PurityTask: Missing histogram '" + histName + "' for particle '" + name + "'!");
@@ -88,10 +88,10 @@ class PurityTask : public IAnalysisTask
 
       std::string canvasName = "canvas" + purityKey + "Purity";
       std::string canvasTitle = purityKey + " Purity";
-      TCanvas* canvas = new TCanvas(canvasName.c_str(), canvasTitle.c_str(), 800, 600);
+      std::unique_ptr<TCanvas> canvas = std::make_unique<TCanvas>(canvasName.c_str(), canvasTitle.c_str(), 800, 600);
 
       const auto& binning = globalCfgs.GetPtBinning(name);
-      particleTasks.emplace_back(purityKey, h3Source, static_cast<int>(binning.size()) - 1, binning, outputFile.get(), canvas);
+      particleTasks.emplace_back(purityKey, std::move(h3Source), static_cast<int>(binning.size()) - 1, binning, outputFile.get(), std::move(canvas));
     }
 
     // fileInput->Close();
@@ -123,8 +123,8 @@ class PurityTask : public IAnalysisTask
         if (task.name == "pi_tpc" || task.name == "pi_tof")
           fitPath.push_back(task.name);
 
-        TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(task.outputFile.get(), summaryPath, false);
-        TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(task.outputFile.get(), fitPath, false);
+        TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(task.outputFile, summaryPath, false);
+        TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(task.outputFile, fitPath, false);
 
         std::string hName = "h1" + task.name + "Purity_multBin" + std::to_string(i);
         TH1* h1PuritySpectrum = new TH1F(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)", task.nBinPt, task.binning.data());
@@ -179,7 +179,7 @@ class PurityTask : public IAnalysisTask
 
     // 1. Save each particle's summary canvas into its own output file
     for (auto& task : particleTasks) {
-      TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(task.outputFile.get(), summaryPath, false);
+      TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(task.outputFile, summaryPath, false);
       if (summaryDir) {
         summaryDir->cd();
         task.canvas->Write(nullptr, TObject::kOverwrite);
@@ -191,14 +191,6 @@ class PurityTask : public IAnalysisTask
       if (file) {
         file->Close();
       }
-    }
-
-    // 3. Free up RAM
-    for (auto& task : particleTasks) {
-      if (task.canvas)
-        delete task.canvas;
-      if (task.h3Source)
-        delete task.h3Source;
     }
 
     std::cout << "[INFO] PurityTask: DONE." << std::endl;

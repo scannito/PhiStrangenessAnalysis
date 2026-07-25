@@ -6,6 +6,8 @@
 #include "AnalysisUtils.h"
 #include "EfficiencyCalculator.h"
 #include "IAnalysisTask.h"
+#include "JsonConfigHelpers.h"
+#include "RootIOHelpers.h"
 
 #include "TCanvas.h"
 #include "TDirectory.h"

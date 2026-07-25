@@ -57,3 +57,18 @@ inline T* GetOrWarn(TDirectory* dir, const std::string& objPath, const std::stri
 
   return obj;
 }
+
+template <typename T>
+inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& objPath, const std::string& errCtx, bool detachFromFile = true)
+{
+  T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
+  if (!obj)
+    throw std::runtime_error("[FATAL] " + errCtx + ": Missing object '" + objPath + "'");
+
+  if constexpr (std::is_base_of_v<TH1, T>) {
+    if (detachFromFile)
+      obj->SetDirectory(0);
+  }
+
+  return std::unique_ptr<T>(obj);
+}

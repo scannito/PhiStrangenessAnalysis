@@ -34,12 +34,12 @@ struct LoadedPurity {
 };
 
 struct ParticleTask {
-  std::string name;            // e.g. "k0s", "pi_tpc"
-  TH3F* h3Source;              // Pointer to the 3D source histogram in RAM
-  int nBinPt;                  // Number of Pt bins
-  std::vector<double> binning; // Binning for the final spectrum
-  TFile* outputFile;           // Output file for this particle
-  TCanvas* canvas;             // Summary canvas for plotting
+  std::string name;                // e.g. "k0s", "pi_tpc"
+  std::unique_ptr<TH3F> h3Source;  // Pointer to the 3D source histogram in RAM
+  int nBinPt;                      // Number of Pt bins
+  std::vector<double> binning;     // Binning for the final spectrum
+  TFile* outputFile;               // Output file for this particle
+  std::unique_ptr<TCanvas> canvas; // Summary canvas for plotting
 };
 
 template <size_t size>
