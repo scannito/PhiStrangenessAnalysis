@@ -22,8 +22,8 @@ class BaseConfigManager
   {
     FILE* fp = fopen(jsonPath.c_str(), "rb");
     if (!fp) {
-      std::cerr << "[ERROR] " << managerName << ": Cannot open configuration file: " << jsonPath << std::endl;
-      return;
+      throw std::runtime_error("[FATAL ERROR] " + managerName +
+                               ": Cannot open configuration file at path: " + jsonPath);
     }
 
     // Create a memory buffer (64KB) to read the file in chunks.
@@ -34,12 +34,19 @@ class BaseConfigManager
     document.ParseStream(is);
     fclose(fp);
 
-    if (!document.HasParseError() && document.IsObject()) {
-      isLoaded = true;
-      std::cout << "[INFO] " << managerName << ": JSON successfully loaded into RAM." << std::endl;
-    } else {
-      std::cerr << "[ERROR] " << managerName << ": Syntax error or invalid object in the JSON file!" << std::endl;
+    // Check for parsing errors and validate the JSON structure.
+    if (document.HasParseError()) {
+      throw std::runtime_error("[FATAL ERROR] " + managerName +
+                               ": JSON Syntax Error! Code: " + std::to_string(document.GetParseError()));
     }
+
+    if (!document.IsObject()) {
+      throw std::runtime_error("[FATAL ERROR] " + managerName +
+                               ": Invalid JSON structure. Root element must be a JSON Object!");
+    }
+
+    isLoaded = true;
+    std::cout << "[INFO] " << managerName << ": JSON successfully loaded into RAM." << std::endl;
   }
 
   // Universal parameter parser (free or fixed)
