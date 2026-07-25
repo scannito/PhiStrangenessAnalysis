@@ -49,21 +49,22 @@ class CorrelationTask : public CorrelationTaskBase
     std::string basePathProj = taskConfig["input_dir_proj"].GetString();
     std::string phiDataName = basePathProj + triggerPrefix + "PhiDataHistograms.root";
 
-    TFile* filePhiDataInput = new TFile(phiDataName.c_str(), "READ");
+    /*TFile* filePhiDataInput = new TFile(phiDataName.c_str(), "READ");
     if (!filePhiDataInput || filePhiDataInput->IsZombie())
-      throw std::runtime_error("[FATAL] CorrelationTask: Missing PhiFitTask output file: " + phiDataName);
+      throw std::runtime_error("[FATAL] CorrelationTask: Missing PhiFitTask output file: " + phiDataName);*/
+    std::unique_ptr<TFile> filePhiDataInput = OpenOrThrow(phiDataName, "READ", "CorrelationTask");
 
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
     std::string folderPath = AnalysisUtils::VectorToPath(summaryPath);
 
-    h2TriggerSignal = static_cast<TH2D*>(filePhiDataInput->Get((folderPath + "h2TriggerSignal").c_str()));
+    /*h2TriggerSignal = static_cast<TH2D*>(filePhiDataInput->Get((folderPath + "h2TriggerSignal").c_str()));
     h2TriggerBkgRatio = static_cast<TH2D*>(filePhiDataInput->Get((folderPath + "h2TriggerBkgRatio").c_str()));
     if (!h2TriggerSignal || !h2TriggerBkgRatio)
       throw std::runtime_error("[FATAL] CorrelationTask: Missing trigger stats in " + phiDataName);
     h2TriggerSignal->SetDirectory(0);
-    h2TriggerBkgRatio->SetDirectory(0);
-    filePhiDataInput->Close();
-    delete filePhiDataInput;
+    h2TriggerBkgRatio->SetDirectory(0);*/
+    h2TriggerSignal = GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerSignal", "CorrelationTask");
+    h2TriggerBkgRatio = GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerBkgRatio", "CorrelationTask");
 
     // 3. Associated particles + data loading
     InitAssocParticles(taskConfig);
@@ -71,16 +72,21 @@ class CorrelationTask : public CorrelationTaskBase
     if (!useProjectionCache) {
       std::cout << "[INFO] CorrelationTask: Cache DISABLED. Loading heavy THnSparse data..." << std::endl;
 
-      if (!taskConfig.HasMember("input_data_file") || !taskConfig.HasMember("base_path_data"))
+      /*if (!taskConfig.HasMember("input_data_file") || !taskConfig.HasMember("base_path_data"))
         throw std::runtime_error("[FATAL ERROR] CorrelationTask: Missing input_data_file or base_path_data in JSON!");
       std::string inputFile = taskConfig["input_data_file"].GetString();
       basePathData = taskConfig["base_path_data"].GetString();
 
       TFile* fileDataInput = new TFile(inputFile.c_str(), "READ");
       if (!fileDataInput || fileDataInput->IsZombie())
-        throw std::runtime_error("[FATAL] CorrelationTask: Cannot open Data input file: " + inputFile);
+        throw std::runtime_error("[FATAL] CorrelationTask: Cannot open Data input file: " + inputFile);*/
 
-      TFile* fileDataMEInput{nullptr};
+      std::string inputFile = RequireString(taskConfig, "input_data_file", GetName());
+      std::unique_ptr<TFile> fileDataInput = OpenOrThrow(inputFile, "READ", "CorrelationTask");
+
+      basePathData = RequireString(taskConfig, "base_path_data", GetName());
+
+      /*TFile* fileDataMEInput{nullptr};
       if (applyME) {
         if (!taskConfig.HasMember("input_me_file") || !taskConfig.HasMember("base_path_me"))
           throw std::runtime_error("[FATAL ERROR] CorrelationTask: ME files or paths missing in JSON despite applyME=true!");
@@ -90,29 +96,34 @@ class CorrelationTask : public CorrelationTaskBase
         fileDataMEInput = new TFile(inputMEFile.c_str(), "READ");
         if (!fileDataMEInput || fileDataMEInput->IsZombie())
           throw std::runtime_error("[FATAL] CorrelationTask: Cannot open ME input file: " + inputMEFile);
+      }*/
+
+      std::unique_ptr<TFile> fileDataMEInput{nullptr};
+      if (applyME) {
+        std::string inputMEFile = RequireString(taskConfig, "input_me_file", GetName());
+        fileDataMEInput = OpenOrThrow(inputMEFile, "READ", "CorrelationTask");
+
+        basePathDataME = RequireString(taskConfig, "base_path_me", GetName());
       }
 
       for (const auto& config : assocParticles) {
         LoadedAssocData data;
         data.name = config.name;
         std::string baseData = basePathData + config.dirName + "/h5Phi" + config.name;
-        data.h5DataSignal = static_cast<THnSparseF*>(fileDataInput->Get((baseData + "DataSignal").c_str()));
-        data.h5DataSideband = static_cast<THnSparseF*>(fileDataInput->Get((baseData + "DataSideband").c_str()));
+        // data.h5DataSignal = static_cast<THnSparseF*>(fileDataInput->Get((baseData + "DataSignal").c_str()));
+        // data.h5DataSideband = static_cast<THnSparseF*>(fileDataInput->Get((baseData + "DataSideband").c_str()));
+        data.h5DataSignal = GetOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSignal"), "CorrelationTask");
+        data.h5DataSideband = GetOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSideband"), "CorrelationTask");
 
         if (applyME) {
           std::string baseDataME = basePathDataME + config.dirName + "/h5Phi" + config.name;
-          data.h5DataMESignal = static_cast<THnSparseF*>(fileDataMEInput->Get((baseDataME + "DataMESignal").c_str()));
-          data.h5DataMESideband = static_cast<THnSparseF*>(fileDataMEInput->Get((baseDataME + "DataMESideband").c_str()));
+          // data.h5DataMESignal = static_cast<THnSparseF*>(fileDataMEInput->Get((baseDataME + "DataMESignal").c_str()));
+          // data.h5DataMESideband = static_cast<THnSparseF*>(fileDataMEInput->Get((baseDataME + "DataMESideband").c_str()));
+          data.h5DataMESignal = GetOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESignal"), "CorrelationTask");
+          data.h5DataMESideband = GetOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESideband"), "CorrelationTask");
         }
 
         loadedDataCollection.push_back(data);
-      }
-
-      fileDataInput->Close();
-      delete fileDataInput;
-      if (applyME) {
-        fileDataMEInput->Close();
-        delete fileDataMEInput;
       }
     } else {
       std::cout << "[INFO] CorrelationTask: Cache ENABLED. Skipping THnSparse loading." << std::endl;
@@ -132,19 +143,26 @@ class CorrelationTask : public CorrelationTaskBase
     std::string projMode = useProjectionCache ? "READ" : "UPDATE";
     std::string basePathFinal = taskConfig["output_dir_final"].GetString();
     std::string phiSpectraName = basePathFinal + outputPrefix + "PhiAssocSpectra.root";
-    fileOutputSpectra = new TFile(phiSpectraName.c_str(), "UPDATE");
+    // fileOutputSpectra = new TFile(phiSpectraName.c_str(), "UPDATE");
+    fileOutputSpectra = OpenOrThrow(phiSpectraName, "UPDATE", "CorrelationTask");
 
     for (const auto& p : assocParticles) {
       std::string fName = basePathProj + outputPrefix + "Phi" + p.name + "DataHistograms.root";
-      TFile* fProj = new TFile(fName.c_str(), projMode.c_str());
+      std::unique_ptr<TFile> fProj = OpenOrThrow(fName, projMode, "CorrelationTask");
+      filesPhiAssocDataOutput.push_back(std::move(fProj));
+
+      /*TFile* fProj = new TFile(fName.c_str(), projMode.c_str());
       if (useProjectionCache && (!fProj || fProj->IsZombie()))
         throw std::runtime_error("[FATAL] Missing cache file: " + fName + ". Run with 'use_projection_cache': false first!");
-      filesPhiAssocDataOutput.push_back(fProj);
+      filesPhiAssocDataOutput.push_back(fProj);*/
 
       if (doMoreQA) {
         std::string fQAName = basePathProj + outputPrefix + "Phi" + p.name + "QAHistograms.root";
-        TFile* fQA = new TFile(fQAName.c_str(), "RECREATE");
-        filesPhiAssocQAOutput.push_back(fQA);
+        std::unique_ptr<TFile> fQA = OpenOrThrow(fQAName, "RECREATE", "CorrelationTask");
+        filesPhiAssocQAOutput.push_back(std::move(fQA));
+
+        /*TFile* fQA = new TFile(fQAName.c_str(), "RECREATE");
+        filesPhiAssocQAOutput.push_back(fQA);*/
       }
     }
 
@@ -166,7 +184,7 @@ class CorrelationTask : public CorrelationTaskBase
   }
 
  protected:
-  void CleanupExtraMembers() override
+  /*void CleanupExtraMembers() override
   {
     if (h2TriggerSignal)
       delete h2TriggerSignal;
@@ -177,7 +195,7 @@ class CorrelationTask : public CorrelationTaskBase
       for (auto& h1 : pur.h1Purity)
         if (h1)
           delete h1;
-  }
+  }*/
 
   TH1* GetPurityHist(const std::string& particleName, int multBin) override
   {
@@ -186,7 +204,7 @@ class CorrelationTask : public CorrelationTaskBase
     auto it = purityCollection.find(particleName);
     if (it == purityCollection.end())
       throw std::runtime_error("[FATAL] CorrelationTask: Missing purity data for particle '" + particleName + "'");
-    return it->second.h1Purity[multBin];
+    return it->second.h1Purity[multBin].get();
   }
 
   double GetTriggerSignal(int multBin, int ptPhiBin) override
@@ -207,25 +225,31 @@ class CorrelationTask : public CorrelationTaskBase
 
   std::string purityPrefix{""}, triggerPrefix{""}, outputPrefix{""};
 
-  TH2D* h2TriggerSignal{nullptr};
-  TH2D* h2TriggerBkgRatio{nullptr};
+  // TH2D* h2TriggerSignal{nullptr};
+  // TH2D* h2TriggerBkgRatio{nullptr};
+  std::unique_ptr<TH2D> h2TriggerSignal;
+  std::unique_ptr<TH2D> h2TriggerBkgRatio;
 
   std::map<std::string, LoadedPurity> purityCollection;
 
   void LoadPurities(const rapidjson::Value& taskConfig)
   {
-    if (!taskConfig.HasMember("input_dir_purity"))
+    /*if (!taskConfig.HasMember("input_dir_purity"))
       throw std::runtime_error("[FATAL ERROR] CorrelationTask: 'input_dir_purity' missing in JSON!");
     if (!taskConfig.HasMember("purity_sources") || !taskConfig["purity_sources"].IsArray())
-      throw std::runtime_error("[FATAL ERROR] CorrelationTask: 'purity_sources' missing or invalid in JSON!");
+      throw std::runtime_error("[FATAL ERROR] CorrelationTask: 'purity_sources' missing or invalid in JSON!");*/
 
-    std::string purityDir = taskConfig["input_dir_purity"].GetString();
+    // std::string purityDir = taskConfig["input_dir_purity"].GetString();
+
+    std::string purityDir = RequireString(taskConfig, "input_dir_purity", GetName());
+    auto puritySources = RequireArray(taskConfig, "purity_sources", GetName());
+
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
     std::string folderPath = AnalysisUtils::VectorToPath(summaryPath);
 
     purityCollection.clear();
 
-    for (const auto& src : taskConfig["purity_sources"].GetArray()) {
+    for (const auto& src : puritySources) {
       std::string name = src["name"].GetString();
       std::string purityKey = src["purity_key"].GetString();
       std::string fileSuffix = src["file_suffix"].GetString();
@@ -245,20 +269,22 @@ class CorrelationTask : public CorrelationTaskBase
         targetBinning = it->binning;
       }
 
-      TFile* filePurity = new TFile(purityFilePath.c_str(), "READ");
+      /*TFile* filePurity = new TFile(purityFilePath.c_str(), "READ");
       if (!filePurity || filePurity->IsZombie())
-        throw std::runtime_error("[FATAL] CorrelationTask: Cannot open purity file: " + purityFilePath);
+        throw std::runtime_error("[FATAL] CorrelationTask: Cannot open purity file: " + purityFilePath);*/
+      std::unique_ptr<TFile> filePurity = OpenOrThrow(purityFilePath, "READ", "CorrelationTask");
 
       for (int i = 0; i < globalCfgs.nBinMult; i++) {
         std::string hName = folderPath + "h1" + purityKey + "Purity_multBin" + std::to_string(i);
-        TH1F* h1Pur = static_cast<TH1F*>(filePurity->Get(hName.c_str()));
+        /*TH1F* h1Pur = static_cast<TH1F*>(filePurity->Get(hName.c_str()));
         if (!h1Pur)
-          throw std::runtime_error("[FATAL] CorrelationTask: Missing purity histogram: " + hName + " in " + purityFilePath);
+          throw std::runtime_error("[FATAL] CorrelationTask: Missing purity histogram: " + hName + " in " + purityFilePath);*/
+        TH1F* h1Pur = GetOrThrow<TH1F>(filePurity.get(), hName, "CorrelationTask");
 
         TH1F* rebinnedPur = AnalysisUtils::RebinToTargetBinning(h1Pur, targetBinning, "CorrelationTaskBase::LoadPurities");
         rebinnedPur->SetDirectory(0);
 
-        purity.h1Purity[i] = static_cast<TH1*>(rebinnedPur);
+        purity.h1Purity[i] = std::unique_ptr<TH1F>(rebinnedPur);
       }
 
       filePurity->Close();

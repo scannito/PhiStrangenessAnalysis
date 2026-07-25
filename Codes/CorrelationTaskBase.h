@@ -8,6 +8,8 @@
 #include "ExtrapConfigManager.h"
 #include "ExtrapolationModelFactory.h"
 #include "IAnalysisTask.h"
+#include "JsonConfigHelpers.h"
+#include "RootIOHelpers.h"
 #include "SpectrumExtrapolator.h"
 #include "YieldMean.h"
 
@@ -61,7 +63,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Create a dedicated subdirectory for each particle (e.g., Extract1D/K0S)
       std::vector<std::string> particlePath = baseLogicalPath;
       particlePath.push_back(pName);
-      TDirectory* particleDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra, particlePath);
+      TDirectory* particleDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra.get(), particlePath);
 
       if (!particleDir)
         continue;
@@ -150,7 +152,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Create or access the "Ratios" directory inside Extract1D/2D
       std::vector<std::string> ratioPath = baseLogicalPath;
       ratioPath.push_back("Ratios");
-      TDirectory* ratioDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra, ratioPath);
+      TDirectory* ratioDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra.get(), ratioPath);
 
       if (ratioDir) {
         ratioDir->cd();
@@ -251,27 +253,21 @@ class CorrelationTaskBase : public IAnalysisTask
     // =========================================================================
     // 3. Close Files
     // =========================================================================
-    fileOutputSpectra->Close();
-    delete fileOutputSpectra;
+    if (fileOutputSpectra) {
+      fileOutputSpectra->Close();
+    }
 
     for (auto& file : filesPhiAssocDataOutput) {
       file->Close();
-      delete file;
     }
 
     for (auto& file : filesPhiAssocQAOutput) {
       file->Close();
-      delete file;
     }
 
     // =========================================================================
     // 4. Memory Cleanup for RAM-resident objects
     // =========================================================================
-
-    // Clean up Extrapolation configuration
-    if (extrapConfigManager) {
-      delete extrapConfigManager;
-    }
 
     if (hEventLoss)
       delete hEventLoss;
@@ -329,7 +325,7 @@ class CorrelationTaskBase : public IAnalysisTask
         delete data.h5DataMESideband;
     }
 
-    CleanupExtraMembers(); // hook: e.g. h2TriggerSignal/BkgRatio + purityCollection, or h3PhiData
+    // CleanupExtraMembers(); // hook: e.g. h2TriggerSignal/BkgRatio + purityCollection, or h3PhiData
 
     std::cout << "[INFO] " << GetName() << ": DONE." << std::endl;
   }
@@ -361,10 +357,14 @@ class CorrelationTaskBase : public IAnalysisTask
   std::vector<std::vector<TH1*>> h1MultTrends;
   std::vector<std::vector<TH1*>> h1MultTrendsExtrap;
 
-  ExtrapConfigManager* extrapConfigManager{nullptr};
+  // ExtrapConfigManager* extrapConfigManager{nullptr};
+  std::unique_ptr<ExtrapConfigManager> extrapConfigManager;
 
-  TFile* fileOutputSpectra{nullptr};
-  std::vector<TFile*> filesPhiAssocDataOutput, filesPhiAssocQAOutput;
+  // TFile* fileOutputSpectra{nullptr};
+  // std::vector<TFile*> filesPhiAssocDataOutput, filesPhiAssocQAOutput;
+  std::unique_ptr<TFile> fileOutputSpectra;
+  std::vector<std::unique_ptr<TFile>> filesPhiAssocDataOutput;
+  std::vector<std::unique_ptr<TFile>> filesPhiAssocQAOutput;
   std::vector<std::vector<TCanvas*>> spectraCanvases;
 
   std::vector<YieldRatioConfig> requestedRatios;
@@ -374,8 +374,8 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   // RAM cleanup for members only some derived tasks have
   // (e.g. h2TriggerSignal/BkgRatio + purityCollection in CorrelationTask,
-  //  h3PhiData/h2PhiData in CorrelationWPDGTask).
-  virtual void CleanupExtraMembers() {}
+  // h3PhiData/h2PhiData in CorrelationWPDGTask).
+  // virtual void CleanupExtraMembers() {}
 
   // Hook for GenerateSpectraAndTrends: returns a purity correction histogram
   // for this particle/multBin, or nullptr if none should be applied.
@@ -396,12 +396,19 @@ class CorrelationTaskBase : public IAnalysisTask
   {
     globalCfgs = globalSettings;
 
-    applyME = taskConfig["apply_mixed_events"].GetBool();
+    /*applyME = taskConfig["apply_mixed_events"].GetBool();
     applyEfficiency = taskConfig["apply_efficiency"].GetBool();
     applyExtrapolation = taskConfig["apply_extrapolation"].GetBool();
     useIntegratedEfficiency = taskConfig["use_integrated_efficiency"].GetBool();
     useProjectionCache = taskConfig["use_projection_cache"].GetBool();
-    use2DMENormalization = taskConfig["use_2d_me_normalization"].GetBool();
+    use2DMENormalization = taskConfig["use_2d_me_normalization"].GetBool();*/
+
+    applyME = RequireBool(taskConfig, "apply_mixed_events", GetName());
+    applyEfficiency = RequireBool(taskConfig, "apply_efficiency", GetName());
+    applyExtrapolation = RequireBool(taskConfig, "apply_extrapolation", GetName());
+    useIntegratedEfficiency = RequireBool(taskConfig, "use_integrated_efficiency", GetName());
+    useProjectionCache = RequireBool(taskConfig, "use_projection_cache", GetName());
+    use2DMENormalization = RequireBool(taskConfig, "use_2d_me_normalization", GetName());
 
     if (taskConfig.HasMember("use_legacy_extrapolation") && taskConfig["use_legacy_extrapolation"].IsBool()) {
       useLegacyExtrapolation = taskConfig["use_legacy_extrapolation"].GetBool();
@@ -468,7 +475,8 @@ class CorrelationTaskBase : public IAnalysisTask
       if (!taskConfig.HasMember("extrapolation_config_file"))
         throw std::runtime_error("[FATAL ERROR] " + GetName() + ": 'extrapolation_config_file' missing in JSON!");
       std::string extrapFile = taskConfig["extrapolation_config_file"].GetString();
-      extrapConfigManager = new ExtrapConfigManager(extrapFile);
+      // extrapConfigManager = new ExtrapConfigManager(extrapFile);
+      extrapConfigManager = std::make_unique<ExtrapConfigManager>(extrapFile);
       std::cout << "[INFO] " << GetName() << ": Extrapolation configuration loaded successfully." << std::endl;
 
       for (const auto& p : assocParticles) {
@@ -485,7 +493,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   void LoadCorrections(const rapidjson::Value& taskConfig)
   {
-    if (!taskConfig.HasMember("input_efficiency_file")) {
+    /*if (!taskConfig.HasMember("input_efficiency_file")) {
       throw std::runtime_error("[FATAL ERROR] CorrelationTask: 'input_efficiency_file' missing in JSON!");
     }
 
@@ -493,7 +501,10 @@ class CorrelationTaskBase : public IAnalysisTask
     TFile* fileEffInput = new TFile(inputEffFile.c_str(), "READ");
     if (!fileEffInput || fileEffInput->IsZombie()) {
       throw std::runtime_error("[FATAL] CorrelationTask: Efficiency requested but Corrections.root not found at: " + inputEffFile);
-    }
+    }*/
+
+    std::string inputEffFile = RequireString(taskConfig, "input_efficiency_file", GetName());
+    std::unique_ptr<TFile> fileEffInput = OpenOrThrow(inputEffFile, "READ", "CorrelationTaskBase::LoadCorrections");
 
     std::vector<std::string> activeCorrections;
     if (taskConfig.HasMember("active_corrections") && taskConfig["active_corrections"].IsArray()) {
@@ -599,9 +610,6 @@ class CorrelationTaskBase : public IAnalysisTask
       correctionCollection[name] = std::move(corr);
     }
 
-    fileEffInput->Close();
-    delete fileEffInput;
-
     std::cout << "[INFO] CorrelationTask: Efficiencies loaded successfully." << std::endl;
   }
 
@@ -671,7 +679,7 @@ class CorrelationTaskBase : public IAnalysisTask
   void GenerateSpectraAndTrends(int multBin, double totalTriggerSignalPerMult)
   {
     std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
-    TDirectory* targetSpectraDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra, {globalCfgs.binningName, dirName});
+    TDirectory* targetSpectraDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName, dirName});
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];

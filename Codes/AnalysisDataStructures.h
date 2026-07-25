@@ -30,7 +30,7 @@ struct LoadedCorrections {
 
 struct LoadedPurity {
   std::string name;
-  std::vector<TH1*> h1Purity{nullptr};
+  std::vector<std::unique_ptr<TH1>> h1Purity;
 };
 
 struct ParticleTask {

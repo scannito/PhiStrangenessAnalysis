@@ -14,18 +14,26 @@ inline const rapidjson::Value& RequireMember(const rapidjson::Value& node, const
 
 inline std::string RequireString(const rapidjson::Value& node, const char* key, const std::string& errCtx)
 {
-  return RequireMember(node, key, errCtx).GetString();
+  const auto& val = RequireMember(node, key, errCtx);
+  if (!val.IsString()) {
+    throw std::runtime_error("[FATAL] " + errCtx + ": Key '" + key + "' exists but is NOT a string!");
+  }
+  return val.GetString();
 }
 
 inline bool RequireBool(const rapidjson::Value& node, const char* key, const std::string& errCtx)
 {
-  return RequireMember(node, key, errCtx).GetBool();
+  const auto& val = RequireMember(node, key, errCtx);
+  if (!val.IsBool()) {
+    throw std::runtime_error("[FATAL] " + errCtx + ": Key '" + key + "' exists but is NOT a boolean!");
+  }
+  return val.GetBool();
 }
 
-inline decltype(auto) RequireArray(const rapidjson::Value& node, const char* key, const std::string& errCtx)
+inline auto RequireArray(const rapidjson::Value& node, const char* key, const std::string& errCtx)
 {
-  decltype(auto) arr = RequireMember(node, key, errCtx);
+  const auto& arr = RequireMember(node, key, errCtx);
   if (!arr.IsArray())
-    throw std::runtime_error("[FATAL] " + errCtx + ": '" + key + "' is not an array in JSON!");
+    throw std::runtime_error("[FATAL] " + errCtx + ": '" + key + "' exists but is not an ARRAY!");
   return arr.GetArray();
 }
