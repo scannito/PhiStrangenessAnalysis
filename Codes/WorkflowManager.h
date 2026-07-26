@@ -23,9 +23,25 @@
 class WorkflowManager
 {
  public:
-  WorkflowManager(const std::string& configFile = "globalConfig.json")
+  // Constructor supporting both single-file and dual-file (Base + Master) configurations.
+  WorkflowManager(const std::string& masterConfigFile = "globalConfig.json",
+                  const std::string& baseConfigFile = "")
   {
-    LoadConfiguration(configFile); // Read the JSON file from disk immediately
+    // 1. Load the Master File (Always required)
+    LoadJsonFile(masterConfigFile, document, "MasterConfig");
+
+    // 2. Load the Base File (Only if provided by the user)
+    if (!baseConfigFile.empty()) {
+      LoadJsonFile(baseConfigFile, baseDocument, "BaseConfig");
+      hasBaseFile = true;
+      std::cout << "[INFO] WorkflowManager: Dual-file configuration mode activated." << std::endl;
+    } else {
+      hasBaseFile = false;
+      std::cout << "[INFO] WorkflowManager: Single-file configuration mode activated." << std::endl;
+    }
+
+    ParseGlobalSettings();
+    ParseWorkflowTasks();
   }
 
   void BuildWorkflow()
@@ -44,9 +60,6 @@ class WorkflowManager
       {"phi_fit_task", []() { return std::make_unique<PhiFitTask>(); }},
       {"correlation_wpdg_task", []() { return std::make_unique<CorrelationWPDGTask>(); }},
       {"correlation_task", []() { return std::make_unique<CorrelationTask>(); }}};
-
-    // Map to track used prefixes per task type ---
-    std::map<std::string, std::set<std::string>> usedPrefixes;
 
     // Loop over the tasks requested by the JSON configuration
     for (const std::string& taskName : activeTasksList) {
@@ -78,14 +91,14 @@ class WorkflowManager
     for (size_t i = 0; i < activeTasks.size(); ++i) {
       auto& task = activeTasks[i];
 
-      // We DO NOT use task->GetName() anymore. We use the exact name the user typed in the JSON array.
+      // Retrieve the exact execution name from the JSON array
       std::string configBlockName = activeTasksList[i];
       std::cout << "\n>>> [STARTING TASK] " << configBlockName << " <<<" << std::endl;
 
-      // Generate the final merged JSON configuration for this specific task (handling 'inherits')
+      // Generate the final merged JSON configuration (resolving N-levels of inheritance)
       rapidjson::Value finalTaskConfig = MergeTaskConfiguration(configBlockName);
 
-      // Pass the fully assembled config to the task
+      // Pass the fully assembled config and global settings to the task
       task->Init(finalTaskConfig, globalSettings);
       task->Run();
       task->Terminate();
@@ -100,7 +113,9 @@ class WorkflowManager
   }
 
  private:
-  rapidjson::Document document; // The full JSON tree loaded into RAM
+  rapidjson::Document document;     // Holds the master execution JSON tree
+  rapidjson::Document baseDocument; // Holds the base settings JSON tree (if provided)
+  bool hasBaseFile{false};
 
   // Contains the raw strings from the JSON (e.g., "correlation_task_test")
   std::vector<std::string> activeTasksList;
@@ -109,42 +124,30 @@ class WorkflowManager
 
   AnalysisSettings globalSettings; // Holds the runtime configuration
 
-  void LoadConfiguration(const std::string& configFile)
+  // Safe file loader helper utilizing exceptions
+  void LoadJsonFile(const std::string& path, rapidjson::Document& doc, const std::string& context)
   {
-    std::cout << "[INFO] WorkflowManager: Parsing master config file " << configFile << "..." << std::endl;
-
-    FILE* fp = fopen(configFile.c_str(), "rb");
+    FILE* fp = fopen(path.c_str(), "rb");
     if (!fp) {
-      throw std::runtime_error("[FATAL] Cannot open config file: " + configFile);
+      throw std::runtime_error("[FATAL] " + context + ": Cannot open configuration file at: " + path);
     }
 
+    // 64KB read buffer for fast chunked I/O
     char readBuffer[65536];
     rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
-    document.ParseStream(is);
-    fclose(fp); // Close the file immediately. Everything is now in RAM.
+    doc.ParseStream(is);
+    fclose(fp);
 
-    if (document.HasParseError()) {
-      throw std::runtime_error("[FATAL] Invalid JSON syntax or missing 'global_settings' node!");
+    if (doc.HasParseError()) {
+      // RapidJSON provides the specific error code and the exact byte offset!
+      std::string errorMsg = "[FATAL] " + context + ": JSON Syntax Error in file '" + path +
+                             "' at byte offset " + std::to_string(doc.GetErrorOffset());
+      throw std::runtime_error(errorMsg);
     }
 
-    // 1. Load Global Settings
-    ParseGlobalSettings();
-
-    // 2. Load Workflow Tasks
-    if (!document.HasMember("workflow")) {
-      throw std::runtime_error("[FATAL ERROR] Missing 'workflow' block in JSON!");
+    if (!doc.IsObject()) {
+      throw std::runtime_error("[FATAL] " + context + ": Invalid structure in " + path + ". The root must be a JSON object '{ ... }'.");
     }
-
-    const auto& workflowNode = document["workflow"];
-    if (workflowNode.HasMember("active_tasks") && workflowNode["active_tasks"].IsArray()) {
-      for (auto& taskValue : workflowNode["active_tasks"].GetArray()) {
-        activeTasksList.push_back(taskValue.GetString());
-      }
-    } else {
-      throw std::runtime_error("[FATAL ERROR] 'active_tasks' array missing or invalid!");
-    }
-
-    std::cout << "[INFO] WorkflowManager: Master configuration loaded successfully." << std::endl;
   }
 
   void ParseGlobalSettings()
@@ -201,44 +204,64 @@ class WorkflowManager
     globalSettings.UpdateBinCounts();
   }
 
+  void ParseWorkflowTasks()
+  {
+    if (!document.HasMember("workflow")) {
+      throw std::runtime_error("[FATAL] Missing 'workflow' block in Master JSON!");
+    }
+
+    const auto& workflowNode = document["workflow"];
+    if (workflowNode.HasMember("active_tasks") && workflowNode["active_tasks"].IsArray()) {
+      for (auto& taskValue : workflowNode["active_tasks"].GetArray()) {
+        activeTasksList.push_back(taskValue.GetString());
+      }
+    } else {
+      throw std::runtime_error("[FATAL] 'active_tasks' array missing or invalid in workflow block!");
+    }
+  }
+
   // =========================================================================
   // HELPER: Merge base settings with task-specific overrides (Inheritance)
   // Supports N-levels of inheritance via recursion.
   // =========================================================================
   rapidjson::Value MergeTaskConfiguration(const std::string& taskName)
   {
-    // Check if the specific task block exists in the JSON
-    if (!document.HasMember(taskName.c_str())) {
-      throw std::runtime_error("[FATAL ERROR] Missing JSON config block for: " + taskName);
+    bool isInMaster = document.HasMember(taskName.c_str());
+    bool isInBase = hasBaseFile && baseDocument.HasMember(taskName.c_str());
+
+    if (!isInMaster && !isInBase) {
+      throw std::runtime_error("[FATAL] JSON configuration block '" + taskName + "' not found in any file!");
     }
 
-    rapidjson::Value& specificConfig = document[taskName.c_str()];
+    // Target the document where the block was found (Master takes precedence)
+    rapidjson::Value& currentSrc = isInMaster ? document[taskName.c_str()] : baseDocument[taskName.c_str()];
 
-    // If it doesn't inherit anything, just return a deep copy of itself
-    if (!specificConfig.HasMember("inherits")) {
-      return rapidjson::Value(specificConfig, document.GetAllocator());
+    // BASE CASE: No inheritance requested. Return a standalone deep copy.
+    if (!currentSrc.HasMember("inherits")) {
+      return rapidjson::Value(currentSrc, document.GetAllocator());
     }
 
-    // 1. Recursively fetch the base configuration that this task inherits from
-    std::string baseName = specificConfig["inherits"].GetString();
+    // RECURSIVE CASE: Resolve the parent chain first
+    std::string baseName = currentSrc["inherits"].GetString();
     rapidjson::Value mergedConfig = MergeTaskConfiguration(baseName);
 
-    // 2. Iterate over the SPECIFIC block and overwrite/add members to the base copy
-    for (auto& m : specificConfig.GetObject()) {
+    // Apply the local overrides from the child to the resolved parent
+    for (auto& m : currentSrc.GetObject()) {
       std::string keyName = m.name.GetString();
 
       // Skip the "inherits" keyword itself, the task doesn't need to read it
       if (keyName == "inherits")
         continue;
 
-      // If the key already exists in the base block, remove it to overwrite it
+      // Remove the existing key if we are overriding it
       if (mergedConfig.HasMember(m.name)) {
         mergedConfig.RemoveMember(m.name);
       }
 
-      // Add the overriding member (doing a deep copy to avoid memory allocation issues)
+      // Perform a safe deep copy of both the key and the value to avoid memory corruption
       rapidjson::Value keyCopy(m.name, document.GetAllocator());
       rapidjson::Value valCopy(m.value, document.GetAllocator());
+
       mergedConfig.AddMember(keyCopy, valCopy, document.GetAllocator());
     }
 
