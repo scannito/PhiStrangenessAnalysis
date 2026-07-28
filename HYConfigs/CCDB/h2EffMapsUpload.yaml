@@ -1,0 +1,8 @@
+# This is a YAML configuration file for uploading efficiency maps to the CCDB.
+# Each entry in the list corresponds to a specific efficiency map and its associated parameters.
+
+# Efficiency map for LHC26b1 (strangeness-injected pp reference) MC
+- map_name: "efficiency_map_LHC26b1"
+  input_file: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_StrInj_PtMod_20luglio.root"
+  ccdb_path: "/alice/cern.ch/user/s/scannito/efficiency_maps/LHC26b1"
+  description: "Efficiency map for LHC26b1 (strangeness-injected pp reference) MC"

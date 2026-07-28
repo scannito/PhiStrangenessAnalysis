@@ -36,7 +36,11 @@ void uploadToCCDB(TString lDataset = "LHC26ac_pass1_Thin_medium")
 
     try {
       std::string outputPath = std::format("Users/s/scannito/Efficiencies/ppref24strinj/h2EffMap{}", particleName);
-      ccdb_api.storeAsTFileAny(effMap, outputPath, metadata);
+
+      long startValidity = 1;           // 1 Jan 1970
+      long endValidity = 2524604400000; // 1 Jan 2050
+
+      ccdb_api.storeAsTFileAny(effMap, outputPath, metadata, startValidity, endValidity);
     } catch (std::exception const& e) {
       LOG(fatal) << "Failed at CCDB submission!";
     }
