@@ -11,6 +11,7 @@ fi
 KEYWORD=$1
 COLL_SYS=$2
 JSON_PATH=""
+JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
 
 # 2. Map the keyword to the specific JSON configuration file
 case "$KEYWORD" in
@@ -36,8 +37,10 @@ case "$KEYWORD" in
         # Fallback: if keyword is not recognized, try to use it directly as a filename/path
         if [[ "$KEYWORD" == *".json" ]]; then
             JSON_PATH="$KEYWORD"
+            #JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
         else
             JSON_PATH="../JSONConfigs/${KEYWORD}${COLL_SYS}.json"
+            #JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
         fi
         ;;
 esac
@@ -62,11 +65,11 @@ echo "Log file       : $LOG_FILE"
 echo "=========================================================="
 
 # Print the exact command that will be executed
-echo "Executing: root -l -b -q 'PhiStrangenessCorrelation.C(\"$JSON_PATH\")'"
+echo "Executing: root -l -b -q 'PhiStrangenessCorrelation.C(\"$JSON_PATH\", \"$JSON_PATH_BASE\")' 2>&1 | tee \"$LOG_FILE\""
 echo "=========================================================="
 
 # 5. Execute the ROOT macro and pipe both stdout and stderr to tee
-root -l -b -q "PhiStrangenessCorrelation.C(\"$JSON_PATH\")" 2>&1 | tee "$LOG_FILE"
+root -l -b -q "PhiStrangenessCorrelation.C(\"$JSON_PATH\", \"$JSON_PATH_BASE\")" 2>&1 | tee "$LOG_FILE"
 
 echo "=========================================================="
 echo "Analysis completed. Log saved in: $LOG_FILE"

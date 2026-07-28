@@ -117,7 +117,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
       if (useProjectionCache && (!fProj || fProj->IsZombie()))
         throw std::runtime_error("[FATAL] Missing cache file: " + fName + ". Run with 'use_projection_cache': false first!");
       filesPhiAssocDataOutput.push_back(fProj);*/
-      std::unique_ptr<TFile> fProj = OpenOrThrow(fName, projMode, "CorrelationWPDGTask");
+      std::unique_ptr<TFile> fProj = OpenOrThrow(fName, projMode.c_str(), "CorrelationWPDGTask");
       filesPhiAssocDataOutput.push_back(std::move(fProj));
     }
 

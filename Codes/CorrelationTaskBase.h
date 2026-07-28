@@ -506,6 +506,12 @@ class CorrelationTaskBase : public IAnalysisTask
     std::string inputEffFile = RequireString(taskConfig, "input_efficiency_file", GetName());
     std::unique_ptr<TFile> fileEffInput = OpenOrThrow(inputEffFile, "READ", "CorrelationTaskBase::LoadCorrections");
 
+    // Mirror the exact layout MCTask writes: {binningName}/AccEff/MultBin,
+    // {binningName}/SigLoss/MultBin, {binningName}/EvLoss
+    TDirectory* accEffDir = AnalysisUtils::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "AccEff", "MultBin"}, true);
+    TDirectory* sigLossDir = AnalysisUtils::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "SigLoss", "MultBin"}, true);
+    TDirectory* evLossDir = AnalysisUtils::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "EvLoss"}, true);
+
     std::vector<std::string> activeCorrections;
     if (taskConfig.HasMember("active_corrections") && taskConfig["active_corrections"].IsArray()) {
       for (const auto& val : taskConfig["active_corrections"].GetArray()) {
@@ -538,7 +544,10 @@ class CorrelationTaskBase : public IAnalysisTask
 
     // Event Loss is loaded if requested
     if (isActive("event_loss")) {
-      if (auto hTemp = static_cast<TH1*>(fileEffInput->Get("hEventLoss"))) {
+      if (!evLossDir)
+        throw std::runtime_error("[FATAL] 'event_loss' requested but directory '" + globalCfgs.binningName + "/EvLoss' not found!");
+
+      if (auto hTemp = static_cast<TH1*>(evLossDir->Get("hEventLoss"))) {
         hEventLoss = static_cast<TH1*>(hTemp->Clone("hEventLoss"));
         hEventLoss->SetDirectory(0);
       } else
@@ -546,10 +555,13 @@ class CorrelationTaskBase : public IAnalysisTask
     }
 
     // LAMBDA HELPER 1: Load the histogram and throw an error if missing
-    auto fetchHist = [&](const std::string& name, bool apply, const std::vector<double>& targetBinning) -> TH1F* {
+    auto fetchHist = [&](TDirectory* dir, const std::string& name, bool apply, const std::vector<double>& targetBinning) -> TH1F* {
       if (!apply)
         return nullptr;
-      auto h = static_cast<TH1F*>(fileEffInput->Get(name.c_str()));
+      if (!dir)
+        throw std::runtime_error("[FATAL] Missing directory containing: " + name);
+
+      auto h = static_cast<TH1F*>(dir->Get(name.c_str()));
       if (!h)
         throw std::runtime_error("[FATAL] Missing required histogram: " + name);
 
@@ -590,18 +602,18 @@ class CorrelationTaskBase : public IAnalysisTask
       std::string sigLossHistBase = "h1" + name + "SigLoss";
 
       // Fetch integrated histograms ONLY if useIntegratedEfficiency is true
-      TH1F* hEffInt = fetchHist(effHistBase + "_multIntegrated", doAccEfficiency && useIntegratedEfficiency, targetBinning);
+      TH1F* hEffInt = fetchHist(accEffDir, effHistBase + "_multIntegrated", doAccEfficiency && useIntegratedEfficiency, targetBinning);
       // Note: Signal loss is typically not integrated, but we fetch it if requested for consistency
-      // TH1F* hLossInt = fetchHist(sigLossHistBase + "_multIntegrated", doSigLoss && useIntegratedEfficiency);
+      // TH1F* hLossInt = fetchHist(sigLossDir, sigLossHistBase + "_multIntegrated", doSigLoss && useIntegratedEfficiency, targetBinning);
 
       for (int i = 0; i < globalCfgs.nBinMult; i++) {
         std::string iStr = std::to_string(i);
 
         // Fetch binned histograms ONLY if useIntegratedEfficiency is false
-        TH1F* hEffBin = fetchHist(effHistBase + "_multBin" + iStr, doAccEfficiency && !useIntegratedEfficiency, targetBinning);
+        TH1F* hEffBin = fetchHist(accEffDir, effHistBase + "_multBin" + iStr, doAccEfficiency && !useIntegratedEfficiency, targetBinning);
         // Note: Signal loss is typically not integrated, so we fetch the binned version if signal loss correction is requested,
         // regardless of the useIntegratedEfficiency flag
-        TH1F* hLossBin = fetchHist(sigLossHistBase + "_multBin" + iStr, doSigLoss, targetBinning);
+        TH1F* hLossBin = fetchHist(sigLossDir, sigLossHistBase + "_multBin" + iStr, doSigLoss, targetBinning);
 
         corr.h1Corrections[i] = combineHists(hEffBin, hLossBin, "h1Corrected_" + name + "_multBin" + iStr);
         corr.h1CorrectionsEffMultInt[i] = combineHists(hEffInt, hLossBin, "h1Corrected_" + name + "_multInt" + iStr);
@@ -895,7 +907,7 @@ class CorrelationTaskBase : public IAnalysisTask
           const auto& data = loadedDataCollection[pIdx];
           TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i] : nullptr;
 
-          TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx], logicalPath, useProjectionCache);
+          TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
 
           for (int k = 0; k < config.nBinPt; k++) {
             AnalysisUtils::AxisToCut axisToCutPtAssoc{2, k + 1, k + 1};

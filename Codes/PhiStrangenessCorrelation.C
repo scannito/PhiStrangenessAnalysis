@@ -3,7 +3,7 @@
 #include <iostream>
 #include <string>
 
-void PhiStrangenessCorrelation(const std::string& configFile = "globalConfig.json")
+void PhiStrangenessCorrelation(const std::string& configFile = "globalConfig.json", const std::string& baseConfigFile = "")
 {
   std::cout << "======================================================" << std::endl;
   std::cout << "        ALICE Data Analysis - Phi-Strangeness         " << std::endl;
@@ -13,7 +13,7 @@ void PhiStrangenessCorrelation(const std::string& configFile = "globalConfig.jso
     // 1. Create the Workflow Manager.
     // Upon creation, it parses the JSON file, reads the paths,
     // and safely stores them in the GlobalSettings struct.
-    WorkflowManager manager(configFile);
+    WorkflowManager manager(configFile, baseConfigFile);
 
     // 2. Build the task pipeline.
     // Here the manager sets the execution order (e.g., Purity -> MC -> Data).

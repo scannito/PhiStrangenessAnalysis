@@ -148,7 +148,7 @@ class CorrelationTask : public CorrelationTaskBase
 
     for (const auto& p : assocParticles) {
       std::string fName = basePathProj + outputPrefix + "Phi" + p.name + "DataHistograms.root";
-      std::unique_ptr<TFile> fProj = OpenOrThrow(fName, projMode, "CorrelationTask");
+      std::unique_ptr<TFile> fProj = OpenOrThrow(fName, projMode.c_str(), "CorrelationTask");
       filesPhiAssocDataOutput.push_back(std::move(fProj));
 
       /*TFile* fProj = new TFile(fName.c_str(), projMode.c_str());
@@ -257,7 +257,7 @@ class CorrelationTask : public CorrelationTaskBase
 
       LoadedPurity purity;
       purity.name = name;
-      purity.h1Purity.resize(globalCfgs.nBinMult, nullptr);
+      purity.h1Purity.resize(globalCfgs.nBinMult);
 
       std::vector<double> targetBinning;
       if (name == "Phi") {
@@ -340,7 +340,7 @@ class CorrelationTask : public CorrelationTaskBase
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
-          TDirectory* sourceDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx], logicalPath, true);
+          TDirectory* sourceDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, true);
           if (!sourceDir)
             throw std::runtime_error("[FATAL] Cache L2 missing: Directory " + dirName + " not found!");
 
@@ -381,11 +381,11 @@ class CorrelationTask : public CorrelationTaskBase
           const auto& data = loadedDataCollection[pIdx];
           TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i] : nullptr;
 
-          TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx], logicalPath, useProjectionCache);
+          TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
 
           TDirectory* currentQADir{nullptr};
           if (doMoreQA && pIdx < filesPhiAssocQAOutput.size()) {
-            currentQADir = AnalysisUtils::GetOrCreatePath(filesPhiAssocQAOutput[pIdx], logicalPath, false);
+            currentQADir = AnalysisUtils::GetOrCreatePath(filesPhiAssocQAOutput[pIdx].get(), logicalPath, false);
           }
 
           for (int k = 0; k < config.nBinPt; k++) {
@@ -420,7 +420,7 @@ class CorrelationTask : public CorrelationTaskBase
       std::cout << "[INFO] Multiplicity bin " << i << " completed. Committing results to Level 2 Cache..." << std::endl;
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx], logicalPath, false);
+        TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, false);
         if (targetDir)
           targetDir->cd();
         for (int k = 0; k < assocParticles[pIdx].nBinPt; k++) {

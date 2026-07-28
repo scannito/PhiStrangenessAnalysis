@@ -15,6 +15,7 @@ using namespace std;
 
 vector<Double_t> pTK0S_axis_yieldmean = {0.0, 0.1, 0.5, 0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0};
 vector<Double_t> pTPi_axis_yieldmean = {0.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0};
+vector<Double_t> pTXi_axis_yieldmean = {0.0, 0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0};
 
 /* definition of the fields in the histogram returned */
 enum EValue_t {
@@ -78,7 +79,11 @@ TH1* YieldMean(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10.,
   } else if (part.Contains("Pi")) {
     htotextra = new TH1D("htotextra", "", htot->GetNbinsX() + 1, pTPi_axis_yieldmean.data());
     htotextra->SetTitle("; #it{p}_{T} (GeV/#it{c}); 1/N_{ev,#phi} d^{2}N_{(#pi^{+}+#pi^{#minus})}/d#it{y}d#it{p}_{T} [(GeV/#it{c})^{-1}]");
+  } else if (part.Contains("Xi")) {
+    htotextra = new TH1D("htotextra", "", htot->GetNbinsX() + 1, pTXi_axis_yieldmean.data());
+    htotextra->SetTitle("; #it{p}_{T} (GeV/#it{c}); 1/N_{ev,#phi} d^{2}N_{#Xi^{-}+#bar{#Xi}^{+}}/d#it{y}d#it{p}_{T} [(GeV/#it{c})^{-1}]");
   }
+
   for (Int_t ibin = 2; ibin < htot->GetNbinsX() + 2; ibin++) {
     htotextra->SetBinContent(ibin, htot->GetBinContent(ibin - 1));
     htotextra->SetBinError(ibin, htot->GetBinError(ibin - 1));
