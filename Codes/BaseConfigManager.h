@@ -20,7 +20,8 @@ class BaseConfigManager
   // Constructor handles the rapidjson I/O stream reading.
   BaseConfigManager(const std::string& jsonPath, const std::string& managerName) : managerName(managerName)
   {
-    FILE* fp = fopen(jsonPath.c_str(), "rb");
+    std::unique_ptr<FILE, int (*)(FILE*)> fp(fopen(jsonPath.c_str(), "rb"), &fclose);
+    // FILE* fp = fopen(jsonPath.c_str(), "rb");
     if (!fp) {
       throw std::runtime_error("[FATAL ERROR] " + managerName +
                                ": Cannot open configuration file at path: " + jsonPath);
@@ -29,10 +30,11 @@ class BaseConfigManager
     // Create a memory buffer (64KB) to read the file in chunks.
     // This makes reading significantly faster than reading line-by-line.
     char readBuffer[65536];
-    rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
+    rapidjson::FileReadStream is(fp.get(), readBuffer, sizeof(readBuffer));
+    // rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
 
     document.ParseStream(is);
-    fclose(fp);
+    // fclose(fp);
 
     // Check for parsing errors and validate the JSON structure.
     if (document.HasParseError()) {

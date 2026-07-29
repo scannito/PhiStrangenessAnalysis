@@ -127,16 +127,18 @@ class WorkflowManager
   // Safe file loader helper utilizing exceptions
   void LoadJsonFile(const std::string& path, rapidjson::Document& doc, const std::string& context)
   {
-    FILE* fp = fopen(path.c_str(), "rb");
+    std::unique_ptr<FILE, int (*)(FILE*)> fp(fopen(path.c_str(), "rb"), &fclose);
+    // FILE* fp = fopen(path.c_str(), "rb");
     if (!fp) {
       throw std::runtime_error("[FATAL] " + context + ": Cannot open configuration file at: " + path);
     }
 
     // 64KB read buffer for fast chunked I/O
     char readBuffer[65536];
-    rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
+    rapidjson::FileReadStream is(fp.get(), readBuffer, sizeof(readBuffer));
+    // rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
     doc.ParseStream(is);
-    fclose(fp);
+    // fclose(fp);
 
     if (doc.HasParseError()) {
       // RapidJSON provides the specific error code and the exact byte offset!
