@@ -74,3 +74,20 @@ inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& o
 
   return std::unique_ptr<T>(obj);
 }
+
+template <typename T>
+inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& objPath, const std::string& warnCtx, bool detachFromFile = true)
+{
+  T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
+  if (!obj) {
+    std::cerr << "[WARNING] " << warnCtx << ": Missing object '" << objPath << "'" << std::endl;
+    return nullptr;
+  }
+
+  if constexpr (std::is_base_of_v<TH1, T>) {
+    if (detachFromFile)
+      obj->SetDirectory(0);
+  }
+
+  return std::unique_ptr<T>(obj);
+}

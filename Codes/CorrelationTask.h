@@ -112,25 +112,25 @@ class CorrelationTask : public CorrelationTaskBase
         std::string baseData = basePathData + config.dirName + "/h5Phi" + config.name;
         // data.h5DataSignal = static_cast<THnSparseF*>(fileDataInput->Get((baseData + "DataSignal").c_str()));
         // data.h5DataSideband = static_cast<THnSparseF*>(fileDataInput->Get((baseData + "DataSideband").c_str()));
-        data.h5DataSignal = GetOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSignal"), "CorrelationTask");
-        data.h5DataSideband = GetOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSideband"), "CorrelationTask");
+        data.h5DataSignal = GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSignal"), "CorrelationTask");
+        data.h5DataSideband = GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSideband"), "CorrelationTask");
 
         if (applyME) {
           std::string baseDataME = basePathDataME + config.dirName + "/h5Phi" + config.name;
           // data.h5DataMESignal = static_cast<THnSparseF*>(fileDataMEInput->Get((baseDataME + "DataMESignal").c_str()));
           // data.h5DataMESideband = static_cast<THnSparseF*>(fileDataMEInput->Get((baseDataME + "DataMESideband").c_str()));
-          data.h5DataMESignal = GetOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESignal"), "CorrelationTask");
-          data.h5DataMESideband = GetOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESideband"), "CorrelationTask");
+          data.h5DataMESignal = GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESignal"), "CorrelationTask");
+          data.h5DataMESideband = GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESideband"), "CorrelationTask");
         }
 
-        loadedDataCollection.push_back(data);
+        loadedDataCollection.push_back(std::move(data));
       }
     } else {
       std::cout << "[INFO] CorrelationTask: Cache ENABLED. Skipping THnSparse loading." << std::endl;
       for (const auto& config : assocParticles) {
         LoadedAssocData data;
         data.name = config.name;
-        loadedDataCollection.push_back(data);
+        loadedDataCollection.push_back(std::move(data));
       }
     }
 
@@ -143,7 +143,6 @@ class CorrelationTask : public CorrelationTaskBase
     std::string projMode = useProjectionCache ? "READ" : "UPDATE";
     std::string basePathFinal = taskConfig["output_dir_final"].GetString();
     std::string phiSpectraName = basePathFinal + outputPrefix + "PhiAssocSpectra.root";
-    // fileOutputSpectra = new TFile(phiSpectraName.c_str(), "UPDATE");
     fileOutputSpectra = OpenOrThrow(phiSpectraName, "UPDATE", "CorrelationTask");
 
     for (const auto& p : assocParticles) {
@@ -184,19 +183,6 @@ class CorrelationTask : public CorrelationTaskBase
   }
 
  protected:
-  /*void CleanupExtraMembers() override
-  {
-    if (h2TriggerSignal)
-      delete h2TriggerSignal;
-    if (h2TriggerBkgRatio)
-      delete h2TriggerBkgRatio;
-
-    for (auto& [name, pur] : purityCollection)
-      for (auto& h1 : pur.h1Purity)
-        if (h1)
-          delete h1;
-  }*/
-
   TH1* GetPurityHist(const std::string& particleName, int multBin) override
   {
     if (!applyPurity)
@@ -279,12 +265,12 @@ class CorrelationTask : public CorrelationTaskBase
         /*TH1F* h1Pur = static_cast<TH1F*>(filePurity->Get(hName.c_str()));
         if (!h1Pur)
           throw std::runtime_error("[FATAL] CorrelationTask: Missing purity histogram: " + hName + " in " + purityFilePath);*/
-        TH1F* h1Pur = GetOrThrow<TH1F>(filePurity.get(), hName, "CorrelationTask");
+        std::unique_ptr<TH1F> h1Pur = GetUniqueOrThrow<TH1F>(filePurity.get(), hName, "CorrelationTask");
 
-        TH1F* rebinnedPur = AnalysisUtils::RebinToTargetBinning(h1Pur, targetBinning, "CorrelationTaskBase::LoadPurities");
+        std::unique_ptr<TH1F> rebinnedPur = AnalysisUtils::RebinToTargetBinning(std::move(h1Pur), targetBinning, "CorrelationTaskBase::LoadPurities");
         rebinnedPur->SetDirectory(0);
 
-        purity.h1Purity[i] = std::unique_ptr<TH1F>(rebinnedPur);
+        purity.h1Purity[i] = std::move(rebinnedPur);
       }
 
       purityCollection[name] = std::move(purity);
@@ -301,9 +287,8 @@ class CorrelationTask : public CorrelationTaskBase
     // Hoisted to the top so both the Cache L2 branch and the calculation branch
     // can access them to properly normalize the trigger signals.
     // =========================================================================
-    using EffArray = std::vector<TH1F*>;
-    const EffArray* phiCorrs{nullptr};
-    std::vector<const EffArray*> assocCorrs(assocParticles.size(), nullptr);
+    const std::vector<std::unique_ptr<TH1F>>* phiCorrs{nullptr};
+    std::vector<const std::vector<std::unique_ptr<TH1F>>*> assocCorrs(assocParticles.size(), nullptr);
 
     if (applyEfficiency && !correctionCollection.empty()) {
       auto itPhi = correctionCollection.find("Phi");
@@ -330,7 +315,7 @@ class CorrelationTask : public CorrelationTaskBase
 
       for (int i = 0; i < globalCfgs.nBinMult; i++) {
         double totalTriggerSignalPerMult = 0.0;
-        TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i] : nullptr;
+        TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
         for (int j = 0; j < nBinPtPhi; j++) {
           double triggerSignal = h2TriggerSignal->GetBinContent(i + 1, j + 1);
@@ -346,7 +331,7 @@ class CorrelationTask : public CorrelationTaskBase
 
           for (int k = 0; k < config.nBinPt; k++) {
             std::string cacheName = "h1Phi" + config.name + "Final_multBin" + std::to_string(i) + "_ptBin" + std::to_string(k);
-            h1PhiAssocNoPtPhi[pIdx][i][k] = static_cast<TH1*>(sourceDir->Get(cacheName.c_str()));
+            h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(sourceDir->Get(cacheName.c_str())));
             if (!h1PhiAssocNoPtPhi[pIdx][i][k])
               throw std::runtime_error("[FATAL] Cache L2 missing for: " + cacheName + ". Run with use_signal_cache: false first!");
             h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
@@ -366,7 +351,7 @@ class CorrelationTask : public CorrelationTaskBase
     for (int i = 0; i < globalCfgs.nBinMult; i++) {
       AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
       double totalTriggerSignalPerMult = 0.0;
-      TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i] : nullptr;
+      TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
       for (int j = 0; j < nBinPtPhi; j++) {
         AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
@@ -379,7 +364,7 @@ class CorrelationTask : public CorrelationTaskBase
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
           const auto& data = loadedDataCollection[pIdx];
-          TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i] : nullptr;
+          TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i].get() : nullptr;
 
           TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
 
@@ -398,17 +383,16 @@ class CorrelationTask : public CorrelationTaskBase
             std::string baseNameStd = "hPhi" + config.name + "Data";
             std::string suffix = "_multBin" + std::to_string(i) + "_ptPhiBin" + std::to_string(j) + "_ptBin" + std::to_string(k);
 
-            TH1* h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
+            std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
               data, axesToCut, totalEff, triggerBkgRatio, baseNameStd + suffix, targetDir, currentQADir, projectionAxis);
 
             if (j == 0) {
               std::string accumName = "h1Phi" + config.name + "DataSignal_multBin" + std::to_string(i) + "_ptBin" + std::to_string(k);
-              h1PhiAssocNoPtPhi[pIdx][i][k] = static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str()));
+              h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
               h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
             } else {
-              h1PhiAssocNoPtPhi[pIdx][i][k]->Add(h1FinalSignal);
+              h1PhiAssocNoPtPhi[pIdx][i][k]->Add(h1FinalSignal.get());
             }
-            delete h1FinalSignal;
           }
         }
       }

@@ -57,10 +57,10 @@ struct AxisToCut {
 
 // Projects a THnSparse into a lower-dimensional histogram
 template <typename THType>
-inline THType* projectTHnSparse(THnSparse* hnSparse,
-                                const std::vector<AxisToCut>& axesToBeCut,
-                                const std::vector<int>& axesToProject,
-                                const std::string& histName)
+inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
+                                                const std::vector<AxisToCut>& axesToBeCut,
+                                                const std::vector<int>& axesToProject,
+                                                const std::string& histName)
 {
   if (!hnSparse)
     return nullptr;
@@ -69,14 +69,14 @@ inline THType* projectTHnSparse(THnSparse* hnSparse,
     hnSparse->GetAxis(axisToCut.axis)->SetRange(axisToCut.binLow, axisToCut.binUp);
   }
 
-  THType* hProjection = nullptr;
+  std::unique_ptr<THType> hProjection;
 
   if constexpr (std::is_base_of_v<TH3, THType>) {
-    hProjection = hnSparse->Projection(axesToProject[0], axesToProject[1], axesToProject[2]);
+    hProjection.reset(static_cast<THType*>(hnSparse->Projection(axesToProject[0], axesToProject[1], axesToProject[2])));
   } else if constexpr (std::is_base_of_v<TH2, THType>) {
-    hProjection = hnSparse->Projection(axesToProject[0], axesToProject[1]);
+    hProjection.reset(static_cast<THType*>(hnSparse->Projection(axesToProject[0], axesToProject[1])));
   } else if constexpr (std::is_base_of_v<TH1, THType>) {
-    hProjection = hnSparse->Projection(axesToProject[0]);
+    hProjection.reset(static_cast<THType*>(hnSparse->Projection(axesToProject[0])));
   }
 
   if (hProjection) {
@@ -92,18 +92,17 @@ inline THType* projectTHnSparse(THnSparse* hnSparse,
 // pT and Multiplicity Trend Utilities
 // -----------------------------------------------------------------------------
 
-// Construct pT spectrum from a container of histograms
-template <typename Container>
-TH1* constructSpectrum(const Container& hContainer,
-                       const std::vector<double>& binsVec,
-                       const std::string& histName,
-                       double absLimToIntegrate)
+// Construct pT spectrum from a vector of histograms
+std::unique_ptr<TH1> ConstructSpectrum(const std::vector<TH1*>& hContainer,
+                                       const std::vector<double>& binsVec,
+                                       const std::string& histName,
+                                       double absLimToIntegrate)
 {
   if (binsVec.size() - 1 != hContainer.size()) {
     throw std::runtime_error("Size of histogram container must be equal to number of bins - 1");
   }
 
-  TH1* hSpectrum = new TH1D(histName.c_str(), "; p_{T} (GeV/#it{c}); 1/N_{trig} d^{2}N/dp_{T}d#Deltay", binsVec.size() - 1, binsVec.data());
+  std::unique_ptr<TH1> hSpectrum = std::make_unique<TH1D>(histName.c_str(), "; p_{T} (GeV/#it{c}); 1/N_{trig} d^{2}N/dp_{T}d#Deltay", binsVec.size() - 1, binsVec.data());
 
   for (size_t i{0}; i < hContainer.size(); i++) {
     auto [binContent, binError] = IntegralAndErrorPair(hContainer[i], -absLimToIntegrate, absLimToIntegrate);
@@ -119,7 +118,7 @@ TH1* constructSpectrum(const Container& hContainer,
 }
 
 // Construct multiplicity trends from pT spectra
-void constructMultTrend(TH1* hMultTrend,
+void ConstructMultTrend(TH1* hMultTrend,
                         TH1* hPtSpectrum,
                         int i,
                         bool applyExtrapolation = false,
@@ -221,6 +220,22 @@ inline std::string VectorToPath(const std::vector<std::string>& path)
 }
 
 // -----------------------------------------------------------------------------
+// Histogram ratios utility
+// -----------------------------------------------------------------------------
+
+inline std::unique_ptr<TH1> MakeRatioHist(TH1* num, TH1* den, const std::string& name,
+                                          const std::string& title, int color,
+                                          double numScale = 1.0, double denScale = 1.0)
+{
+  std::unique_ptr<TH1> h(static_cast<TH1*>(num->Clone(name.c_str())));
+  h->SetTitle(title.c_str());
+  h->SetDirectory(0);
+  h->Divide(num, den, numScale, denScale);
+  // SetHistogramStyle(h.get(), color);
+  return h;
+}
+
+// -----------------------------------------------------------------------------
 // Rebinng utilities
 // -----------------------------------------------------------------------------
 
@@ -233,18 +248,30 @@ inline bool IsRebinCompatible(const TH1* hSource, const std::vector<double>& tar
     if (std::abs(lowEdge - edge) > epsilon && std::abs(upEdge - edge) > epsilon)
       return false;
   }
+
   return true;
 }
 
-inline TH1F* RebinToTargetBinning(TH1F* h, const std::vector<double>& targetBins, const std::string& errCtx)
+template <typename THType>
+inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, const std::vector<double>& targetBins, const std::string& errCtx)
 {
-  if (!IsRebinCompatible(h, targetBins))
+  if (!IsRebinCompatible(h.get(), targetBins))
     throw std::runtime_error("[FATAL] " + errCtx + ": Histogram '" + std::string(h->GetName()) +
                              "' binning is not compatible with analysis binning (bin edges do not align).");
 
   int nTargetBins = static_cast<int>(targetBins.size()) - 1;
-  TH1F* hRebinned = static_cast<TH1F*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBins.data()));
-  delete h;
-  return hRebinned;
+  return std::unique_ptr<THType>(static_cast<THType*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBins.data())));
+}
+
+// -----------------------------------------------------------------------------
+// String formattig utility
+// -----------------------------------------------------------------------------
+
+inline std::pair<std::string, std::string> FormatDeltaY(double dyLimit)
+{
+  std::string title = Form("%.2f", dyLimit);
+  std::string name = title;
+  std::replace(name.begin(), name.end(), '.', '_');
+  return {title, name};
 }
 } // namespace AnalysisUtils

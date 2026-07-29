@@ -24,8 +24,8 @@ struct AssocParticleConfig {
 
 struct LoadedCorrections {
   std::string name;
-  std::vector<TH1F*> h1Corrections{nullptr};
-  std::vector<TH1F*> h1CorrectionsEffMultInt{nullptr};
+  std::vector<std::unique_ptr<TH1F>> h1Corrections;
+  std::vector<std::unique_ptr<TH1F>> h1CorrectionsEffMultInt;
 };
 
 struct LoadedPurity {
@@ -50,23 +50,21 @@ struct ParticleConfig {
 
 struct LoadedAssocData {
   std::string name;
-  THnSparseF* h5DataSignal{nullptr};
-  THnSparseF* h5DataSideband{nullptr};
-  THnSparseF* h5DataMESignal{nullptr};
-  THnSparseF* h5DataMESideband{nullptr};
+  std::unique_ptr<THnSparseF> h5DataSignal;
+  std::unique_ptr<THnSparseF> h5DataSideband;
+  std::unique_ptr<THnSparseF> h5DataMESignal;
+  std::unique_ptr<THnSparseF> h5DataMESideband;
 };
 
 // Structure to hold the loaded MC data and canvases in RAM
 struct LoadedMC {
   std::string name;
-  TH3F* h3MCGen{nullptr};
-  THnSparseF* h4MCGenAssocReco{nullptr};
-  THnSparseF* h4MCReco{nullptr};
-
+  std::unique_ptr<TH3F> h3MCGen;
+  std::unique_ptr<THnSparseF> h4MCGenAssocReco;
+  std::unique_ptr<THnSparseF> h4MCReco;
   std::optional<std::vector<double>> rebinningPt;
-
-  TCanvas* canvasEfficiency{nullptr};
-  TCanvas* canvasSignalLoss{nullptr};
+  std::unique_ptr<TCanvas> canvasEfficiency;
+  std::unique_ptr<TCanvas> canvasSignalLoss;
 };
 
 // ============================================================================

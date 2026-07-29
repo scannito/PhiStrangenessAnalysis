@@ -80,21 +80,21 @@ class CorrelationWPDGTask : public CorrelationTaskBase
         data.name = config.name;
         std::string baseData = basePathData + config.dirName + "/h5Phi" + config.name;
         // data.h5DataSignal = static_cast<THnSparseF*>(fileDataInput->Get((baseData + (isPureGen ? "ClosureMCGen" : "DataSignal")).c_str()));
-        data.h5DataSignal = GetOrThrow<THnSparseF>(fileDataInput.get(), (baseData + (isPureGen ? "ClosureMCGen" : "DataSignal")), "CorrelationWPDGTask");
+        data.h5DataSignal = GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + (isPureGen ? "ClosureMCGen" : "DataSignal")), "CorrelationWPDGTask");
 
         if (applyME) {
           std::string baseDataME = basePathDataME + config.dirName + "/h5Phi" + config.name;
           // data.h5DataMESignal = static_cast<THnSparseF*>(fileDataMEInput->Get((baseDataME + (isPureGen ? "ClosureMCGenME" : "DataMESignal")).c_str()));
-          data.h5DataMESignal = GetOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + (isPureGen ? "ClosureMCGenME" : "DataMESignal")), "CorrelationWPDGTask");
+          data.h5DataMESignal = GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + (isPureGen ? "ClosureMCGenME" : "DataMESignal")), "CorrelationWPDGTask");
         }
-        loadedDataCollection.push_back(data);
+        loadedDataCollection.push_back(std::move(data));
       }
     } else {
       std::cout << "[INFO] CorrelationWPDGTask: Cache ENABLED. Skipping THnSparse loading." << std::endl;
       for (const auto& config : assocParticles) {
         LoadedAssocData data;
         data.name = config.name;
-        loadedDataCollection.push_back(data);
+        loadedDataCollection.push_back(std::move(data));
       }
     }
 
@@ -131,23 +131,13 @@ class CorrelationWPDGTask : public CorrelationTaskBase
   }
 
  protected:
-  /*void CleanupExtraMembers() override
-  {
-    if (h3PhiData)
-      delete h3PhiData;
-    if (h2PhiData)
-      delete h2PhiData;
-  }*/
-
   double GetTriggerSignal(int multBin, int ptPhiBin) override
   {
     if (!isPureGen) {
       std::string phiHistName = "h1PhiData_multBin" + std::to_string(multBin) + "_ptBin" + std::to_string(ptPhiBin);
-      TH1* h1PhiData = static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1));
+      std::unique_ptr<TH1D> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
       h1PhiData->SetDirectory(0);
-      double integral = h1PhiData->Integral();
-      delete h1PhiData;
-      return integral;
+      return h1PhiData->Integral();
     }
     return h2PhiData->GetBinContent(multBin + 1, ptPhiBin + 1);
   }

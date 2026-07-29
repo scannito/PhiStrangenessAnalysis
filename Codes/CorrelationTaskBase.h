@@ -71,75 +71,71 @@ class CorrelationTaskBase : public IAnalysisTask
 
       // --- Save measured trends ---
       std::string cNameMeas = std::format("cTrend_Meas_{}", pName);
-      TCanvas* cTrendMeas = new TCanvas(cNameMeas.c_str(), "Measured Yield Trend", 800, 600);
+      std::unique_ptr<TCanvas> cTrendMeas = std::make_unique<TCanvas>(cNameMeas.c_str(), "Measured Yield Trend", 800, 600);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         particleDir->cd();
         h1MultTrends[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
         cTrendMeas->cd();
-        AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx], globalCfgs.GetMultTrendColor(yIdx));
+        AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx].get(), globalCfgs.GetMultTrendColor(yIdx));
         h1MultTrends[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
       }
       particleDir->cd();
       cTrendMeas->Write(nullptr, TObject::kOverwrite);
-      delete cTrendMeas;
 
       // --- Save extrapolated trends ---
       bool hasExtrapTrend = !h1MultTrendsExtrap.empty() && !h1MultTrendsExtrap[pIdx].empty();
       if (hasExtrapTrend) {
         std::string cNameExtrap = std::format("cTrend_Extrap_{}", pName);
-        TCanvas* cTrendExtrap = new TCanvas(cNameExtrap.c_str(), "Extrapolated Yield Trend", 800, 600);
+        std::unique_ptr<TCanvas> cTrendExtrap = std::make_unique<TCanvas>(cNameExtrap.c_str(), "Extrapolated Yield Trend", 800, 600);
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           particleDir->cd();
           h1MultTrendsExtrap[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
           cTrendExtrap->cd();
-          AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx], globalCfgs.GetMultTrendColor(yIdx));
+          AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx].get(), globalCfgs.GetMultTrendColor(yIdx));
           h1MultTrendsExtrap[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
         }
         particleDir->cd();
         cTrendExtrap->Write(nullptr, TObject::kOverwrite);
-        delete cTrendExtrap;
       }
 
       // --- Save Extrapolated/Measured ratios for this species ---
       if (hasExtrapTrend) {
         std::string canvasName = std::format("cRatio_ExtrapVsMeas_{}", pName);
-        TCanvas* cRatioExtrapMeas = new TCanvas(canvasName.c_str(), "Extrap / Measured Ratio", 800, 600);
-        cRatioExtrapMeas->cd();
+        std::unique_ptr<TCanvas> cRatioExtrapMeas = std::make_unique<TCanvas>(canvasName.c_str(), "Extrap / Measured Ratio", 800, 600);
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
-          std::string dyStr = Form("%.2f", dyLimit);
-          std::replace(dyStr.begin(), dyStr.end(), '.', '_');
+          auto [dyTitleStr, dyNameStr] = AnalysisUtils::FormatDeltaY(dyLimit);
 
-          std::string ratioName = std::format("Ratio_Extrap_Meas_{}_dy{}", pName, dyStr);
-          std::string title = Form("Extrap/Measured Contribution %s |#Delta y| < %.2f", pName.c_str(), dyLimit);
+          std::string ratioName = std::format("Ratio_Extrap_Meas_{}_dy{}", pName, dyNameStr);
+          std::string title = Form("Extrap/Measured Contribution %s |#Delta y| < %.2f; Multiplicity percentile (%%); Yield_{Extrap} / Yield_{Meas}", pName.c_str(), dyLimit);
 
-          TH1* hRatioExtrapMeas = static_cast<TH1*>(h1MultTrendsExtrap[pIdx][yIdx]->Clone(ratioName.c_str()));
+          std::unique_ptr<TH1> hRatioExtrapMeas = AnalysisUtils::MakeRatioHist(h1MultTrendsExtrap[pIdx][yIdx].get(), h1MultTrends[pIdx][yIdx].get(),
+                                                                               ratioName, title, globalCfgs.GetMultTrendColor(yIdx), 1.0, 1.0);
+
+          /*TH1* hRatioExtrapMeas = static_cast<TH1*>(h1MultTrendsExtrap[pIdx][yIdx]->Clone(ratioName.c_str()));
           hRatioExtrapMeas->SetTitle(title.c_str());
           hRatioExtrapMeas->SetDirectory(0);
-          hRatioExtrapMeas->Divide(h1MultTrendsExtrap[pIdx][yIdx], h1MultTrends[pIdx][yIdx], 1.0, 1.0);
-          hRatioExtrapMeas->GetYaxis()->SetTitle("Yield_{Extrap} / Yield_{Meas}");
+          hRatioExtrapMeas->Divide(h1MultTrendsExtrap[pIdx][yIdx], h1MultTrends[pIdx][yIdx], 1.0, 1.0);*/
 
-          AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas, globalCfgs.GetMultTrendColor(yIdx));
+          cRatioExtrapMeas->cd();
+          AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas.get(), globalCfgs.GetMultTrendColor(yIdx));
           hRatioExtrapMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
-          delete hRatioExtrapMeas;
         }
 
         particleDir->cd();
         cRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
-        delete cRatioExtrapMeas;
       }
 
       // --- Save accumulated spectra Canvases for this species ---
-      for (auto* canvas : spectraCanvases[pIdx]) {
+      for (auto& canvas : spectraCanvases[pIdx]) {
         if (canvas) {
           particleDir->cd();
           canvas->Write(nullptr, TObject::kOverwrite);
-          delete canvas;
         }
       }
     }
@@ -187,37 +183,43 @@ class CorrelationTaskBase : public IAnalysisTask
           bool doExtrapRatio = applyExtrapolation && (numHasExtrap || denHasExtrap);
 
           std::string canvasName = std::format("canvasRatio_{}_{}_MultTrend", num.name, den.name);
-          TCanvas* canvasRatio = new TCanvas(canvasName.c_str(), ("Ratio Mult Trend " + ratioCfg.label).c_str(), 800, 600);
+          std::unique_ptr<TCanvas> canvasRatio = std::make_unique<TCanvas>(canvasName.c_str(), ("Ratio Mult Trend " + ratioCfg.label).c_str(), 800, 600);
           canvasRatio->cd();
 
+          // std::unique_ptr<TLegend> legend = std::make_unique<TLegend>(0.7, 0.7, 0.9, 0.9);
           TLegend* legend = new TLegend(0.7, 0.7, 0.9, 0.9);
           legend->SetNColumns(2);
           legend->SetLineWidth(0);
 
           for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
             double dyLimit = deltaYLimits[yIdx];
-            std::string dyTitleStr = Form("%.2f", dyLimit);
-            std::string dyNameStr = dyTitleStr;
-            std::replace(dyNameStr.begin(), dyNameStr.end(), '.', '_');
+            auto [dyTitleStr, dyNameStr] = AnalysisUtils::FormatDeltaY(dyLimit);
 
             std::string ratioMeasName = std::format("Ratio_{}_{}_Meas_dy{}", num.name, den.name, dyNameStr);
-            TH1* hRatioMeas = static_cast<TH1*>(h1MultTrends[idxNum][yIdx]->Clone(ratioMeasName.c_str()));
+            std::string ratioMeasTitle = "Measured Ratio; Multiplicity percentile (%);" + ratioCfg.label;
+            std::unique_ptr<TH1> hRatioMeas = AnalysisUtils::MakeRatioHist(h1MultTrends[idxNum][yIdx].get(), h1MultTrends[idxDen][yIdx].get(),
+                                                                           ratioMeasName, ratioMeasTitle, globalCfgs.GetMultTrendColor(yIdx), numScale, denScale);
+
+            /*TH1* hRatioMeas = static_cast<TH1*>(h1MultTrends[idxNum][yIdx]->Clone(ratioMeasName.c_str()));
             hRatioMeas->SetTitle(("Ratio;Multiplicity Percentile (%);" + ratioCfg.label).c_str());
             hRatioMeas->SetDirectory(0);
-            hRatioMeas->Divide(h1MultTrends[idxNum][yIdx], h1MultTrends[idxDen][yIdx], numScale, denScale);
-            AnalysisUtils::SetHistogramStyle(hRatioMeas, globalCfgs.GetMultTrendColor(yIdx));
+            hRatioMeas->Divide(h1MultTrends[idxNum][yIdx], h1MultTrends[idxDen][yIdx], numScale, denScale);*/
+            AnalysisUtils::SetHistogramStyle(hRatioMeas.get(), globalCfgs.GetMultTrendColor(yIdx));
             hRatioMeas->SetMarkerStyle(24);
 
-            TH1* hRatioExtrap{nullptr};
+            std::unique_ptr<TH1> hRatioExtrap{nullptr};
             if (doExtrapRatio) {
-              TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[idxNum][yIdx] : h1MultTrends[idxNum][yIdx];
-              TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[idxDen][yIdx] : h1MultTrends[idxDen][yIdx];
+              TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[idxNum][yIdx].get() : h1MultTrends[idxNum][yIdx].get();
+              TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[idxDen][yIdx].get() : h1MultTrends[idxDen][yIdx].get();
 
               std::string ratioExtrapName = std::format("Ratio_{}_{}_Extrap_dy{}", num.name, den.name, dyNameStr);
-              hRatioExtrap = static_cast<TH1*>(hNumTrend->Clone(ratioExtrapName.c_str()));
+              std::string ratioExtrapTitle = "Extrapolated Ratio; Multiplicity percentile (%);" + ratioCfg.label;
+              hRatioExtrap = AnalysisUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, globalCfgs.GetMultTrendColor(yIdx), numScale, denScale);
+
+              /*hRatioExtrap = static_cast<TH1*>(hNumTrend->Clone(ratioExtrapName.c_str()));
               hRatioExtrap->SetDirectory(0);
-              hRatioExtrap->Divide(hNumTrend, hDenTrend, numScale, denScale);
-              AnalysisUtils::SetHistogramStyle(hRatioExtrap, globalCfgs.GetMultTrendColor(yIdx));
+              hRatioExtrap->Divide(hNumTrend, hDenTrend, numScale, denScale);*/
+              AnalysisUtils::SetHistogramStyle(hRatioExtrap.get(), globalCfgs.GetMultTrendColor(yIdx));
               hRatioExtrap->SetMarkerStyle(20);
             }
 
@@ -229,21 +231,21 @@ class CorrelationTaskBase : public IAnalysisTask
             }
             hRatioMeas->GetYaxis()->SetRangeUser(globalMin * 0.9, globalMax * 1.2);
 
-            hRatioMeas->Draw(yIdx == 0 ? "" : "SAME");
-            if (hRatioExtrap)
-              hRatioExtrap->Draw("SAME");
+            // hRatioMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
+            // if (hRatioExtrap)
+            // hRatioExtrap->DrawCopy("SAME");
 
-            legend->AddEntry(hRatioMeas, std::format("Meas. |#Delta y| < {}", dyTitleStr).c_str(), "p");
-            if (hRatioExtrap)
-              legend->AddEntry(hRatioExtrap, std::format("Extrap. |#Delta y| < {}", dyTitleStr).c_str(), "p");
+            TH1* cloneMeas = hRatioMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
+            legend->AddEntry(cloneMeas, std::format("Meas. |#Delta y| < {}", dyTitleStr).c_str(), "p");
+            if (hRatioExtrap) {
+              TH1* cloneExtrap = hRatioExtrap->DrawCopy("SAME");
+              legend->AddEntry(cloneExtrap, std::format("Extrap. |#Delta y| < {}", dyTitleStr).c_str(), "p");
+            }
           }
 
           legend->Draw("SAME");
           ratioDir->cd();
           canvasRatio->Write(nullptr, TObject::kOverwrite);
-
-          delete legend;
-          delete canvasRatio;
         }
       }
     } else {
@@ -265,68 +267,6 @@ class CorrelationTaskBase : public IAnalysisTask
       file->Close();
     }
 
-    // =========================================================================
-    // 4. Memory Cleanup for RAM-resident objects
-    // =========================================================================
-
-    if (hEventLoss)
-      delete hEventLoss;
-
-    // Clean up Trends
-    for (auto& particleTrends : h1MultTrends) {
-      for (auto* hTrend : particleTrends) {
-        if (hTrend)
-          delete hTrend;
-      }
-    }
-
-    if (applyExtrapolation) {
-      for (auto& particleTrends : h1MultTrendsExtrap) {
-        for (auto* hTrend : particleTrends) {
-          if (hTrend)
-            delete hTrend;
-        }
-      }
-    }
-
-    // Clean up Associated Particle accumulation histograms
-    for (auto& pIdxArr : h1PhiAssocNoPtPhi) {
-      for (auto& mIdxArr : pIdxArr) {
-        for (auto& h1 : mIdxArr) {
-          if (h1)
-            delete h1;
-        }
-      }
-    }
-
-    // Clean up Efficiency histograms
-    for (auto& [name, corr] : correctionCollection) {
-      for (auto& h1 : corr.h1Corrections) {
-        if (h1)
-          delete h1;
-      }
-      for (auto& h1 : corr.h1CorrectionsEffMultInt) {
-        if (h1)
-          delete h1;
-      }
-    }
-
-    for (auto& data : loadedDataCollection) {
-      if (data.h5DataSignal)
-        delete data.h5DataSignal;
-      // Sideband/ME-sideband are populated only by tasks that subtract background
-      // (e.g. CorrelationTask); they stay nullptr — and this is a safe no-op — for
-      // tasks that don't use them (e.g. CorrelationWPDGTask).
-      if (data.h5DataSideband)
-        delete data.h5DataSideband;
-      if (data.h5DataMESignal)
-        delete data.h5DataMESignal;
-      if (data.h5DataMESideband)
-        delete data.h5DataMESideband;
-    }
-
-    // CleanupExtraMembers(); // hook: e.g. h2TriggerSignal/BkgRatio + purityCollection, or h3PhiData
-
     std::cout << "[INFO] " << GetName() << ": DONE." << std::endl;
   }
 
@@ -339,7 +279,7 @@ class CorrelationTaskBase : public IAnalysisTask
   bool useIntegratedEfficiency{false}, useProjectionCache{false}, use2DMENormalization{false};
   bool useLegacyExtrapolation{false};
 
-  TH1* hEventLoss{nullptr};
+  std::unique_ptr<TH1> hEventLoss;
 
   std::vector<AssocParticleConfig> assocParticles;
   std::vector<LoadedAssocData> loadedDataCollection;
@@ -350,33 +290,26 @@ class CorrelationTaskBase : public IAnalysisTask
 
   std::map<std::string, bool> doExtrapolationPerParticle;
 
-  std::vector<std::vector<std::vector<TH1*>>> h1PhiAssocNoPtPhi;
+  std::vector<std::vector<std::vector<std::unique_ptr<TH1>>>> h1PhiAssocNoPtPhi;
 
   std::vector<double> deltaYLimits{1.0, 0.5, 0.1};
 
-  std::vector<std::vector<TH1*>> h1MultTrends;
-  std::vector<std::vector<TH1*>> h1MultTrendsExtrap;
+  std::vector<std::vector<std::unique_ptr<TH1>>> h1MultTrends;
+  std::vector<std::vector<std::unique_ptr<TH1>>> h1MultTrendsExtrap;
 
-  // ExtrapConfigManager* extrapConfigManager{nullptr};
   std::unique_ptr<ExtrapConfigManager> extrapConfigManager;
 
-  // TFile* fileOutputSpectra{nullptr};
-  // std::vector<TFile*> filesPhiAssocDataOutput, filesPhiAssocQAOutput;
   std::unique_ptr<TFile> fileOutputSpectra;
   std::vector<std::unique_ptr<TFile>> filesPhiAssocDataOutput;
   std::vector<std::unique_ptr<TFile>> filesPhiAssocQAOutput;
-  std::vector<std::vector<TCanvas*>> spectraCanvases;
+
+  std::vector<std::vector<std::unique_ptr<TCanvas>>> spectraCanvases;
 
   std::vector<YieldRatioConfig> requestedRatios;
 
   // -------------------------------------------------------------------------
   // Hooks for derived-class-specific behavior in Terminate()
   // -------------------------------------------------------------------------
-  // RAM cleanup for members only some derived tasks have
-  // (e.g. h2TriggerSignal/BkgRatio + purityCollection in CorrelationTask,
-  // h3PhiData/h2PhiData in CorrelationWPDGTask).
-  // virtual void CleanupExtraMembers() {}
-
   // Hook for GenerateSpectraAndTrends: returns a purity correction histogram
   // for this particle/multBin, or nullptr if none should be applied.
   // CorrelationTask overrides this; CorrelationWPDGTask leaves the default.
@@ -548,34 +481,34 @@ class CorrelationTaskBase : public IAnalysisTask
         throw std::runtime_error("[FATAL] 'event_loss' requested but directory '" + globalCfgs.binningName + "/EvLoss' not found!");
 
       if (auto hTemp = static_cast<TH1*>(evLossDir->Get("hEventLoss"))) {
-        hEventLoss = static_cast<TH1*>(hTemp->Clone("hEventLoss"));
+        hEventLoss.reset(static_cast<TH1*>(hTemp->Clone("hEventLoss")));
         hEventLoss->SetDirectory(0);
       } else
         throw std::runtime_error("[FATAL] 'event_loss' requested but 'hEventLoss' not found!");
     }
 
     // LAMBDA HELPER 1: Load the histogram and throw an error if missing
-    auto fetchHist = [&](TDirectory* dir, const std::string& name, bool apply, const std::vector<double>& targetBinning) -> TH1F* {
+    auto fetchHist = [&](TDirectory* dir, const std::string& name, bool apply, const std::vector<double>& targetBinning) -> std::unique_ptr<TH1F> {
       if (!apply)
         return nullptr;
       if (!dir)
         throw std::runtime_error("[FATAL] Missing directory containing: " + name);
 
-      auto h = static_cast<TH1F*>(dir->Get(name.c_str()));
-      if (!h)
-        throw std::runtime_error("[FATAL] Missing required histogram: " + name);
+      std::unique_ptr<TH1F> h = GetUniqueOrThrow<TH1F>(dir, name, "CorrelationTaskBase::LoadCorrections");
 
-      return AnalysisUtils::RebinToTargetBinning(h, targetBinning, "CorrelationTaskBase::LoadCorrections");
+      return AnalysisUtils::RebinToTargetBinning(std::move(h), targetBinning, "CorrelationTaskBase::LoadCorrections");
     };
 
     // LAMBDA HELPER 2: Clone and multiply (if both are needed) safely
-    auto combineHists = [](TH1F* hEff, TH1F* hLoss, const std::string& name) -> TH1F* {
+    auto combineHists = [](const TH1F* hEff, const TH1F* hLoss, const std::string& name) -> std::unique_ptr<TH1F> {
       if (!hEff && !hLoss)
         return nullptr;
-      TH1F* hRes = static_cast<TH1F*>(hEff ? hEff->Clone(name.c_str()) : hLoss->Clone(name.c_str()));
+
+      std::unique_ptr<TH1F> hRes(static_cast<TH1F*>(hEff ? hEff->Clone(name.c_str()) : hLoss->Clone(name.c_str())));
       if (hEff && hLoss)
         hRes->Multiply(hLoss);
       hRes->SetDirectory(0);
+
       return hRes;
     };
 
@@ -584,8 +517,8 @@ class CorrelationTaskBase : public IAnalysisTask
     for (const std::string& name : effParts) {
       LoadedCorrections corr;
       corr.name = name;
-      corr.h1Corrections.resize(globalCfgs.nBinMult, nullptr);
-      corr.h1CorrectionsEffMultInt.resize(globalCfgs.nBinMult, nullptr);
+      corr.h1Corrections.resize(globalCfgs.nBinMult);
+      corr.h1CorrectionsEffMultInt.resize(globalCfgs.nBinMult);
 
       std::vector<double> targetBinning;
       if (name == "Phi") {
@@ -602,21 +535,21 @@ class CorrelationTaskBase : public IAnalysisTask
       std::string sigLossHistBase = "h1" + name + "SigLoss";
 
       // Fetch integrated histograms ONLY if useIntegratedEfficiency is true
-      TH1F* hEffInt = fetchHist(accEffDir, effHistBase + "_multIntegrated", doAccEfficiency && useIntegratedEfficiency, targetBinning);
+      std::unique_ptr<TH1F> hEffInt = fetchHist(accEffDir, effHistBase + "_multIntegrated", doAccEfficiency && useIntegratedEfficiency, targetBinning);
       // Note: Signal loss is typically not integrated, but we fetch it if requested for consistency
-      // TH1F* hLossInt = fetchHist(sigLossDir, sigLossHistBase + "_multIntegrated", doSigLoss && useIntegratedEfficiency, targetBinning);
+      // std::unique_ptr<TH1F> hLossInt = fetchHist(sigLossDir, sigLossHistBase + "_multIntegrated", doSigLoss && useIntegratedEfficiency, targetBinning);
 
       for (int i = 0; i < globalCfgs.nBinMult; i++) {
         std::string iStr = std::to_string(i);
 
         // Fetch binned histograms ONLY if useIntegratedEfficiency is false
-        TH1F* hEffBin = fetchHist(accEffDir, effHistBase + "_multBin" + iStr, doAccEfficiency && !useIntegratedEfficiency, targetBinning);
+        std::unique_ptr<TH1F> hEffBin = fetchHist(accEffDir, effHistBase + "_multBin" + iStr, doAccEfficiency && !useIntegratedEfficiency, targetBinning);
         // Note: Signal loss is typically not integrated, so we fetch the binned version if signal loss correction is requested,
         // regardless of the useIntegratedEfficiency flag
-        TH1F* hLossBin = fetchHist(sigLossDir, sigLossHistBase + "_multBin" + iStr, doSigLoss, targetBinning);
+        std::unique_ptr<TH1F> hLossBin = fetchHist(sigLossDir, sigLossHistBase + "_multBin" + iStr, doSigLoss, targetBinning);
 
-        corr.h1Corrections[i] = combineHists(hEffBin, hLossBin, "h1Corrected_" + name + "_multBin" + iStr);
-        corr.h1CorrectionsEffMultInt[i] = combineHists(hEffInt, hLossBin, "h1Corrected_" + name + "_multInt" + iStr);
+        corr.h1Corrections[i] = combineHists(hEffBin.get(), hLossBin.get(), "h1Corrected_" + name + "_multBin" + iStr);
+        corr.h1CorrectionsEffMultInt[i] = combineHists(hEffInt.get(), hLossBin.get(), "h1Corrected_" + name + "_multInt" + iStr);
       }
 
       correctionCollection[name] = std::move(corr);
@@ -635,7 +568,7 @@ class CorrelationTaskBase : public IAnalysisTask
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       h1PhiAssocNoPtPhi[pIdx].resize(globalCfgs.nBinMult);
       for (int i{0}; i < globalCfgs.nBinMult; ++i) {
-        h1PhiAssocNoPtPhi[pIdx][i].resize(assocParticles[pIdx].nBinPt, nullptr);
+        h1PhiAssocNoPtPhi[pIdx][i].resize(assocParticles[pIdx].nBinPt);
       }
     }
 
@@ -653,34 +586,30 @@ class CorrelationTaskBase : public IAnalysisTask
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
-
-        // std::string dyTitleStr = std::format("{:.2f}", dyLimit);
-        std::string dyTitleStr = Form("%.2f", dyLimit);
-        std::string dyNameStr = dyTitleStr;
-        std::replace(dyNameStr.begin(), dyNameStr.end(), '.', '_');
+        auto [dyTitleStr, dyNameStr] = AnalysisUtils::FormatDeltaY(dyLimit);
 
         std::string hName = std::format("h1MultTrend_{}_dy{}", p.name, dyNameStr);
         std::string hTitle = std::format("Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
-        TH1* hTrend = new TH1F(hName.c_str(), hTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
+        std::unique_ptr<TH1F> hTrend = std::make_unique<TH1F>(hName.c_str(), hTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
         hTrend->SetDirectory(0);
-        h1MultTrends[pIdx].push_back(hTrend);
+        h1MultTrends[pIdx].push_back(std::move(hTrend));
 
         if (doExtrapForThis) {
           std::string hExtrapName = std::format("h1MultTrendExtrap_{}_dy{}", p.name, dyNameStr);
           std::string hExtrapTitle = std::format("Extrapolated Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
-          TH1* hTrendExtrap = new TH1F(hExtrapName.c_str(), hExtrapTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
+          std::unique_ptr<TH1F> hTrendExtrap = std::make_unique<TH1F>(hExtrapName.c_str(), hExtrapTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
           hTrendExtrap->SetDirectory(0);
-          h1MultTrendsExtrap[pIdx].push_back(hTrendExtrap);
+          h1MultTrendsExtrap[pIdx].push_back(std::move(hTrendExtrap));
         }
 
         std::string cSpecName = std::format("cSpectra_{}_dy{}", p.name, dyNameStr);
         std::string cSpecTitle = std::format("Spectra {} |#Delta y| < {}", p.name, dyTitleStr);
 
-        TCanvas* cSpec = new TCanvas(cSpecName.c_str(), cSpecTitle.c_str(), 800, 600);
+        std::unique_ptr<TCanvas> cSpec = std::make_unique<TCanvas>(cSpecName.c_str(), cSpecTitle.c_str(), 800, 600);
         cSpec->SetLogy();
-        spectraCanvases[pIdx].push_back(cSpec);
+        spectraCanvases[pIdx].push_back(std::move(cSpec));
       }
     }
   }
@@ -711,35 +640,32 @@ class CorrelationTaskBase : public IAnalysisTask
         {
           // std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}", hSpec->GetName(), extrapFunction);
           std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}_multBin{}", hSpec->GetName(), eCfg.model, multBin);
-          TCanvas* cDebug = new TCanvas(debugCanvasName.c_str(), "Debug Guesses", 800, 600);
+          std::unique_ptr<TCanvas> cDebug = std::make_unique<TCanvas>(debugCanvasName.c_str(), "Debug Guesses", 800, 600);
           // cDebug->SetLogy();
 
           hSpec->SetMarkerStyle(20);
           hSpec->SetMarkerColor(kBlack);
           hSpec->SetLineColor(kBlack);
-          hSpec->Draw();
+          hSpec->DrawCopy();
 
           extrapModel->SetRange(0.0, 8.0);
           extrapModel->SetLineColor(kRed);
           extrapModel->SetLineWidth(2);
-          extrapModel->Draw("SAME");
+          extrapModel->DrawCopy("SAME");
 
           targetSpectraDir->cd();
           cDebug->Write(nullptr, TObject::kOverwrite);
-          delete cDebug;
         }
 
         if (useLegacyExtrapolation) {
-          TH1* hYieldResult = YieldMean(
-            hSpec, extrapModel.get(),
-            eCfg.domainRange.first, eCfg.domainRange.second,
-            0.01, 0.1, "0QI", "../Logs/logExtrapolation.root",
-            eCfg.fitRange.first, eCfg.fitRange.second, config.name);
+          std::unique_ptr<TH1> hYieldResult(YieldMean(hSpec, extrapModel.get(),
+                                                      eCfg.domainRange.first, eCfg.domainRange.second,
+                                                      0.01, 0.1, "0QI", "../Logs/logExtrapolation.root",
+                                                      eCfg.fitRange.first, eCfg.fitRange.second, config.name));
 
           if (hYieldResult) {
             extY = hYieldResult->GetBinContent(1); // 1 = kYield
             extE = hYieldResult->GetBinContent(2); // 2 = kYieldStat
-            delete hYieldResult;
           } else {
             std::cerr << "[ERROR] YieldMean failed for " << config.name << " bin " << multBin << std::endl;
             extY = 0.0;
@@ -780,7 +706,7 @@ class CorrelationTaskBase : public IAnalysisTask
         }
 
         std::string extName = std::string(hSpec->GetName()) + "_extended";
-        TH1D* hSpecExt = new TH1D(extName.c_str(), extName.c_str(), extBinning.size() - 1, extBinning.data());
+        std::unique_ptr<TH1> hSpecExt = std::make_unique<TH1D>(extName.c_str(), extName.c_str(), extBinning.size() - 1, extBinning.data());
         hSpecExt->SetDirectory(0);
 
         // Copy measured contents (shifted by 1 bin to the right)
@@ -793,26 +719,27 @@ class CorrelationTaskBase : public IAnalysisTask
         hSpecExt->SetBinContent(1, 0.0);
         hSpecExt->SetBinError(1, 0.0);
 
-        AnalysisUtils::SetHistogramStyle(hSpecExt, globalCfgs.GetSpectraColor(multBin));
+        AnalysisUtils::SetHistogramStyle(hSpecExt.get(), globalCfgs.GetSpectraColor(multBin));
         hSpecExt->GetListOfFunctions()->Add(extrapModel->Clone());
 
         targetSpectraDir->cd();
         hSpecExt->Write(nullptr, TObject::kOverwrite);
-        delete hSpecExt;
       };
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
 
-        // std::string dyTitleStr = std::format("{:.2f}", dyLimit);
-        std::string dyTitleStr = Form("%.2f", dyLimit);
-        std::string dyNameStr = dyTitleStr;
-        std::replace(dyNameStr.begin(), dyNameStr.end(), '.', '_');
+        auto [dyTitleStr, dyNameStr] = AnalysisUtils::FormatDeltaY(dyLimit);
 
         std::string spectraName = std::format("h1SpectrumPhi{}_dy{}_multBin{}", config.name, dyNameStr, multBin);
 
+        std::vector<TH1*> views;
+        views.reserve(h1PhiAssocNoPtPhi[pIdx][multBin].size());
+        for (const auto& h : h1PhiAssocNoPtPhi[pIdx][multBin])
+          views.push_back(h.get());
+
         // Construct the 1D spectrum from the accumulated Pt bins
-        TH1* h1Spectrum = AnalysisUtils::constructSpectrum(h1PhiAssocNoPtPhi[pIdx][multBin], config.binning, spectraName, dyLimit);
+        std::unique_ptr<TH1> h1Spectrum = AnalysisUtils::ConstructSpectrum(views, config.binning, spectraName, dyLimit);
 
         double effectiveTriggers = totalTriggerSignalPerMult;
 
@@ -834,7 +761,7 @@ class CorrelationTaskBase : public IAnalysisTask
           h1Spectrum->Multiply(hPurity);
         }
 
-        AnalysisUtils::SetHistogramStyle(h1Spectrum, globalCfgs.GetSpectraColor(multBin));
+        AnalysisUtils::SetHistogramStyle(h1Spectrum.get(), globalCfgs.GetSpectraColor(multBin));
 
         // Draw and Write (Only draw the nominal Delta Y limit on the summary canvas)
         spectraCanvases[pIdx][yIdx]->cd();
@@ -843,16 +770,14 @@ class CorrelationTaskBase : public IAnalysisTask
         targetSpectraDir->cd();
         h1Spectrum->Write(nullptr, TObject::kOverwrite);
 
-        AnalysisUtils::constructMultTrend(h1MultTrends[pIdx][yIdx], h1Spectrum, multBin, false);
+        AnalysisUtils::ConstructMultTrend(h1MultTrends[pIdx][yIdx].get(), h1Spectrum.get(), multBin, false);
 
         // Extrapolate and Fill Trend
         if (doExtrapForThis) {
           double extY = 0.0, extE = 0.0;
-          extrapolateSpectrum(h1Spectrum, extY, extE);
-          AnalysisUtils::constructMultTrend(h1MultTrendsExtrap[pIdx][yIdx], h1Spectrum, multBin, true, extY, extE);
+          extrapolateSpectrum(h1Spectrum.get(), extY, extE);
+          AnalysisUtils::ConstructMultTrend(h1MultTrendsExtrap[pIdx][yIdx].get(), h1Spectrum.get(), multBin, true, extY, extE);
         }
-
-        delete h1Spectrum;
       }
     }
   }
@@ -869,9 +794,8 @@ class CorrelationTaskBase : public IAnalysisTask
     std::cout << "[INFO] " << GetName() << ": RUNNING CORRELATIONS (Legacy)..." << std::endl;
     CorrelationCalculator corrCalculator(applyME, useProjectionCache, false, false);
 
-    using EffArray = std::vector<TH1F*>;
-    const EffArray* phiCorrs{nullptr};
-    std::vector<const EffArray*> assocCorrs(assocParticles.size(), nullptr);
+    const std::vector<std::unique_ptr<TH1F>>* phiCorrs{nullptr};
+    std::vector<const std::vector<std::unique_ptr<TH1F>>*> assocCorrs(assocParticles.size(), nullptr);
 
     if (applyEfficiency && !correctionCollection.empty()) {
       auto itPhi = correctionCollection.find("Phi");
@@ -892,7 +816,7 @@ class CorrelationTaskBase : public IAnalysisTask
     for (int i = 0; i < globalCfgs.nBinMult; i++) {
       AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
       double totalTriggerSignalPerMult = 0.0;
-      TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i] : nullptr;
+      TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
       for (int j = 0; j < nBinPtPhi; j++) {
         AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
@@ -905,7 +829,7 @@ class CorrelationTaskBase : public IAnalysisTask
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
           const auto& data = loadedDataCollection[pIdx];
-          TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i] : nullptr;
+          TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i].get() : nullptr;
 
           TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
 
@@ -919,17 +843,15 @@ class CorrelationTaskBase : public IAnalysisTask
             std::string histNameBase = "h1Phi" + config.name + "Data";
             std::string suffix = "_multBin" + std::to_string(i) + "_ptPhiBin" + std::to_string(j) + "_pt" + config.name + "Bin" + std::to_string(k);
 
-            TH1* h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
-              data, axesToCut, totalEff, triggerBkgRatio, histNameBase + suffix, targetDir, nullptr, projectionAxis);
+            std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, axesToCut, totalEff, triggerBkgRatio, histNameBase + suffix, targetDir, nullptr, projectionAxis);
 
             if (j == 0) {
               std::string accumName = "h1Phi" + config.name + "DataSignal_multBin" + std::to_string(i) + "_pt" + config.name + "Bin" + std::to_string(k);
-              h1PhiAssocNoPtPhi[pIdx][i][k] = static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str()));
+              h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
               h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
             } else {
-              h1PhiAssocNoPtPhi[pIdx][i][k]->Add(h1FinalSignal);
+              h1PhiAssocNoPtPhi[pIdx][i][k]->Add(h1FinalSignal.get());
             }
-            delete h1FinalSignal;
           }
         }
       }

@@ -35,18 +35,6 @@ class PurityTask : public IAnalysisTask
     // 1. Open input file, extract 3D histograms to RAM, and immediately close it
     std::string inputFile = RequireString(taskConfig, "input_data_file", "PurityTask");
     std::unique_ptr<TFile> fileInput = OpenOrThrow(inputFile, "READ", "PurityTask");
-    /*if (!taskConfig.HasMember("input_data_file")) {
-      throw std::runtime_error("[FATAL] PurityTask: 'input_data_file' missing in JSON!");
-    }
-    if (!taskConfig.HasMember("purity_particles") || !taskConfig["purity_particles"].IsArray()) {
-      throw std::runtime_error("[FATAL] PurityTask: 'purity_particles' array missing in JSON!");
-    }
-
-    std::string inputFile = taskConfig["input_data_file"].GetString();
-    TFile* fileInput = new TFile(inputFile.c_str(), "READ");
-    if (!fileInput || fileInput->IsZombie()) {
-      throw std::runtime_error("[FATAL] PurityTask: Cannot open input file!");
-    }*/
 
     // 2. Open Output files
     std::string outputDir = taskConfig["output_dir"].GetString();
@@ -65,25 +53,19 @@ class PurityTask : public IAnalysisTask
       std::string outputFileSuffix = particle["output_file_suffix"].GetString();
 
       std::unique_ptr<TH3F> h3Source = GetUniqueOrThrow<TH3F>(fileInput.get(), histName, "PurityTask");
-      /*TH3F* h3Source = static_cast<TH3F*>(fileInput->Get(histName.c_str()));
-      if (!h3Source) {
-        throw std::runtime_error("[FATAL] PurityTask: Missing histogram '" + histName + "' for particle '" + name + "'!");
-      }
-      h3Source->SetDirectory(0);*/
 
       std::string outputFileName = outputDir + prefix + outputFileSuffix;
 
       // Reuse an already-open file if another particle points to the same suffix
-      std::shared_ptr<TFile> outputFile{nullptr};
+      TFile* outputFilePtr{nullptr};
+
       auto it = outputFiles.find(outputFileName);
       if (it != outputFiles.end()) {
-        outputFile = it->second;
+        outputFilePtr = it->second.get();
       } else {
-        outputFile = OpenOrThrow(outputFileName, "RECREATE", "PurityTask");
-        /*if (!outputFile || outputFile->IsZombie()) {
-          throw std::runtime_error("[FATAL] PurityTask: Cannot create output file '" + outputFileName + "'!");
-        }*/
-        outputFiles[outputFileName] = outputFile;
+        std::unique_ptr<TFile> outputFile = OpenOrThrow(outputFileName, "RECREATE", "PurityTask");
+        outputFiles[outputFileName] = std::move(outputFile);
+        outputFilePtr = outputFiles[outputFileName].get();
       }
 
       std::string canvasName = "canvas" + purityKey + "Purity";
@@ -91,24 +73,16 @@ class PurityTask : public IAnalysisTask
       std::unique_ptr<TCanvas> canvas = std::make_unique<TCanvas>(canvasName.c_str(), canvasTitle.c_str(), 800, 600);
 
       const auto& binning = globalCfgs.GetPtBinning(name);
-      particleTasks.emplace_back(purityKey, std::move(h3Source), static_cast<int>(binning.size()) - 1, binning, outputFile.get(), std::move(canvas));
+      particleTasks.emplace_back(purityKey, std::move(h3Source), static_cast<int>(binning.size()) - 1, binning, outputFilePtr, std::move(canvas));
     }
 
-    // fileInput->Close();
-    // delete fileInput;
-
     // 3. Read task-specific settings from the JSON node (DOM)
-    /*if (!taskConfig.HasMember("fit_config_file")) {
-      throw std::runtime_error("[FATAL] PurityTask: 'fit_config_file' missing in JSON!");
-    }*/
-
     // Keep the fit configuration file completely separated for physics tuning
     std::string fitCfgPath = RequireString(taskConfig, "fit_config_file", "PurityTask");
     // std::string fitCfgPath = taskConfig["fit_config_file"].GetString();
 
     // 4. Initialize specific mathematical tools
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
-    // fitConfigManager = new FitConfigManager(fitCfgPath);
   }
 
   void Run() override
@@ -127,19 +101,19 @@ class PurityTask : public IAnalysisTask
         TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(task.outputFile, fitPath, false);
 
         std::string hName = "h1" + task.name + "Purity_multBin" + std::to_string(i);
-        TH1* h1PuritySpectrum = new TH1F(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)", task.nBinPt, task.binning.data());
+        std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)", task.nBinPt, task.binning.data());
         h1PuritySpectrum->SetDirectory(0);
 
         for (int k{0}; k < task.nBinPt; k++) {
           std::string histName = "h1" + task.name + "_multBin" + std::to_string(i) + "_ptBin" + std::to_string(k);
 
           // Project 1D slice
-          TH1* h1Data = static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), i + 1, i + 1, k + 1, k + 1));
+          std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), i + 1, i + 1, k + 1, k + 1)));
           h1Data->SetDirectory(0);
 
           // Run Fitter using JSON-based configuration
           FitConfig cfg = fitConfigManager->GetConfig(task.name, i, k);
-          DynamicRooFitter fitter(h1Data, cfg);
+          DynamicRooFitter fitter(h1Data.get(), cfg);
 
           fitter.DoFit();
 
@@ -150,13 +124,10 @@ class PurityTask : public IAnalysisTask
           // Save diagnostic plot directly to the task's output file
           std::string cName = "cFit_" + task.name + "_m" + std::to_string(i) + "_p" + std::to_string(k);
           fitter.SaveFitCanvas(fitDir, cName);
-
-          // Cleanup temporary 1D histogram
-          delete h1Data;
         }
 
         // Style and draw on the summary canvas
-        AnalysisUtils::SetHistogramStyle(h1PuritySpectrum, globalCfgs.GetSpectraColor(i));
+        AnalysisUtils::SetHistogramStyle(h1PuritySpectrum.get(), globalCfgs.GetSpectraColor(i));
         task.canvas->cd();
         h1PuritySpectrum->DrawCopy(i == 0 ? "" : "SAME");
 
@@ -164,9 +135,6 @@ class PurityTask : public IAnalysisTask
           summaryDir->cd();
           h1PuritySpectrum->Write(nullptr, TObject::kOverwrite);
         }
-
-        // Cleanup temporary spectrum
-        delete h1PuritySpectrum;
       }
     }
   }
@@ -186,7 +154,7 @@ class PurityTask : public IAnalysisTask
       }
     }
 
-    // 2. Close output files (one Close/delete per distinct file, see note below)
+    // 2. Close output files
     for (auto& [name, file] : outputFiles) {
       if (file) {
         file->Close();
@@ -199,8 +167,9 @@ class PurityTask : public IAnalysisTask
  private:
   AnalysisSettings globalCfgs;
 
-  std::map<std::string, std::shared_ptr<TFile>> outputFiles;
-
+  // outputFiles must be declared before particleTasks to ensure proper destruction order:
+  // particleTasks holds raw pointers to TFile objects managed by outputFiles, so outputFiles must outlive particleTasks.
+  std::map<std::string, std::unique_ptr<TFile>> outputFiles;
   std::vector<ParticleTask> particleTasks;
 
   std::unique_ptr<FitConfigManager> fitConfigManager{nullptr};
