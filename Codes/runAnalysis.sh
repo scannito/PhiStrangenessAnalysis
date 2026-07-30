@@ -1,5 +1,9 @@
 #!/bin/bash
 
+# Without pipefail the exit status of a pipeline is that of its LAST command,
+# so piping ROOT into tee would always report success, even on a crash.
+set -o pipefail
+
 # 1. Check if at least one argument is provided
 if [ "$#" -eq 0 ]; then
     echo "Error: No configuration keyword provided."
@@ -56,6 +60,7 @@ fi
 # This removes the path and the .json extension
 CONFIG_NAME=$(basename "$JSON_PATH" .json)
 LOG_FILE="../Logs/log_output_${CONFIG_NAME}.log"
+mkdir -p "$(dirname "$LOG_FILE")"
 
 echo "=========================================================="
 echo "Starting ROOT analysis..."
@@ -71,6 +76,13 @@ echo "=========================================================="
 
 # 5. Execute the ROOT macro and pipe both stdout and stderr to tee
 root -l -b -q "PhiStrangenessCorrelation.C(\"$JSON_PATH\", \"$JSON_PATH_BASE\")" 2>&1 | tee "$LOG_FILE"
+STATUS=${PIPESTATUS[0]}
 
 echo "=========================================================="
-echo "Analysis completed. Log saved in: $LOG_FILE"
+if [ "$STATUS" -ne 0 ]; then
+    echo "Analysis FAILED (exit code $STATUS). Log saved in: $LOG_FILE"
+else
+    echo "Analysis completed. Log saved in: $LOG_FILE"
+fi
+
+exit "$STATUS"

@@ -186,8 +186,8 @@ class CorrelationTaskBase : public IAnalysisTask
           std::unique_ptr<TCanvas> canvasRatio = std::make_unique<TCanvas>(canvasName.c_str(), ("Ratio Mult Trend " + ratioCfg.label).c_str(), 800, 600);
           canvasRatio->cd();
 
-          // std::unique_ptr<TLegend> legend = std::make_unique<TLegend>(0.7, 0.7, 0.9, 0.9);
           TLegend* legend = new TLegend(0.7, 0.7, 0.9, 0.9);
+          legend->SetBit(kCanDelete);
           legend->SetNColumns(2);
           legend->SetLineWidth(0);
 
