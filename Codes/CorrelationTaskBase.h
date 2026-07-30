@@ -701,6 +701,8 @@ class CorrelationTaskBase : public IAnalysisTask
 
     targetDir->cd();
     hSpecExt->Write(nullptr, TObject::kOverwrite);
+
+    return res;
   }
 
   // -------------------------------------------------------------------------

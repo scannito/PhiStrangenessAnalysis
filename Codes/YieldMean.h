@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AnalysisDataStructures.h'
+#include "AnalysisDataStructures.h"
 
 #include "TCanvas.h"
 #include "TF1.h"
@@ -27,6 +27,8 @@ enum EValue_t {
   kMeanStat,
   kExtra
 };
+
+TH1* YieldMean(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10., Double_t loprecision = 0.01, Double_t hiprecision = 0.1, Option_t* opt = "0q", TString logfilename = "logExtrapolation.root", Double_t minfit = 0.0, Double_t maxfit = 10.0, TString part = "");
 
 ExtrapolationResult CalculateYieldAndMeanLegacy(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10., Double_t loprecision = 0.01, Double_t hiprecision = 0.1, Option_t* opt = "0q", TString logfilename = "logExtrapolation.root", Double_t minfit = 0.0, Double_t maxfit = 10.0, TString part = "")
 {
