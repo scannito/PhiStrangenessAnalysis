@@ -5,6 +5,7 @@
 #include "RootIOHelpers.h"
 
 #include "TDirectory.h"
+#include "TF1.h"
 #include "TH1.h"
 #include "TH2.h"
 #include "THnSparse.h"
@@ -12,6 +13,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <stdexcept>
 #include <string>
 #include <utility>
 #include <vector>

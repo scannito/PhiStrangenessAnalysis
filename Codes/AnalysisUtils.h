@@ -2,13 +2,20 @@
 
 #include "AnalysisDataStructures.h"
 
+#include "TDirectory.h"
 #include "TH1.h"
 #include "TH2.h"
 #include "TH3.h"
 #include "THnSparse.h"
+#include "TString.h"
 
+#include <algorithm>
+#include <cmath>
+#include <iostream>
+#include <memory>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -100,7 +107,7 @@ inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
 // -----------------------------------------------------------------------------
 
 // Construct pT spectrum from a vector of histograms
-std::unique_ptr<TH1> ConstructSpectrum(const std::vector<TH1*>& hContainer,
+inline std::unique_ptr<TH1> ConstructSpectrum(const std::vector<TH1*>& hContainer,
                                        const std::vector<double>& binsVec,
                                        const std::string& histName,
                                        double absLimToIntegrate)
@@ -125,7 +132,7 @@ std::unique_ptr<TH1> ConstructSpectrum(const std::vector<TH1*>& hContainer,
 }
 
 // Construct multiplicity trends from pT spectra
-void ConstructMultTrend(TH1* hMultTrend,
+inline void ConstructMultTrend(TH1* hMultTrend,
                         std::variant<TH1*, ExtrapolationResult> source,
                         int i)
 {

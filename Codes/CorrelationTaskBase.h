@@ -23,6 +23,7 @@
 #include "TH2D.h"
 #include "THnSparse.h"
 #include "TLegend.h"
+#include "TString.h"
 
 #include <algorithm>
 #include <chrono>

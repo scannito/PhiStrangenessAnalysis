@@ -2,10 +2,13 @@
 
 #include "TDirectory.h"
 #include "TFile.h"
+#include "TH1.h"
 
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 
 struct TFileCloser {
   void operator()(TFile* f) const

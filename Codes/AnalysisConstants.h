@@ -3,6 +3,9 @@
 #include "Rtypes.h" // Required for ROOT color definitions like kOrange
 
 #include <array>
+#include <map>
+#include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 

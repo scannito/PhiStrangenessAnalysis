@@ -1,10 +1,13 @@
 #pragma once
 
+#include "AnalysisDataStructures.h"
+
 #include "TF1.h"
 #include "TH1.h"
 #include "TMath.h"
 #include "TROOT.h"
 #include "TRandom3.h"
+#include "TString.h"
 #include "TVirtualFitter.h"
 
 #include <iostream>
