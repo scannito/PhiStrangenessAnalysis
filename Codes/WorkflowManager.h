@@ -108,6 +108,12 @@ class WorkflowManager
       task->Run();
       task->Terminate();
 
+      // Destroy the task as soon as it is done. Everything it owns (output
+      // files, canvases, loaded histograms) is released here instead of
+      // surviving until the end of the workflow. Tasks communicate through
+      // ROOT files, never in memory, so nothing downstream needs this instance.
+      task.reset();
+
       std::cout << ">>> [TASK COMPLETED] " << configBlockName << " <<<" << std::endl;
       std::cout << "------------------------------------------------" << std::endl;
     }

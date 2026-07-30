@@ -140,7 +140,6 @@ class CorrelationTaskBase : public IAnalysisTask
         }
       }
     }
-    spectraCanvases.clear();
 
     // =========================================================================
     // 2. Write Yield Ratios across species (into a dedicated "Ratios" directory)
