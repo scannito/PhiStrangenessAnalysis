@@ -1,12 +1,44 @@
 {
     "global_binning": {
-        "binning_name": "MoreFullDifferential"
+        "binning_name": "MoreFullDifferential",
+        "pt_binning": {
+            "K0S": [
+                "0",
+                "0.3",
+                "0.5",
+                "0.8",
+                "1.2",
+                "1.6",
+                "2",
+                "2.4",
+                "3",
+                "4.2",
+                "6.5"
+            ],
+            "Xi": [
+                "0.8",
+                "1.2",
+                "1.6",
+                "2",
+                "2.4",
+                "3",
+                "4.2",
+                "6.5"
+            ]
+        }
     },
     "workflow": {
         "active_tasks": [
+            "phi_fit_task_offline_efficiency_2024",
+            "phi_fit_task_online_efficiency_2024",
+            "correlation_task_offline_efficiency_2024",
+            "correlation_task_online_efficiency_2024",
+            "correlation_task_online_efficiency_no_phi_2024",
             "phi_fit_task_offline_efficiency_2026",
             "phi_fit_task_online_efficiency_2026",
-            "correlation_task_online_efficiency_2026"
+            "correlation_task_offline_efficiency_2026",
+            "correlation_task_online_efficiency_2026",
+            "correlation_task_online_efficiency_no_phi_2026"
         ]
     },
     "phi_fit_task_offline_efficiency_2024": {

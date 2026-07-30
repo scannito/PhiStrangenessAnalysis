@@ -247,7 +247,72 @@ inline std::unique_ptr<TH1> MakeRatioHist(TH1* num, TH1* den, const std::string&
 // Rebinng utilities
 // -----------------------------------------------------------------------------
 
+struct RebinEdgeMismatch {
+  double targetEdge{0.0};
+  int sourceBin{-1};
+  double sourceBinLowEdge{0.0};
+  double sourceBinUpEdge{0.0};
+  bool outOfSourceRange{false};
+};
+
+inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, const std::vector<double>& targetBins, double epsilon = 1e-9)
+{
+  std::vector<RebinEdgeMismatch> mismatches;
+  const double xMin = hSource->GetXaxis()->GetXmin();
+  const double xMax = hSource->GetXaxis()->GetXmax();
+
+  for (double edge : targetBins) {
+    // Out of range check
+    if (edge < xMin - epsilon || edge > xMax + epsilon) {
+      mismatches.push_back({edge, -1, xMin, xMax, true});
+      continue;
+    }
+
+    int bin = hSource->GetXaxis()->FindFixBin(edge);
+    bin = std::clamp(bin, 1, hSource->GetNbinsX()); // extra defense for edge cases, though FindFixBin should handle this
+
+    double lowEdge = hSource->GetXaxis()->GetBinLowEdge(bin);
+    double upEdge = hSource->GetXaxis()->GetBinLowEdge(bin + 1);
+    if (std::abs(lowEdge - edge) > epsilon && std::abs(upEdge - edge) > epsilon)
+      mismatches.push_back({edge, bin, lowEdge, upEdge, false});
+  }
+  return mismatches;
+}
+
 inline bool IsRebinCompatible(const TH1* hSource, const std::vector<double>& targetBins, double epsilon = 1e-9)
+{
+  return FindRebinMismatches(hSource, targetBins, epsilon).empty();
+}
+
+template <typename THType>
+inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, const std::vector<double>& targetBins, const std::string& errCtx)
+{
+  std::vector<RebinEdgeMismatch> mismatches = FindRebinMismatches(h.get(), targetBins);
+
+  if (!mismatches.empty()) {
+    std::string msg = "[FATAL] " + errCtx + ": Histogram '" + std::string(h->GetName()) +
+                      "' binning is not compatible with the target binning (" +
+                      std::to_string(mismatches.size()) + " edge(s) misaligned):\n";
+    for (const auto& m : mismatches) {
+      if (m.outOfSourceRange) {
+        msg += "  - target edge " + std::to_string(m.targetEdge) +
+               " is outside the source histogram's axis range [" +
+               std::to_string(m.sourceBinLowEdge) + ", " + std::to_string(m.sourceBinUpEdge) + "]\n";
+      } else {
+        msg += "  - target edge " + std::to_string(m.targetEdge) +
+               " falls inside source bin " + std::to_string(m.sourceBin) + " [" +
+               std::to_string(m.sourceBinLowEdge) + ", " + std::to_string(m.sourceBinUpEdge) +
+               "] instead of aligning with a bin boundary\n";
+      }
+    }
+    throw std::runtime_error(msg);
+  }
+
+  int nTargetBins = static_cast<int>(targetBins.size()) - 1;
+  return std::unique_ptr<THType>(static_cast<THType*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBins.data())));
+}
+
+/*inline bool IsRebinCompatible(const TH1* hSource, const std::vector<double>& targetBins, double epsilon = 1e-9)
 {
   for (double edge : targetBins) {
     int bin = hSource->GetXaxis()->FindFixBin(edge);
@@ -269,7 +334,7 @@ inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, c
 
   int nTargetBins = static_cast<int>(targetBins.size()) - 1;
   return std::unique_ptr<THType>(static_cast<THType*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBins.data())));
-}
+}*/
 
 // -----------------------------------------------------------------------------
 // String formattig utility

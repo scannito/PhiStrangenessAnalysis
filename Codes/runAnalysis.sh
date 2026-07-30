@@ -11,12 +11,13 @@ fi
 KEYWORD=$1
 COLL_SYS=$2
 JSON_PATH=""
-JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
+JSON_PATH_BASE=""
 
 # 2. Map the keyword to the specific JSON configuration file
 case "$KEYWORD" in
     "data")
         JSON_PATH="../JSONConfigs/globalConfigData${COLL_SYS}.json"
+        JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
         ;;
     "purity")
         JSON_PATH="../JSONConfigs/globalConfigPurity${COLL_SYS}.json"

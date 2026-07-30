@@ -158,7 +158,7 @@
         "base_path_data": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "base_path_me": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "apply_efficiency": false,
-        "use_projection_cache": true,
+        "use_projection_cache": false,
         "use_2d_me_normalization": false,
         "do_more_qa": false
     },
