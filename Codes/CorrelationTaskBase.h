@@ -615,6 +615,95 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
+  // Extrapolation function
+  // -------------------------------------------------------------------------
+  ExtrapolationResult ExtrapolateSpectrum(TH1* hSpec, const AssocParticleConfig& config, int multBin, TDirectory* targetDir)
+  {
+    // 1. Fetch configuration for THIS particle and THIS multBin from JSON
+    ExtrapConfig eCfg = extrapConfigManager->GetConfig(config.name, multBin);
+    eCfg.mass = config.mass; // Inject physical mass
+
+    // 2. Generate configured TF1 model
+    std::unique_ptr<TF1> extrapModel = ExtrapolationModelFactory::CreateModel(eCfg, hSpec->GetMaximum());
+
+    /*{
+      // std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}", hSpec->GetName(), extrapFunction);
+      std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}_multBin{}", hSpec->GetName(), eCfg.model, multBin);
+      std::unique_ptr<TCanvas> cDebug = std::make_unique<TCanvas>(debugCanvasName.c_str(), "Debug Guesses", 800, 600);
+      // cDebug->SetLogy();
+
+      hSpec->SetMarkerStyle(20);
+      hSpec->SetMarkerColor(kBlack);
+      hSpec->SetLineColor(kBlack);
+      hSpec->DrawCopy();
+
+      extrapModel->SetRange(0.0, 8.0);
+      extrapModel->SetLineColor(kRed);
+      extrapModel->SetLineWidth(2);
+      extrapModel->DrawCopy("SAME");
+
+      targetDir->cd();
+      cDebug->Write(nullptr, TObject::kOverwrite);
+    }*/
+
+    // 3. Perform the extrapolation using either legacy or new method
+    ExtrapolationResult res;
+    if (useLegacyExtrapolation) {
+      res = CalculateYieldAndMeanLegacy(hSpec, extrapModel.get(),
+                                        eCfg.domainRange.first, eCfg.domainRange.second,
+                                        0.01, 0.1, "0QI", "../Logs/logExtrapolation.root",
+                                        eCfg.fitRange.first, eCfg.fitRange.second, config.name);
+    } else {
+      SpectrumExtrapolator extrapolator(hSpec, extrapModel.get());
+      extrapolator.SetFitRange(eCfg.fitRange.first, eCfg.fitRange.second);
+
+      res = extrapolator.CalculateYieldAndMean();
+    }
+
+    // 4. Debug output
+    {
+      double rawIntegral = hSpec->Integral(1, hSpec->GetNbinsX(), "width");
+      double firstDataPt = config.binning[0];
+      double fitLowPtIntegral = 0.0;
+      if (firstDataPt > 0.0) {
+        fitLowPtIntegral = extrapModel->Integral(0.0, firstDataPt);
+      }
+
+      std::cout << "\n[DEBUG EXTRAP] " << std::endl;
+      std::cout << "  -> Raw Data Integral (ROOT): " << rawIntegral << std::endl;
+      std::cout << "  -> Total Extrapolated (extY): " << res.yield << std::endl;
+      std::cout << "  -> Fit Integral [0.0 - " << firstDataPt << "]: " << fitLowPtIntegral << std::endl;
+    }
+
+    // 5. Create extended binning dynamically
+    std::vector<double> extBinning;
+    extBinning.push_back(0.0); // Lower limit for extrapolation
+    for (double edge : config.binning) {
+      extBinning.push_back(edge);
+    }
+
+    std::string extName = std::string(hSpec->GetName()) + "_extended";
+    std::unique_ptr<TH1> hSpecExt = std::make_unique<TH1D>(extName.c_str(), extName.c_str(), extBinning.size() - 1, extBinning.data());
+    hSpecExt->SetDirectory(0);
+
+    // 6. Copy measured contents (shifted by 1 bin to the right)
+    for (int b = 1; b <= hSpec->GetNbinsX(); ++b) {
+      hSpecExt->SetBinContent(b + 1, hSpec->GetBinContent(b));
+      hSpecExt->SetBinError(b + 1, hSpec->GetBinError(b));
+    }
+
+    // Leave the first bin empty (visual placeholder for the fit curve)
+    hSpecExt->SetBinContent(1, 0.0);
+    hSpecExt->SetBinError(1, 0.0);
+
+    AnalysisUtils::SetHistogramStyle(hSpecExt.get(), globalCfgs.GetSpectraColor(multBin));
+    hSpecExt->GetListOfFunctions()->Add(extrapModel->Clone());
+
+    targetDir->cd();
+    hSpecExt->Write(nullptr, TObject::kOverwrite);
+  }
+
+  // -------------------------------------------------------------------------
   // Shared spectra construction, normalization, and extrapolation.
   // -------------------------------------------------------------------------
   void GenerateSpectraAndTrends(int multBin, double totalTriggerSignalPerMult)
@@ -625,106 +714,6 @@ class CorrelationTaskBase : public IAnalysisTask
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];
       bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.count(config.name) && doExtrapolationPerParticle.at(config.name);
-
-      // Lambda function to extrapolate spectra
-      auto extrapolateSpectrum = [&](TH1* hSpec, double& extY, double& extE) {
-        double maxVal = hSpec->GetMaximum();
-
-        // 1. Fetch configuration for THIS particle and THIS multBin from JSON
-        ExtrapConfig eCfg = extrapConfigManager->GetConfig(config.name, multBin);
-        eCfg.mass = config.mass; // Inject physical mass
-
-        // 2. Generate configured TF1 model
-        std::unique_ptr<TF1> extrapModel = ExtrapolationModelFactory::CreateModel(eCfg, maxVal);
-
-        {
-          // std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}", hSpec->GetName(), extrapFunction);
-          std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}_multBin{}", hSpec->GetName(), eCfg.model, multBin);
-          std::unique_ptr<TCanvas> cDebug = std::make_unique<TCanvas>(debugCanvasName.c_str(), "Debug Guesses", 800, 600);
-          // cDebug->SetLogy();
-
-          hSpec->SetMarkerStyle(20);
-          hSpec->SetMarkerColor(kBlack);
-          hSpec->SetLineColor(kBlack);
-          hSpec->DrawCopy();
-
-          extrapModel->SetRange(0.0, 8.0);
-          extrapModel->SetLineColor(kRed);
-          extrapModel->SetLineWidth(2);
-          extrapModel->DrawCopy("SAME");
-
-          targetSpectraDir->cd();
-          cDebug->Write(nullptr, TObject::kOverwrite);
-        }
-
-        if (useLegacyExtrapolation) {
-          std::unique_ptr<TH1> hYieldResult(YieldMean(hSpec, extrapModel.get(),
-                                                      eCfg.domainRange.first, eCfg.domainRange.second,
-                                                      0.01, 0.1, "0QI", "../Logs/logExtrapolation.root",
-                                                      eCfg.fitRange.first, eCfg.fitRange.second, config.name));
-
-          if (hYieldResult) {
-            extY = hYieldResult->GetBinContent(1); // 1 = kYield
-            extE = hYieldResult->GetBinContent(2); // 2 = kYieldStat
-          } else {
-            std::cerr << "[ERROR] YieldMean failed for " << config.name << " bin " << multBin << std::endl;
-            extY = 0.0;
-            extE = 0.0;
-          }
-        } else {
-          SpectrumExtrapolator extrapolator(hSpec, extrapModel.get());
-
-          extrapolator.SetFitRange(eCfg.fitRange.first, eCfg.fitRange.second);
-
-          auto res = extrapolator.CalculateYieldAndMean();
-          extY = res.yield;
-          extE = res.yieldStatErr;
-        }
-
-        {
-          // --- DEBUG ---
-          double rawIntegral = hSpec->Integral(1, hSpec->GetNbinsX(), "width");
-
-          double firstDataPt = config.binning[0];
-          double fitLowPtIntegral = 0.0;
-          if (firstDataPt > 0.0) {
-            fitLowPtIntegral = extrapModel->Integral(0.0, firstDataPt);
-          }
-
-          std::cout << "\n[DEBUG EXTRAP] " << std::endl;
-          std::cout << "  -> Raw Data Integral (ROOT): " << rawIntegral << std::endl;
-          std::cout << "  -> Total Extrapolated (extY): " << extY << std::endl;
-          std::cout << "  -> Fit Integral [0.0 - " << firstDataPt << "]: " << fitLowPtIntegral << std::endl;
-          // ---------------------
-        }
-
-        // Create extended binning dynamically
-        std::vector<double> extBinning;
-        extBinning.push_back(0.0); // Lower limit for extrapolation
-        for (double edge : config.binning) {
-          extBinning.push_back(edge);
-        }
-
-        std::string extName = std::string(hSpec->GetName()) + "_extended";
-        std::unique_ptr<TH1> hSpecExt = std::make_unique<TH1D>(extName.c_str(), extName.c_str(), extBinning.size() - 1, extBinning.data());
-        hSpecExt->SetDirectory(0);
-
-        // Copy measured contents (shifted by 1 bin to the right)
-        for (int b = 1; b <= hSpec->GetNbinsX(); ++b) {
-          hSpecExt->SetBinContent(b + 1, hSpec->GetBinContent(b));
-          hSpecExt->SetBinError(b + 1, hSpec->GetBinError(b));
-        }
-
-        // Leave the first bin empty (visual placeholder for the fit curve)
-        hSpecExt->SetBinContent(1, 0.0);
-        hSpecExt->SetBinError(1, 0.0);
-
-        AnalysisUtils::SetHistogramStyle(hSpecExt.get(), globalCfgs.GetSpectraColor(multBin));
-        hSpecExt->GetListOfFunctions()->Add(extrapModel->Clone());
-
-        targetSpectraDir->cd();
-        hSpecExt->Write(nullptr, TObject::kOverwrite);
-      };
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
@@ -770,13 +759,12 @@ class CorrelationTaskBase : public IAnalysisTask
         targetSpectraDir->cd();
         h1Spectrum->Write(nullptr, TObject::kOverwrite);
 
-        AnalysisUtils::ConstructMultTrend(h1MultTrends[pIdx][yIdx].get(), h1Spectrum.get(), multBin, false);
+        AnalysisUtils::ConstructMultTrend(h1MultTrends[pIdx][yIdx].get(), h1Spectrum.get(), multBin);
 
         // Extrapolate and Fill Trend
         if (doExtrapForThis) {
-          double extY = 0.0, extE = 0.0;
-          extrapolateSpectrum(h1Spectrum.get(), extY, extE);
-          AnalysisUtils::ConstructMultTrend(h1MultTrendsExtrap[pIdx][yIdx].get(), h1Spectrum.get(), multBin, true, extY, extE);
+          ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir);
+          AnalysisUtils::ConstructMultTrend(h1MultTrendsExtrap[pIdx][yIdx].get(), res, multBin);
         }
       }
     }

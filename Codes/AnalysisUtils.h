@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AnalysisDataStructures.h"
+
 #include "TH1.h"
 #include "TH2.h"
 #include "TH3.h"
@@ -8,6 +10,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 namespace AnalysisUtils
@@ -119,14 +122,8 @@ std::unique_ptr<TH1> ConstructSpectrum(const std::vector<TH1*>& hContainer,
 
 // Construct multiplicity trends from pT spectra
 void ConstructMultTrend(TH1* hMultTrend,
-                        TH1* hPtSpectrum,
-                        int i,
-                        bool applyExtrapolation = false,
-                        double totalYield = 0.0,
-                        double totalError = 0.0
-                        /*double extrapolatedYield = 0.0,
-                        double extrapolatedError = 0.0*/
-)
+                        std::variant<TH1*, ExtrapolationResult> source,
+                        int i)
 {
   /*auto [content, error] = IntegralAndErrorPair(hPtSpectrum, hPtSpectrum->GetXaxis()->GetXmin(), hPtSpectrum->GetXaxis()->GetXmax(), "width");
 
@@ -136,17 +133,28 @@ void ConstructMultTrend(TH1* hMultTrend,
       error = std::sqrt((error * error) + (extrapolatedError * extrapolatedError));
   }*/
 
-  double content = 0.0;
-  double error = 0.0;
+  double content{};
+  double error{};
 
-  if (applyExtrapolation) {
+  if (std::holds_alternative<TH1*>(source)) {
+    TH1* hPtSpectrum = std::get<TH1*>(source);
+    auto [c, e] = IntegralAndErrorPair(hPtSpectrum, hPtSpectrum->GetXaxis()->GetXmin(), hPtSpectrum->GetXaxis()->GetXmax(), "width");
+    content = c;
+    error = e;
+  } else {
+    const auto& ext = std::get<ExtrapolationResult>(source);
+    content = ext.yield;
+    error = ext.yieldStatErr;
+  }
+
+  /*if (applyExtrapolation) {
     content = totalYield;
     error = totalError;
   } else {
     auto pair = IntegralAndErrorPair(hPtSpectrum, hPtSpectrum->GetXaxis()->GetXmin(), hPtSpectrum->GetXaxis()->GetXmax(), "width");
     content = pair.first;
     error = pair.second;
-  }
+  }*/
 
   hMultTrend->SetBinContent(i + 1, content);
   hMultTrend->SetBinError(i + 1, error);

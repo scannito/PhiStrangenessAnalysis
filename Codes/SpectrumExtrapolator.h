@@ -16,14 +16,6 @@
 class SpectrumExtrapolator
 {
  public:
-  struct ExtrapolationResult {
-    double yield{0.0};
-    double yieldStatErr{0.0};
-    double meanPt{0.0};
-    double meanPtStatErr{0.0};
-    double extrapolatedFraction{0.0};
-  };
-
   // Constructor: Takes the measured spectrum and the initialized fit function (e.g., Levy-Tsallis)
   SpectrumExtrapolator(TH1* measuredSpectrum, TF1* fitModel)
     : fMeasuredSpectrum(measuredSpectrum)

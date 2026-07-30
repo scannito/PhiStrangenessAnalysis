@@ -1,5 +1,7 @@
 #pragma once
 
+#include "AnalysisDataStructures.h'
+
 #include "TCanvas.h"
 #include "TF1.h"
 #include "TFile.h"
@@ -25,6 +27,29 @@ enum EValue_t {
   kMeanStat,
   kExtra
 };
+
+ExtrapolationResult CalculateYieldAndMeanLegacy(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10., Double_t loprecision = 0.01, Double_t hiprecision = 0.1, Option_t* opt = "0q", TString logfilename = "logExtrapolation.root", Double_t minfit = 0.0, Double_t maxfit = 10.0, TString part = "")
+{
+  std::unique_ptr<TH1> hYieldMean(YieldMean(hstat, f, min, max, loprecision, hiprecision, opt, logfilename, minfit, maxfit, part));
+  ExtrapolationResult res;
+
+  if (hYieldMean) {
+    res.yield = hYieldMean->GetBinContent(kYield);
+    res.yieldStatErr = hYieldMean->GetBinContent(kYieldStat);
+    res.meanPt = hYieldMean->GetBinContent(kMean);
+    res.meanPtStatErr = hYieldMean->GetBinContent(kMeanStat);
+    res.extrapolatedFraction = hYieldMean->GetBinContent(kExtra);
+  } else {
+    std::cerr << "[ERROR] YieldMean failed for " << part << std::endl;
+    res.yield = 0.0;
+    res.yieldStatErr = 0.0;
+    res.meanPt = 0.0;
+    res.meanPtStatErr = 0.0;
+    res.extrapolatedFraction = 0.0;
+  }
+
+  return res;
+}
 
 void YieldMean_IntegralMean(TH1* hdata, TH1* hlo, TH1* hhi, Double_t& integral, Double_t& mean, Double_t& extra, Bool_t printinfo = kFALSE);
 TH1* YieldMean_LowExtrapolationHisto(TH1* h, TF1* f, Double_t min, Double_t binwidth = 0.01);

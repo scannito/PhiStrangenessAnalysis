@@ -10,6 +10,8 @@
 
 #include <array>
 #include <map>
+#include <memory>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -120,6 +122,14 @@ struct ExtrapConfig {
   std::pair<double, double> fitRange{0.0, 0.0};
   std::map<std::string, MathParam> params; // Uses the unified MathParam
   double mass{0.0};                        // Injected dynamically at runtime by the Task
+};
+
+struct ExtrapolationResult {
+  double yield{0.0};
+  double yieldStatErr{0.0};
+  double meanPt{0.0};
+  double meanPtStatErr{0.0};
+  double extrapolatedFraction{0.0};
 };
 
 struct YieldRatioConfig {
