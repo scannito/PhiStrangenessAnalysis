@@ -131,8 +131,9 @@ class MCTask : public IAnalysisTask
         data.rebinningPt = std::move(bins);
       }
 
-      std::string cEffName = "c_" + data.name + "_Efficiency";
-      std::string cSigName = "c_" + data.name + "_SignalLoss";
+      std::string tag = outputPrefix.empty() ? "" : "_" + outputPrefix;
+      std::string cEffName = "c_" + data.name + tag + "_Efficiency";
+      std::string cSigName = "c_" + data.name + tag + "_SignalLoss";
 
       data.canvasEfficiency = std::make_unique<TCanvas>(cEffName.c_str(), cEffName.c_str(), 800, 600);
       data.canvasSignalLoss = std::make_unique<TCanvas>(cSigName.c_str(), cSigName.c_str(), 800, 600);
