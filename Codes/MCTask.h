@@ -192,7 +192,9 @@ class MCTask : public IAnalysisTask
       // Prepare the 3D generator-level histogram
       data.h3MCGen->SetName(("h3" + data.name + "MCGen").c_str());
       data.h3MCGen->GetZaxis()->SetRange(1, AnalysisConstants::nBinY);
-      data.h3MCGen->Sumw2();
+      // Only create the error structure if the histogram read from file lacks it
+      if (data.h3MCGen->GetSumw2N() == 0)
+        data.h3MCGen->Sumw2();
 
       // 1. Compute and save the 3D and 2D correction map
       std::unique_ptr<TH3> h3TotalMap = EfficiencyCalculator::Compute3DTotalMap(data, particleCorrectionMode);

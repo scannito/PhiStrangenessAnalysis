@@ -85,7 +85,11 @@ inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
   if (hProjection) {
     hProjection->SetName(histName.c_str());
     hProjection->SetDirectory(0);
-    hProjection->Sumw2();
+    // THnSparse::Projection already propagates the errors when the sparse
+    // stores them, so the projection usually comes with Sumw2 already set.
+    // Calling it again is a no-op that only prints a warning.
+    if (hProjection->GetSumw2N() == 0)
+      hProjection->Sumw2();
   }
 
   return hProjection;

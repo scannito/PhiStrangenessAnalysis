@@ -69,14 +69,23 @@ class WorkflowManager
         // Check if the requested task name STARTS with the registered base name (index == 0).
         // This allows task aliasing (e.g., "correlation_task_nominal") without false positives.
         if (taskName.find(baseName) == 0) {
-          activeTasks.push_back(factory());
+          // Store the JSON block name TOGETHER with the instance: a skipped
+          // unknown task must not shift the configuration of the following ones.
+          activeTasks.push_back(ScheduledTask{taskName, factory()});
           taskFound = true;
           break; // Task instantiated successfully, move to the next JSON item
         }
       }
 
+      // An unrecognized name means the workflow would silently run fewer tasks
+      // than requested: abort instead, listing what the registry accepts.
       if (!taskFound) {
-        std::cerr << "[WARNING] Unknown task requested: '" << taskName << "'. Skipping." << std::endl;
+        std::string knownPrefixes;
+        for (const auto& [baseName, factory] : taskRegistry) {
+          knownPrefixes += (knownPrefixes.empty() ? "" : ", ") + baseName;
+        }
+        throw std::runtime_error("[FATAL] WorkflowManager: Unknown task requested: '" + taskName +
+                                 "'. A task name must start with one of the registered prefixes: " + knownPrefixes);
       }
     }
 
@@ -88,11 +97,7 @@ class WorkflowManager
     std::cout << "WorkflowManager: Running analysis workflow..." << std::endl;
     std::cout << "------------------------------------------------" << std::endl;
 
-    for (size_t i = 0; i < activeTasks.size(); ++i) {
-      auto& task = activeTasks[i];
-
-      // Retrieve the exact execution name from the JSON array
-      std::string configBlockName = activeTasksList[i];
+    for (auto& [configBlockName, task] : activeTasks) {
       std::cout << "\n>>> [STARTING TASK] " << configBlockName << " <<<" << std::endl;
 
       // Generate the final merged JSON configuration (resolving N-levels of inheritance)
@@ -117,10 +122,18 @@ class WorkflowManager
   rapidjson::Document baseDocument; // Holds the base settings JSON tree (if provided)
   bool hasBaseFile{false};
 
+  // Pairs an instantiated task with the JSON configuration block it must read.
+  // Keeping the two in a single struct makes it impossible for them to drift
+  // apart, which is what happened when an unknown task name was skipped.
+  struct ScheduledTask {
+    std::string configBlockName;
+    std::unique_ptr<IAnalysisTask> task;
+  };
+
   // Contains the raw strings from the JSON (e.g., "correlation_task_test")
   std::vector<std::string> activeTasksList;
-  // Contains the actual C++ pointers in the EXACT same order
-  std::vector<std::unique_ptr<IAnalysisTask>> activeTasks;
+  // Contains the instantiated tasks, each carrying its own config block name
+  std::vector<ScheduledTask> activeTasks;
 
   AnalysisSettings globalSettings; // Holds the runtime configuration
 

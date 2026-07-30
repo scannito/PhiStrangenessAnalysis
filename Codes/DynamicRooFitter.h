@@ -55,17 +55,17 @@ class DynamicRooFitter
     // garbageCollector.push_back(model);
   }
 
-  /*~DynamicRooFitter()
+  // Tear down the owned RooFit objects in strict reverse creation order:
+  // composites (RooAddPdf, RooProdPdf) die before the RooRealVars they use as
+  // servers. ~vector() alone would NOT guarantee this — the destruction order
+  // of vector elements is unspecified, and it genuinely differs between
+  // implementations (libc++ destroys back-to-front, libstdc++ front-to-back).
+  // pop_back() always destroys the last element, so this is portable.
+  ~DynamicRooFitter()
   {
-    // Safely delete all dynamically allocated RooFit objects
-    // to prevent RAM saturation during extensive analysis loops.
-    for (TObject* obj : garbageCollector) {
-      delete obj;
-    }
-
-    if (fitResult)
-      delete fitResult;
-  }*/
+    while (!ownedObjects.empty())
+      ownedObjects.pop_back();
+  }
 
   int DoFit()
   {
@@ -255,8 +255,8 @@ class DynamicRooFitter
   // std::vector<TObject*> garbageCollector;
 
   // Ownership of all dynamically created RooFit args (vars + pdfs).
-  // Order of insertion = creation order (leaves first, composites last),
-  // so destroying back-to-front respects RooFit's client/server teardown.
+  // Insertion order = creation order (leaves first, composites last).
+  // The destructor depends on this invariant to tear down in reverse.
   std::vector<std::unique_ptr<RooAbsArg>> ownedObjects;
 
   // Helper: creates, stores ownership, returns a non-owning raw pointer for RooFit APIs
