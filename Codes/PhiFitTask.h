@@ -19,14 +19,19 @@
 #include "TH2D.h"
 #include "TH3F.h"
 
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <utility>
 
 class PhiFitTask : public IAnalysisTask
 {
  public:
+  enum class FitterType { DynamicRooFitter = 0,
+                          FitPhiSignalAndBkg };
+
   std::string GetName() const override { return "phi_fit_task"; }
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
@@ -69,8 +74,18 @@ class PhiFitTask : public IAnalysisTask
     }
     fitConfigManager = new FitConfigManager(taskConfig["fit_config_file"].GetString());*/
 
+    // Resolve the fitter: an invalid name must stop the task before any output file is created,
+    // and the loop should switch on a value that cannot be invalid.
     if (taskConfig.HasMember("fitter_type")) {
-      fitterType = taskConfig["fitter_type"].GetString();
+      std::string requestedFitter = taskConfig["fitter_type"].GetString();
+      if (requestedFitter == "dynamicroofitter") {
+        fitterType = FitterType::DynamicRooFitter;
+      } else if (requestedFitter == "fitphisignalandbkg") {
+        fitterType = FitterType::FitPhiSignalAndBkg;
+      } else {
+        throw std::runtime_error("[FATAL] PhiFitTask: Unknown fitter_type '" + requestedFitter +
+                                 "'. Available: dynamicroofitter, fitphisignalandbkg");
+      }
     }
 
     // 3. Output Configuration
@@ -104,6 +119,10 @@ class PhiFitTask : public IAnalysisTask
     std::cout << "[INFO] PhiFitTask: RUNNING TRIGGER SIGNAL EXTRACTION..." << std::endl;
 
     TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Fits"}, false);
+    if (!fitDir) {
+      throw std::runtime_error("[FATAL] PhiFitTask: Cannot create the '" + globalCfgs.binningName +
+                               "/Fits' directory in the output file.");
+    }
 
     const int nBinPtPhi = globalCfgs.GetNBinPt("Phi");
 
@@ -113,12 +132,12 @@ class PhiFitTask : public IAnalysisTask
         std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), i + 1, i + 1, j + 1, j + 1)));
         h1PhiData->SetDirectory(0);
 
-        double triggerSignal{0.0};
-        double triggerBkgSigRegion{0.0};
-        double triggerBkgSideRegion{0.0};
-        double triggerBkgRatio{0.0};
+        std::pair<double, double> triggerSignalAndError{0.0, 0.0};
+        std::pair<double, double> triggerBkgSigRegionAndError{0.0, 0.0};
+        std::pair<double, double> triggerBkgSideRegionAndError{0.0, 0.0};
+        std::pair<double, double> triggerBkgRatioAndError{0.0, 0.0};
 
-        if (fitterType == "fitphisignalandbkg") {
+        if (fitterType == FitterType::FitPhiSignalAndBkg) {
           // Method 1: FitPhiSignalAndBkg
           std::unique_ptr<TF1> fitVoigtBkgSourav = std::make_unique<TF1>("fitVoigtBkgSourav", VoigtBkgSourav, 0.995, 1.06, 7);
           fitVoigtBkgSourav->SetParameter(1, 1.019);
@@ -131,17 +150,22 @@ class PhiFitTask : public IAnalysisTask
                                                        AnalysisConstants::phiMassSignalRange,
                                                        AnalysisConstants::phiMassSidebandRange};
 
-          triggerSignal = fitPhiSignalAndBkg.GetSignal();
-          triggerBkgSigRegion = fitPhiSignalAndBkg.GetBkgInSigRegion();
-          triggerBkgSideRegion = fitPhiSignalAndBkg.GetBkgInSideRegion();
-          triggerBkgRatio = (triggerBkgSideRegion > 0) ? (triggerBkgSigRegion / triggerBkgSideRegion) : 0;
+          triggerSignalAndError = fitPhiSignalAndBkg.GetSignalAndError();
+          triggerBkgSigRegionAndError = fitPhiSignalAndBkg.GetBkgInSigRegionAndError();
+          triggerBkgSideRegionAndError = fitPhiSignalAndBkg.GetBkgInSideRegionAndError();
+          if (triggerBkgSideRegionAndError.first > 0.0) {
+            const double ratio = triggerBkgSigRegionAndError.first / triggerBkgSideRegionAndError.first;
+            const double relNum = (triggerBkgSigRegionAndError.first != 0.0) ? triggerBkgSigRegionAndError.second / triggerBkgSigRegionAndError.first : 0.0;
+            const double relDen = triggerBkgSideRegionAndError.second / triggerBkgSideRegionAndError.first;
+            triggerBkgRatioAndError = {ratio, ratio * std::sqrt(relNum * relNum + relDen * relDen)};
+          }
 
           fitDir->cd();
           std::unique_ptr<TCanvas> cFit = std::make_unique<TCanvas>(("cFit_Phi_mult" + std::to_string(i) + "_pt" + std::to_string(j)).c_str());
           h1PhiData->Draw();
           // fitVoigtBkgSourav->DrawCopy("SAME");
           cFit->Write(nullptr, TObject::kOverwrite);
-        } else if (fitterType == "dynamicroofitter") {
+        } else {
           // Method 2: DynamicRooFitter
           // Fetch configuration dynamically from JSON
           FitConfig cfg = fitConfigManager->GetConfig("phi", i, j);
@@ -151,22 +175,24 @@ class PhiFitTask : public IAnalysisTask
           fitter.DoFit();
 
           auto res = fitter.ExtractYieldsAndPurity();
-          triggerSignal = res.signal.first;
-          triggerBkgSigRegion = res.background.first;
-          triggerBkgSideRegion = res.bkgInSideband.first;
-          triggerBkgRatio = (triggerBkgSideRegion > 0) ? (triggerBkgSigRegion / triggerBkgSideRegion) : 0;
+          triggerSignalAndError = res.signalAndError;
+          triggerBkgSigRegionAndError = res.backgroundAndError;
+          triggerBkgSideRegionAndError = res.bkgInSidebandAndError;
+          triggerBkgRatioAndError = res.bkgRatioAndError;
 
           std::string canvasName = "cFit_Phi_mult" + std::to_string(i) + "_pt" + std::to_string(j);
           fitter.SaveFitCanvas(fitDir, canvasName);
-        } else {
-          throw std::runtime_error("[FATAL] PhiFitTask: Unknown fitter_type: " + fitterType);
         }
 
         // Save the results for CorrelationTask
-        h2TriggerSignal->SetBinContent(i + 1, j + 1, triggerSignal);
-        h2TriggerBkgSigRegion->SetBinContent(i + 1, j + 1, triggerBkgSigRegion);
-        h2TriggerBkgSideRegion->SetBinContent(i + 1, j + 1, triggerBkgSideRegion);
-        h2TriggerBkgRatio->SetBinContent(i + 1, j + 1, triggerBkgRatio);
+        h2TriggerSignal->SetBinContent(i + 1, j + 1, triggerSignalAndError.first);
+        h2TriggerSignal->SetBinError(i + 1, j + 1, triggerSignalAndError.second);
+        h2TriggerBkgSigRegion->SetBinContent(i + 1, j + 1, triggerBkgSigRegionAndError.first);
+        h2TriggerBkgSigRegion->SetBinError(i + 1, j + 1, triggerBkgSigRegionAndError.second);
+        h2TriggerBkgSideRegion->SetBinContent(i + 1, j + 1, triggerBkgSideRegionAndError.first);
+        h2TriggerBkgSideRegion->SetBinError(i + 1, j + 1, triggerBkgSideRegionAndError.second);
+        h2TriggerBkgRatio->SetBinContent(i + 1, j + 1, triggerBkgRatioAndError.first);
+        h2TriggerBkgRatio->SetBinError(i + 1, j + 1, triggerBkgRatioAndError.second);
       }
     }
   }
@@ -197,7 +223,7 @@ class PhiFitTask : public IAnalysisTask
   AnalysisSettings globalCfgs;
 
   std::string basePathData;
-  std::string fitterType{"dynamicroofitter"}; // Default fitting method
+  FitterType fitterType{FitterType::DynamicRooFitter}; // Default fitting method
   std::unique_ptr<TH3F> h3PhiData;
 
   std::unique_ptr<TFile> filePhiDataOutput;
@@ -207,6 +233,5 @@ class PhiFitTask : public IAnalysisTask
   std::unique_ptr<TH2D> h2TriggerBkgSideRegion;
   std::unique_ptr<TH2D> h2TriggerBkgRatio;
 
-  // FitConfigManager* fitConfigManager{nullptr};
   std::unique_ptr<FitConfigManager> fitConfigManager;
 };

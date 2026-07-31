@@ -1,5 +1,17 @@
+#pragma once
+
 #include "AnalysisConstants.h"
 #include "AnalysisUtils.h"
+
+#include "TF1.h"
+#include "TH1.h"
+#include "TMath.h"
+#include "TMatrixDSym.h"
+
+#include <cmath>
+#include <iostream>
+#include <utility>
+#include <vector>
 
 inline double Voigt(double* x, double* par)
 {
@@ -98,16 +110,8 @@ class FitPhiSignalAndBkg
     std::cout << "Bkg Integral in Sideband Region: " << bkgIntegralAndErrorInSideRegion.first << " +/- " << bkgIntegralAndErrorInSideRegion.second << std::endl;
   }
 
-  double GetSignal() const { return signalIntegralAndError.first; }
-  double GetSignalError() const { return signalIntegralAndError.second; }
   std::pair<double, double> GetSignalAndError() const { return signalIntegralAndError; }
-
-  double GetBkgInSigRegion() const { return bkgIntegralAndErrorInSigRegion.first; }
-  double GetBkgInSigRegionError() const { return bkgIntegralAndErrorInSigRegion.second; }
   std::pair<double, double> GetBkgInSigRegionAndError() const { return bkgIntegralAndErrorInSigRegion; }
-
-  double GetBkgInSideRegion() const { return bkgIntegralAndErrorInSideRegion.first; }
-  double getBkgInSideRegionError() const { return bkgIntegralAndErrorInSideRegion.second; }
   std::pair<double, double> GetBkgInSideRegionAndError() const { return bkgIntegralAndErrorInSideRegion; }
 
  private:

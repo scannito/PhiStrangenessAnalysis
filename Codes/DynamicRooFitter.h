@@ -27,6 +27,7 @@
 #include "TObject.h"
 
 #include <algorithm>
+#include <cmath>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -87,10 +88,11 @@ class DynamicRooFitter
 
   // Structure to hold the results of the yield and purity calculations
   struct FitResults {
-    std::pair<double, double> signal{0.0, 0.0};
-    std::pair<double, double> background{0.0, 0.0};
-    std::pair<double, double> purity{0.0, 0.0};
-    std::pair<double, double> bkgInSideband{0.0, 0.0};
+    std::pair<double, double> signalAndError{0.0, 0.0};
+    std::pair<double, double> backgroundAndError{0.0, 0.0};
+    std::pair<double, double> purityAndError{0.0, 0.0};
+    std::pair<double, double> bkgInSidebandAndError{0.0, 0.0};
+    std::pair<double, double> bkgRatioAndError{0.0, 0.0};
   };
 
   FitResults ExtractYieldsAndPurity()
@@ -116,18 +118,18 @@ class DynamicRooFitter
     // RooAbsReal* sigInt = sigPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("signalRegion"));
     std::unique_ptr<RooAbsReal> sigInt(sigPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("signalRegion")));
     RooProduct signalYield("signalYield", "Signal Yield", RooArgList(*nsigVar, *sigInt));
-    results.signal = {signalYield.getVal(), signalYield.getPropagatedError(*fitResult, RooArgSet(*obs))};
+    results.signalAndError = {signalYield.getVal(), signalYield.getPropagatedError(*fitResult, RooArgSet(*obs))};
 
     // --- 2. BACKGROUND YIELD & ERROR ---
     // RooAbsReal* bkgInt = bkgPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("signalRegion"));
     std::unique_ptr<RooAbsReal> bkgInt(bkgPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("signalRegion")));
     RooProduct bkgYield("bkgYield", "Background Yield", RooArgList(*nbkgVar, *bkgInt));
-    results.background = {bkgYield.getVal(), bkgYield.getPropagatedError(*fitResult, RooArgSet(*obs))};
+    results.backgroundAndError = {bkgYield.getVal(), bkgYield.getPropagatedError(*fitResult, RooArgSet(*obs))};
 
     // --- 3. OPTIONAL PURITY & ERROR (S / S+B) ---
     if (config.integration.calculatePurity) {
       RooFormulaVar purity("purity", "Signal Purity", "@0 / (@0 + @1)", RooArgList(signalYield, bkgYield));
-      results.purity = {purity.getVal(), purity.getPropagatedError(*fitResult, RooArgSet(*obs))};
+      results.purityAndError = {purity.getVal(), purity.getPropagatedError(*fitResult, RooArgSet(*obs))};
     }
 
     // --- 4. OPTIONAL BACKGROUND IN SIDEBAND YIELD & ERROR ---
@@ -140,11 +142,23 @@ class DynamicRooFitter
         // RooAbsReal* bkgIntSB = bkgPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("sidebandRegion"));
         std::unique_ptr<RooAbsReal> bkgIntSB(bkgPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("sidebandRegion")));
         RooProduct bkgYieldSB("bkgYieldSB", "Bkg in Sideband", RooArgList(*nbkgVar, *bkgIntSB));
-        results.bkgInSideband = {bkgYieldSB.getVal(), bkgYieldSB.getPropagatedError(*fitResult, RooArgSet(*obs))};
+        results.bkgInSidebandAndError = {bkgYieldSB.getVal(), bkgYieldSB.getPropagatedError(*fitResult, RooArgSet(*obs))};
         // delete bkgIntSB;
+
+        RooFormulaVar bkgRatio("bkgRatio", "Bkg(signal)/Bkg(sideband)", "@0 / @1", RooArgList(*bkgInt, *bkgIntSB));
+        results.bkgRatioAndError = {bkgRatio.getVal(), bkgRatio.getPropagatedError(*fitResult, RooArgSet(*obs))};
       } else {
         // Direct integration from histogram bins
-        results.bkgInSideband = AnalysisUtils::IntegralAndErrorPair(h1Data, sbMin, sbMax);
+        results.bkgInSidebandAndError = AnalysisUtils::IntegralAndErrorPair(h1Data, sbMin, sbMax);
+
+        const double num = results.background.first;
+        const double den = results.bkgInSideband.first;
+        if (den > 0.0) {
+          const double ratio = num / den;
+          const double relNum = (num != 0.0) ? results.background.second / num : 0.0;
+          const double relDen = results.bkgInSideband.second / den;
+          results.bkgRatioAndError = {ratio, ratio * std::sqrt(relNum * relNum + relDen * relDen)};
+        }
       }
     }
 
