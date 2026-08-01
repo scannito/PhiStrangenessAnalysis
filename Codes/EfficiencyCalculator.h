@@ -180,6 +180,26 @@ class EfficiencyCalculator
   }
 
   // Computes 1D Efficiency and Signal Loss for a specific multiplicity bin
+  // Rebins the COUNTS, before any division. Merging bins of a ratio would sum
+  // the ratios - two bins of efficiency 0.5 would give 1.0 - so the only correct
+  // coarse efficiency is sum(reco) / sum(genAssocReco) over the merged interval,
+  // which is also the efficiency weighted by the generated spectrum.
+  //
+  // Nothing happens when no target binning is configured for this particle.
+  static void RebinCountsIfRequested(const LoadedMC& data, std::unique_ptr<TH1>& h1MCGen,
+                                     std::unique_ptr<TH1>& h1MCGenAssocReco, std::unique_ptr<TH1>& h1MCReco)
+  {
+    if (!data.rebinningPt)
+      return;
+
+    const std::vector<double>& target = data.rebinningPt.value();
+    const std::string ctx = "EfficiencyCalculator: '" + data.name + "' rebinning_pt";
+
+    h1MCGen = AnalysisUtils::RebinToTargetBinning(std::move(h1MCGen), target, ctx);
+    h1MCGenAssocReco = AnalysisUtils::RebinToTargetBinning(std::move(h1MCGenAssocReco), target, ctx);
+    h1MCReco = AnalysisUtils::RebinToTargetBinning(std::move(h1MCReco), target, ctx);
+  }
+
   // Returns a pair: {Efficiency 1D, Signal Loss 1D}.
   static std::pair<std::unique_ptr<TH1>, std::unique_ptr<TH1>> Compute1DMaps(const LoadedMC& data, int multBin, int color)
   {
@@ -195,6 +215,8 @@ class EfficiencyCalculator
     // Project Sparse levels 1D
     std::unique_ptr<TH1> h1MCGenAssocReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp");
     std::unique_ptr<TH1> h1MCReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp");
+
+    RebinCountsIfRequested(data, h1MCGen, h1MCGenAssocReco, h1MCReco);
 
     // 1D Efficiency Calculation
     std::string h1EffName = "h1" + data.name + "Efficiency_multBin" + std::to_string(multBin);
@@ -232,6 +254,8 @@ class EfficiencyCalculator
     // Project Sparse levels 1D (Integrated)
     std::unique_ptr<TH1> h1MCGenAssocReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp_Int");
     std::unique_ptr<TH1> h1MCReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp_Int");
+
+    RebinCountsIfRequested(data, h1MCGen, h1MCGenAssocReco, h1MCReco);
 
     // 1D Efficiency Calculation
     std::string h1EffName = "h1" + data.name + "Efficiency_multIntegrated";

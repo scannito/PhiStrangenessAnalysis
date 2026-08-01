@@ -501,12 +501,22 @@ class CorrelationTaskBase : public IAnalysisTask
 
       std::unique_ptr<TH1F> h = GetUniqueOrThrow<TH1F>(dir, name, "CorrelationTaskBase::LoadCorrections");
 
-      // The context names both sides on purpose: a failure here almost always
-      // means the efficiency file and the data file come from productions with
-      // different pT axes, not that something is wrong with the offline config.
-      return AnalysisUtils::RebinToTargetBinning(std::move(h), targetBinning,
-                                                 "efficiency map (MC production, '" + inputEffFile +
-                                                   "') vs analysis binning (data production)");
+      // Verified, NOT rebinned. An efficiency is a ratio, and merging bins of a
+      // ratio sums them: two bins of 0.5 would give 1.0. A coarser efficiency can
+      // only be built where numerator and denominator still exist, which is the
+      // MC task - see 'rebinning_pt' in the MC configuration.
+      const std::string diff = BinningUtils::Compare(targetBinning, BinningUtils::AxisEdges(h->GetXaxis()),
+                                                     "analysis binning (data production)",
+                                                     "efficiency map (MC production)");
+      if (!diff.empty()) {
+        throw std::runtime_error(
+          "[FATAL] CorrelationTaskBase::LoadCorrections: '" + name + "' in '" + inputEffFile +
+          "' is not binned like the data being corrected:\n" + diff +
+          "Set 'rebinning_pt' in the MC configuration so the efficiency is produced at this binning, "
+          "or re-run the production whose axis does not match.");
+      }
+
+      return h;
     };
 
     // LAMBDA HELPER 2: Clone and multiply (if both are needed) safely

@@ -271,10 +271,19 @@ class CorrelationTask : public CorrelationTaskBase
           throw std::runtime_error("[FATAL] CorrelationTask: Missing purity histogram: " + hName + " in " + purityFilePath);*/
         std::unique_ptr<TH1F> h1Pur = GetUniqueOrThrow<TH1F>(filePurity.get(), hName, "CorrelationTask");
 
-        std::unique_ptr<TH1F> rebinnedPur = AnalysisUtils::RebinToTargetBinning(std::move(h1Pur), targetBinning, "CorrelationTaskBase::LoadPurities");
-        rebinnedPur->SetDirectory(0);
+        // Verified, NOT rebinned: a purity is a ratio, and merging its bins would
+        // sum the ratios. A coarser purity can only be obtained by fitting the
+        // merged mass distribution - see 'rebinning_pt' in the purity config.
+        const std::string diff = BinningUtils::Compare(targetBinning, BinningUtils::AxisEdges(h1Pur->GetXaxis()),
+                                                       "analysis binning (data production)", "purity spectrum");
+        if (!diff.empty()) {
+          throw std::runtime_error("[FATAL] CorrelationTask::LoadPurities: '" + hName + "' in '" + purityFilePath +
+                                   "' is not binned like the data being corrected:\n" + diff +
+                                   "Set 'rebinning_pt' in the purity configuration so the fits are done at this "
+                                   "binning, or re-run the production whose axis does not match.");
+        }
 
-        purity.h1Purity[i] = std::move(rebinnedPur);
+        purity.h1Purity[i] = std::move(h1Pur);
       }
 
       purityCollection[name] = std::move(purity);

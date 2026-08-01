@@ -256,14 +256,9 @@ class MCTask : public IAnalysisTask
 
       // Process 1D Spectra across multiplicity bins
       for (int i{0}; i < BinningUtils::NBins(multBinning); i++) {
+        // 'rebinning_pt' is applied inside the calculator, on the counts, before
+        // they are divided: rebinning the ratio afterwards would sum efficiencies.
         auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMaps(data, i, globalCfgs.GetSpectraColor(i));
-
-        // If required, rebin the 1D histograms according to the provided binning
-        if (data.rebinningPt) {
-          const auto& bins = data.rebinningPt.value();
-          h1Efficiency1D = AnalysisUtils::RebinToTargetBinning(std::move(h1Efficiency1D), bins, "MCTask::Run");
-          h1SignalLoss1D = AnalysisUtils::RebinToTargetBinning(std::move(h1SignalLoss1D), bins, "MCTask::Run");
-        }
 
         // Draw on canvases
         data.canvasEfficiency->cd();
@@ -284,13 +279,6 @@ class MCTask : public IAnalysisTask
       }
 
       auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMapsMultIntegrated(data);
-
-      // If required, rebin the 1D histograms according to the provided binning
-      if (data.rebinningPt) {
-        const auto& bins = data.rebinningPt.value();
-        h1Efficiency1D = AnalysisUtils::RebinToTargetBinning(std::move(h1Efficiency1D), bins, "MCTask::Run");
-        h1SignalLoss1D = AnalysisUtils::RebinToTargetBinning(std::move(h1SignalLoss1D), bins, "MCTask::Run");
-      }
 
       // Draw on canvases
       data.canvasEfficiency->cd();

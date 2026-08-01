@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnalysisConstants.h"
+#include "BinningUtils.h"
 
 #include "TCanvas.h"
 #include "TH1.h"
@@ -35,11 +36,15 @@ struct LoadedPurity {
 };
 
 struct ParticleTask {
-  std::string name;                // e.g. "k0s", "pi_tpc"
-  std::unique_ptr<TH3F> h3Source;  // Pointer to the 3D source histogram in RAM
-  std::vector<double> binning;     // Binning for the final spectrum
-  TFile* outputFile;               // Output file for this particle
-  std::unique_ptr<TCanvas> canvas; // Summary canvas for plotting
+  std::string name;                     // e.g. "k0s", "pi_tpc"
+  std::unique_ptr<TH3F> h3Source;       // Pointer to the 3D source histogram in RAM
+  std::vector<double> analysisBinning;  // Binning of the purity spectrum. Equals the
+                                        // source one unless 'rebinning_pt' asks for a
+                                        // coarser one, in which case each of its bins
+                                        // is fitted as a single merged sample
+  std::vector<BinningUtils::BinRange> sourceBins; // source bins covered by each analysis bin
+  TFile* outputFile;                    // Output file for this particle
+  std::unique_ptr<TCanvas> canvas;      // Summary canvas for plotting
 };
 
 template <size_t size>

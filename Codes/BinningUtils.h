@@ -93,6 +93,42 @@ inline std::string Compare(std::span<const double> lhs, std::span<const double> 
   return report;
 }
 
+// Range of source bins covered by one target bin, in ROOT numbering (1-based,
+// both ends inclusive), as ProjectionZ and THnSparse::SetRange expect them.
+struct BinRange {
+  int first{0};
+  int last{0};
+};
+
+// Maps each target bin onto the source bins it covers. Requires the target edges
+// to be a subset of the source ones - which is what makes a merge well defined.
+//
+// Used to merge BEFORE deriving a quantity rather than after: a coarse purity or
+// efficiency must come from the merged counts, never from the merged ratios.
+inline std::vector<BinRange> MapToSourceBins(std::span<const double> source, std::span<const double> target,
+                                             double epsilon = 1e-9)
+{
+  auto findEdge = [&](double edge) -> int {
+    for (size_t i = 0; i < source.size(); ++i) {
+      if (std::abs(source[i] - edge) <= epsilon)
+        return static_cast<int>(i);
+    }
+    throw std::runtime_error("[FATAL] BinningUtils::MapToSourceBins: target edge " + FormatEdge(edge) +
+                             " is not an edge of the source binning, so the merge is not defined.");
+  };
+
+  std::vector<BinRange> ranges;
+  ranges.reserve(target.empty() ? 0 : target.size() - 1);
+
+  for (size_t t = 0; t + 1 < target.size(); ++t) {
+    const int low = findEdge(target[t]);
+    const int up = findEdge(target[t + 1]);
+    ranges.push_back({low + 1, up}); // ROOT bins are 1-based and inclusive
+  }
+
+  return ranges;
+}
+
 // Two containers that are combined bin by bin - divided, multiplied, subtracted -
 // must share the axis. This holds for physical reasons and does not depend on
 // anything being declared in the configuration, so it is checked directly

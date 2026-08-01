@@ -59,7 +59,23 @@ class PurityTask : public IAnalysisTask
       // very edges. h3 axes: (mult, pT, invariant mass).
       const std::string origin = histName + " in '" + inputFile + "'";
       multBinning = globalCfgs.ResolveMultBinning(h3Source->GetXaxis(), origin);
-      std::vector<double> binning = globalCfgs.ResolvePtBinning(name, h3Source->GetYaxis(), origin);
+      std::vector<double> sourceBinning = globalCfgs.ResolvePtBinning(name, h3Source->GetYaxis(), origin);
+
+      // A coarser analysis binning is obtained by fitting the MERGED mass
+      // distribution of the source bins it covers, not by merging the purities
+      // afterwards: a purity is a ratio, and ratios do not add up.
+      std::vector<double> analysisBinning = sourceBinning;
+      if (particle.HasMember("rebinning_pt") && particle["rebinning_pt"].IsArray()) {
+        analysisBinning.clear();
+        for (const auto& v : particle["rebinning_pt"].GetArray())
+          analysisBinning.push_back(v.GetDouble());
+
+        if (analysisBinning.size() < 2) {
+          throw std::runtime_error("[FATAL] PurityTask: 'rebinning_pt' for '" + name + "' needs at least 2 edges!");
+        }
+      }
+
+      std::vector<BinningUtils::BinRange> sourceBins = BinningUtils::MapToSourceBins(sourceBinning, analysisBinning);
 
       std::string outputFileName = outputDir + prefix + outputFileSuffix;
 
@@ -79,7 +95,8 @@ class PurityTask : public IAnalysisTask
       std::string canvasTitle = purityKey + " Purity";
       std::unique_ptr<TCanvas> canvas = std::make_unique<TCanvas>(canvasName.c_str(), canvasTitle.c_str(), 800, 600);
 
-      particleTasks.emplace_back(purityKey, std::move(h3Source), std::move(binning), outputFilePtr, std::move(canvas));
+      particleTasks.emplace_back(purityKey, std::move(h3Source), std::move(analysisBinning),
+                                 std::move(sourceBins), outputFilePtr, std::move(canvas));
     }
 
     // 3. Read task-specific settings from the JSON node (DOM)
@@ -107,14 +124,19 @@ class PurityTask : public IAnalysisTask
         TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(task.outputFile, fitPath, false);
 
         std::string hName = "h1" + task.name + "Purity_multBin" + std::to_string(i);
-        std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)", BinningUtils::NBins(task.binning), task.binning.data());
+        std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
+                                                                       BinningUtils::NBins(task.analysisBinning),
+                                                                       task.analysisBinning.data());
         h1PuritySpectrum->SetDirectory(0);
 
-        for (int k{0}; k < BinningUtils::NBins(task.binning); k++) {
+        for (int k{0}; k < BinningUtils::NBins(task.analysisBinning); k++) {
           std::string histName = "h1" + task.name + "_multBin" + std::to_string(i) + "_ptBin" + std::to_string(k);
 
-          // Project 1D slice
-          std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), i + 1, i + 1, k + 1, k + 1)));
+          // Project the whole range of source bins that this analysis bin covers.
+          // With no rebinning the range is a single bin and this is the old behaviour.
+          const BinningUtils::BinRange& range = task.sourceBins[k];
+          std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), i + 1, i + 1,
+                                                                                    range.first, range.last)));
           h1Data->SetDirectory(0);
 
           // Run Fitter using JSON-based configuration
