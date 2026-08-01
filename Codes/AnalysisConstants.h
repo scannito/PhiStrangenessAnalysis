@@ -29,9 +29,6 @@ inline double GetMass(const std::string& name)
   return it->second;
 }
 
-inline constexpr int nBinZVtx{100};
-inline constexpr int nBinY{20};
-
 // --- Analysis Ranges ---
 inline const std::pair<double, double> phiMassSignalRange{1., 1.05};
 inline const std::pair<double, double> phiMassSidebandRange{1.06, 1.08};

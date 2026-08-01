@@ -131,6 +131,12 @@ class MCTask : public IAnalysisTask
                                     h3MCGenName + " multiplicity", h4MCRecoName + " multiplicity");
       BinningUtils::RequireSameAxis(data.h4MCGenAssocReco->GetAxis(1), data.h4MCReco->GetAxis(1),
                                     h4MCGenAssocRecoName + " multiplicity", h4MCRecoName + " multiplicity");
+      BinningUtils::RequireSameAxis(data.h4MCGenAssocReco->GetAxis(0), data.h4MCReco->GetAxis(0),
+                                    h4MCGenAssocRecoName + " zvtx", h4MCRecoName + " zvtx");
+      BinningUtils::RequireSameAxis(data.h4MCGenAssocReco->GetAxis(3), data.h4MCReco->GetAxis(3),
+                                    h4MCGenAssocRecoName + " rapidity", h4MCRecoName + " rapidity");
+      BinningUtils::RequireSameAxis(data.h3MCGen->GetZaxis(), data.h4MCReco->GetAxis(3),
+                                    h3MCGenName + " rapidity", h4MCRecoName + " rapidity");
 
       // The multiplicity binning is kept because the loops below address its
       // bins. The pT binning is not: this task consumes the pT dimension by
@@ -211,7 +217,7 @@ class MCTask : public IAnalysisTask
 
       // Prepare the 3D generator-level histogram
       data.h3MCGen->SetName(("h3" + data.name + "MCGen").c_str());
-      data.h3MCGen->GetZaxis()->SetRange(1, AnalysisConstants::nBinY);
+      data.h3MCGen->GetZaxis()->SetRange(1, data.h3MCGen->GetZaxis()->GetNbins());
       // Only create the error structure if the histogram read from file lacks it
       if (data.h3MCGen->GetSumw2N() == 0)
         data.h3MCGen->Sumw2();
