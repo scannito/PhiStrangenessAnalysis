@@ -98,9 +98,8 @@ class CorrelationWPDGTask : public CorrelationTaskBase
       }
     }
 
-    InitCorrectionsAndExtrapolation(taskConfig);
-
-    // 4. Output
+    // 4. Output files (opened before the corrections: the cache carries the
+    //    binning that everything below is loaded against)
     std::string prefix = taskConfig.HasMember("input_output_prefix") ? taskConfig["input_output_prefix"].GetString() : "";
 
     std::string basePathProj = taskConfig["output_dir_proj"].GetString();
@@ -120,6 +119,11 @@ class CorrelationWPDGTask : public CorrelationTaskBase
       std::unique_ptr<TFile> fProj = OpenOrThrow(fName, projMode.c_str(), "CorrelationWPDGTask");
       filesPhiAssocDataOutput.push_back(std::move(fProj));
     }
+
+    ResolveBinningAndCache();
+
+    // 5. Corrections / Extrapolation, rebinned onto the binning just resolved
+    InitCorrectionsAndExtrapolation(taskConfig);
 
     SetupTrendHistograms();
   }

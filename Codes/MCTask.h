@@ -119,6 +119,27 @@ class MCTask : public IAnalysisTask
       data.h4MCGenAssocReco = GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCGenAssocRecoName, "MCTask");
       data.h4MCReco = GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCRecoName, "MCTask");
 
+      // These three are divided by each other to build efficiency and signal
+      // loss, so they must share their axes whatever the configuration says.
+      // Checked directly between them: it holds even with nothing declared.
+      // h3MCGen axes: (mult, pT, y) -- h4* axes: (zvtx, mult, pT, y)
+      BinningUtils::RequireSameAxis(data.h3MCGen->GetYaxis(), data.h4MCReco->GetAxis(2),
+                                    h3MCGenName + " pT", h4MCRecoName + " pT");
+      BinningUtils::RequireSameAxis(data.h4MCGenAssocReco->GetAxis(2), data.h4MCReco->GetAxis(2),
+                                    h4MCGenAssocRecoName + " pT", h4MCRecoName + " pT");
+      BinningUtils::RequireSameAxis(data.h3MCGen->GetXaxis(), data.h4MCReco->GetAxis(1),
+                                    h3MCGenName + " multiplicity", h4MCRecoName + " multiplicity");
+      BinningUtils::RequireSameAxis(data.h4MCGenAssocReco->GetAxis(1), data.h4MCReco->GetAxis(1),
+                                    h4MCGenAssocRecoName + " multiplicity", h4MCRecoName + " multiplicity");
+
+      // The multiplicity binning is kept because the loops below address its
+      // bins. The pT binning is not: this task consumes the pT dimension by
+      // projecting the whole axis, so nothing here indexes it - it is resolved
+      // only to have it verified against the declared production.
+      const std::string origin = "'" + particleInputFile + "'";
+      multBinning = globalCfgs.ResolveMultBinning(data.h3MCGen->GetXaxis(), h3MCGenName + " in " + origin);
+      globalCfgs.ResolvePtBinning(name, data.h3MCGen->GetYaxis(), h3MCGenName + " in " + origin);
+
       if (p.HasMember("rebinning_pt") && p["rebinning_pt"].IsArray()) {
         std::vector<double> bins;
         bins.reserve(p["rebinning_pt"].Size());
@@ -205,7 +226,7 @@ class MCTask : public IAnalysisTask
       h3TotalMap->Write(nullptr, TObject::kOverwrite);
       fileMCOutputPerPart3D->Close();
 
-      std::unique_ptr<TH2> h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data, globalCfgs, particleCorrectionMode);
+      std::unique_ptr<TH2> h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data, particleCorrectionMode);
 
       std::string fileMCOutputPerPartPath2D = ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root";
       std::unique_ptr<TFile> fileMCOutputPerPart2D = OpenOrThrow(fileMCOutputPerPartPath2D, "RECREATE", "MCTask");
@@ -234,8 +255,8 @@ class MCTask : public IAnalysisTask
       TDirectory* sigLossMultDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "SigLoss", "MultBin"}, false);
 
       // Process 1D Spectra across multiplicity bins
-      for (int i{0}; i < globalCfgs.nBinMult; i++) {
-        auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMaps(data, globalCfgs, i);
+      for (int i{0}; i < BinningUtils::NBins(multBinning); i++) {
+        auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMaps(data, i, globalCfgs.GetSpectraColor(i));
 
         // If required, rebin the 1D histograms according to the provided binning
         if (data.rebinningPt) {
@@ -262,7 +283,7 @@ class MCTask : public IAnalysisTask
         }
       }
 
-      auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMapsMultIntegrated(data, globalCfgs);
+      auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMapsMultIntegrated(data);
 
       // If required, rebin the 1D histograms according to the provided binning
       if (data.rebinningPt) {
@@ -323,6 +344,9 @@ class MCTask : public IAnalysisTask
   AnalysisSettings globalCfgs;
 
   std::vector<LoadedMC> dataCollection;
+
+  // Read from the input files in Init(), never from the configuration
+  std::vector<double> multBinning;
 
   std::unique_ptr<TFile> fileMCOutput;
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnalysisDataStructures.h"
+#include "BinningUtils.h"
 
 #include "TDirectory.h"
 #include "TH1.h"
@@ -13,6 +14,7 @@
 #include <cmath>
 #include <iostream>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <type_traits>
@@ -252,6 +254,67 @@ inline std::unique_ptr<TH1> MakeRatioHist(TH1* num, TH1* den, const std::string&
   h->Divide(num, den, numScale, denScale);
   // SetHistogramStyle(h.get(), color);
   return h;
+}
+
+// -----------------------------------------------------------------------------
+// Binning stamps: provenance for cached projections
+// -----------------------------------------------------------------------------
+
+// Records a binning inside a file as an empty TH1D whose axis IS the binning.
+// Storing it as a histogram rather than as a bare array means it reads back
+// through AxisEdges like any other axis, and is inspectable in a TBrowser.
+inline void WriteBinningStamp(TDirectory* dir, const std::string& name, std::span<const double> edges)
+{
+  if (!dir || edges.size() < 2)
+    return;
+
+  TH1D stamp(name.c_str(), "binning stamp (bin edges only, contents unused)",
+             static_cast<int>(edges.size()) - 1, edges.data());
+  stamp.SetDirectory(nullptr);
+
+  dir->cd();
+  stamp.Write(name.c_str(), TObject::kOverwrite);
+}
+
+// Empty vector when no stamp is present, e.g. a cache produced before stamps
+// existed. That case is a warning, not an error: see RequireMatchingBinningStamp.
+inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& name)
+{
+  if (!dir)
+    return {};
+
+  auto* raw = static_cast<TH1*>(dir->Get(name.c_str()));
+  if (!raw)
+    return {};
+
+  raw->SetDirectory(nullptr);
+  std::unique_ptr<TH1> stamp(raw);
+  return BinningUtils::AxisEdges(stamp->GetXaxis());
+}
+
+// Cached histograms are addressed by bin INDEX (they are named ..._ptBin7), so
+// reusing a cache built with a different binning silently mixes two
+// segmentations: index 31 stops meaning the same pT interval.
+inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name,
+                                        std::span<const double> current, const std::string& errCtx)
+{
+  const std::vector<double> cached = ReadBinningStamp(dir, name);
+
+  if (cached.empty()) {
+    std::cerr << "[WARNING] " << errCtx << ": the cache carries no '" << name
+              << "' stamp, so the binning it was built with cannot be verified. Delete the cache "
+                 "files if the input production has changed since they were produced."
+              << std::endl;
+    return;
+  }
+
+  const std::string diff = BinningUtils::Compare(cached, current, "cache", "current run");
+  if (!diff.empty()) {
+    throw std::runtime_error("[FATAL] " + errCtx + ": the cached projections were built with a different '" +
+                             name + "':\n" + diff +
+                             "Cached histograms are addressed by bin index, so reusing them would mix two "
+                             "binnings. Re-run with the cache disabled to rebuild them.");
+  }
 }
 
 // -----------------------------------------------------------------------------

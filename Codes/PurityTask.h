@@ -54,6 +54,13 @@ class PurityTask : public IAnalysisTask
 
       std::unique_ptr<TH3F> h3Source = GetUniqueOrThrow<TH3F>(fileInput.get(), histName, "PurityTask");
 
+      // The binning comes from the file, never from the configuration: the loops
+      // below address these very bins, and the purity spectrum is built on these
+      // very edges. h3 axes: (mult, pT, invariant mass).
+      const std::string origin = histName + " in '" + inputFile + "'";
+      multBinning = globalCfgs.ResolveMultBinning(h3Source->GetXaxis(), origin);
+      std::vector<double> binning = globalCfgs.ResolvePtBinning(name, h3Source->GetYaxis(), origin);
+
       std::string outputFileName = outputDir + prefix + outputFileSuffix;
 
       // Reuse an already-open file if another particle points to the same suffix
@@ -72,8 +79,7 @@ class PurityTask : public IAnalysisTask
       std::string canvasTitle = purityKey + " Purity";
       std::unique_ptr<TCanvas> canvas = std::make_unique<TCanvas>(canvasName.c_str(), canvasTitle.c_str(), 800, 600);
 
-      const auto& binning = globalCfgs.GetPtBinning(name);
-      particleTasks.emplace_back(purityKey, std::move(h3Source), static_cast<int>(binning.size()) - 1, binning, outputFilePtr, std::move(canvas));
+      particleTasks.emplace_back(purityKey, std::move(h3Source), std::move(binning), outputFilePtr, std::move(canvas));
     }
 
     // 3. Read task-specific settings from the JSON node (DOM)
@@ -91,7 +97,7 @@ class PurityTask : public IAnalysisTask
 
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
 
-    for (int i{0}; i < globalCfgs.nBinMult; i++) {
+    for (int i{0}; i < BinningUtils::NBins(multBinning); i++) {
       for (auto& task : particleTasks) {
         std::vector<std::string> fitPath = {globalCfgs.binningName, "Fits"};
         if (task.name == "pi_tpc" || task.name == "pi_tof")
@@ -101,10 +107,10 @@ class PurityTask : public IAnalysisTask
         TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(task.outputFile, fitPath, false);
 
         std::string hName = "h1" + task.name + "Purity_multBin" + std::to_string(i);
-        std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)", task.nBinPt, task.binning.data());
+        std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)", BinningUtils::NBins(task.binning), task.binning.data());
         h1PuritySpectrum->SetDirectory(0);
 
-        for (int k{0}; k < task.nBinPt; k++) {
+        for (int k{0}; k < BinningUtils::NBins(task.binning); k++) {
           std::string histName = "h1" + task.name + "_multBin" + std::to_string(i) + "_ptBin" + std::to_string(k);
 
           // Project 1D slice
@@ -118,8 +124,8 @@ class PurityTask : public IAnalysisTask
           fitter.DoFit();
 
           auto res = fitter.ExtractYieldsAndPurity();
-          h1PuritySpectrum->SetBinContent(k + 1, res.purity.first);
-          h1PuritySpectrum->SetBinError(k + 1, res.purity.second);
+          h1PuritySpectrum->SetBinContent(k + 1, res.purityAndError.first);
+          h1PuritySpectrum->SetBinError(k + 1, res.purityAndError.second);
 
           // Save diagnostic plot directly to the task's output file
           std::string cName = "cFit_" + task.name + "_m" + std::to_string(i) + "_p" + std::to_string(k);
@@ -171,6 +177,9 @@ class PurityTask : public IAnalysisTask
   // particleTasks holds raw pointers to TFile objects managed by outputFiles, so outputFiles must outlive particleTasks.
   std::map<std::string, std::unique_ptr<TFile>> outputFiles;
   std::vector<ParticleTask> particleTasks;
+
+  // Read from the input file in Init(), never from the configuration
+  std::vector<double> multBinning;
 
   std::unique_ptr<FitConfigManager> fitConfigManager{nullptr};
 };

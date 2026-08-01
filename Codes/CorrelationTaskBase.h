@@ -284,6 +284,10 @@ class CorrelationTaskBase : public IAnalysisTask
   std::vector<AssocParticleConfig> assocParticles;
   std::vector<LoadedAssocData> loadedDataCollection;
 
+  // Read from the input files in Init(), never from the configuration
+  std::vector<double> multBinning;
+  std::vector<double> ptPhiBinning;
+
   std::map<std::string, LoadedCorrections> correctionCollection;
 
   CorrelationCalculator::AxisTarget projectionAxis{CorrelationCalculator::AxisTarget::DeltaY_Y};
@@ -390,8 +394,9 @@ class CorrelationTaskBase : public IAnalysisTask
     for (const auto& sp : taskConfig["associated_particles"].GetArray()) {
       std::string name = sp["name"].GetString();
       std::string dirName = sp["dir_name"].GetString();
-      const auto& binning = globalCfgs.GetPtBinning(name);
-      assocParticles.emplace_back(name, dirName, static_cast<int>(binning.size()) - 1, binning, AnalysisConstants::GetMass(name));
+      // The binning is left empty here: it is resolved from the input files in
+      // ResolveBinningAndCache(), once the containers are open.
+      assocParticles.emplace_back(name, dirName, std::vector<double>{}, AnalysisConstants::GetMass(name));
     }
   }
 
@@ -496,7 +501,12 @@ class CorrelationTaskBase : public IAnalysisTask
 
       std::unique_ptr<TH1F> h = GetUniqueOrThrow<TH1F>(dir, name, "CorrelationTaskBase::LoadCorrections");
 
-      return AnalysisUtils::RebinToTargetBinning(std::move(h), targetBinning, "CorrelationTaskBase::LoadCorrections");
+      // The context names both sides on purpose: a failure here almost always
+      // means the efficiency file and the data file come from productions with
+      // different pT axes, not that something is wrong with the offline config.
+      return AnalysisUtils::RebinToTargetBinning(std::move(h), targetBinning,
+                                                 "efficiency map (MC production, '" + inputEffFile +
+                                                   "') vs analysis binning (data production)");
     };
 
     // LAMBDA HELPER 2: Clone and multiply (if both are needed) safely
@@ -517,12 +527,12 @@ class CorrelationTaskBase : public IAnalysisTask
     for (const std::string& name : effParts) {
       LoadedCorrections corr;
       corr.name = name;
-      corr.h1Corrections.resize(globalCfgs.nBinMult);
-      corr.h1CorrectionsEffMultInt.resize(globalCfgs.nBinMult);
+      corr.h1Corrections.resize(BinningUtils::NBins(multBinning));
+      corr.h1CorrectionsEffMultInt.resize(BinningUtils::NBins(multBinning));
 
       std::vector<double> targetBinning;
       if (name == "Phi") {
-        targetBinning = globalCfgs.GetPtBinning("Phi");
+        targetBinning = ptPhiBinning;
       } else {
         auto it = std::find_if(assocParticles.begin(), assocParticles.end(), [&](const AssocParticleConfig& p) { return p.name == name; });
         if (it == assocParticles.end())
@@ -539,7 +549,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Note: Signal loss is typically not integrated, but we fetch it if requested for consistency
       // std::unique_ptr<TH1F> hLossInt = fetchHist(sigLossDir, sigLossHistBase + "_multIntegrated", doSigLoss && useIntegratedEfficiency, targetBinning);
 
-      for (int i = 0; i < globalCfgs.nBinMult; i++) {
+      for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
         std::string iStr = std::to_string(i);
 
         // Fetch binned histograms ONLY if useIntegratedEfficiency is false
@@ -559,6 +569,152 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
+  // Object naming for the cached projections.
+  //
+  // Bin RANGES are spelled out instead of bin indices. With an index, a cache
+  // built from a different production still contains "_ptBin7" and is read back
+  // happily while meaning another pT interval; with the range in the name, the
+  // lookup simply misses and the run stops. The name is the primary defence,
+  // the binning stamp below only explains what went wrong.
+  //
+  // Both run modes go through here on purpose: they used to build the suffix
+  // separately, with different conventions, so a cache produced by one was not
+  // readable by the other.
+  // -------------------------------------------------------------------------
+  static std::string BinLabel(std::span<const double> edges, int bin)
+  {
+    // return std::format("{:g}-{:g}", edges[bin], edges[bin + 1]);
+    return BinningUtils::FormatEdge(edges[bin]) + "-" + BinningUtils::FormatEdge(edges[bin + 1]);
+  }
+
+  // Per (multiplicity, trigger pT, associated pT) cell.
+  std::string CellSuffix(const AssocParticleConfig& particle, int multBin, int ptPhiBin, int ptAssocBin) const
+  {
+    return std::format("_mult{}_ptPhi{}_pt{}",
+                       BinLabel(multBinning, multBin),
+                       BinLabel(ptPhiBinning, ptPhiBin),
+                       BinLabel(particle.binning, ptAssocBin));
+  }
+
+  // For the objects accumulated over the trigger pT bins.
+  std::string CellSuffix(const AssocParticleConfig& particle, int multBin, int ptAssocBin) const
+  {
+    return std::format("_mult{}_pt{}",
+                       BinLabel(multBinning, multBin),
+                       BinLabel(particle.binning, ptAssocBin));
+  }
+
+  // -------------------------------------------------------------------------
+  // Binning resolution and projection cache provenance, in one step.
+  //
+  // The binning always comes from a file, never from the configuration:
+  //   producing the cache -> from the axes of the THnSparse being projected
+  //   reusing the cache   -> from the stamps, which describe what is in it
+  // and in both cases it is verified against the declared production.
+  //
+  // The two are done together on purpose. Doing them apart is what would allow
+  // indexing one binning while labelling another, or reusing a cache built with
+  // a different one - and the stamps only mean something if they are written by
+  // whoever resolved the binning.
+  //
+  // The stamps live INSIDE the binning_name directory, next to the projections
+  // they describe. The file is opened UPDATE precisely so several schemes can
+  // coexist, each in its own directory: a stamp at the file root would be shared
+  // between them and would reject that legitimate case.
+  // -------------------------------------------------------------------------
+  // A binning that must be common to every associated particle: taken from the
+  // first one, then required to match on the others. Without this the last
+  // particle would silently win, and the multiplicity loops and trend histograms
+  // - which are built once for all species - would be based on it alone.
+  static void AdoptOrRequireSame(std::vector<double>& common, std::vector<double> found, bool isFirst,
+                                 const std::string& what, const std::string& firstName, const std::string& thisName)
+  {
+    if (isFirst) {
+      common = std::move(found);
+      return;
+    }
+
+    const std::string diff = BinningUtils::Compare(common, found, firstName, thisName);
+    if (!diff.empty()) {
+      throw std::runtime_error("[FATAL] " + what + " differs between associated particles:\n" + diff +
+                               "All species share the same multiplicity and trigger loops, so these must agree.");
+    }
+  }
+
+  void ResolveBinningAndCache()
+  {
+    for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
+      auto& particle = assocParticles[pIdx];
+      TFile* cacheFile = filesPhiAssocDataOutput[pIdx].get();
+      const std::string ctx = "Phi" + particle.name + "DataHistograms.root, scheme '" + globalCfgs.binningName + "'";
+
+      // Resolved for THIS particle, then merged into the common ones below.
+      std::vector<double> mult;
+      std::vector<double> ptPhi;
+
+      if (!useProjectionCache) {
+        // h5Phi{X}Data* axes: (mult, pT(phi), pT(assoc), dy, dphi)
+        const THnSparse* source = loadedDataCollection[pIdx].h5DataSignal.get();
+        const std::string origin = "h5Phi" + particle.name + "DataSignal";
+
+        mult = globalCfgs.ResolveMultBinning(source->GetAxis(0), origin);
+        ptPhi = globalCfgs.ResolvePtBinning("Phi", source->GetAxis(1), origin);
+        particle.binning = globalCfgs.ResolvePtBinning(particle.name, source->GetAxis(2), origin);
+
+        TDirectory* schemeDir = AnalysisUtils::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, false);
+
+        // Projections from an earlier run under the SAME scheme name are still
+        // there: if that run used a different binning, the ones whose bin range
+        // no longer exists are not overwritten and would survive as garbage.
+        const std::vector<double> previous = AnalysisUtils::ReadBinningStamp(schemeDir, "binning_ptAssoc");
+        if (!previous.empty()) {
+          const std::string diff = BinningUtils::Compare(previous, particle.binning, "existing file", "current run");
+          if (!diff.empty()) {
+            throw std::runtime_error(
+              "[FATAL] " + GetName() + ": " + ctx + " already holds projections built with a different pT binning:\n" +
+              diff +
+              "Overwriting would leave projections of both binnings under the same scheme. Either give this "
+              "binning a distinct 'binning_name', so the two live in separate directories, or delete the file.");
+          }
+        }
+
+        AnalysisUtils::WriteBinningStamp(schemeDir, "binning_ptAssoc", particle.binning);
+        AnalysisUtils::WriteBinningStamp(schemeDir, "binning_ptPhi", ptPhi);
+        AnalysisUtils::WriteBinningStamp(schemeDir, "binning_mult", mult);
+      } else {
+        TDirectory* schemeDir = AnalysisUtils::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, true);
+        if (!schemeDir) {
+          throw std::runtime_error("[FATAL] " + GetName() + ": cache requested but scheme '" + globalCfgs.binningName +
+                                   "' does not exist in Phi" + particle.name +
+                                   "DataHistograms.root. Run once with 'use_projection_cache': false.");
+        }
+
+        particle.binning = AnalysisUtils::ReadBinningStamp(schemeDir, "binning_ptAssoc");
+        ptPhi = AnalysisUtils::ReadBinningStamp(schemeDir, "binning_ptPhi");
+        mult = AnalysisUtils::ReadBinningStamp(schemeDir, "binning_mult");
+
+        if (particle.binning.empty() || ptPhi.empty() || mult.empty()) {
+          throw std::runtime_error("[FATAL] " + GetName() + ": " + ctx +
+                                   " carries no binning stamps, so the binning its projections were built "
+                                   "with is unknown. Rebuild it with 'use_projection_cache': false.");
+        }
+
+        // The cache is the source of truth here, but it still has to be the
+        // production we think we are working on.
+        globalCfgs.VerifyMultBinning(mult, ctx);
+        globalCfgs.VerifyPtBinning("Phi", ptPhi, ctx);
+        globalCfgs.VerifyPtBinning(particle.name, particle.binning, ctx);
+      }
+
+      const bool isFirst = (pIdx == 0);
+      AdoptOrRequireSame(multBinning, std::move(mult), isFirst, "Multiplicity binning",
+                         assocParticles.front().name, particle.name);
+      AdoptOrRequireSame(ptPhiBinning, std::move(ptPhi), isFirst, "Trigger pT binning",
+                         assocParticles.front().name, particle.name);
+    }
+  }
+
+  // -------------------------------------------------------------------------
   // Shared trend/spectra-canvas bookkeeping setup.
   // -------------------------------------------------------------------------
   void SetupTrendHistograms()
@@ -566,9 +722,9 @@ class CorrelationTaskBase : public IAnalysisTask
     // 1. Initialize structure for pT bin accumulation
     h1PhiAssocNoPtPhi.resize(assocParticles.size());
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-      h1PhiAssocNoPtPhi[pIdx].resize(globalCfgs.nBinMult);
-      for (int i{0}; i < globalCfgs.nBinMult; ++i) {
-        h1PhiAssocNoPtPhi[pIdx][i].resize(assocParticles[pIdx].nBinPt);
+      h1PhiAssocNoPtPhi[pIdx].resize(BinningUtils::NBins(multBinning));
+      for (int i{0}; i < BinningUtils::NBins(multBinning); ++i) {
+        h1PhiAssocNoPtPhi[pIdx][i].resize(BinningUtils::NBins(assocParticles[pIdx].binning));
       }
     }
 
@@ -591,7 +747,7 @@ class CorrelationTaskBase : public IAnalysisTask
         std::string hName = std::format("h1MultTrend_{}_dy{}", p.name, dyNameStr);
         std::string hTitle = std::format("Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
-        std::unique_ptr<TH1F> hTrend = std::make_unique<TH1F>(hName.c_str(), hTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
+        std::unique_ptr<TH1F> hTrend = std::make_unique<TH1F>(hName.c_str(), hTitle.c_str(), BinningUtils::NBins(multBinning), multBinning.data());
         hTrend->SetDirectory(0);
         h1MultTrends[pIdx].push_back(std::move(hTrend));
 
@@ -599,7 +755,7 @@ class CorrelationTaskBase : public IAnalysisTask
           std::string hExtrapName = std::format("h1MultTrendExtrap_{}_dy{}", p.name, dyNameStr);
           std::string hExtrapTitle = std::format("Extrapolated Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
-          std::unique_ptr<TH1F> hTrendExtrap = std::make_unique<TH1F>(hExtrapName.c_str(), hExtrapTitle.c_str(), globalCfgs.nBinMult, globalCfgs.binsMult.data());
+          std::unique_ptr<TH1F> hTrendExtrap = std::make_unique<TH1F>(hExtrapName.c_str(), hExtrapTitle.c_str(), BinningUtils::NBins(multBinning), multBinning.data());
           hTrendExtrap->SetDirectory(0);
           h1MultTrendsExtrap[pIdx].push_back(std::move(hTrendExtrap));
         }
@@ -799,16 +955,15 @@ class CorrelationTaskBase : public IAnalysisTask
       }
     }
 
-    const int nBinPtPhi = globalCfgs.GetNBinPt("Phi");
     std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
     std::vector<std::string> logicalPath{globalCfgs.binningName, dirName};
 
-    for (int i = 0; i < globalCfgs.nBinMult; i++) {
+    for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
       AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
       double totalTriggerSignalPerMult = 0.0;
       TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
-      for (int j = 0; j < nBinPtPhi; j++) {
+      for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
         AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
 
         double triggerSignal = GetTriggerSignal(i, j);
@@ -823,7 +978,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
           TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
 
-          for (int k = 0; k < config.nBinPt; k++) {
+          for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
             AnalysisUtils::AxisToCut axisToCutPtAssoc{2, k + 1, k + 1};
             std::vector<AnalysisUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
@@ -831,12 +986,12 @@ class CorrelationTaskBase : public IAnalysisTask
             double totalEff = phiEff * assocEff;
 
             std::string histNameBase = "h1Phi" + config.name + "Data";
-            std::string suffix = "_multBin" + std::to_string(i) + "_ptPhiBin" + std::to_string(j) + "_pt" + config.name + "Bin" + std::to_string(k);
+            std::string suffix = CellSuffix(config, i, j, k);
 
             std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, axesToCut, totalEff, triggerBkgRatio, histNameBase + suffix, targetDir, nullptr, projectionAxis);
 
             if (j == 0) {
-              std::string accumName = "h1Phi" + config.name + "DataSignal_multBin" + std::to_string(i) + "_pt" + config.name + "Bin" + std::to_string(k);
+              std::string accumName = "h1Phi" + config.name + "DataSignal" + CellSuffix(config, i, k);
               h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
               h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
             } else {

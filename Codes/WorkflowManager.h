@@ -222,7 +222,6 @@ class WorkflowManager
       }
     }
 
-    globalSettings.UpdateBinCounts();
   }
 
   void ParseWorkflowTasks()

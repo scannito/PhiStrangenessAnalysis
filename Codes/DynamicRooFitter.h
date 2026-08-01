@@ -151,12 +151,12 @@ class DynamicRooFitter
         // Direct integration from histogram bins
         results.bkgInSidebandAndError = AnalysisUtils::IntegralAndErrorPair(h1Data, sbMin, sbMax);
 
-        const double num = results.background.first;
-        const double den = results.bkgInSideband.first;
+        const double num = results.backgroundAndError.first;
+        const double den = results.bkgInSidebandAndError.first;
         if (den > 0.0) {
           const double ratio = num / den;
-          const double relNum = (num != 0.0) ? results.background.second / num : 0.0;
-          const double relDen = results.bkgInSideband.second / den;
+          const double relNum = (num != 0.0) ? results.backgroundAndError.second / num : 0.0;
+          const double relDen = results.bkgInSidebandAndError.second / den;
           results.bkgRatioAndError = {ratio, ratio * std::sqrt(relNum * relNum + relDen * relDen)};
         }
       }

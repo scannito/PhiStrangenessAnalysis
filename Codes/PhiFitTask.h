@@ -47,6 +47,12 @@ class PhiFitTask : public IAnalysisTask
     basePathData = RequireString(taskConfig, "base_path_data", "PhiFitTask");
     h3PhiData = GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", "PhiFitTask");
 
+    // The binning comes from the file, never from the configuration: the loops
+    // below address these very bins. h3PhiData axes: (mult, pT, invariant mass).
+    const std::string origin = "h3PhiData in '" + inputFile + "'";
+    multBinning = globalCfgs.ResolveMultBinning(h3PhiData->GetXaxis(), origin);
+    ptPhiBinning = globalCfgs.ResolvePtBinning("Phi", h3PhiData->GetYaxis(), origin);
+
     /*if (!taskConfig.HasMember("input_data_file") || !taskConfig.HasMember("base_path_data"))
     {
       throw std::runtime_error("[FATAL ERROR] PhiFitTask: Missing input_data_file or base_path_data in JSON!");
@@ -97,21 +103,23 @@ class PhiFitTask : public IAnalysisTask
     filePhiDataOutput = OpenOrThrow(phiDataName, "RECREATE", "PhiFitTask");
     // filePhiDataOutput = new TFile(phiDataName.c_str(), "RECREATE");
 
-    const int nBinPtPhi = globalCfgs.GetNBinPt("Phi");
+    // Real bin edges on both axes, not 0..N counters: these matrices cross the
+    // boundary to CorrelationTask, and with index axes the association to a pT
+    // interval would exist only in the shared configuration, unverifiable.
+    const std::string axesTitles = ";Multiplicity percentile (%);p_{T} (GeV/#it{c})";
 
-    // Histograms to pass parameters to CorrelationTask
-    h2TriggerSignal = std::make_unique<TH2D>("h2TriggerSignal", "Raw Signal Yield;Multiplicity Bin;p_{T} Bin",
-                                             globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
-    h2TriggerSignal->SetDirectory(0);
-    h2TriggerBkgSigRegion = std::make_unique<TH2D>("h2TriggerBkgSigRegion", "Bkg in Signal Region;Multiplicity Bin;p_{T} Bin",
-                                                   globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
-    h2TriggerBkgSigRegion->SetDirectory(0);
-    h2TriggerBkgSideRegion = std::make_unique<TH2D>("h2TriggerBkgSideRegion", "Bkg in Sideband Region;Multiplicity Bin;p_{T} Bin",
-                                                    globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
-    h2TriggerBkgSideRegion->SetDirectory(0);
-    h2TriggerBkgRatio = std::make_unique<TH2D>("h2TriggerBkgRatio", "Bkg(SigRegion)/Bkg(Sideband);Multiplicity Bin;p_{T} Bin",
-                                               globalCfgs.nBinMult, 0, globalCfgs.nBinMult, nBinPtPhi, 0, nBinPtPhi);
-    h2TriggerBkgRatio->SetDirectory(0);
+    auto makeTriggerMatrix = [&](const char* name, const std::string& title) {
+      auto h = std::make_unique<TH2D>(name, (title + axesTitles).c_str(),
+                                      BinningUtils::NBins(multBinning), multBinning.data(),
+                                      BinningUtils::NBins(ptPhiBinning), ptPhiBinning.data());
+      h->SetDirectory(0);
+      return h;
+    };
+
+    h2TriggerSignal = makeTriggerMatrix("h2TriggerSignal", "Raw Signal Yield");
+    h2TriggerBkgSigRegion = makeTriggerMatrix("h2TriggerBkgSigRegion", "Bkg in Signal Region");
+    h2TriggerBkgSideRegion = makeTriggerMatrix("h2TriggerBkgSideRegion", "Bkg in Sideband Region");
+    h2TriggerBkgRatio = makeTriggerMatrix("h2TriggerBkgRatio", "Bkg(SigRegion)/Bkg(Sideband)");
   }
 
   void Run() override
@@ -124,10 +132,8 @@ class PhiFitTask : public IAnalysisTask
                                "/Fits' directory in the output file.");
     }
 
-    const int nBinPtPhi = globalCfgs.GetNBinPt("Phi");
-
-    for (int i = 0; i < globalCfgs.nBinMult; i++) {
-      for (int j = 0; j < nBinPtPhi; j++) {
+    for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
+      for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
         std::string phiHistName = "h1PhiData_multBin" + std::to_string(i) + "_ptBin" + std::to_string(j);
         std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), i + 1, i + 1, j + 1, j + 1)));
         h1PhiData->SetDirectory(0);
@@ -185,14 +191,15 @@ class PhiFitTask : public IAnalysisTask
         }
 
         // Save the results for CorrelationTask
-        h2TriggerSignal->SetBinContent(i + 1, j + 1, triggerSignalAndError.first);
-        h2TriggerSignal->SetBinError(i + 1, j + 1, triggerSignalAndError.second);
-        h2TriggerBkgSigRegion->SetBinContent(i + 1, j + 1, triggerBkgSigRegionAndError.first);
-        h2TriggerBkgSigRegion->SetBinError(i + 1, j + 1, triggerBkgSigRegionAndError.second);
-        h2TriggerBkgSideRegion->SetBinContent(i + 1, j + 1, triggerBkgSideRegionAndError.first);
-        h2TriggerBkgSideRegion->SetBinError(i + 1, j + 1, triggerBkgSideRegionAndError.second);
-        h2TriggerBkgRatio->SetBinContent(i + 1, j + 1, triggerBkgRatioAndError.first);
-        h2TriggerBkgRatio->SetBinError(i + 1, j + 1, triggerBkgRatioAndError.second);
+        auto fillTriggerMatrix = [&](TH2D* h, const std::pair<double, double>& valueAndError) {
+          h->SetBinContent(i + 1, j + 1, valueAndError.first);
+          h->SetBinError(i + 1, j + 1, valueAndError.second);
+        };
+
+        fillTriggerMatrix(h2TriggerSignal.get(), triggerSignalAndError);
+        fillTriggerMatrix(h2TriggerBkgSigRegion.get(), triggerBkgSigRegionAndError);
+        fillTriggerMatrix(h2TriggerBkgSideRegion.get(), triggerBkgSideRegionAndError);
+        fillTriggerMatrix(h2TriggerBkgRatio.get(), triggerBkgRatioAndError);
       }
     }
   }
@@ -224,6 +231,10 @@ class PhiFitTask : public IAnalysisTask
 
   std::string basePathData;
   FitterType fitterType{FitterType::DynamicRooFitter}; // Default fitting method
+
+  // Read from the input file in Init(), never from the configuration
+  std::vector<double> multBinning;
+  std::vector<double> ptPhiBinning;
   std::unique_ptr<TH3F> h3PhiData;
 
   std::unique_ptr<TFile> filePhiDataOutput;
