@@ -4,6 +4,7 @@
 #include "TFile.h"
 #include "TH1.h"
 
+#include <concepts>
 #include <format>
 #include <iostream>
 #include <memory>
@@ -11,6 +12,11 @@
 #include <string>
 #include <string_view>
 #include <type_traits>
+
+// Anything these helpers can read out of a TDirectory: histograms, THnSparse,
+// canvases. Not narrowed to TH1 on purpose - THnSparse is not one.
+template <typename T>
+concept RootObject = std::derived_from<T, TObject>;
 
 struct TFileCloser {
   void operator()(TFile* f) const
@@ -33,7 +39,7 @@ inline std::unique_ptr<TFile> OpenOrThrow(const std::string& path, const char* m
   return f;
 }
 
-template <typename T>
+template <RootObject T>
 inline T* GetOrThrow(TDirectory* dir, const std::string& objPath, std::string_view errCtx, bool detachFromFile = true)
 {
   T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
@@ -48,7 +54,7 @@ inline T* GetOrThrow(TDirectory* dir, const std::string& objPath, std::string_vi
   return obj;
 }
 
-template <typename T>
+template <RootObject T>
 inline T* GetOrWarn(TDirectory* dir, const std::string& objPath, std::string_view warnCtx, bool detachFromFile = true)
 {
   T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
@@ -65,7 +71,7 @@ inline T* GetOrWarn(TDirectory* dir, const std::string& objPath, std::string_vie
   return obj;
 }
 
-template <typename T>
+template <RootObject T>
 inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& objPath, std::string_view errCtx, bool detachFromFile = true)
 {
   T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
@@ -80,7 +86,7 @@ inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& o
   return std::unique_ptr<T>(obj);
 }
 
-template <typename T>
+template <RootObject T>
 inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& objPath, std::string_view warnCtx, bool detachFromFile = true)
 {
   T* obj = static_cast<T*>(dir->Get(objPath.c_str()));

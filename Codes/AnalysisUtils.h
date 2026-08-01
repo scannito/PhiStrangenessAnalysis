@@ -12,6 +12,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <concepts>
 #include <format>
 #include <iostream>
 #include <memory>
@@ -62,6 +63,13 @@ inline std::pair<double, double> IntegralAndErrorPair(TH2* h2, double x1, double
   return std::make_pair(integral, error);
 }
 
+// Constrains the helpers below to the ROOT histogram hierarchy. Without it the
+// if-constexpr chain in ProjectTHnSparse has no else branch: an unrelated type
+// would silently yield a null pointer instead of a diagnostic at the call site.
+// With it, the three cases are exhaustive over every type that can get here.
+template <typename T>
+concept RootHistogram = std::derived_from<T, TH1>;
+
 // Struct required by the projection utility
 struct AxisToCut {
   int axis{0};
@@ -69,7 +77,7 @@ struct AxisToCut {
 };
 
 // Projects a THnSparse into a lower-dimensional histogram
-template <typename THType>
+template <RootHistogram THType>
 inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
                                                 const std::vector<AxisToCut>& axesToBeCut,
                                                 const std::vector<int>& axesToProject,
@@ -110,7 +118,7 @@ inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
 // -----------------------------------------------------------------------------
 
 // Construct pT spectrum from a vector of histograms
-inline std::unique_ptr<TH1> ConstructSpectrum(std::span<const TH1*> hContainer,
+inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
                                               std::span<const double> binsVec,
                                               const std::string& histName,
                                               double absLimToIntegrate)
@@ -270,7 +278,7 @@ inline void WriteBinningStamp(TDirectory* dir, const std::string& name, std::spa
     return;
 
   TH1D stamp(name.c_str(), "binning stamp (bin edges only, contents unused)",
-             static_cast<int>(edges.size()) - 1, edges.data());
+             BinningUtils::NBins(edges), edges.data());
   stamp.SetDirectory(nullptr);
 
   dir->cd();
@@ -340,7 +348,8 @@ inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, st
   for (double edge : targetBins) {
     // Out of range check
     if (edge < xMin - epsilon || edge > xMax + epsilon) {
-      mismatches.push_back({edge, -1, xMin, xMax, true});
+      mismatches.push_back({.targetEdge = edge, .sourceBin = -1, .sourceBinLowEdge = xMin,
+                            .sourceBinUpEdge = xMax, .outOfSourceRange = true});
       continue;
     }
 
@@ -350,7 +359,8 @@ inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, st
     double lowEdge = hSource->GetXaxis()->GetBinLowEdge(bin);
     double upEdge = hSource->GetXaxis()->GetBinLowEdge(bin + 1);
     if (std::abs(lowEdge - edge) > epsilon && std::abs(upEdge - edge) > epsilon)
-      mismatches.push_back({edge, bin, lowEdge, upEdge, false});
+      mismatches.push_back({.targetEdge = edge, .sourceBin = bin, .sourceBinLowEdge = lowEdge,
+                            .sourceBinUpEdge = upEdge, .outOfSourceRange = false});
   }
   return mismatches;
 }
@@ -360,7 +370,7 @@ inline bool IsRebinCompatible(const TH1* hSource, std::span<const double> target
   return FindRebinMismatches(hSource, targetBins, epsilon).empty();
 }
 
-template <typename THType>
+template <RootHistogram THType>
 inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, std::span<const double> targetBins, std::string_view errCtx)
 {
   std::vector<RebinEdgeMismatch> mismatches = FindRebinMismatches(h.get(), targetBins);
@@ -385,7 +395,7 @@ inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, s
     throw std::runtime_error(msg);
   }
 
-  int nTargetBins = static_cast<int>(targetBins.size()) - 1;
+  const int nTargetBins = BinningUtils::NBins(targetBins);
   return std::unique_ptr<THType>(static_cast<THType*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBins.data())));
 }
 

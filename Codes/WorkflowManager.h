@@ -68,9 +68,8 @@ class WorkflowManager
       bool taskFound = false;
 
       for (const auto& [baseName, factory] : taskRegistry) {
-        // Check if the requested task name STARTS with the registered base name (index == 0).
-        // This allows task aliasing (e.g., "correlation_task_nominal") without false positives.
-        if (taskName.find(baseName) == 0) {
+        // Task aliasing: "correlation_task_nominal" is served by "correlation_task".
+        if (taskName.starts_with(baseName)) {
           // Store the JSON block name TOGETHER with the instance: a skipped
           // unknown task must not shift the configuration of the following ones.
           activeTasks.push_back(ScheduledTask{taskName, factory()});

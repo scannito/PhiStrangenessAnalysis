@@ -26,6 +26,7 @@
 #include "TString.h"
 
 #include <algorithm>
+#include <ranges>
 #include <chrono>
 #include <format>
 #include <iostream>
@@ -179,8 +180,8 @@ class CorrelationTaskBase : public IAnalysisTask
           double numScale = GetYieldScaleFactor(num.name);
           double denScale = GetYieldScaleFactor(den.name);
 
-          bool numHasExtrap = doExtrapolationPerParticle.count(num.name) && doExtrapolationPerParticle.at(num.name);
-          bool denHasExtrap = doExtrapolationPerParticle.count(den.name) && doExtrapolationPerParticle.at(den.name);
+          bool numHasExtrap = doExtrapolationPerParticle.contains(num.name) && doExtrapolationPerParticle.at(num.name);
+          bool denHasExtrap = doExtrapolationPerParticle.contains(den.name) && doExtrapolationPerParticle.at(den.name);
           bool doExtrapRatio = applyExtrapolation && (numHasExtrap || denHasExtrap);
 
           std::string canvasName = std::format("canvasRatio_{}_{}_MultTrend", num.name, den.name);
@@ -545,7 +546,7 @@ class CorrelationTaskBase : public IAnalysisTask
       if (name == "Phi") {
         targetBinning = ptPhiBinning;
       } else {
-        auto it = std::find_if(assocParticles.begin(), assocParticles.end(), [&](const AssocParticleConfig& p) { return p.name == name; });
+        auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == name; });
         if (it == assocParticles.end())
           throw std::runtime_error("[FATAL] Unknown particle name in 'apply_efficiency_to': " + name);
         targetBinning = it->binning;
@@ -750,7 +751,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& p = assocParticles[pIdx];
-      bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.count(p.name) && doExtrapolationPerParticle.at(p.name);
+      bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.contains(p.name) && doExtrapolationPerParticle.at(p.name);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
@@ -883,7 +884,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];
-      bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.count(config.name) && doExtrapolationPerParticle.at(config.name);
+      bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.contains(config.name) && doExtrapolationPerParticle.at(config.name);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];

@@ -253,7 +253,7 @@ class CorrelationTask : public CorrelationTaskBase
       if (name == "Phi") {
         targetBinning = ptPhiBinning;
       } else {
-        auto it = std::find_if(assocParticles.begin(), assocParticles.end(), [&](const AssocParticleConfig& p) { return p.name == name; });
+        auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == name; });
         if (it == assocParticles.end())
           throw std::runtime_error("[FATAL] CorrelationTask: Unknown particle name in 'purity_sources': " + name);
         targetBinning = it->binning;
