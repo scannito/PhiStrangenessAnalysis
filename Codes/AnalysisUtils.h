@@ -133,6 +133,34 @@ inline std::unique_ptr<TH1> ConstructSpectrum(const std::vector<TH1*>& hContaine
   return hSpectrum;
 }
 
+// Content and error of a bin, as one value. The fallback is returned when the
+// histogram is absent, so callers do not have to spell out the same ternary
+// twice - once for the content and once for the error, with the risk of the two
+// disagreeing on what "missing" means.
+inline std::pair<double, double> BinValueAndError(const TH1* h, int bin,
+                                                  std::pair<double, double> fallback = {1.0, 0.0})
+{
+  if (!h)
+    return fallback;
+  return {h->GetBinContent(bin), h->GetBinError(bin)};
+}
+
+// Folds a relative uncertainty into the error of one bin.
+//
+// Meant for quantities that multiply the whole distribution - a normalisation,
+// a scale factor - which are 100% correlated across bins and must therefore be
+// applied where the distribution has already been reduced to a single number,
+// not bin by bin on the distribution itself.
+inline void AddRelativeError(TH1* h, int bin, double relativeError)
+{
+  if (!h || relativeError <= 0.0)
+    return;
+
+  const double content = h->GetBinContent(bin);
+  const double error = h->GetBinError(bin);
+  h->SetBinError(bin, std::hypot(error, content * relativeError));
+}
+
 // Construct multiplicity trends from pT spectra
 inline void ConstructMultTrend(TH1* hMultTrend,
                         std::variant<TH1*, ExtrapolationResult> source,

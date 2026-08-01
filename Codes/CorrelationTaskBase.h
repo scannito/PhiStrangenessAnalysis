@@ -320,9 +320,12 @@ class CorrelationTaskBase : public IAnalysisTask
   virtual TH1* GetPurityHist(const std::string& /*particleName*/, int /*multBin*/) { return nullptr; }
 
   // Trigger yield / background ratio for a given (multBin, ptPhiBin), used by
-  // the shared RunLegacy(). Every derived task MUST provide GetTriggerSignal;
+  // the shared RunLegacy(). Every derived task MUST provide GetTriggerYield;
   // GetTriggerBkgRatio defaults to "no background subtraction" (WPDG's case).
-  virtual double GetTriggerSignal(int multBin, int ptPhiBin) = 0;
+  // Trigger yield and its uncertainty, together: it normalises every spectrum,
+  // and returning them separately would mean reading the same source twice and
+  // leaving room for one to be updated without the other.
+  virtual std::pair<double, double> GetTriggerYield(int multBin, int ptPhiBin) = 0;
   virtual double GetTriggerBkgRatio(int /*multBin*/, int /*ptPhiBin*/) { return 0.0; }
 
   // -------------------------------------------------------------------------
@@ -871,13 +874,52 @@ class CorrelationTaskBase : public IAnalysisTask
     return res;
   }
 
+  // Accumulates the efficiency-corrected trigger yield of one multiplicity bin,
+  // together with its uncertainty. The trigger pT bins come from independent
+  // fits on disjoint samples, and their efficiencies from disjoint MC samples,
+  // so the contributions are summed in quadrature.
+  struct TriggerYield {
+    double value{0.0};
+    double variance{0.0};
+
+    double Error() const { return std::sqrt(variance); }
+    double RelativeError() const { return (value > 0.0) ? Error() / value : 0.0; }
+
+    void Add(std::pair<double, double> signal, std::pair<double, double> efficiency)
+    {
+      const auto& [yield, yieldError] = signal;
+      const auto& [eff, effError] = efficiency;
+
+      if (eff <= 0.0)
+        return;
+
+      value += yield / eff;
+
+      const double fromYield = yieldError / eff;
+      const double fromEfficiency = yield * effError / (eff * eff);
+      variance += fromYield * fromYield + fromEfficiency * fromEfficiency;
+    }
+  };
+
   // -------------------------------------------------------------------------
   // Shared spectra construction, normalization, and extrapolation.
   // -------------------------------------------------------------------------
-  void GenerateSpectraAndTrends(int multBin, double totalTriggerSignalPerMult)
+  void GenerateSpectraAndTrends(int multBin, const TriggerYield& triggers)
   {
     std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
     TDirectory* targetSpectraDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName, dirName});
+
+    // Relative uncertainty of the normalisation. It multiplies every bin of the
+    // spectrum by the same factor, so it is 100% correlated across bins: folding
+    // it into the per-bin errors would let the later integration add it in
+    // quadrature and dilute it. It is applied once, on the integrated yield.
+    double relativeNormError = triggers.RelativeError();
+    if (applyEfficiency && hEventLoss) {
+      const double eventLossCorr = hEventLoss->GetBinContent(multBin + 1);
+      const double eventLossError = hEventLoss->GetBinError(multBin + 1);
+      if (eventLossCorr > 0.0)
+        relativeNormError = std::hypot(relativeNormError, eventLossError / eventLossCorr);
+    }
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];
@@ -898,7 +940,7 @@ class CorrelationTaskBase : public IAnalysisTask
         // Construct the 1D spectrum from the accumulated Pt bins
         std::unique_ptr<TH1> h1Spectrum = AnalysisUtils::ConstructSpectrum(views, config.binning, spectraName, dyLimit);
 
-        double effectiveTriggers = totalTriggerSignalPerMult;
+        double effectiveTriggers = triggers.value;
 
         // Normalize by the event loss correction if it is required
         if (applyEfficiency && hEventLoss) {
@@ -909,7 +951,7 @@ class CorrelationTaskBase : public IAnalysisTask
         }
 
         // Normalize by the total number of triggers AND the Delta Y phase space
-        if (totalTriggerSignalPerMult > 0.0) {
+        if (triggers.value > 0.0) {
           h1Spectrum->Scale(1.0 / (effectiveTriggers * 2.0 * dyLimit));
         }
 
@@ -929,10 +971,15 @@ class CorrelationTaskBase : public IAnalysisTask
 
         AnalysisUtils::ConstructMultTrend(h1MultTrends[pIdx][yIdx].get(), h1Spectrum.get(), multBin);
 
+        // Here the spectrum has become a single number, so the normalisation
+        // uncertainty enters once, on that number, instead of bin by bin.
+        AnalysisUtils::AddRelativeError(h1MultTrends[pIdx][yIdx].get(), multBin + 1, relativeNormError);
+
         // Extrapolate and Fill Trend
         if (doExtrapForThis) {
           ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir);
           AnalysisUtils::ConstructMultTrend(h1MultTrendsExtrap[pIdx][yIdx].get(), res, multBin);
+          AnalysisUtils::AddRelativeError(h1MultTrendsExtrap[pIdx][yIdx].get(), multBin + 1, relativeNormError);
         }
       }
     }
@@ -940,7 +987,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
   // -------------------------------------------------------------------------
   // Shared "simple" run: one pass over mult/ptPhi/pt-assoc bins, no L2 cache.
-  // Relies on GetTriggerSignal/GetTriggerBkgRatio hooks for the data-source-
+  // Relies on GetTriggerYield/GetTriggerBkgRatio hooks for the data-source-
   // specific part. This is what CorrelationWPDGTask uses directly as its Run(),
   // and what CorrelationTask::RunLegacy() is when apply_purity/QA aren't needed
   // beyond what the hooks already provide.
@@ -970,16 +1017,17 @@ class CorrelationTaskBase : public IAnalysisTask
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
       AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
-      double totalTriggerSignalPerMult = 0.0;
+      TriggerYield triggers;
       TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
         AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
 
-        double triggerSignal = GetTriggerSignal(i, j);
-        double triggerBkgRatio = GetTriggerBkgRatio(i, j);
-        double phiEff = h1EffPhi ? h1EffPhi->GetBinContent(j + 1) : 1.0;
-        totalTriggerSignalPerMult += triggerSignal / phiEff;
+        const auto triggerYield = GetTriggerYield(i, j);
+        const auto phiEfficiency = AnalysisUtils::BinValueAndError(h1EffPhi, j + 1);
+        const double triggerBkgRatio = GetTriggerBkgRatio(i, j);
+        const double phiEff = phiEfficiency.first;
+        triggers.Add(triggerYield, phiEfficiency);
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
@@ -1011,7 +1059,7 @@ class CorrelationTaskBase : public IAnalysisTask
         }
       }
 
-      GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
+      GenerateSpectraAndTrends(i, triggers);
     }
   }
 

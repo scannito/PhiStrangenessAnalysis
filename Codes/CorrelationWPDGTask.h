@@ -43,7 +43,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
       h3PhiData->SetDirectory(0);*/
       h3PhiData = GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiMCGen", "CorrelationWPDGTask");
 
-      // Pre-compute the 2D projection once, up front, so GetTriggerSignal()
+      // Pre-compute the 2D projection once, up front, so GetTriggerYield()
       // during Run() is a pure lookup with no per-call state management.
       TH2D* rawh2PhiData = static_cast<TH2D*>(h3PhiData->Project3D("yx"));
       rawh2PhiData->SetDirectory(0);
@@ -135,16 +135,26 @@ class CorrelationWPDGTask : public CorrelationTaskBase
   }
 
  protected:
-  double GetTriggerSignal(int multBin, int ptPhiBin) override
+  // There is no signal extraction here - the trigger yield is a plain count, so
+  // its uncertainty is the statistical one of that count. It matters especially
+  // in a closure test, where the question is whether a ratio is compatible with
+  // one and the answer lives entirely in the error bars.
+  std::pair<double, double> GetTriggerYield(int multBin, int ptPhiBin) override
   {
-    if (!isPureGen) {
-      std::string phiHistName = "h1PhiData_multBin" + std::to_string(multBin) + "_ptBin" + std::to_string(ptPhiBin);
-      std::unique_ptr<TH1D> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
-      h1PhiData->SetDirectory(0);
-      return h1PhiData->Integral();
+    if (isPureGen) {
+      return AnalysisUtils::BinValueAndError(h2PhiData.get(), h2PhiData->GetBin(multBin + 1, ptPhiBin + 1), {0.0, 0.0});
     }
-    return h2PhiData->GetBinContent(multBin + 1, ptPhiBin + 1);
+
+    std::string phiHistName = "h1PhiData_multBin" + std::to_string(multBin) + "_ptBin" + std::to_string(ptPhiBin);
+    std::unique_ptr<TH1D> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), multBin + 1, multBin + 1,
+                                                                              ptPhiBin + 1, ptPhiBin + 1)));
+    h1PhiData->SetDirectory(0);
+
+    double error{0.0};
+    const double yield = h1PhiData->IntegralAndError(1, h1PhiData->GetNbinsX(), error);
+    return {yield, error};
   }
+
   // GetTriggerBkgRatio not overridden: base default (0.0) is correct for WPDG.
 
  private:

@@ -197,9 +197,10 @@ class CorrelationTask : public CorrelationTaskBase
     return it->second.h1Purity[multBin].get();
   }
 
-  double GetTriggerSignal(int multBin, int ptPhiBin) override
+  std::pair<double, double> GetTriggerYield(int multBin, int ptPhiBin) override
   {
-    return h2TriggerSignal->GetBinContent(multBin + 1, ptPhiBin + 1);
+    return AnalysisUtils::BinValueAndError(h2TriggerSignal.get(), h2TriggerSignal->GetBin(multBin + 1, ptPhiBin + 1),
+                                           {0.0, 0.0});
   }
 
   double GetTriggerBkgRatio(int multBin, int ptPhiBin) override
@@ -326,14 +327,11 @@ class CorrelationTask : public CorrelationTaskBase
       std::cout << "[INFO] CorrelationTask: Super Cache (Signal L2) is ON. Skipping Calculator." << std::endl;
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-        double totalTriggerSignalPerMult = 0.0;
+        TriggerYield triggers;
         TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
-        for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-          double triggerSignal = h2TriggerSignal->GetBinContent(i + 1, j + 1);
-          double phiEff = h1EffPhi ? h1EffPhi->GetBinContent(j + 1) : 1.0;
-          totalTriggerSignalPerMult += triggerSignal / phiEff;
-        }
+        for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++)
+          triggers.Add(GetTriggerYield(i, j), AnalysisUtils::BinValueAndError(h1EffPhi, j + 1));
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
@@ -349,7 +347,7 @@ class CorrelationTask : public CorrelationTaskBase
             h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
           }
         }
-        GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
+        GenerateSpectraAndTrends(i, triggers);
       }
       return;
     }
@@ -362,16 +360,16 @@ class CorrelationTask : public CorrelationTaskBase
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
       AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
-      double totalTriggerSignalPerMult = 0.0;
+      TriggerYield triggers;
       TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
         AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
 
-        double triggerSignal = h2TriggerSignal->GetBinContent(i + 1, j + 1);
-        double triggerBkgRatio = h2TriggerBkgRatio->GetBinContent(i + 1, j + 1);
-        double phiEff = h1EffPhi ? h1EffPhi->GetBinContent(j + 1) : 1.0;
-        totalTriggerSignalPerMult += triggerSignal / phiEff;
+        const auto phiEfficiency = AnalysisUtils::BinValueAndError(h1EffPhi, j + 1);
+        const double triggerBkgRatio = GetTriggerBkgRatio(i, j);
+        const double phiEff = phiEfficiency.first;
+        triggers.Add(GetTriggerYield(i, j), phiEfficiency);
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
@@ -428,7 +426,7 @@ class CorrelationTask : public CorrelationTaskBase
         }
       }
 
-      GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
+      GenerateSpectraAndTrends(i, triggers);
     }
   }
 };
