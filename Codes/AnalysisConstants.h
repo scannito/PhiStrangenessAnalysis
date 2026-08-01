@@ -1,18 +1,15 @@
 #pragma once
 
-#include "Rtypes.h" // Required for ROOT color definitions like kOrange
-
-#include <array>
 #include <map>
 #include <stdexcept>
 #include <string>
-#include <utility>
-#include <vector>
 
-// Wrap everything in a namespace to avoid polluting the global scope
+// PDG masses, and nothing else. Anything that depends on how a production was
+// binned, on how a fitter integrates, or on what the analysis chooses to do is
+// configuration - it belongs to the file it describes or to the class that uses
+// it, not here.
 namespace AnalysisConstants
 {
-// --- Physics Constants ---
 inline const std::map<std::string, double> particleMass{
   {"Phi", 1.019461}, // PDG mass of Phi meson in GeV/c^2
   {"K", 0.49367},    // PDG mass of charged kaon in GeV/c^2
@@ -29,7 +26,4 @@ inline double GetMass(const std::string& name)
   return it->second;
 }
 
-// --- Analysis Ranges ---
-inline const std::pair<double, double> phiMassSignalRange{1., 1.05};
-inline const std::pair<double, double> phiMassSidebandRange{1.06, 1.08};
 } // namespace AnalysisConstants

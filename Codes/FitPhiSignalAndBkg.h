@@ -1,7 +1,11 @@
 #pragma once
 
+#pragma once
+
 #include "AnalysisConstants.h"
 #include "AnalysisUtils.h"
+
+#include <utility>
 
 #include "TF1.h"
 #include "TH1.h"
@@ -49,6 +53,14 @@ inline double VoigtBkgMattia(double* x, double* par)
   return Voigt(x, &par[0]) + BkgMattia(x, &par[4]);
 }
 
+// Integration ranges of THIS fitter, not of the analysis: they are hardcoded
+// only because this path is not configuration-driven. DynamicRooFitter takes the
+// equivalent values from 'integration_range' and 'sideband_range' in the fit
+// config, and if the two fitters are ever unified these move into FitConfig and
+// disappear from here.
+inline const std::pair<double, double> kPhiSignalRange{1.0, 1.05};
+inline const std::pair<double, double> kPhiSidebandRange{1.06, 1.08};
+
 template <bool wSidebandFit>
 class FitPhiSignalAndBkg
 {
@@ -56,8 +68,8 @@ class FitPhiSignalAndBkg
   FitPhiSignalAndBkg(TH1* h,
                      TF1* fitFunc,
                      int indexFirstBkgParam,
-                     std::pair<double, double> signalRegion,
-                     std::pair<double, double> sidebandRegion)
+                     std::pair<double, double> signalRegion = kPhiSignalRange,
+                     std::pair<double, double> sidebandRegion = kPhiSidebandRange)
     : h1(h), fitFunction(fitFunc)
   {
     double binWidth = h1->GetXaxis()->GetBinWidth(1);

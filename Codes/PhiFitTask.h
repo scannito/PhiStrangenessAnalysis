@@ -152,9 +152,7 @@ class PhiFitTask : public IAnalysisTask
           fitVoigtBkgSourav->SetNpx(400);
           fitVoigtBkgSourav->SetLineColor(kRed);
 
-          FitPhiSignalAndBkg<false> fitPhiSignalAndBkg{h1PhiData.get(), fitVoigtBkgSourav.get(), 4,
-                                                       AnalysisConstants::phiMassSignalRange,
-                                                       AnalysisConstants::phiMassSidebandRange};
+          FitPhiSignalAndBkg<false> fitPhiSignalAndBkg{h1PhiData.get(), fitVoigtBkgSourav.get(), 4};
 
           triggerSignalAndError = fitPhiSignalAndBkg.GetSignalAndError();
           triggerBkgSigRegionAndError = fitPhiSignalAndBkg.GetBkgInSigRegionAndError();
