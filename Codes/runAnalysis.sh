@@ -4,6 +4,12 @@
 # so piping ROOT into tee would always report success, even on a crash.
 set -o pipefail
 
+# Every path below - and every path inside the JSON configurations - is relative
+# to this directory. Without this, they would be resolved against whatever
+# directory the caller happens to be in, and the same command would work or fail
+# depending on where it was typed.
+cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
+
 # 1. Check if at least one argument is provided
 if [ "$#" -eq 0 ]; then
     echo "Error: No configuration keyword provided."
