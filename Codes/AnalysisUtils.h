@@ -12,11 +12,13 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <iostream>
 #include <memory>
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 #include <utility>
 #include <variant>
@@ -62,9 +64,8 @@ inline std::pair<double, double> IntegralAndErrorPair(TH2* h2, double x1, double
 
 // Struct required by the projection utility
 struct AxisToCut {
-  int axis;
-  int binLow;
-  int binUp;
+  int axis{0};
+  BinningUtils::BinRange bins{}; // which bins of that axis to keep
 };
 
 // Projects a THnSparse into a lower-dimensional histogram
@@ -78,7 +79,7 @@ inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
     return nullptr;
 
   for (const auto& axisToCut : axesToBeCut) {
-    hnSparse->GetAxis(axisToCut.axis)->SetRange(axisToCut.binLow, axisToCut.binUp);
+    hnSparse->GetAxis(axisToCut.axis)->SetRange(axisToCut.bins.first, axisToCut.bins.last);
   }
 
   std::unique_ptr<THType> hProjection;
@@ -109,10 +110,10 @@ inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
 // -----------------------------------------------------------------------------
 
 // Construct pT spectrum from a vector of histograms
-inline std::unique_ptr<TH1> ConstructSpectrum(const std::vector<TH1*>& hContainer,
-                                       const std::vector<double>& binsVec,
-                                       const std::string& histName,
-                                       double absLimToIntegrate)
+inline std::unique_ptr<TH1> ConstructSpectrum(std::span<const TH1*> hContainer,
+                                              std::span<const double> binsVec,
+                                              const std::string& histName,
+                                              double absLimToIntegrate)
 {
   if (binsVec.size() - 1 != hContainer.size()) {
     throw std::runtime_error("Size of histogram container must be equal to number of bins - 1");
@@ -135,8 +136,8 @@ inline std::unique_ptr<TH1> ConstructSpectrum(const std::vector<TH1*>& hContaine
 
 // Construct multiplicity trends from pT spectra
 inline void ConstructMultTrend(TH1* hMultTrend,
-                        std::variant<TH1*, ExtrapolationResult> source,
-                        int i)
+                               std::variant<TH1*, ExtrapolationResult> source,
+                               int i)
 {
   /*auto [content, error] = IntegralAndErrorPair(hPtSpectrum, hPtSpectrum->GetXaxis()->GetXmin(), hPtSpectrum->GetXaxis()->GetXmax(), "width");
 
@@ -296,7 +297,7 @@ inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& 
 // reusing a cache built with a different binning silently mixes two
 // segmentations: index 31 stops meaning the same pT interval.
 inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name,
-                                        std::span<const double> current, const std::string& errCtx)
+                                        std::span<const double> current, std::string_view errCtx)
 {
   const std::vector<double> cached = ReadBinningStamp(dir, name);
 
@@ -310,10 +311,11 @@ inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name
 
   const std::string diff = BinningUtils::Compare(cached, current, "cache", "current run");
   if (!diff.empty()) {
-    throw std::runtime_error("[FATAL] " + errCtx + ": the cached projections were built with a different '" +
-                             name + "':\n" + diff +
-                             "Cached histograms are addressed by bin index, so reusing them would mix two "
-                             "binnings. Re-run with the cache disabled to rebuild them.");
+    throw std::runtime_error(std::format(
+      "[FATAL] {}: the cached projections were built with a different '{}':\n{}"
+      "Cached histograms are addressed by bin index, so reusing them would mix "
+      "two binnings. Re-run with the cache disabled to rebuild them.",
+      errCtx, name, diff));
   }
 }
 
@@ -329,7 +331,7 @@ struct RebinEdgeMismatch {
   bool outOfSourceRange{false};
 };
 
-inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, const std::vector<double>& targetBins, double epsilon = 1e-9)
+inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, std::span<const double> targetBins, double epsilon = 1e-9)
 {
   std::vector<RebinEdgeMismatch> mismatches;
   const double xMin = hSource->GetXaxis()->GetXmin();
@@ -353,20 +355,21 @@ inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, co
   return mismatches;
 }
 
-inline bool IsRebinCompatible(const TH1* hSource, const std::vector<double>& targetBins, double epsilon = 1e-9)
+inline bool IsRebinCompatible(const TH1* hSource, std::span<const double> targetBins, double epsilon = 1e-9)
 {
   return FindRebinMismatches(hSource, targetBins, epsilon).empty();
 }
 
 template <typename THType>
-inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, const std::vector<double>& targetBins, const std::string& errCtx)
+inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, std::span<const double> targetBins, std::string_view errCtx)
 {
   std::vector<RebinEdgeMismatch> mismatches = FindRebinMismatches(h.get(), targetBins);
 
   if (!mismatches.empty()) {
-    std::string msg = "[FATAL] " + errCtx + ": Histogram '" + std::string(h->GetName()) +
-                      "' binning is not compatible with the target binning (" +
-                      std::to_string(mismatches.size()) + " edge(s) misaligned):\n";
+    std::string msg = std::format(
+      "[FATAL] {}: histogram '{}' binning is not compatible with the target "
+      "binning ({} edge(s) misaligned):\n",
+      errCtx, h->GetName(), mismatches.size());
     for (const auto& m : mismatches) {
       if (m.outOfSourceRange) {
         msg += "  - target edge " + std::to_string(m.targetEdge) +
@@ -385,30 +388,6 @@ inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, c
   int nTargetBins = static_cast<int>(targetBins.size()) - 1;
   return std::unique_ptr<THType>(static_cast<THType*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBins.data())));
 }
-
-/*inline bool IsRebinCompatible(const TH1* hSource, const std::vector<double>& targetBins, double epsilon = 1e-9)
-{
-  for (double edge : targetBins) {
-    int bin = hSource->GetXaxis()->FindFixBin(edge);
-    double lowEdge = hSource->GetXaxis()->GetBinLowEdge(bin);
-    double upEdge = hSource->GetXaxis()->GetBinLowEdge(bin + 1);
-    if (std::abs(lowEdge - edge) > epsilon && std::abs(upEdge - edge) > epsilon)
-      return false;
-  }
-
-  return true;
-}
-
-template <typename THType>
-inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, const std::vector<double>& targetBins, const std::string& errCtx)
-{
-  if (!IsRebinCompatible(h.get(), targetBins))
-    throw std::runtime_error("[FATAL] " + errCtx + ": Histogram '" + std::string(h->GetName()) +
-                             "' binning is not compatible with analysis binning (bin edges do not align).");
-
-  int nTargetBins = static_cast<int>(targetBins.size()) - 1;
-  return std::unique_ptr<THType>(static_cast<THType*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBins.data())));
-}*/
 
 // -----------------------------------------------------------------------------
 // String formattig utility

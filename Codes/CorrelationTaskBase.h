@@ -33,6 +33,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -637,7 +638,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // particle would silently win, and the multiplicity loops and trend histograms
   // - which are built once for all species - would be based on it alone.
   static void AdoptOrRequireSame(std::vector<double>& common, std::vector<double> found, bool isFirst,
-                                 const std::string& what, const std::string& firstName, const std::string& thisName)
+                                 std::string_view what, std::string_view firstName, std::string_view thisName)
   {
     if (isFirst) {
       common = std::move(found);
@@ -646,8 +647,9 @@ class CorrelationTaskBase : public IAnalysisTask
 
     const std::string diff = BinningUtils::Compare(common, found, firstName, thisName);
     if (!diff.empty()) {
-      throw std::runtime_error("[FATAL] " + what + " differs between associated particles:\n" + diff +
-                               "All species share the same multiplicity and trigger loops, so these must agree.");
+      throw std::runtime_error(std::format("[FATAL] {} differs between associated particles:\n{}"
+                                           "All species share the same multiplicity and trigger loops, "
+                                           "so these must agree.", what, diff));
     }
   }
 
@@ -969,12 +971,12 @@ class CorrelationTaskBase : public IAnalysisTask
     std::vector<std::string> logicalPath{globalCfgs.binningName, dirName};
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-      AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
+      AnalysisUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {i + 1, i + 1}};
       double totalTriggerSignalPerMult = 0.0;
       TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-        AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
+        AnalysisUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {j + 1, j + 1}};
 
         double triggerSignal = GetTriggerSignal(i, j);
         double triggerBkgRatio = GetTriggerBkgRatio(i, j);
@@ -989,7 +991,7 @@ class CorrelationTaskBase : public IAnalysisTask
           TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
 
           for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
-            AnalysisUtils::AxisToCut axisToCutPtAssoc{2, k + 1, k + 1};
+            AnalysisUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {k + 1, k + 1}};
             std::vector<AnalysisUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
             double assocEff = h1EffAssoc ? h1EffAssoc->GetBinContent(k + 1) : 1.0;

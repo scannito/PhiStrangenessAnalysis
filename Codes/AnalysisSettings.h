@@ -4,12 +4,14 @@
 
 #include "Rtypes.h"
 
+#include <format>
 #include <iostream>
 #include <map>
 #include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 // Runtime configuration of the analysis.
@@ -77,14 +79,14 @@ struct AnalysisSettings {
   // ---------------------------------------------------------------------------
 
   std::vector<double> ResolvePtBinning(const std::string& species, const TAxis* axis,
-                                       const std::string& context) const
+                                       std::string_view context) const
   {
     std::vector<double> found = BinningUtils::AxisEdges(axis);
     VerifyPtBinning(species, found, context);
     return found;
   }
 
-  std::vector<double> ResolveMultBinning(const TAxis* axis, const std::string& context) const
+  std::vector<double> ResolveMultBinning(const TAxis* axis, std::string_view context) const
   {
     std::vector<double> found = BinningUtils::AxisEdges(axis);
     VerifyMultBinning(found, context);
@@ -95,7 +97,7 @@ struct AnalysisSettings {
   // Verification
   //
   // Source bins are addressed BY INDEX (h->ProjectionZ(n, k+1, k+1),
-  // AxisToCut{axis, k+1, k+1}), so the declared binning and the axis in the file
+  // AxisToCut{.axis = a, .bins = {k+1, k+1}}), so the declared binning and the file's axis
   // must be identical, not merely rebin-compatible: a disagreement means every
   // index points at a different interval than intended.
   //
@@ -104,7 +106,7 @@ struct AnalysisSettings {
   // ---------------------------------------------------------------------------
 
   void VerifyPtBinning(const std::string& species, std::span<const double> found,
-                       const std::string& context) const
+                       std::string_view context) const
   {
     auto it = speciesPtBinning.find(species);
     if (it == speciesPtBinning.end()) {
@@ -120,14 +122,15 @@ struct AnalysisSettings {
 
     const std::string diff = BinningUtils::Compare(it->second, found, "configuration", "input file");
     if (!diff.empty()) {
-      throw std::runtime_error(
-        "[FATAL] AnalysisSettings: pT binning mismatch for '" + species + "' (" + context + "):\n" + diff +
+      throw std::runtime_error(std::format(
+        "[FATAL] AnalysisSettings: pT binning mismatch for '{}' ({}):\n{}"
         "Bins are addressed by index, so these must match exactly. Either 'global_binning.pt_binning' "
-        "is stale, or this file comes from a different production than the ones it is combined with.");
+        "is stale, or this file comes from a different production than the ones it is combined with.",
+        species, context, diff));
     }
   }
 
-  void VerifyMultBinning(std::span<const double> found, const std::string& context) const
+  void VerifyMultBinning(std::span<const double> found, std::string_view context) const
   {
     if (binsMult.empty()) {
       if (!undeclaredMultWarned) {
@@ -141,10 +144,11 @@ struct AnalysisSettings {
 
     const std::string diff = BinningUtils::Compare(binsMult, found, "configuration", "input file");
     if (!diff.empty()) {
-      throw std::runtime_error(
-        "[FATAL] AnalysisSettings: multiplicity binning mismatch (" + context + "):\n" + diff +
+      throw std::runtime_error(std::format(
+        "[FATAL] AnalysisSettings: multiplicity binning mismatch ({}):\n{}"
         "Bins are addressed by index, so these must match exactly. Either 'global_binning.multiplicity' "
-        "is stale, or this file comes from a different production than the ones it is combined with.");
+        "is stale, or this file comes from a different production than the ones it is combined with.",
+        context, diff));
     }
   }
 

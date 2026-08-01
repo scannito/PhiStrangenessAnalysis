@@ -16,8 +16,10 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <format>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 class WorkflowManager
@@ -144,12 +146,12 @@ class WorkflowManager
   AnalysisSettings globalSettings; // Holds the runtime configuration
 
   // Safe file loader helper utilizing exceptions
-  void LoadJsonFile(const std::string& path, rapidjson::Document& doc, const std::string& context)
+  void LoadJsonFile(const std::string& path, rapidjson::Document& doc, std::string_view context)
   {
     std::unique_ptr<FILE, int (*)(FILE*)> fp(fopen(path.c_str(), "rb"), &fclose);
     // FILE* fp = fopen(path.c_str(), "rb");
     if (!fp) {
-      throw std::runtime_error("[FATAL] " + context + ": Cannot open configuration file at: " + path);
+      throw std::runtime_error(std::format("[FATAL] {}: cannot open configuration file at: {}", context, path));
     }
 
     // 64KB read buffer for fast chunked I/O
@@ -161,13 +163,13 @@ class WorkflowManager
 
     if (doc.HasParseError()) {
       // RapidJSON provides the specific error code and the exact byte offset!
-      std::string errorMsg = "[FATAL] " + context + ": JSON Syntax Error in file '" + path +
-                             "' at byte offset " + std::to_string(doc.GetErrorOffset());
-      throw std::runtime_error(errorMsg);
+      throw std::runtime_error(std::format("[FATAL] {}: JSON syntax error in file '{}' at byte offset {}",
+                                           context, path, doc.GetErrorOffset()));
     }
 
     if (!doc.IsObject()) {
-      throw std::runtime_error("[FATAL] " + context + ": Invalid structure in " + path + ". The root must be a JSON object '{ ... }'.");
+      throw std::runtime_error(std::format("[FATAL] {}: invalid structure in {}. The root must be a JSON object.",
+                                           context, path));
     }
   }
 

@@ -134,12 +134,13 @@ inline std::vector<BinRange> MapToSourceBins(std::span<const double> source, std
 // anything being declared in the configuration, so it is checked directly
 // between the two axes rather than against a reference.
 inline void RequireSameAxis(const TAxis* lhs, const TAxis* rhs,
-                            const std::string& lhsName, const std::string& rhsName)
+                            std::string_view lhsName, std::string_view rhsName)
 {
   const std::string diff = Compare(AxisEdges(lhs), AxisEdges(rhs), lhsName, rhsName);
   if (!diff.empty()) {
-    throw std::runtime_error("[FATAL] Incompatible axes between '" + lhsName + "' and '" + rhsName + "':\n" + diff +
-                             "These containers are combined bin by bin, so their axes must be identical.");
+    throw std::runtime_error(std::format("[FATAL] Incompatible axes between '{}' and '{}':\n{}"
+                                         "These containers are combined bin by bin, so their axes must be identical.",
+                                         lhsName, rhsName, diff));
   }
 }
 

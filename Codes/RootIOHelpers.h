@@ -4,10 +4,12 @@
 #include "TFile.h"
 #include "TH1.h"
 
+#include <format>
 #include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <type_traits>
 
 struct TFileCloser {
@@ -22,21 +24,21 @@ struct TFileCloser {
 
 using TFileGuard = std::unique_ptr<TFile, TFileCloser>;
 
-inline std::unique_ptr<TFile> OpenOrThrow(const std::string& path, const char* mode, const std::string& errCtx)
+inline std::unique_ptr<TFile> OpenOrThrow(const std::string& path, const char* mode, std::string_view errCtx)
 {
   // std::unique_ptr<TFile> f = std::make_unique<TFile>(path.c_str(), mode);
   std::unique_ptr<TFile> f(TFile::Open(path.c_str(), mode));
   if (!f || f->IsZombie())
-    throw std::runtime_error("[FATAL] " + errCtx + ": Cannot open '" + path + "'");
+    throw std::runtime_error(std::format("[FATAL] {}: Cannot open '{}'", errCtx, path));
   return f;
 }
 
 template <typename T>
-inline T* GetOrThrow(TDirectory* dir, const std::string& objPath, const std::string& errCtx, bool detachFromFile = true)
+inline T* GetOrThrow(TDirectory* dir, const std::string& objPath, std::string_view errCtx, bool detachFromFile = true)
 {
   T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
   if (!obj)
-    throw std::runtime_error("[FATAL] " + errCtx + ": Missing object '" + objPath + "'");
+    throw std::runtime_error(std::format("[FATAL] {}: Missing object '{}'", errCtx, objPath));
 
   if constexpr (std::is_base_of_v<TH1, T>) {
     if (detachFromFile)
@@ -47,7 +49,7 @@ inline T* GetOrThrow(TDirectory* dir, const std::string& objPath, const std::str
 }
 
 template <typename T>
-inline T* GetOrWarn(TDirectory* dir, const std::string& objPath, const std::string& warnCtx, bool detachFromFile = true)
+inline T* GetOrWarn(TDirectory* dir, const std::string& objPath, std::string_view warnCtx, bool detachFromFile = true)
 {
   T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
   if (!obj) {
@@ -64,11 +66,11 @@ inline T* GetOrWarn(TDirectory* dir, const std::string& objPath, const std::stri
 }
 
 template <typename T>
-inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& objPath, const std::string& errCtx, bool detachFromFile = true)
+inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& objPath, std::string_view errCtx, bool detachFromFile = true)
 {
   T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
   if (!obj)
-    throw std::runtime_error("[FATAL] " + errCtx + ": Missing object '" + objPath + "'");
+    throw std::runtime_error(std::format("[FATAL] {}: Missing object '{}'", errCtx, objPath));
 
   if constexpr (std::is_base_of_v<TH1, T>) {
     if (detachFromFile)
@@ -79,7 +81,7 @@ inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& o
 }
 
 template <typename T>
-inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& objPath, const std::string& warnCtx, bool detachFromFile = true)
+inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& objPath, std::string_view warnCtx, bool detachFromFile = true)
 {
   T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
   if (!obj) {

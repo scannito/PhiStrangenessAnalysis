@@ -51,7 +51,7 @@ class EfficiencyCalculator
   // Computes the 3D Total Efficiency map (Efficiency * Signal Loss)
   static std::unique_ptr<TH3> Compute3DTotalMap(const LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
   {
-    AnalysisUtils::AxisToCut axisToCutZVtx{0, 1, AnalysisConstants::nBinZVtx};
+    AnalysisUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, AnalysisConstants::nBinZVtx}};
 
     // Project 3D histograms safely from the THnSparse
     std::unique_ptr<TH3> h3MCGenAssocReco = AnalysisUtils::ProjectTHnSparse<TH3>(data.h4MCGenAssocReco.get(), {axisToCutZVtx}, {1, 2, 3}, "h3" + data.name + "MCGenAssocRecoTemp");
@@ -91,10 +91,10 @@ class EfficiencyCalculator
   // Computes the 2D Total Efficiency map (Efficiency * Signal Loss) integrated over multiplicity
   static std::unique_ptr<TH2> Compute2DTotalMapMultIntegrated(const LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
   {
-    AnalysisUtils::AxisToCut axisToCutZVtx{0, 1, AnalysisConstants::nBinZVtx};
+    AnalysisUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, AnalysisConstants::nBinZVtx}};
     // "Integrated" means the whole axis: take its extent from the container
     // itself rather than from a configured bin count.
-    AnalysisUtils::AxisToCut axisToCutMult{1, 1, data.h4MCReco->GetAxis(1)->GetNbins()};
+    AnalysisUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {1, data.h4MCReco->GetAxis(1)->GetNbins()}};
 
     // Project Generator level 2D
     std::string h2GenName = "h2" + data.name + "MCGen_multInt_temp";
@@ -203,9 +203,9 @@ class EfficiencyCalculator
   // Returns a pair: {Efficiency 1D, Signal Loss 1D}.
   static std::pair<std::unique_ptr<TH1>, std::unique_ptr<TH1>> Compute1DMaps(const LoadedMC& data, int multBin, int color)
   {
-    AnalysisUtils::AxisToCut axisToCutZVtx{0, 1, AnalysisConstants::nBinZVtx};
-    AnalysisUtils::AxisToCut axisToCutMult{1, multBin + 1, multBin + 1};
-    AnalysisUtils::AxisToCut axisToCutY{3, 1, AnalysisConstants::nBinY};
+    AnalysisUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, AnalysisConstants::nBinZVtx}};
+    AnalysisUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {multBin + 1, multBin + 1}};
+    AnalysisUtils::AxisToCut axisToCutY{.axis = 3, .bins = {1, AnalysisConstants::nBinY}};
 
     // Project Generator level 1D
     std::string h1GenName = "h1" + data.name + "MCGen_multBin" + std::to_string(multBin) + "_temp";
@@ -239,11 +239,11 @@ class EfficiencyCalculator
   // Returns a pair: {Efficiency 1D, Signal Loss 1D}.
   static std::pair<std::unique_ptr<TH1>, std::unique_ptr<TH1>> Compute1DMapsMultIntegrated(const LoadedMC& data)
   {
-    AnalysisUtils::AxisToCut axisToCutZVtx{0, 1, AnalysisConstants::nBinZVtx};
+    AnalysisUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, AnalysisConstants::nBinZVtx}};
     // "Integrated" means the whole axis: take its extent from the containers
     // themselves rather than from a configured bin count.
-    AnalysisUtils::AxisToCut axisToCutMult{1, 1, data.h4MCReco->GetAxis(1)->GetNbins()};
-    AnalysisUtils::AxisToCut axisToCutY{3, 1, AnalysisConstants::nBinY};
+    AnalysisUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {1, data.h4MCReco->GetAxis(1)->GetNbins()}};
+    AnalysisUtils::AxisToCut axisToCutY{.axis = 3, .bins = {1, AnalysisConstants::nBinY}};
 
     // Project Generator level 1D (Integrated)
     std::string h1GenName = "h1" + data.name + "MCGen_Integrated_temp";

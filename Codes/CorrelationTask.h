@@ -361,12 +361,12 @@ class CorrelationTask : public CorrelationTaskBase
     CorrelationCalculator corrCalculator(applyME, useProjectionCache, use2DMENormalization, doMoreQA);
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-      AnalysisUtils::AxisToCut axisToCutMult{0, i + 1, i + 1};
+      AnalysisUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {i + 1, i + 1}};
       double totalTriggerSignalPerMult = 0.0;
       TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-        AnalysisUtils::AxisToCut axisToCutPtPhi{1, j + 1, j + 1};
+        AnalysisUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {j + 1, j + 1}};
 
         double triggerSignal = h2TriggerSignal->GetBinContent(i + 1, j + 1);
         double triggerBkgRatio = h2TriggerBkgRatio->GetBinContent(i + 1, j + 1);
@@ -386,7 +386,7 @@ class CorrelationTask : public CorrelationTaskBase
           }
 
           for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
-            AnalysisUtils::AxisToCut axisToCutPtAssoc{2, k + 1, k + 1};
+            AnalysisUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {k + 1, k + 1}};
             std::vector<AnalysisUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
             double assocEff = h1EffAssoc ? h1EffAssoc->GetBinContent(k + 1) : 1.0;
