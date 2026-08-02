@@ -41,11 +41,11 @@ class PhiFitTask : public IAnalysisTask
     globalCfgs = globalSettings; // Store the global settings for later use
 
     // 1. Input Configuration
-    std::string inputFile = RequireString(taskConfig, "input_data_file", "PhiFitTask");
-    std::unique_ptr<TFile> fileDataInput = OpenOrThrow(inputFile, "READ", "PhiFitTask");
+    std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", "PhiFitTask");
+    std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", "PhiFitTask");
 
-    basePathData = RequireString(taskConfig, "base_path_data", "PhiFitTask");
-    h3PhiData = GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", "PhiFitTask");
+    basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", "PhiFitTask");
+    h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", "PhiFitTask");
 
     // The binning comes from the file, never from the configuration: the loops
     // below address these very bins. h3PhiData axes: (mult, pT, invariant mass).
@@ -73,7 +73,7 @@ class PhiFitTask : public IAnalysisTask
     delete fileDataInput;*/
 
     // 2. Fit Configuration
-    std::string fitCfgPath = RequireString(taskConfig, "fit_config_file", "PhiFitTask");
+    std::string fitCfgPath = JsonConfig::RequireString(taskConfig, "fit_config_file", "PhiFitTask");
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
     /*if (!taskConfig.HasMember("fit_config_file")) {
       throw std::runtime_error("[FATAL ERROR] PhiFitTask: 'fit_config_file' missing in JSON!");
@@ -95,12 +95,12 @@ class PhiFitTask : public IAnalysisTask
     }
 
     // 3. Output Configuration
-    std::string basePathProj = RequireString(taskConfig, "output_dir_proj", "PhiFitTask");
+    std::string basePathProj = JsonConfig::RequireString(taskConfig, "output_dir_proj", "PhiFitTask");
     // std::string basePathProj = taskConfig["output_dir_proj"].GetString();
     std::string prefix = taskConfig.HasMember("output_prefix") ? taskConfig["output_prefix"].GetString() : "";
 
     std::string phiDataName = basePathProj + prefix + "PhiDataHistograms.root";
-    filePhiDataOutput = OpenOrThrow(phiDataName, "RECREATE", "PhiFitTask");
+    filePhiDataOutput = RootIO::OpenOrThrow(phiDataName, "RECREATE", "PhiFitTask");
     // filePhiDataOutput = new TFile(phiDataName.c_str(), "RECREATE");
 
     // Real bin edges on both axes, not 0..N counters: these matrices cross the
@@ -126,7 +126,7 @@ class PhiFitTask : public IAnalysisTask
   {
     std::cout << "[INFO] PhiFitTask: RUNNING TRIGGER SIGNAL EXTRACTION..." << std::endl;
 
-    TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Fits"}, false);
+    TDirectory* fitDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Fits"}, false);
     if (!fitDir) {
       throw std::runtime_error("[FATAL] PhiFitTask: Cannot create the '" + globalCfgs.binningName +
                                "/Fits' directory in the output file.");
@@ -145,7 +145,7 @@ class PhiFitTask : public IAnalysisTask
 
         if (fitterType == FitterType::FitPhiSignalAndBkg) {
           // Method 1: FitPhiSignalAndBkg
-          std::unique_ptr<TF1> fitVoigtBkgSourav = std::make_unique<TF1>("fitVoigtBkgSourav", VoigtBkgSourav, 0.995, 1.06, 7);
+          std::unique_ptr<TF1> fitVoigtBkgSourav = std::make_unique<TF1>("fitVoigtBkgSourav", PhiFitModels::VoigtBkgSourav, 0.995, 1.06, 7);
           fitVoigtBkgSourav->SetParameter(1, 1.019);
           fitVoigtBkgSourav->SetParameter(2, 0.001);
           fitVoigtBkgSourav->FixParameter(3, 0.00426);
@@ -206,7 +206,7 @@ class PhiFitTask : public IAnalysisTask
   {
     std::cout << "[INFO] PhiFitTask: TERMINATING..." << std::endl;
 
-    TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Summary"}, false);
+    TDirectory* summaryDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Summary"}, false);
     if (!summaryDir) {
       throw std::runtime_error("[FATAL] PhiFitTask: Cannot create the '" + globalCfgs.binningName +
                                "/Summary' directory in the output file. Trigger yields would be lost!");

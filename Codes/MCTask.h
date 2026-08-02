@@ -38,7 +38,7 @@ class MCTask : public IAnalysisTask
     globalCfgs = globalSettings; // Store the global settings for later use
 
     // 1. Check if a list of particle to compute MC corrections is provided
-    auto particles = RequireArray(taskConfig, "mc_particles", "MCTask");
+    auto particles = JsonConfig::RequireArray(taskConfig, "mc_particles", "MCTask");
     /*if (!taskConfig.HasMember("mc_particles") || !taskConfig["mc_particles"].IsArray()) {
       throw std::runtime_error("[FATAL ERROR] MCTask: 'mc_particles' array missing in JSON!");
     }*/
@@ -76,7 +76,7 @@ class MCTask : public IAnalysisTask
       auto it = openInputFiles.find(path);
       if (it != openInputFiles.end())
         return it->second.get();
-      std::unique_ptr<TFile> f = OpenOrThrow(path, "READ", "MCTask");
+      std::unique_ptr<TFile> f = RootIO::OpenOrThrow(path, "READ", "MCTask");
       openInputFiles[path] = std::move(f);
       return openInputFiles[path].get();
     };
@@ -115,9 +115,9 @@ class MCTask : public IAnalysisTask
       std::string h4MCGenAssocRecoName = mcBasePath + dirName + "/h4" + name + "MCGenAssocReco";
       std::string h4MCRecoName = mcBasePath + dirName + "/h4" + name + "MCReco";
 
-      data.h3MCGen = GetUniqueOrThrow<TH3F>(getOrOpenFile(particleInputFile), h3MCGenName, "MCTask");
-      data.h4MCGenAssocReco = GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCGenAssocRecoName, "MCTask");
-      data.h4MCReco = GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCRecoName, "MCTask");
+      data.h3MCGen = RootIO::GetUniqueOrThrow<TH3F>(getOrOpenFile(particleInputFile), h3MCGenName, "MCTask");
+      data.h4MCGenAssocReco = RootIO::GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCGenAssocRecoName, "MCTask");
+      data.h4MCReco = RootIO::GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCRecoName, "MCTask");
 
       // These three are divided by each other to build efficiency and signal
       // loss, so they must share their axes whatever the configuration says.
@@ -175,8 +175,8 @@ class MCTask : public IAnalysisTask
       std::string genAssocRecoEventPath = mcBasePath + "event/hGenMCAssocRecoMultiplicityPercent";
       std::string genEventPath = mcBasePath + "event/hGenMCMultiplicityPercent";
 
-      hEventMultGenAssocReco = GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genAssocRecoEventPath, "MCTask");
-      hEventMultGen = GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genEventPath, "MCTask");
+      hEventMultGenAssocReco = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genAssocRecoEventPath, "MCTask");
+      hEventMultGen = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genEventPath, "MCTask");
     } else {
       std::cerr << "[WARNING] MCTask: No input files were opened. Event Loss will not be computed!" << std::endl;
     }
@@ -189,7 +189,7 @@ class MCTask : public IAnalysisTask
 
     // 6. Open the master output file for corrections
     std::string outPath = outputDirectory + outputPrefix + "Corrections.root";
-    fileMCOutput = OpenOrThrow(outPath, "UPDATE", "MCTask");
+    fileMCOutput = RootIO::OpenOrThrow(outPath, "UPDATE", "MCTask");
 
     std::cout << "[INFO] MCTask: Initialization complete." << std::endl;
   }
@@ -205,7 +205,7 @@ class MCTask : public IAnalysisTask
       std::unique_ptr<TH1> hEventLoss = EfficiencyCalculator::ComputeEventEfficiency(hEventMultGenAssocReco.get(), hEventMultGen.get());
 
       if (hEventLoss) {
-        TDirectory* evLossDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "EvLoss"}, false);
+        TDirectory* evLossDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "EvLoss"}, false);
         if (evLossDir)
           evLossDir->cd();
         hEventLoss->Write(nullptr, TObject::kOverwrite);
@@ -226,7 +226,7 @@ class MCTask : public IAnalysisTask
       std::unique_ptr<TH3> h3TotalMap = EfficiencyCalculator::Compute3DTotalMap(data, particleCorrectionMode);
 
       std::string fileMCOutputPerPartPath3D = ccdbOutputDir + outputPrefix + "h3EffMap" + data.name + ".root";
-      std::unique_ptr<TFile> fileMCOutputPerPart3D = OpenOrThrow(fileMCOutputPerPartPath3D, "RECREATE", "MCTask");
+      std::unique_ptr<TFile> fileMCOutputPerPart3D = RootIO::OpenOrThrow(fileMCOutputPerPartPath3D, "RECREATE", "MCTask");
       fileMCOutputPerPart3D->cd();
       h3TotalMap->SetName("ccdb_object");
       h3TotalMap->Write(nullptr, TObject::kOverwrite);
@@ -235,7 +235,7 @@ class MCTask : public IAnalysisTask
       std::unique_ptr<TH2> h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data, particleCorrectionMode);
 
       std::string fileMCOutputPerPartPath2D = ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root";
-      std::unique_ptr<TFile> fileMCOutputPerPart2D = OpenOrThrow(fileMCOutputPerPartPath2D, "RECREATE", "MCTask");
+      std::unique_ptr<TFile> fileMCOutputPerPart2D = RootIO::OpenOrThrow(fileMCOutputPerPartPath2D, "RECREATE", "MCTask");
       fileMCOutputPerPart2D->cd();
       h2TotalMapMultInt->SetName("ccdb_object");
       h2TotalMapMultInt->Write(nullptr, TObject::kOverwrite);
@@ -246,7 +246,7 @@ class MCTask : public IAnalysisTask
       std::unique_ptr<TH2> h2TotalMapMultIntRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2TotalMapMultInt.get(), "h2EffMapRelError" + data.name);
 
       std::string fileMCOutputPerPartErrorPath2D = ccdbOutputDir + outputPrefix + "h2EffMapError" + data.name + ".root";
-      std::unique_ptr<TFile> fileMCOutputPerPartError2D = OpenOrThrow(fileMCOutputPerPartErrorPath2D, "RECREATE", "MCTask");
+      std::unique_ptr<TFile> fileMCOutputPerPartError2D = RootIO::OpenOrThrow(fileMCOutputPerPartErrorPath2D, "RECREATE", "MCTask");
       fileMCOutputPerPartError2D->cd();
       // h2TotalMapMultIntError->SetName("ccdb_object");
       if (h2TotalMapMultIntError)
@@ -257,8 +257,8 @@ class MCTask : public IAnalysisTask
       fileMCOutputPerPartError2D->Close();
 
       // 2. Compute 1D Spectra across multiplicity bins
-      TDirectory* accEffMultDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "AccEff", "MultBin"}, false);
-      TDirectory* sigLossMultDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "SigLoss", "MultBin"}, false);
+      TDirectory* accEffMultDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "AccEff", "MultBin"}, false);
+      TDirectory* sigLossMultDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "SigLoss", "MultBin"}, false);
 
       // Process 1D Spectra across multiplicity bins
       for (int i{0}; i < BinningUtils::NBins(multBinning); i++) {
@@ -314,11 +314,11 @@ class MCTask : public IAnalysisTask
     // survives only as an index in the names ("..._multBin3"), and the correlation
     // task addresses those names with the bin indices of the DATA. Record it, so
     // that a mismatch between the two productions is detectable instead of silent.
-    if (TDirectory* schemeDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName}, false))
-      AnalysisUtils::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
+    if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName}, false))
+      RootIO::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
 
-    TDirectory* accEffSummaryDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "AccEff", "Summary"}, false);
-    TDirectory* sigLossSummaryDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "SigLoss", "Summary"}, false);
+    TDirectory* accEffSummaryDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "AccEff", "Summary"}, false);
+    TDirectory* sigLossSummaryDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "SigLoss", "Summary"}, false);
 
     // Save all diagnostic canvases and free the memory for the loaded objects
     for (auto& data : dataCollection) {

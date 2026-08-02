@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CorrelationTaskBase.h"
+#include "RootIOHelpers.h"
 
 class CorrelationTask : public CorrelationTaskBase
 {
@@ -52,10 +53,10 @@ class CorrelationTask : public CorrelationTaskBase
     /*TFile* filePhiDataInput = new TFile(phiDataName.c_str(), "READ");
     if (!filePhiDataInput || filePhiDataInput->IsZombie())
       throw std::runtime_error("[FATAL] CorrelationTask: Missing PhiFitTask output file: " + phiDataName);*/
-    std::unique_ptr<TFile> filePhiDataInput = OpenOrThrow(phiDataName, "READ", "CorrelationTask");
+    std::unique_ptr<TFile> filePhiDataInput = RootIO::OpenOrThrow(phiDataName, "READ", "CorrelationTask");
 
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
-    std::string folderPath = AnalysisUtils::VectorToPath(summaryPath);
+    std::string folderPath = RootIO::MakeDirPath(summaryPath);
 
     /*h2TriggerSignal = static_cast<TH2D*>(filePhiDataInput->Get((folderPath + "h2TriggerSignal").c_str()));
     h2TriggerBkgRatio = static_cast<TH2D*>(filePhiDataInput->Get((folderPath + "h2TriggerBkgRatio").c_str()));
@@ -63,8 +64,8 @@ class CorrelationTask : public CorrelationTaskBase
       throw std::runtime_error("[FATAL] CorrelationTask: Missing trigger stats in " + phiDataName);
     h2TriggerSignal->SetDirectory(0);
     h2TriggerBkgRatio->SetDirectory(0);*/
-    h2TriggerSignal = GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerSignal", "CorrelationTask");
-    h2TriggerBkgRatio = GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerBkgRatio", "CorrelationTask");
+    h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerSignal", "CorrelationTask");
+    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerBkgRatio", "CorrelationTask");
 
     // 3. Associated particles + data loading
     InitAssocParticles(taskConfig);
@@ -81,10 +82,10 @@ class CorrelationTask : public CorrelationTaskBase
       if (!fileDataInput || fileDataInput->IsZombie())
         throw std::runtime_error("[FATAL] CorrelationTask: Cannot open Data input file: " + inputFile);*/
 
-      std::string inputFile = RequireString(taskConfig, "input_data_file", GetName());
-      std::unique_ptr<TFile> fileDataInput = OpenOrThrow(inputFile, "READ", "CorrelationTask");
+      std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
+      std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", "CorrelationTask");
 
-      basePathData = RequireString(taskConfig, "base_path_data", GetName());
+      basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
 
       /*TFile* fileDataMEInput{nullptr};
       if (applyME) {
@@ -100,10 +101,10 @@ class CorrelationTask : public CorrelationTaskBase
 
       std::unique_ptr<TFile> fileDataMEInput{nullptr};
       if (applyME) {
-        std::string inputMEFile = RequireString(taskConfig, "input_me_file", GetName());
-        fileDataMEInput = OpenOrThrow(inputMEFile, "READ", "CorrelationTask");
+        std::string inputMEFile = JsonConfig::RequireString(taskConfig, "input_me_file", GetName());
+        fileDataMEInput = RootIO::OpenOrThrow(inputMEFile, "READ", "CorrelationTask");
 
-        basePathDataME = RequireString(taskConfig, "base_path_me", GetName());
+        basePathDataME = JsonConfig::RequireString(taskConfig, "base_path_me", GetName());
       }
 
       for (const auto& config : assocParticles) {
@@ -112,15 +113,15 @@ class CorrelationTask : public CorrelationTaskBase
         std::string baseData = basePathData + config.dirName + "/h5Phi" + config.name;
         // data.h5DataSignal = static_cast<THnSparseF*>(fileDataInput->Get((baseData + "DataSignal").c_str()));
         // data.h5DataSideband = static_cast<THnSparseF*>(fileDataInput->Get((baseData + "DataSideband").c_str()));
-        data.h5DataSignal = GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSignal"), "CorrelationTask");
-        data.h5DataSideband = GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSideband"), "CorrelationTask");
+        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSignal"), "CorrelationTask");
+        data.h5DataSideband = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSideband"), "CorrelationTask");
 
         if (applyME) {
           std::string baseDataME = basePathDataME + config.dirName + "/h5Phi" + config.name;
           // data.h5DataMESignal = static_cast<THnSparseF*>(fileDataMEInput->Get((baseDataME + "DataMESignal").c_str()));
           // data.h5DataMESideband = static_cast<THnSparseF*>(fileDataMEInput->Get((baseDataME + "DataMESideband").c_str()));
-          data.h5DataMESignal = GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESignal"), "CorrelationTask");
-          data.h5DataMESideband = GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESideband"), "CorrelationTask");
+          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESignal"), "CorrelationTask");
+          data.h5DataMESideband = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESideband"), "CorrelationTask");
         }
 
         loadedDataCollection.push_back(std::move(data));
@@ -139,11 +140,11 @@ class CorrelationTask : public CorrelationTaskBase
     std::string projMode = useProjectionCache ? "READ" : "UPDATE";
     std::string basePathFinal = taskConfig["output_dir_final"].GetString();
     std::string phiSpectraName = basePathFinal + outputPrefix + "PhiAssocSpectra.root";
-    fileOutputSpectra = OpenOrThrow(phiSpectraName, "UPDATE", "CorrelationTask");
+    fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", "CorrelationTask");
 
     for (const auto& p : assocParticles) {
       std::string fName = basePathProj + outputPrefix + "Phi" + p.name + "DataHistograms.root";
-      std::unique_ptr<TFile> fProj = OpenOrThrow(fName, projMode.c_str(), "CorrelationTask");
+      std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), "CorrelationTask");
       filesPhiAssocDataOutput.push_back(std::move(fProj));
 
       /*TFile* fProj = new TFile(fName.c_str(), projMode.c_str());
@@ -153,7 +154,7 @@ class CorrelationTask : public CorrelationTaskBase
 
       if (doMoreQA) {
         std::string fQAName = basePathProj + outputPrefix + "Phi" + p.name + "QAHistograms.root";
-        std::unique_ptr<TFile> fQA = OpenOrThrow(fQAName, "RECREATE", "CorrelationTask");
+        std::unique_ptr<TFile> fQA = RootIO::OpenOrThrow(fQAName, "RECREATE", "CorrelationTask");
         filesPhiAssocQAOutput.push_back(std::move(fQA));
 
         /*TFile* fQA = new TFile(fQAName.c_str(), "RECREATE");
@@ -231,11 +232,11 @@ class CorrelationTask : public CorrelationTaskBase
 
     // std::string purityDir = taskConfig["input_dir_purity"].GetString();
 
-    std::string purityDir = RequireString(taskConfig, "input_dir_purity", GetName());
-    auto puritySources = RequireArray(taskConfig, "purity_sources", GetName());
+    std::string purityDir = JsonConfig::RequireString(taskConfig, "input_dir_purity", GetName());
+    auto puritySources = JsonConfig::RequireArray(taskConfig, "purity_sources", GetName());
 
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
-    std::string folderPath = AnalysisUtils::VectorToPath(summaryPath);
+    std::string folderPath = RootIO::MakeDirPath(summaryPath);
 
     purityCollection.clear();
 
@@ -262,12 +263,12 @@ class CorrelationTask : public CorrelationTaskBase
       /*TFile* filePurity = new TFile(purityFilePath.c_str(), "READ");
       if (!filePurity || filePurity->IsZombie())
         throw std::runtime_error("[FATAL] CorrelationTask: Cannot open purity file: " + purityFilePath);*/
-      std::unique_ptr<TFile> filePurity = OpenOrThrow(purityFilePath, "READ", "CorrelationTask");
+      std::unique_ptr<TFile> filePurity = RootIO::OpenOrThrow(purityFilePath, "READ", "CorrelationTask");
 
       // Same as for the corrections: the purities are addressed by multiplicity
       // index, and only the stamp says what those indices meant when they were fitted.
-      AnalysisUtils::RequireMatchingBinningStamp(
-        AnalysisUtils::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName}, true),
+      RootIO::RequireMatchingBinningStamp(
+        RootIO::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName}, true),
         "binning_mult", multBinning, "purity file '" + purityFilePath + "'");
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
@@ -275,7 +276,7 @@ class CorrelationTask : public CorrelationTaskBase
         /*TH1F* h1Pur = static_cast<TH1F*>(filePurity->Get(hName.c_str()));
         if (!h1Pur)
           throw std::runtime_error("[FATAL] CorrelationTask: Missing purity histogram: " + hName + " in " + purityFilePath);*/
-        std::unique_ptr<TH1F> h1Pur = GetUniqueOrThrow<TH1F>(filePurity.get(), hName, "CorrelationTask");
+        std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(filePurity.get(), hName, "CorrelationTask");
 
         // Verified, NOT rebinned: a purity is a ratio, and merging its bins would
         // sum the ratios. A coarser purity can only be obtained by fitting the
@@ -343,7 +344,7 @@ class CorrelationTask : public CorrelationTaskBase
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
-          TDirectory* sourceDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, true);
+          TDirectory* sourceDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, true);
           if (!sourceDir)
             throw std::runtime_error("[FATAL] Cache L2 missing: Directory " + dirName + " not found!");
 
@@ -384,11 +385,11 @@ class CorrelationTask : public CorrelationTaskBase
           const auto& data = loadedDataCollection[pIdx];
           TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i].get() : nullptr;
 
-          TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
+          TDirectory* targetDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
 
           TDirectory* currentQADir{nullptr};
           if (doMoreQA && pIdx < filesPhiAssocQAOutput.size()) {
-            currentQADir = AnalysisUtils::GetOrCreatePath(filesPhiAssocQAOutput[pIdx].get(), logicalPath, false);
+            currentQADir = RootIO::GetOrCreatePath(filesPhiAssocQAOutput[pIdx].get(), logicalPath, false);
           }
 
           for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
@@ -422,7 +423,7 @@ class CorrelationTask : public CorrelationTaskBase
       std::cout << "[INFO] Multiplicity bin " << i << " completed. Committing results to Level 2 Cache..." << std::endl;
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, false);
+        TDirectory* targetDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, false);
         if (targetDir)
           targetDir->cd();
         for (int k = 0; k < BinningUtils::NBins(assocParticles[pIdx].binning); k++) {

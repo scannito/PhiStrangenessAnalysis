@@ -7,6 +7,8 @@
 #include <string>
 #include <string_view>
 
+namespace JsonConfig
+{
 inline const rapidjson::Value& RequireMember(const rapidjson::Value& node, const char* key, std::string_view errCtx)
 {
   if (!node.HasMember(key))
@@ -39,3 +41,5 @@ inline auto RequireArray(const rapidjson::Value& node, const char* key, std::str
     throw std::runtime_error(std::format("[FATAL] {}: '{}' exists but is not an ARRAY!", errCtx, key));
   return arr.GetArray();
 }
+
+} // namespace JsonConfig

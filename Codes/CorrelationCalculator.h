@@ -124,12 +124,12 @@ class CorrelationCalculator
       if (!ioDir)
         throw std::runtime_error("[FATAL] Cache mode requested but no ioDir provided!");
 
-      h2Signal = GetUniqueOrThrow<TH2>(ioDir, nameSig2D, "CorrelationTask");
-      h2Sideband = GetUniqueOrWarn<TH2>(ioDir, nameSb2D, "CorrelationTask");
+      h2Signal = RootIO::GetUniqueOrThrow<TH2>(ioDir, nameSig2D, "CorrelationTask");
+      h2Sideband = RootIO::GetUniqueOrWarn<TH2>(ioDir, nameSb2D, "CorrelationTask");
 
       if (applyME) {
-        h2MESignal = GetUniqueOrThrow<TH2>(ioDir, nameMESig2D, "CorrelationTask");
-        h2MESideband = GetUniqueOrWarn<TH2>(ioDir, nameMESb2D, "CorrelationTask");
+        h2MESignal = RootIO::GetUniqueOrThrow<TH2>(ioDir, nameMESig2D, "CorrelationTask");
+        h2MESideband = RootIO::GetUniqueOrWarn<TH2>(ioDir, nameMESb2D, "CorrelationTask");
       }
     } else {
       std::vector<int> projAxes = {kAxisDeltaY, kAxisDeltaPhi}; // Y = Delta y, X = Delta Phi
@@ -322,12 +322,12 @@ class CorrelationCalculator
       if (!ioDir)
         throw std::runtime_error("[FATAL] Cache mode requested but no ioDir provided!");
 
-      h1Signal = GetUniqueOrThrow<TH1>(ioDir, histNameBase + "Signal", "CorrelationTask");
-      h1Sideband = GetUniqueOrWarn<TH1>(ioDir, histNameBase + "Sideband", "CorrelationTask");
+      h1Signal = RootIO::GetUniqueOrThrow<TH1>(ioDir, histNameBase + "Signal", "CorrelationTask");
+      h1Sideband = RootIO::GetUniqueOrWarn<TH1>(ioDir, histNameBase + "Sideband", "CorrelationTask");
 
       if (applyME) {
-        h1MESignal = GetUniqueOrThrow<TH1>(ioDir, histNameBase + "MESignal", "CorrelationTask");
-        h1MESideband = GetUniqueOrWarn<TH1>(ioDir, histNameBase + "MESideband", "CorrelationTask");
+        h1MESignal = RootIO::GetUniqueOrThrow<TH1>(ioDir, histNameBase + "MESignal", "CorrelationTask");
+        h1MESideband = RootIO::GetUniqueOrWarn<TH1>(ioDir, histNameBase + "MESideband", "CorrelationTask");
       }
     } else {
       if (!data.h5DataSignal)

@@ -66,7 +66,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Create a dedicated subdirectory for each particle (e.g., Extract1D/K0S)
       std::vector<std::string> particlePath = baseLogicalPath;
       particlePath.push_back(pName);
-      TDirectory* particleDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra.get(), particlePath);
+      TDirectory* particleDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), particlePath);
 
       if (!particleDir)
         continue;
@@ -118,7 +118,7 @@ class CorrelationTaskBase : public IAnalysisTask
           std::string title = Form("Extrap/Measured Contribution %s |#Delta y| < %.2f; Multiplicity percentile (%%); Yield_{Extrap} / Yield_{Meas}", pName.c_str(), dyLimit);
 
           std::unique_ptr<TH1> hRatioExtrapMeas = AnalysisUtils::MakeRatioHist(h1MultTrendsExtrap[pIdx][yIdx].get(), h1MultTrends[pIdx][yIdx].get(),
-                                                                               ratioName, title, globalCfgs.GetMultTrendColor(yIdx), 1.0, 1.0);
+                                                                               ratioName, title, 1.0, 1.0);
 
           /*TH1* hRatioExtrapMeas = static_cast<TH1*>(h1MultTrendsExtrap[pIdx][yIdx]->Clone(ratioName.c_str()));
           hRatioExtrapMeas->SetTitle(title.c_str());
@@ -150,7 +150,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Create or access the "Ratios" directory inside Extract1D/2D
       std::vector<std::string> ratioPath = baseLogicalPath;
       ratioPath.push_back("Ratios");
-      TDirectory* ratioDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra.get(), ratioPath);
+      TDirectory* ratioDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), ratioPath);
 
       if (ratioDir) {
         ratioDir->cd();
@@ -200,7 +200,7 @@ class CorrelationTaskBase : public IAnalysisTask
             std::string ratioMeasName = std::format("Ratio_{}_{}_Meas_dy{}", num.name, den.name, dyNameStr);
             std::string ratioMeasTitle = "Measured Ratio; Multiplicity percentile (%);" + ratioCfg.label;
             std::unique_ptr<TH1> hRatioMeas = AnalysisUtils::MakeRatioHist(h1MultTrends[idxNum][yIdx].get(), h1MultTrends[idxDen][yIdx].get(),
-                                                                           ratioMeasName, ratioMeasTitle, globalCfgs.GetMultTrendColor(yIdx), numScale, denScale);
+                                                                           ratioMeasName, ratioMeasTitle, numScale, denScale);
 
             /*TH1* hRatioMeas = static_cast<TH1*>(h1MultTrends[idxNum][yIdx]->Clone(ratioMeasName.c_str()));
             hRatioMeas->SetTitle(("Ratio;Multiplicity Percentile (%);" + ratioCfg.label).c_str());
@@ -216,7 +216,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
               std::string ratioExtrapName = std::format("Ratio_{}_{}_Extrap_dy{}", num.name, den.name, dyNameStr);
               std::string ratioExtrapTitle = "Extrapolated Ratio; Multiplicity percentile (%);" + ratioCfg.label;
-              hRatioExtrap = AnalysisUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, globalCfgs.GetMultTrendColor(yIdx), numScale, denScale);
+              hRatioExtrap = AnalysisUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
 
               /*hRatioExtrap = static_cast<TH1*>(hNumTrend->Clone(ratioExtrapName.c_str()));
               hRatioExtrap->SetDirectory(0);
@@ -342,12 +342,12 @@ class CorrelationTaskBase : public IAnalysisTask
     useProjectionCache = taskConfig["use_projection_cache"].GetBool();
     use2DMENormalization = taskConfig["use_2d_me_normalization"].GetBool();*/
 
-    applyME = RequireBool(taskConfig, "apply_mixed_events", GetName());
-    applyEfficiency = RequireBool(taskConfig, "apply_efficiency", GetName());
-    applyExtrapolation = RequireBool(taskConfig, "apply_extrapolation", GetName());
-    useIntegratedEfficiency = RequireBool(taskConfig, "use_integrated_efficiency", GetName());
-    useProjectionCache = RequireBool(taskConfig, "use_projection_cache", GetName());
-    use2DMENormalization = RequireBool(taskConfig, "use_2d_me_normalization", GetName());
+    applyME = JsonConfig::RequireBool(taskConfig, "apply_mixed_events", GetName());
+    applyEfficiency = JsonConfig::RequireBool(taskConfig, "apply_efficiency", GetName());
+    applyExtrapolation = JsonConfig::RequireBool(taskConfig, "apply_extrapolation", GetName());
+    useIntegratedEfficiency = JsonConfig::RequireBool(taskConfig, "use_integrated_efficiency", GetName());
+    useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
+    use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());
 
     if (taskConfig.HasMember("use_legacy_extrapolation") && taskConfig["use_legacy_extrapolation"].IsBool()) {
       useLegacyExtrapolation = taskConfig["use_legacy_extrapolation"].GetBool();
@@ -443,21 +443,21 @@ class CorrelationTaskBase : public IAnalysisTask
       throw std::runtime_error("[FATAL] CorrelationTask: Efficiency requested but Corrections.root not found at: " + inputEffFile);
     }*/
 
-    std::string inputEffFile = RequireString(taskConfig, "input_efficiency_file", GetName());
-    std::unique_ptr<TFile> fileEffInput = OpenOrThrow(inputEffFile, "READ", "CorrelationTaskBase::LoadCorrections");
+    std::string inputEffFile = JsonConfig::RequireString(taskConfig, "input_efficiency_file", GetName());
+    std::unique_ptr<TFile> fileEffInput = RootIO::OpenOrThrow(inputEffFile, "READ", "CorrelationTaskBase::LoadCorrections");
 
     // The corrections are addressed by multiplicity INDEX ("..._multBin3"), with
     // indices that come from the data. The stamp MCTask leaves behind is the only
     // way to know the intervals those indices meant in the MC production.
-    AnalysisUtils::RequireMatchingBinningStamp(
-      AnalysisUtils::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName}, true),
+    RootIO::RequireMatchingBinningStamp(
+      RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName}, true),
       "binning_mult", multBinning, "efficiency map '" + inputEffFile + "'");
 
     // Mirror the exact layout MCTask writes: {binningName}/AccEff/MultBin,
     // {binningName}/SigLoss/MultBin, {binningName}/EvLoss
-    TDirectory* accEffDir = AnalysisUtils::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "AccEff", "MultBin"}, true);
-    TDirectory* sigLossDir = AnalysisUtils::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "SigLoss", "MultBin"}, true);
-    TDirectory* evLossDir = AnalysisUtils::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "EvLoss"}, true);
+    TDirectory* accEffDir = RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "AccEff", "MultBin"}, true);
+    TDirectory* sigLossDir = RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "SigLoss", "MultBin"}, true);
+    TDirectory* evLossDir = RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "EvLoss"}, true);
 
     std::vector<std::string> activeCorrections;
     if (taskConfig.HasMember("active_corrections") && taskConfig["active_corrections"].IsArray()) {
@@ -508,7 +508,7 @@ class CorrelationTaskBase : public IAnalysisTask
       if (!dir)
         throw std::runtime_error("[FATAL] Missing directory containing: " + name);
 
-      std::unique_ptr<TH1F> h = GetUniqueOrThrow<TH1F>(dir, name, "CorrelationTaskBase::LoadCorrections");
+      std::unique_ptr<TH1F> h = RootIO::GetUniqueOrThrow<TH1F>(dir, name, "CorrelationTaskBase::LoadCorrections");
 
       // Verified, NOT rebinned. An efficiency is a ratio, and merging bins of a
       // ratio sums them: two bins of 0.5 would give 1.0. A coarser efficiency can
@@ -681,12 +681,12 @@ class CorrelationTaskBase : public IAnalysisTask
         ptPhi = globalCfgs.ResolvePtBinning("Phi", source->GetAxis(1), origin);
         particle.binning = globalCfgs.ResolvePtBinning(particle.name, source->GetAxis(2), origin);
 
-        TDirectory* schemeDir = AnalysisUtils::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, false);
+        TDirectory* schemeDir = RootIO::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, false);
 
         // Projections from an earlier run under the SAME scheme name are still
         // there: if that run used a different binning, the ones whose bin range
         // no longer exists are not overwritten and would survive as garbage.
-        const std::vector<double> previous = AnalysisUtils::ReadBinningStamp(schemeDir, "binning_ptAssoc");
+        const std::vector<double> previous = RootIO::ReadBinningStamp(schemeDir, "binning_ptAssoc");
         if (!previous.empty()) {
           const std::string diff = BinningUtils::Compare(previous, particle.binning, "existing file", "current run");
           if (!diff.empty()) {
@@ -698,20 +698,20 @@ class CorrelationTaskBase : public IAnalysisTask
           }
         }
 
-        AnalysisUtils::WriteBinningStamp(schemeDir, "binning_ptAssoc", particle.binning);
-        AnalysisUtils::WriteBinningStamp(schemeDir, "binning_ptPhi", ptPhi);
-        AnalysisUtils::WriteBinningStamp(schemeDir, "binning_mult", mult);
+        RootIO::WriteBinningStamp(schemeDir, "binning_ptAssoc", particle.binning);
+        RootIO::WriteBinningStamp(schemeDir, "binning_ptPhi", ptPhi);
+        RootIO::WriteBinningStamp(schemeDir, "binning_mult", mult);
       } else {
-        TDirectory* schemeDir = AnalysisUtils::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, true);
+        TDirectory* schemeDir = RootIO::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, true);
         if (!schemeDir) {
           throw std::runtime_error("[FATAL] " + GetName() + ": cache requested but scheme '" + globalCfgs.binningName +
                                    "' does not exist in Phi" + particle.name +
                                    "DataHistograms.root. Run once with 'use_projection_cache': false.");
         }
 
-        particle.binning = AnalysisUtils::ReadBinningStamp(schemeDir, "binning_ptAssoc");
-        ptPhi = AnalysisUtils::ReadBinningStamp(schemeDir, "binning_ptPhi");
-        mult = AnalysisUtils::ReadBinningStamp(schemeDir, "binning_mult");
+        particle.binning = RootIO::ReadBinningStamp(schemeDir, "binning_ptAssoc");
+        ptPhi = RootIO::ReadBinningStamp(schemeDir, "binning_ptPhi");
+        mult = RootIO::ReadBinningStamp(schemeDir, "binning_mult");
 
         if (particle.binning.empty() || ptPhi.empty() || mult.empty()) {
           throw std::runtime_error("[FATAL] " + GetName() + ": " + ctx +
@@ -887,7 +887,7 @@ class CorrelationTaskBase : public IAnalysisTask
   void GenerateSpectraAndTrends(int multBin, double totalTriggerSignalPerMult)
   {
     std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
-    TDirectory* targetSpectraDir = AnalysisUtils::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName, dirName});
+    TDirectory* targetSpectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName, dirName});
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];
@@ -996,7 +996,7 @@ class CorrelationTaskBase : public IAnalysisTask
           const auto& data = loadedDataCollection[pIdx];
           TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i].get() : nullptr;
 
-          TDirectory* targetDir = AnalysisUtils::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
+          TDirectory* targetDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
 
           for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
             AnalysisUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {k + 1, k + 1}};

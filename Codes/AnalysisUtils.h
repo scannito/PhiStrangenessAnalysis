@@ -3,7 +3,6 @@
 #include "AnalysisDataStructures.h"
 #include "BinningUtils.h"
 
-#include "TDirectory.h"
 #include "TH1.h"
 #include "TH2.h"
 #include "TH3.h"
@@ -14,7 +13,6 @@
 #include <cmath>
 #include <concepts>
 #include <format>
-#include <iostream>
 #include <memory>
 #include <span>
 #include <stdexcept>
@@ -123,6 +121,11 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
                                               const std::string& histName,
                                               double absLimToIntegrate)
 {
+  // Checked before the subtraction below: size() is unsigned, so on an empty
+  // span size() - 1 would wrap around instead of failing the comparison.
+  if (binsVec.size() < 2) {
+    throw std::runtime_error("ConstructSpectrum: the binning needs at least two edges");
+  }
   if (binsVec.size() - 1 != hContainer.size()) {
     throw std::runtime_error("Size of histogram container must be equal to number of bins - 1");
   }
@@ -144,17 +147,9 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
 
 // Construct multiplicity trends from pT spectra
 inline void ConstructMultTrend(TH1* hMultTrend,
-                               std::variant<TH1*, ExtrapolationResult> source,
+                               const std::variant<TH1*, ExtrapolationResult>& source,
                                int i)
 {
-  /*auto [content, error] = IntegralAndErrorPair(hPtSpectrum, hPtSpectrum->GetXaxis()->GetXmin(), hPtSpectrum->GetXaxis()->GetXmax(), "width");
-
-  if (applyExtrapolation)
-  {
-      content += extrapolatedYield;
-      error = std::sqrt((error * error) + (extrapolatedError * extrapolatedError));
-  }*/
-
   double content{};
   double error{};
 
@@ -168,15 +163,6 @@ inline void ConstructMultTrend(TH1* hMultTrend,
     content = ext.yield;
     error = ext.yieldStatErr;
   }
-
-  /*if (applyExtrapolation) {
-    content = totalYield;
-    error = totalError;
-  } else {
-    auto pair = IntegralAndErrorPair(hPtSpectrum, hPtSpectrum->GetXaxis()->GetXmin(), hPtSpectrum->GetXaxis()->GetXmax(), "width");
-    content = pair.first;
-    error = pair.second;
-  }*/
 
   hMultTrend->SetBinContent(i + 1, content);
   hMultTrend->SetBinError(i + 1, error);
@@ -201,134 +187,25 @@ inline void SetHistogramStyle(TH1* h1, int color)
   h1->GetYaxis()->SetLabelSize(0.045);
 }
 
-// ------------------------------------------------------------------------------
-// TFile navigation utility
-// ------------------------------------------------------------------------------
-
-inline TDirectory* GetOrCreatePath(TDirectory* baseDir, const std::vector<std::string>& pathNodes, bool isReadOnly = false)
-{
-  if (!baseDir)
-    return nullptr;
-
-  TDirectory* currentDir = baseDir;
-
-  for (const auto& node : pathNodes) {
-    if (node.empty())
-      continue;
-
-    // Search for the subdirectory in the current level
-    TDirectory* nextDir = currentDir->GetDirectory(node.c_str());
-    if (!nextDir) {
-      if (isReadOnly) {
-        // In read-only mode, do not create anything; fail silently (Cache Miss)
-        return nullptr;
-      } else {
-        nextDir = currentDir->mkdir(node.c_str());
-      }
-
-      // Safety check (e.g., disk full, file closed, permission denied)
-      if (!nextDir) {
-        std::cerr << "[ERROR] AnalysisUtils::GetOrCreatePath - Failed to create TDirectory '" << node << "'." << std::endl;
-        return nullptr;
-      }
-    }
-
-    // Move down one level for the next iteration
-    currentDir = nextDir;
-  }
-
-  return currentDir;
-}
-
-inline std::string VectorToPath(const std::vector<std::string>& path)
-{
-  std::string fullPath = "";
-  for (const auto& dir : path) {
-    fullPath += dir + "/";
-  }
-  return fullPath;
-}
-
 // -----------------------------------------------------------------------------
 // Histogram ratios utility
 // -----------------------------------------------------------------------------
 
+// The caller styles the result itself (SetHistogramStyle, marker overrides),
+// so this only builds the ratio.
 inline std::unique_ptr<TH1> MakeRatioHist(TH1* num, TH1* den, const std::string& name,
-                                          const std::string& title, int color,
+                                          const std::string& title,
                                           double numScale = 1.0, double denScale = 1.0)
 {
   std::unique_ptr<TH1> h(static_cast<TH1*>(num->Clone(name.c_str())));
   h->SetTitle(title.c_str());
   h->SetDirectory(0);
   h->Divide(num, den, numScale, denScale);
-  // SetHistogramStyle(h.get(), color);
   return h;
 }
 
 // -----------------------------------------------------------------------------
-// Binning stamps: provenance for cached projections
-// -----------------------------------------------------------------------------
-
-// Records a binning inside a file as an empty TH1D whose axis IS the binning.
-// Storing it as a histogram rather than as a bare array means it reads back
-// through AxisEdges like any other axis, and is inspectable in a TBrowser.
-inline void WriteBinningStamp(TDirectory* dir, const std::string& name, std::span<const double> edges)
-{
-  if (!dir || edges.size() < 2)
-    return;
-
-  TH1D stamp(name.c_str(), "binning stamp (bin edges only, contents unused)",
-             BinningUtils::NBins(edges), edges.data());
-  stamp.SetDirectory(nullptr);
-
-  dir->cd();
-  stamp.Write(name.c_str(), TObject::kOverwrite);
-}
-
-// Empty vector when no stamp is present, e.g. a cache produced before stamps
-// existed. That case is a warning, not an error: see RequireMatchingBinningStamp.
-inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& name)
-{
-  if (!dir)
-    return {};
-
-  auto* raw = static_cast<TH1*>(dir->Get(name.c_str()));
-  if (!raw)
-    return {};
-
-  raw->SetDirectory(nullptr);
-  std::unique_ptr<TH1> stamp(raw);
-  return BinningUtils::AxisEdges(stamp->GetXaxis());
-}
-
-// Cached histograms are addressed by bin INDEX (they are named ..._ptBin7), so
-// reusing a cache built with a different binning silently mixes two
-// segmentations: index 31 stops meaning the same pT interval.
-inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name,
-                                        std::span<const double> current, std::string_view errCtx)
-{
-  const std::vector<double> cached = ReadBinningStamp(dir, name);
-
-  if (cached.empty()) {
-    std::cerr << "[WARNING] " << errCtx << ": the cache carries no '" << name
-              << "' stamp, so the binning it was built with cannot be verified. Delete the cache "
-                 "files if the input production has changed since they were produced."
-              << std::endl;
-    return;
-  }
-
-  const std::string diff = BinningUtils::Compare(cached, current, "cache", "current run");
-  if (!diff.empty()) {
-    throw std::runtime_error(std::format(
-      "[FATAL] {}: the cached projections were built with a different '{}':\n{}"
-      "Cached histograms are addressed by bin index, so reusing them would mix "
-      "two binnings. Re-run with the cache disabled to rebuild them.",
-      errCtx, name, diff));
-  }
-}
-
-// -----------------------------------------------------------------------------
-// Rebinng utilities
+// Rebinning utilities
 // -----------------------------------------------------------------------------
 
 struct RebinEdgeMismatch {
@@ -365,11 +242,6 @@ inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, st
   return mismatches;
 }
 
-inline bool IsRebinCompatible(const TH1* hSource, std::span<const double> targetBins, double epsilon = 1e-9)
-{
-  return FindRebinMismatches(hSource, targetBins, epsilon).empty();
-}
-
 template <RootHistogram THType>
 inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, std::span<const double> targetBins, std::string_view errCtx)
 {
@@ -400,7 +272,7 @@ inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, s
 }
 
 // -----------------------------------------------------------------------------
-// String formattig utility
+// String formatting utility
 // -----------------------------------------------------------------------------
 
 inline std::pair<std::string, std::string> FormatDeltaY(double dyLimit)

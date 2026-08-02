@@ -33,8 +33,8 @@ class PurityTask : public IAnalysisTask
     globalCfgs = globalSettings; // Store the global settings for later use
 
     // 1. Open input file, extract 3D histograms to RAM, and immediately close it
-    std::string inputFile = RequireString(taskConfig, "input_data_file", "PurityTask");
-    std::unique_ptr<TFile> fileInput = OpenOrThrow(inputFile, "READ", "PurityTask");
+    std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", "PurityTask");
+    std::unique_ptr<TFile> fileInput = RootIO::OpenOrThrow(inputFile, "READ", "PurityTask");
 
     // 2. Open Output files
     std::string outputDir = taskConfig["output_dir"].GetString();
@@ -44,7 +44,7 @@ class PurityTask : public IAnalysisTask
     if (taskConfig.HasMember("output_prefix"))
       prefix = taskConfig["output_prefix"].GetString();
 
-    auto particles = RequireArray(taskConfig, "purity_particles", "PurityTask");
+    auto particles = JsonConfig::RequireArray(taskConfig, "purity_particles", "PurityTask");
 
     for (const auto& particle : particles) {
       std::string name = particle["name"].GetString();
@@ -52,7 +52,7 @@ class PurityTask : public IAnalysisTask
       std::string histName = particle["hist_name"].GetString();
       std::string outputFileSuffix = particle["output_file_suffix"].GetString();
 
-      std::unique_ptr<TH3F> h3Source = GetUniqueOrThrow<TH3F>(fileInput.get(), histName, "PurityTask");
+      std::unique_ptr<TH3F> h3Source = RootIO::GetUniqueOrThrow<TH3F>(fileInput.get(), histName, "PurityTask");
 
       // The binning comes from the file, never from the configuration: the loops
       // below address these very bins, and the purity spectrum is built on these
@@ -86,7 +86,7 @@ class PurityTask : public IAnalysisTask
       if (it != outputFiles.end()) {
         outputFilePtr = it->second.get();
       } else {
-        std::unique_ptr<TFile> outputFile = OpenOrThrow(outputFileName, "RECREATE", "PurityTask");
+        std::unique_ptr<TFile> outputFile = RootIO::OpenOrThrow(outputFileName, "RECREATE", "PurityTask");
         outputFiles[outputFileName] = std::move(outputFile);
         outputFilePtr = outputFiles[outputFileName].get();
       }
@@ -101,7 +101,7 @@ class PurityTask : public IAnalysisTask
 
     // 3. Read task-specific settings from the JSON node (DOM)
     // Keep the fit configuration file completely separated for physics tuning
-    std::string fitCfgPath = RequireString(taskConfig, "fit_config_file", "PurityTask");
+    std::string fitCfgPath = JsonConfig::RequireString(taskConfig, "fit_config_file", "PurityTask");
     // std::string fitCfgPath = taskConfig["fit_config_file"].GetString();
 
     // 4. Initialize specific mathematical tools
@@ -120,8 +120,8 @@ class PurityTask : public IAnalysisTask
         if (task.name == "pi_tpc" || task.name == "pi_tof")
           fitPath.push_back(task.name);
 
-        TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(task.outputFile, summaryPath, false);
-        TDirectory* fitDir = AnalysisUtils::GetOrCreatePath(task.outputFile, fitPath, false);
+        TDirectory* summaryDir = RootIO::GetOrCreatePath(task.outputFile, summaryPath, false);
+        TDirectory* fitDir = RootIO::GetOrCreatePath(task.outputFile, fitPath, false);
 
         std::string hName = "h1" + task.name + "Purity_multBin" + std::to_string(i);
         std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
@@ -175,7 +175,7 @@ class PurityTask : public IAnalysisTask
 
     // 1. Save each particle's summary canvas into its own output file
     for (auto& task : particleTasks) {
-      TDirectory* summaryDir = AnalysisUtils::GetOrCreatePath(task.outputFile, summaryPath, false);
+      TDirectory* summaryDir = RootIO::GetOrCreatePath(task.outputFile, summaryPath, false);
       if (summaryDir) {
         summaryDir->cd();
         task.canvas->Write(nullptr, TObject::kOverwrite);
@@ -184,8 +184,8 @@ class PurityTask : public IAnalysisTask
       // The pT binning is the axis of each purity spectrum, so the consumer can
       // read it. The multiplicity binning is only an index in the names
       // ("..._multBin3") and would otherwise be unverifiable.
-      if (TDirectory* schemeDir = AnalysisUtils::GetOrCreatePath(task.outputFile, {globalCfgs.binningName}, false))
-        AnalysisUtils::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
+      if (TDirectory* schemeDir = RootIO::GetOrCreatePath(task.outputFile, {globalCfgs.binningName}, false))
+        RootIO::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
     }
 
     // 2. Close output files

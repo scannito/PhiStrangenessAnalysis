@@ -1,11 +1,7 @@
 #pragma once
 
-#pragma once
-
 #include "AnalysisConstants.h"
 #include "AnalysisUtils.h"
-
-#include <utility>
 
 #include "TF1.h"
 #include "TH1.h"
@@ -17,6 +13,8 @@
 #include <utility>
 #include <vector>
 
+namespace PhiFitModels
+{
 inline double Voigt(double* x, double* par)
 {
   double mass = x[0];
@@ -61,6 +59,8 @@ inline double VoigtBkgMattia(double* x, double* par)
 inline const std::pair<double, double> kPhiSignalRange{1.0, 1.05};
 inline const std::pair<double, double> kPhiSidebandRange{1.06, 1.08};
 
+} // namespace PhiFitModels
+
 template <bool wSidebandFit>
 class FitPhiSignalAndBkg
 {
@@ -68,8 +68,8 @@ class FitPhiSignalAndBkg
   FitPhiSignalAndBkg(TH1* h,
                      TF1* fitFunc,
                      int indexFirstBkgParam,
-                     std::pair<double, double> signalRegion = kPhiSignalRange,
-                     std::pair<double, double> sidebandRegion = kPhiSidebandRange)
+                     std::pair<double, double> signalRegion = PhiFitModels::kPhiSignalRange,
+                     std::pair<double, double> sidebandRegion = PhiFitModels::kPhiSidebandRange)
     : h1(h), fitFunction(fitFunc)
   {
     double binWidth = h1->GetXaxis()->GetBinWidth(1);
@@ -79,9 +79,9 @@ class FitPhiSignalAndBkg
 
     // h1->GetListOfFunctions()->Add(fitFunction->Clone());
 
-    TF1* signalFunction = new TF1("Voigt", Voigt, signalRegion.first, signalRegion.second, 4);
+    TF1* signalFunction = new TF1("Voigt", PhiFitModels::Voigt, signalRegion.first, signalRegion.second, 4);
     signalFunction->SetLineColor(kBlue);
-    TF1* bkgFunction = new TF1("Bkg", BkgSourav, signalRegion.first, signalRegion.second, 3);
+    TF1* bkgFunction = new TF1("Bkg", PhiFitModels::BkgSourav, signalRegion.first, signalRegion.second, 3);
     bkgFunction->SetLineColor(kGreen + 2);
 
     TMatrixDSym covSignal(indexFirstBkgParam);
