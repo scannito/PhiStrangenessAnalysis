@@ -180,6 +180,12 @@ class PurityTask : public IAnalysisTask
         summaryDir->cd();
         task.canvas->Write(nullptr, TObject::kOverwrite);
       }
+
+      // The pT binning is the axis of each purity spectrum, so the consumer can
+      // read it. The multiplicity binning is only an index in the names
+      // ("..._multBin3") and would otherwise be unverifiable.
+      if (TDirectory* schemeDir = AnalysisUtils::GetOrCreatePath(task.outputFile, {globalCfgs.binningName}, false))
+        AnalysisUtils::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
     }
 
     // 2. Close output files

@@ -309,6 +309,14 @@ class MCTask : public IAnalysisTask
   {
     std::cout << "[INFO] MCTask: TERMINATING AND CLEANING UP..." << std::endl;
 
+    // The pT binning of every correction is carried by its own axis, so the
+    // consumer can verify it by reading it. The multiplicity binning is not: it
+    // survives only as an index in the names ("..._multBin3"), and the correlation
+    // task addresses those names with the bin indices of the DATA. Record it, so
+    // that a mismatch between the two productions is detectable instead of silent.
+    if (TDirectory* schemeDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName}, false))
+      AnalysisUtils::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
+
     TDirectory* accEffSummaryDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "AccEff", "Summary"}, false);
     TDirectory* sigLossSummaryDir = AnalysisUtils::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "SigLoss", "Summary"}, false);
 

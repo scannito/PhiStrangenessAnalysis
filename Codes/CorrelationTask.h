@@ -264,6 +264,12 @@ class CorrelationTask : public CorrelationTaskBase
         throw std::runtime_error("[FATAL] CorrelationTask: Cannot open purity file: " + purityFilePath);*/
       std::unique_ptr<TFile> filePurity = OpenOrThrow(purityFilePath, "READ", "CorrelationTask");
 
+      // Same as for the corrections: the purities are addressed by multiplicity
+      // index, and only the stamp says what those indices meant when they were fitted.
+      AnalysisUtils::RequireMatchingBinningStamp(
+        AnalysisUtils::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName}, true),
+        "binning_mult", multBinning, "purity file '" + purityFilePath + "'");
+
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
         std::string hName = folderPath + "h1" + purityKey + "Purity_multBin" + std::to_string(i);
         /*TH1F* h1Pur = static_cast<TH1F*>(filePurity->Get(hName.c_str()));

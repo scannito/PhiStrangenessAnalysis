@@ -446,6 +446,13 @@ class CorrelationTaskBase : public IAnalysisTask
     std::string inputEffFile = RequireString(taskConfig, "input_efficiency_file", GetName());
     std::unique_ptr<TFile> fileEffInput = OpenOrThrow(inputEffFile, "READ", "CorrelationTaskBase::LoadCorrections");
 
+    // The corrections are addressed by multiplicity INDEX ("..._multBin3"), with
+    // indices that come from the data. The stamp MCTask leaves behind is the only
+    // way to know the intervals those indices meant in the MC production.
+    AnalysisUtils::RequireMatchingBinningStamp(
+      AnalysisUtils::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName}, true),
+      "binning_mult", multBinning, "efficiency map '" + inputEffFile + "'");
+
     // Mirror the exact layout MCTask writes: {binningName}/AccEff/MultBin,
     // {binningName}/SigLoss/MultBin, {binningName}/EvLoss
     TDirectory* accEffDir = AnalysisUtils::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "AccEff", "MultBin"}, true);
