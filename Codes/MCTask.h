@@ -161,19 +161,8 @@ class MCTask : public IAnalysisTask
         data.rebinningPt = std::move(bins);
       }
 
-      std::string cEffName = "c_" + data.name + "_Efficiency";
-      std::string cSigName = "c_" + data.name + "_SignalLoss";
-
-      data.canvasEfficiency = std::make_unique<TCanvas>(cEffName.c_str(), cEffName.c_str(), 800, 600);
-      data.canvasSignalLoss = std::make_unique<TCanvas>(cSigName.c_str(), cSigName.c_str(), 800, 600);
-
-      if (data.rebinningPt) {
-        std::string cEffSourceName = cEffName + "_sourceBinning";
-        std::string cSigSourceName = cSigName + "_sourceBinning";
-
-        data.canvasEfficiencySourceBinning = std::make_unique<TCanvas>(cEffSourceName.c_str(), cEffSourceName.c_str(), 800, 600);
-        data.canvasSignalLossSourceBinning = std::make_unique<TCanvas>(cSigSourceName.c_str(), cSigSourceName.c_str(), 800, 600);
-      }
+      // Names and which ones exist both follow from what was just filled in.
+      data.CreateCanvases();
 
       dataCollection.push_back(std::move(data));
     }

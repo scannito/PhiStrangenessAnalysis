@@ -367,12 +367,20 @@ class CorrelationTaskBase : public IAnalysisTask
   void InitAssocParticles(const rapidjson::Value& taskConfig)
   {
     assocParticles.clear();
+
+    int idx = 0;
     for (const auto& sp : JsonConfig::RequireArray(taskConfig, "associated_particles", GetName())) {
-      std::string name = sp["name"].GetString();
-      std::string dirName = sp["dir_name"].GetString();
-      // The binning is left empty here: it is resolved from the input files in
-      // ResolveBinningAndCache(), once the containers are open.
-      assocParticles.emplace_back(name, dirName, std::vector<double>{}, AnalysisConstants::GetMass(name));
+      // The index is in the context because a missing 'name' leaves nothing else to
+      // identify the entry by.
+      const std::string ctx = std::format("{} associated_particles[{}]", GetName(), idx++);
+
+      std::string name = JsonConfig::RequireString(sp, "name", ctx);
+
+      // The directory name is derived from the species unless the configuration
+      // overrides it - see AssocParticleConfig for the rule. The binning stays
+      // empty: it is resolved from the input files in ResolveBinningAndCache(),
+      // once the containers are open.
+      assocParticles.emplace_back(name, JsonConfig::TryString(sp, "dir_name", ctx));
     }
   }
 

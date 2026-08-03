@@ -163,4 +163,23 @@ inline E OptionalEnum(const rapidjson::Value& node, const char* key, std::string
                                        errCtx, key, requested, available));
 }
 
+// ---------------------------------------------------------------------------
+// Present-or-not, with the type still checked
+// ---------------------------------------------------------------------------
+// The third case, between Require and Optional. Require makes an absent key an
+// error, Optional replaces it with a default; these report whether it was there,
+// for callers whose default is not a constant but follows from something else.
+// Unlike OptionalMember they still refuse a value of the wrong type: absent and
+// misspelled must not look the same.
+
+inline std::optional<std::string> TryString(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  const rapidjson::Value* val = OptionalMember(node, key);
+  if (!val)
+    return std::nullopt;
+  if (!val->IsString())
+    throw std::runtime_error(std::format("[FATAL] {}: key '{}' is present but is NOT a string, so it would be silently ignored.", errCtx, key));
+  return val->GetString();
+}
+
 } // namespace JsonConfig
