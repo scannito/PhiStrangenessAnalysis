@@ -312,6 +312,12 @@ class CorrelationTaskBase : public IAnalysisTask
   virtual double GetTriggerSignal(int multBin, int ptPhiBin) = 0;
   virtual double GetTriggerBkgRatio(int /*multBin*/, int /*ptPhiBin*/) { return 0.0; }
 
+  // The (multiplicity, trigger pT) axes of whatever container GetTriggerSignal
+  // reads from. Asked for as axes and not as a histogram because the two tasks
+  // hold different things: a TH2 read from PhiFitTask in one case, a TH3
+  // projected in place in the other.
+  virtual std::pair<const TAxis*, const TAxis*> TriggerAxes() const = 0;
+
   // -------------------------------------------------------------------------
   // Shared JSON parsing for flags common to both derived Init() implementations.
   // Call this first thing from each derived Init().
@@ -702,6 +708,43 @@ class CorrelationTaskBase : public IAnalysisTask
       AdoptOrRequireSame(ptPhiBinning, std::move(ptPhi), isFirst, "Trigger pT binning",
                          assocParticles.front().name, particle.name);
     }
+
+    VerifyTriggerAxes();
+  }
+
+  // -------------------------------------------------------------------------
+  // The last positional dependency left between two tasks.
+  //
+  // GetTriggerSignal(multBin, ptPhiBin) indexes the trigger container with the
+  // same pair the analysis loops over, but that container is filled by another
+  // task, against the binning IT resolved from ITS own input file. Nothing forced
+  // the two to agree: the yields would simply be read from the wrong cells, and
+  // the result would be wrong without being visibly broken.
+  //
+  // Checkable only because those matrices carry real bin edges instead of 0..N
+  // counters - which is why they were built that way.
+  // -------------------------------------------------------------------------
+  void VerifyTriggerAxes() const
+  {
+    const auto [multAxis, ptPhiAxis] = TriggerAxes();
+    if (!multAxis || !ptPhiAxis)
+      return;
+
+    auto check = [&](const std::vector<double>& analysis, const TAxis* axis, std::string_view what) {
+      const std::string diff = BinningUtils::Compare(analysis, BinningUtils::AxisEdges(axis),
+                                                     "analysis binning (associated data)", "trigger container");
+      if (!diff.empty()) {
+        throw std::runtime_error(std::format(
+          "[FATAL] {}: the {} of the trigger container does not match the one resolved from the "
+          "associated-particle data:\n{}"
+          "Trigger yields are read by bin index, so this would take them from the wrong cells. "
+          "The two productions must share this axis, or the trigger file must be regenerated.",
+          GetName(), what, diff));
+      }
+    };
+
+    check(multBinning, multAxis, "multiplicity axis");
+    check(ptPhiBinning, ptPhiAxis, "trigger pT axis");
   }
 
   // -------------------------------------------------------------------------

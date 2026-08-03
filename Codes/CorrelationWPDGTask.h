@@ -113,6 +113,13 @@ class CorrelationWPDGTask : public CorrelationTaskBase
   }
   // GetTriggerBkgRatio not overridden: base default (0.0) is correct for WPDG.
 
+  // h2PhiData, when it exists, is a projection of h3PhiData and shares its axes,
+  // so one answer covers both branches of GetTriggerSignal above.
+  std::pair<const TAxis*, const TAxis*> TriggerAxes() const override
+  {
+    return {h3PhiData->GetXaxis(), h3PhiData->GetYaxis()};
+  }
+
  private:
   bool isPureGen{false};
 

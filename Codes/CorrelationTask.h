@@ -165,6 +165,11 @@ class CorrelationTask : public CorrelationTaskBase
     return h2TriggerBkgRatio->GetBinContent(multBin + 1, ptPhiBin + 1);
   }
 
+  std::pair<const TAxis*, const TAxis*> TriggerAxes() const override
+  {
+    return {h2TriggerSignal->GetXaxis(), h2TriggerSignal->GetYaxis()};
+  }
+
  private:
   RunMode runMode{RunMode::Legacy};
 
