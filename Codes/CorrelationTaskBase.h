@@ -137,6 +137,10 @@ class CorrelationTaskBase : public IAnalysisTask
       }
     }
 
+    // The spectra leave this task and, once the trends and ratios move to a task
+    // of their own, this is what will say which method produced them.
+    RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName, "Provenance"}, false), provenance);
+
     // =========================================================================
     // 2. Write Yield Ratios across species (into a dedicated "Ratios" directory)
     // =========================================================================
@@ -269,6 +273,9 @@ class CorrelationTaskBase : public IAnalysisTask
   std::unique_ptr<TH1> hEventLoss;
 
   std::vector<AssocParticleConfig> assocParticles;
+
+  // Filled in Init, written into the spectra file in Terminate
+  std::map<std::string, std::string> provenance;
   std::vector<LoadedAssocData> loadedDataCollection;
 
   // Read from the input files in Init(), never from the configuration
@@ -330,6 +337,11 @@ class CorrelationTaskBase : public IAnalysisTask
     applyEfficiency = JsonConfig::RequireBool(taskConfig, "apply_efficiency", GetName());
     applyExtrapolation = JsonConfig::RequireBool(taskConfig, "apply_extrapolation", GetName());
     useIntegratedEfficiency = JsonConfig::RequireBool(taskConfig, "use_integrated_efficiency", GetName());
+    // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
+    // block, so a key added to the JSON tomorrow is recorded without touching this.
+    provenance["produced_at"] = RootIO::TimestampNow();
+    provenance["config_block"] = JsonConfig::Serialize(taskConfig);
+
     useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
     use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());
 
@@ -421,6 +433,9 @@ class CorrelationTaskBase : public IAnalysisTask
 
     std::string inputEffFile = JsonConfig::RequireString(taskConfig, "input_efficiency_file", GetName());
     std::unique_ptr<TFile> fileEffInput = RootIO::OpenOrThrow(inputEffFile, "READ", "CorrelationTaskBase::LoadCorrections");
+
+    RootIO::PrintProvenance(RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "Provenance"}, true),
+                            "corrections file '" + inputEffFile + "'");
 
     // The corrections are addressed by multiplicity INDEX ("..._multBin3"), with
     // indices that come from the data. The stamp MCTask leaves behind is the only

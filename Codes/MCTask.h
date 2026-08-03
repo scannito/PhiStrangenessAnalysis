@@ -42,6 +42,11 @@ class MCTask : public IAnalysisTask
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
+    // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
+    // block, so a key added to the JSON tomorrow is recorded without touching this.
+    provenance["produced_at"] = RootIO::TimestampNow();
+    provenance["config_block"] = JsonConfig::Serialize(taskConfig);
+
     // 1. Check if a list of particle to compute MC corrections is provided
     auto particles = JsonConfig::RequireArray(taskConfig, "mc_particles", "MCTask");
 
@@ -329,6 +334,8 @@ class MCTask : public IAnalysisTask
     if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName}, false))
       RootIO::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
 
+    RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "Provenance"}, false), provenance);
+
     // Same rule as the histograms: the directory is created by the write, so a run
     // with no merging leaves no empty folders behind.
     auto writeCanvas = [&](const std::vector<std::string>& path, TCanvas* canvas) {
@@ -366,6 +373,9 @@ class MCTask : public IAnalysisTask
 
   std::string outputDirectory;
   std::string ccdbOutputDir;
+
+  // Filled in Init, written into the output file in Terminate
+  std::map<std::string, std::string> provenance;
   std::string outputPrefix{""};
   std::string mcBasePath;
 

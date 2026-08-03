@@ -104,6 +104,20 @@ class WorkflowManager
       // Generate the final merged JSON configuration (resolving N-levels of inheritance)
       rapidjson::Value finalTaskConfig = MergeTaskConfiguration(configBlockName);
 
+      // Which block this is - "mc_task_2024", not the "mc_task" prefix the registry
+      // matched. Only this loop knows it, and a task that records what produced its
+      // output needs it. Added to the merged block rather than passed alongside:
+      // that object is already synthetic, with inheritance resolved, so the resolved
+      // identity belongs in it and travels wherever it goes. The leading underscore
+      // marks a key nobody wrote in the JSON.
+      if (finalTaskConfig.IsObject()) {
+        rapidjson::Value key("_resolved_block_name", document.GetAllocator());
+        rapidjson::Value value(configBlockName.c_str(), document.GetAllocator());
+        if (finalTaskConfig.HasMember(key))
+          finalTaskConfig.RemoveMember(key);
+        finalTaskConfig.AddMember(key, value, document.GetAllocator());
+      }
+
       // Pass the fully assembled config and global settings to the task
       task->Init(finalTaskConfig, globalSettings);
       task->Run();

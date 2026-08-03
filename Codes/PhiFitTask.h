@@ -21,6 +21,7 @@
 
 #include <cmath>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -39,6 +40,11 @@ class PhiFitTask : public IAnalysisTask
     std::cout << "[INFO] PhiFitTask: INITIALIZING..." << std::endl;
 
     globalCfgs = globalSettings; // Store the global settings for later use
+
+    // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
+    // block, so a key added to the JSON tomorrow is recorded without touching this.
+    provenance["produced_at"] = RootIO::TimestampNow();
+    provenance["config_block"] = JsonConfig::Serialize(taskConfig);
 
     // 1. Input Configuration
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", "PhiFitTask");
@@ -186,6 +192,11 @@ class PhiFitTask : public IAnalysisTask
     h2TriggerBkgSideRegion->Write(nullptr, TObject::kOverwrite);
     h2TriggerBkgRatio->Write(nullptr, TObject::kOverwrite);
 
+    // The trigger matrices cross into CorrelationTask, so this file is a link in
+    // the chain and not a by-product: it has to say what produced it. No binning
+    // stamp is needed here - both axes of the matrices are the real binnings.
+    RootIO::WriteProvenance(RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Provenance"}, false), provenance);
+
     if (filePhiDataOutput)
       filePhiDataOutput->Close();
 
@@ -204,6 +215,9 @@ class PhiFitTask : public IAnalysisTask
   std::unique_ptr<TH3F> h3PhiData;
 
   std::unique_ptr<TFile> filePhiDataOutput;
+
+  // Filled in Init, written into the output file in Terminate
+  std::map<std::string, std::string> provenance;
 
   std::unique_ptr<TH2D> h2TriggerSignal;
   std::unique_ptr<TH2D> h2TriggerBkgSigRegion;

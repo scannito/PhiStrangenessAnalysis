@@ -50,6 +50,9 @@ class CorrelationTask : public CorrelationTaskBase
 
     std::unique_ptr<TFile> filePhiDataInput = RootIO::OpenOrThrow(phiDataName, "READ", "CorrelationTask");
 
+    RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePhiDataInput.get(), {globalCfgs.binningName, "Provenance"}, true),
+                            "trigger file '" + phiDataName + "'");
+
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
     std::string folderPath = RootIO::MakeDirPath(summaryPath);
 
@@ -215,6 +218,9 @@ class CorrelationTask : public CorrelationTaskBase
       }
 
       std::unique_ptr<TFile> filePurity = RootIO::OpenOrThrow(purityFilePath, "READ", "CorrelationTask");
+
+      RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName, "Provenance"}, true),
+                              "purity file '" + purityFilePath + "'");
 
       // Same as for the corrections: the purities are addressed by multiplicity
       // index, and only the stamp says what those indices meant when they were fitted.

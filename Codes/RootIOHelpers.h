@@ -3,13 +3,17 @@
 #include "BinningUtils.h"
 
 #include "TDirectory.h"
+#include "TKey.h"
+#include "TNamed.h"
 #include "TFile.h"
 #include "TH1.h"
 #include "TH1D.h"
 
 #include <concepts>
 #include <format>
+#include <ctime>
 #include <iostream>
+#include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -174,6 +178,79 @@ inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name
       "Cached histograms are addressed by bin index, so reusing them would mix "
       "two binnings. Re-run with the cache disabled to rebuild them.",
       errCtx, name, diff));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Provenance: what produced this file
+// ---------------------------------------------------------------------------
+// Unlike the binning stamps above, this is documentation and never a check. A
+// path that moved is not a reason to stop a run, and the stamps already refuse
+// the mismatches that would actually corrupt a result.
+//
+// What goes in is the merged configuration block, serialised: not a hand-picked
+// list of facts, which would silently stop covering the keys added after it was
+// written. The configuration on disk describes the NEXT run; this describes THIS
+// file, and travels with it - to a colleague, to CCDB - where the JSON does not.
+//
+// One TNamed per entry so that it reads in a TBrowser, or with "rootls -l",
+// without any code, and so that adding an entry breaks nobody.
+
+inline void WriteProvenance(TDirectory* dir, const std::map<std::string, std::string>& facts)
+{
+  if (!dir)
+    return;
+
+  dir->cd();
+  for (const auto& [key, value] : facts) {
+    TNamed entry(key.c_str(), value.c_str());
+    entry.Write(key.c_str(), TObject::kOverwrite);
+  }
+}
+
+inline std::map<std::string, std::string> ReadProvenance(TDirectory* dir)
+{
+  std::map<std::string, std::string> facts;
+  if (!dir || !dir->GetListOfKeys())
+    return facts;
+
+  for (TObject* keyObj : *dir->GetListOfKeys()) {
+    auto* key = static_cast<TKey*>(keyObj);
+    std::unique_ptr<TNamed> entry(dynamic_cast<TNamed*>(key->ReadObj()));
+    if (entry)
+      facts[entry->GetName()] = entry->GetTitle();
+  }
+  return facts;
+}
+
+// Local time through strftime: std::format's chrono specifiers go through the
+// same consteval validation that already forced snprintf on floating-point ones.
+inline std::string TimestampNow()
+{
+  const std::time_t now = std::time(nullptr);
+  char buffer[32];
+  if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", std::localtime(&now)) == 0)
+    return "unknown";
+  return buffer;
+}
+
+// For the task consuming the file. The serialised configuration is one long line,
+// so it is announced rather than printed: it is there to be diffed, not read in a
+// log.
+inline void PrintProvenance(TDirectory* dir, std::string_view fileLabel)
+{
+  const std::map<std::string, std::string> facts = ReadProvenance(dir);
+  if (facts.empty()) {
+    std::cout << "[INFO] " << fileLabel << ": no provenance recorded (written before it existed)." << std::endl;
+    return;
+  }
+
+  std::cout << "[INFO] " << fileLabel << " was produced by:" << std::endl;
+  for (const auto& [key, value] : facts) {
+    if (key == "config_block")
+      std::cout << "         " << key << " = <" << value.size() << " chars of JSON, read it from the file>" << std::endl;
+    else
+      std::cout << "         " << key << " = " << value << std::endl;
   }
 }
 

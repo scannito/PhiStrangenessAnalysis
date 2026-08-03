@@ -1,6 +1,8 @@
 #pragma once
 
 #include "rapidjson/document.h"
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/writer.h"
 
 #include <format>
 #include <initializer_list>
@@ -12,6 +14,23 @@
 
 namespace JsonConfig
 {
+// ---------------------------------------------------------------------------
+// Serialisation
+// ---------------------------------------------------------------------------
+
+// The node back as JSON text, on one line. Used to record inside an output file
+// the configuration that produced it: the merged block, so what the task actually
+// received rather than what the file on disk says today. Compact rather than
+// pretty because it is stored, not read directly - pipe it through a formatter
+// when you need to look at it.
+inline std::string Serialize(const rapidjson::Value& node)
+{
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  node.Accept(writer);
+  return buffer.GetString();
+}
+
 // ---------------------------------------------------------------------------
 // Member lookup
 // ---------------------------------------------------------------------------

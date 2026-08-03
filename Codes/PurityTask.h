@@ -36,6 +36,11 @@ class PurityTask : public IAnalysisTask
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
+    // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
+    // block, so a key added to the JSON tomorrow is recorded without touching this.
+    provenance["produced_at"] = RootIO::TimestampNow();
+    provenance["config_block"] = JsonConfig::Serialize(taskConfig);
+
     // 1. Open input file, extract 3D histograms to RAM, and immediately close it
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", "PurityTask");
     std::unique_ptr<TFile> fileInput = RootIO::OpenOrThrow(inputFile, "READ", "PurityTask");
@@ -215,6 +220,9 @@ class PurityTask : public IAnalysisTask
       // ("..._multBin3") and would otherwise be unverifiable.
       if (TDirectory* schemeDir = RootIO::GetOrCreatePath(task.outputFile, {globalCfgs.binningName}, false))
         RootIO::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
+
+      // Written per file because several particles can share one, e.g. pi_tpc and pi_tof.
+      RootIO::WriteProvenance(RootIO::GetOrCreatePath(task.outputFile, {globalCfgs.binningName, "Provenance"}, false), provenance);
     }
 
     // 2. Write the CCDB-ready maps, one file per particle, object named "ccdb_object"
@@ -245,6 +253,9 @@ class PurityTask : public IAnalysisTask
 
   std::string ccdbOutputDir;
   std::string outputPrefix;
+
+  // Filled in Init, written into the output file in Terminate
+  std::map<std::string, std::string> provenance;
 
   // outputFiles must be declared before particleTasks to ensure proper destruction order:
   // particleTasks holds raw pointers to TFile objects managed by outputFiles, so outputFiles must outlive particleTasks.
