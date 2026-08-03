@@ -200,8 +200,72 @@ class EfficiencyCalculator
     h1MCReco = AnalysisUtils::RebinToTargetBinning(std::move(h1MCReco), target, ctx);
   }
 
-  // Returns a pair: {Efficiency 1D, Signal Loss 1D}.
-  static std::pair<std::unique_ptr<TH1>, std::unique_ptr<TH1>> Compute1DMaps(const LoadedMC& data, int multBin, int color)
+  // The maps the analysis uses, plus - only when 'rebinning_pt' merged the counts
+  // - the same maps at the binning of the input histograms. Those are not used
+  // by the analysis: they show the shape the merge averages over, which is the
+  // only way to judge whether merging those bins was reasonable.
+  //
+  // Note the asymmetry: the *SourceBinning members are null exactly when there
+  // was no merge, and that is the case in which 'efficiency' and 'signalLoss'
+  // ARE at the source binning. So "the maps at the source binning" is
+  //     efficiencySourceBinning ? efficiencySourceBinning : efficiency
+  // and never just the first of the two.
+  struct Maps1D {
+    std::unique_ptr<TH1> efficiency; // analysis binning: merged when requested,
+    std::unique_ptr<TH1> signalLoss; // otherwise the source binning itself
+    std::unique_ptr<TH1> efficiencySourceBinning; // null unless 'rebinning_pt' is set
+    std::unique_ptr<TH1> signalLossSourceBinning;
+  };
+
+  // The two divisions, shared by the per-multiplicity and the integrated case.
+  // Takes the counts by raw pointer because it only reads them.
+  static std::pair<std::unique_ptr<TH1>, std::unique_ptr<TH1>>
+    DivideCounts(TH1* h1MCGen, TH1* h1MCGenAssocReco, TH1* h1MCReco,
+                 const std::string& particle, const std::string& suffix, int color)
+  {
+    // "B" on both: the reconstructed are a subset of the generated-associated,
+    // which are a subset of the generated, so the two ratios are binomial.
+    std::unique_ptr<TH1> efficiency = AnalysisUtils::MakeRatioHist(
+      h1MCReco, h1MCGenAssocReco, "h1" + particle + "Efficiency" + suffix,
+      ";p_{T} (GeV/#it{c});Acc #times #epsilon", 1.0, 1.0, "B");
+    AnalysisUtils::SetHistogramStyle(efficiency.get(), color);
+
+    std::unique_ptr<TH1> signalLoss = AnalysisUtils::MakeRatioHist(
+      h1MCGenAssocReco, h1MCGen, "h1" + particle + "SigLoss" + suffix,
+      ";p_{T} (GeV/#it{c});Signal loss", 1.0, 1.0, "B");
+    AnalysisUtils::SetHistogramStyle(signalLoss.get(), color);
+
+    return {std::move(efficiency), std::move(signalLoss)};
+  }
+
+  // Divides at the source binning first when a merge is requested, then merges
+  // counts and divides again. Order matters: DivideCounts only reads, but
+  // RebinCountsIfRequested replaces the histograms.
+  static Maps1D BuildMaps1D(const LoadedMC& data, std::unique_ptr<TH1>& h1MCGen,
+                            std::unique_ptr<TH1>& h1MCGenAssocReco, std::unique_ptr<TH1>& h1MCReco,
+                            const std::string& suffix, int color)
+  {
+    Maps1D maps;
+
+    if (data.rebinningPt) {
+      auto [effFine, lossFine] = DivideCounts(h1MCGen.get(), h1MCGenAssocReco.get(), h1MCReco.get(),
+                                              data.name, suffix + "_sourceBinning", color);
+      maps.efficiencySourceBinning = std::move(effFine);
+      maps.signalLossSourceBinning = std::move(lossFine);
+    }
+
+    RebinCountsIfRequested(data, h1MCGen, h1MCGenAssocReco, h1MCReco);
+
+    auto [efficiency, signalLoss] = DivideCounts(h1MCGen.get(), h1MCGenAssocReco.get(), h1MCReco.get(),
+                                                 data.name, suffix, color);
+    maps.efficiency = std::move(efficiency);
+    maps.signalLoss = std::move(signalLoss);
+
+    return maps;
+  }
+
+  // Returns the maps for one multiplicity bin.
+  static Maps1D Compute1DMaps(const LoadedMC& data, int multBin, int color)
   {
     AnalysisUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
     AnalysisUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {multBin + 1, multBin + 1}};
@@ -216,28 +280,11 @@ class EfficiencyCalculator
     std::unique_ptr<TH1> h1MCGenAssocReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp");
     std::unique_ptr<TH1> h1MCReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp");
 
-    RebinCountsIfRequested(data, h1MCGen, h1MCGenAssocReco, h1MCReco);
-
-    // 1D Efficiency Calculation
-    std::string h1EffName = "h1" + data.name + "Efficiency_multBin" + std::to_string(multBin);
-    std::unique_ptr<TH1> h1Efficiency1D(static_cast<TH1*>(h1MCReco->Clone(h1EffName.c_str())));
-    h1Efficiency1D->SetDirectory(0);
-    h1Efficiency1D->Divide(h1MCReco.get(), h1MCGenAssocReco.get(), 1.0, 1.0, "B");
-    AnalysisUtils::SetHistogramStyle(h1Efficiency1D.get(), color);
-
-    // 1D Signal Loss Calculation
-    std::string h1SigName = "h1" + data.name + "SigLoss_multBin" + std::to_string(multBin);
-    std::unique_ptr<TH1> h1SignalLoss1D(static_cast<TH1*>(h1MCGenAssocReco->Clone(h1SigName.c_str())));
-    h1SignalLoss1D->SetDirectory(0);
-    h1SignalLoss1D->Divide(h1MCGenAssocReco.get(), h1MCGen.get(), 1.0, 1.0, "B");
-    AnalysisUtils::SetHistogramStyle(h1SignalLoss1D.get(), color);
-
-    return {std::move(h1Efficiency1D), std::move(h1SignalLoss1D)};
+    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, "_multBin" + std::to_string(multBin), color);
   }
 
-  // Computes 1D Efficiency and Signal Loss integrated over ALL multiplicity bins
-  // Returns a pair: {Efficiency 1D, Signal Loss 1D}.
-  static std::pair<std::unique_ptr<TH1>, std::unique_ptr<TH1>> Compute1DMapsMultIntegrated(const LoadedMC& data)
+  // Same, integrated over ALL multiplicity bins.
+  static Maps1D Compute1DMapsMultIntegrated(const LoadedMC& data)
   {
     AnalysisUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
     // "Integrated" means the whole axis: take its extent from the containers
@@ -255,22 +302,6 @@ class EfficiencyCalculator
     std::unique_ptr<TH1> h1MCGenAssocReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp_Int");
     std::unique_ptr<TH1> h1MCReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp_Int");
 
-    RebinCountsIfRequested(data, h1MCGen, h1MCGenAssocReco, h1MCReco);
-
-    // 1D Efficiency Calculation
-    std::string h1EffName = "h1" + data.name + "Efficiency_multIntegrated";
-    std::unique_ptr<TH1> h1Efficiency1D(static_cast<TH1*>(h1MCReco->Clone(h1EffName.c_str())));
-    h1Efficiency1D->SetDirectory(0);
-    h1Efficiency1D->Divide(h1MCReco.get(), h1MCGenAssocReco.get(), 1.0, 1.0, "B");
-    AnalysisUtils::SetHistogramStyle(h1Efficiency1D.get(), kBlack);
-
-    // 1D Signal Loss Calculation
-    std::string h1SigName = "h1" + data.name + "SigLoss_multIntegrated";
-    std::unique_ptr<TH1> h1SignalLoss1D(static_cast<TH1*>(h1MCGenAssocReco->Clone(h1SigName.c_str())));
-    h1SignalLoss1D->SetDirectory(0);
-    h1SignalLoss1D->Divide(h1MCGenAssocReco.get(), h1MCGen.get(), 1.0, 1.0, "B");
-    AnalysisUtils::SetHistogramStyle(h1SignalLoss1D.get(), kBlack);
-
-    return {std::move(h1Efficiency1D), std::move(h1SignalLoss1D)};
+    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, "_multIntegrated", kBlack);
   }
 };

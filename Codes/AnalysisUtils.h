@@ -193,14 +193,19 @@ inline void SetHistogramStyle(TH1* h1, int color)
 
 // The caller styles the result itself (SetHistogramStyle, marker overrides),
 // so this only builds the ratio.
+//
+// 'option' is TH1::Divide's: pass "B" whenever the numerator counts a subset of
+// the denominator, as for an efficiency, otherwise the errors come out too large
+// and can exceed the range the ratio is bounded to.
 inline std::unique_ptr<TH1> MakeRatioHist(TH1* num, TH1* den, const std::string& name,
                                           const std::string& title,
-                                          double numScale = 1.0, double denScale = 1.0)
+                                          double numScale = 1.0, double denScale = 1.0,
+                                          Option_t* option = "")
 {
   std::unique_ptr<TH1> h(static_cast<TH1*>(num->Clone(name.c_str())));
   h->SetTitle(title.c_str());
   h->SetDirectory(0);
-  h->Divide(num, den, numScale, denScale);
+  h->Divide(num, den, numScale, denScale, option);
   return h;
 }
 

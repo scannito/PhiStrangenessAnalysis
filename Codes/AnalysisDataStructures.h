@@ -6,6 +6,7 @@
 #include "TCanvas.h"
 #include "TH1.h"
 #include "TH1F.h"
+#include "TH2F.h"
 #include "TH3F.h"
 #include "THnSparse.h"
 
@@ -36,15 +37,54 @@ struct LoadedPurity {
 };
 
 struct ParticleTask {
-  std::string name;                     // e.g. "k0s", "pi_tpc"
-  std::unique_ptr<TH3F> h3Source;       // Pointer to the 3D source histogram in RAM
-  std::vector<double> analysisBinning;  // Binning of the purity spectrum. Equals the
-                                        // source one unless 'rebinning_pt' asks for a
-                                        // coarser one, in which case each of its bins
-                                        // is fitted as a single merged sample
-  std::vector<BinningUtils::BinRange> sourceBins; // source bins covered by each analysis bin
-  TFile* outputFile;                    // Output file for this particle
-  std::unique_ptr<TCanvas> canvas;      // Summary canvas for plotting
+  std::string name;                               // e.g. "k0s", "pi_tpc"
+  std::unique_ptr<TH3F> h3Source;                 // Pointer to the 3D source histogram in RAM
+  std::vector<double> sourceBinning;              // The pT axis of h3Source
+  std::optional<std::vector<double>> rebinningPt; // Set only when the configuration asks for a coarser
+                                                  // binning. Same spelling as LoadedMC: "was a merge
+                                                  // requested" must be one question with one answer,
+                                                  // not something each task deduces from the binnings
+                                                  // it happens to be holding
+  std::vector<BinningUtils::BinRange> mappedSourceBins; // Source bins covered by each analysis bin.
+                                                  // Derived, but stored: deriving it is a search, not
+                                                  // a branch, and MapToSourceBins throws when an
+                                                  // analysis edge is not an edge of the source - a
+                                                  // diagnostic that belongs to construction, before
+                                                  // any fit has run
+  TFile* outputFile;                              // Output file for this particle
+  std::unique_ptr<TCanvas> canvas;                // Summary canvas: one pad, all multiplicity bins
+  std::unique_ptr<TCanvas> canvasSourceBinning;   // Same overlay at the source binning, non-null only
+                                                  // when a merge was requested. Its own pad, because
+                                                  // two binnings together would ruin the comparison
+                                                  // between multiplicity bins it is drawn for
+  std::unique_ptr<TH2F> h2PurityCCDB;             // (multiplicity, pT) purity at the source binning,
+                                                  // written on its own as "ccdb_object" so O2 can
+                                                  // apply it candidate by candidate
+
+  // mappedSourceBins and the two canvases are NOT parameters: they follow from the
+  // binnings and from the name, so the caller cannot get them wrong or forget them,
+  // and the object is never half-built. Note that member initialisers run in
+  // declaration order, which is why they are declared after what they read.
+  ParticleTask(std::string name_, std::unique_ptr<TH3F> h3Source_, std::vector<double> sourceBinning_,
+               std::optional<std::vector<double>> rebinningPt_, TFile* outputFile_,
+               std::unique_ptr<TH2F> h2PurityCCDB_)
+    : name(std::move(name_)),
+      h3Source(std::move(h3Source_)),
+      sourceBinning(std::move(sourceBinning_)),
+      rebinningPt(std::move(rebinningPt_)),
+      mappedSourceBins(BinningUtils::MapToSourceBins(sourceBinning, AnalysisBinning())),
+      outputFile(outputFile_),
+      canvas(std::make_unique<TCanvas>(("canvas" + name + "Purity").c_str(), (name + " Purity").c_str(), 800, 600)),
+      canvasSourceBinning(rebinningPt
+                            ? std::make_unique<TCanvas>(("canvas" + name + "Purity_sourceBinning").c_str(),
+                                                        (name + " Purity (source binning)").c_str(), 800, 600)
+                            : nullptr),
+      h2PurityCCDB(std::move(h2PurityCCDB_)) {}
+
+  // The binning the analysis works at: the merged one when one was asked for, the
+  // source one otherwise. Derived rather than stored, so it cannot fall out of
+  // agreement with rebinningPt.
+  const std::vector<double>& AnalysisBinning() const { return rebinningPt ? *rebinningPt : sourceBinning; }
 };
 
 template <size_t size>
@@ -70,6 +110,11 @@ struct LoadedMC {
   std::optional<std::vector<double>> rebinningPt;
   std::unique_ptr<TCanvas> canvasEfficiency;
   std::unique_ptr<TCanvas> canvasSignalLoss;
+  // Same two overlays at the source binning, created only when 'rebinning_pt' asks
+  // for a merge: on their own pads, because a single one mixing the two binnings
+  // would ruin the multiplicity-to-multiplicity comparison they are drawn for
+  std::unique_ptr<TCanvas> canvasEfficiencySourceBinning;
+  std::unique_ptr<TCanvas> canvasSignalLossSourceBinning;
 };
 
 // ============================================================================

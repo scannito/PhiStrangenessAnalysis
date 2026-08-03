@@ -67,10 +67,10 @@ class MCTask : public IAnalysisTask
     }
 
     particleCorrectionMode = JsonConfig::OptionalEnum<CorrectionMode>(taskConfig, "particle_correction_mode", "efficiency_only",
-                                                                     {{"efficiency_only", CorrectionMode::EfficiencyOnly},
-                                                                      {"signal_loss_only", CorrectionMode::SignalLossOnly},
-                                                                      {"combined", CorrectionMode::Combined}},
-                                                                     GetName());
+                                                                      {{"efficiency_only", CorrectionMode::EfficiencyOnly},
+                                                                       {"signal_loss_only", CorrectionMode::SignalLossOnly},
+                                                                       {"combined", CorrectionMode::Combined}},
+                                                                      GetName());
 
     // Input files may be shared across particles (default) or overridden per
     // particle via "input_mc_file". Open each distinct file only once.
@@ -167,6 +167,14 @@ class MCTask : public IAnalysisTask
       data.canvasEfficiency = std::make_unique<TCanvas>(cEffName.c_str(), cEffName.c_str(), 800, 600);
       data.canvasSignalLoss = std::make_unique<TCanvas>(cSigName.c_str(), cSigName.c_str(), 800, 600);
 
+      if (data.rebinningPt) {
+        std::string cEffSourceName = cEffName + "_sourceBinning";
+        std::string cSigSourceName = cSigName + "_sourceBinning";
+
+        data.canvasEfficiencySourceBinning = std::make_unique<TCanvas>(cEffSourceName.c_str(), cEffSourceName.c_str(), 800, 600);
+        data.canvasSignalLossSourceBinning = std::make_unique<TCanvas>(cSigSourceName.c_str(), cSigSourceName.c_str(), 800, 600);
+      }
+
       dataCollection.push_back(std::move(data));
     }
 
@@ -260,51 +268,63 @@ class MCTask : public IAnalysisTask
       fileMCOutputPerPartError2D->Close();
 
       // 2. Compute 1D Spectra across multiplicity bins
-      TDirectory* accEffMultDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "AccEff", "MultBin"}, false);
-      TDirectory* sigLossMultDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "SigLoss", "MultBin"}, false);
+      //
+      // The maps at the source binning exist only when 'rebinning_pt' merged the
+      // counts. They go on their own pair of canvases: each canvas overlays the
+      // multiplicity bins against each other, so mixing two binnings on one pad
+      // would make exactly the comparison it is drawn for unreadable.
+      auto drawMaps = [&](const EfficiencyCalculator::Maps1D& maps, const char* drawOption) {
+        data.canvasEfficiency->cd();
+        maps.efficiency->DrawCopy(drawOption);
 
-      // Process 1D Spectra across multiplicity bins
+        data.canvasSignalLoss->cd();
+        maps.signalLoss->DrawCopy(drawOption);
+
+        if (maps.efficiencySourceBinning && data.canvasEfficiencySourceBinning) {
+          data.canvasEfficiencySourceBinning->cd();
+          maps.efficiencySourceBinning->DrawCopy(drawOption);
+        }
+        if (maps.signalLossSourceBinning && data.canvasSignalLossSourceBinning) {
+          data.canvasSignalLossSourceBinning->cd();
+          maps.signalLossSourceBinning->DrawCopy(drawOption);
+        }
+      };
+
+      // The source-binning maps get a subdirectory of their own rather than
+      // sitting next to the analysis ones, and it is created by the write itself:
+      // the directory then exists if and only if something was put in it, with no
+      // second condition to keep in agreement. The name suffix stays anyway, since
+      // once an object leaves the file its directory is no longer part of its
+      // identity.
+      auto writeInto = [&](const std::vector<std::string>& path, TH1* h) {
+        if (!h)
+          return;
+        if (TDirectory* dir = RootIO::GetOrCreatePath(fileMCOutput.get(), path, false)) {
+          dir->cd();
+          h->Write(nullptr, TObject::kOverwrite);
+        }
+      };
+
+      auto writeMaps = [&](const EfficiencyCalculator::Maps1D& maps) {
+        writeInto({globalCfgs.binningName, "AccEff", "MultBin"}, maps.efficiency.get());
+        writeInto({globalCfgs.binningName, "SigLoss", "MultBin"}, maps.signalLoss.get());
+        writeInto({globalCfgs.binningName, "AccEff", "MultBin", "SourceBinning"}, maps.efficiencySourceBinning.get());
+        writeInto({globalCfgs.binningName, "SigLoss", "MultBin", "SourceBinning"}, maps.signalLossSourceBinning.get());
+      };
+
       for (int i{0}; i < BinningUtils::NBins(multBinning); i++) {
         // 'rebinning_pt' is applied inside the calculator, on the counts, before
         // they are divided: rebinning the ratio afterwards would sum efficiencies.
-        auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMaps(data, i, globalCfgs.GetSpectraColor(i));
+        EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, i, globalCfgs.GetSpectraColor(i));
 
-        // Draw on canvases
-        data.canvasEfficiency->cd();
-        h1Efficiency1D->DrawCopy(i == 0 ? "" : "SAME");
-
-        data.canvasSignalLoss->cd();
-        h1SignalLoss1D->DrawCopy(i == 0 ? "" : "SAME");
-
-        // Write to file
-        if (accEffMultDir) {
-          accEffMultDir->cd();
-          h1Efficiency1D->Write(nullptr, TObject::kOverwrite);
-        }
-        if (sigLossMultDir) {
-          sigLossMultDir->cd();
-          h1SignalLoss1D->Write(nullptr, TObject::kOverwrite);
-        }
+        drawMaps(maps, i == 0 ? "" : "SAME");
+        writeMaps(maps);
       }
 
-      auto [h1Efficiency1D, h1SignalLoss1D] = EfficiencyCalculator::Compute1DMapsMultIntegrated(data);
+      EfficiencyCalculator::Maps1D mapsInt = EfficiencyCalculator::Compute1DMapsMultIntegrated(data);
 
-      // Draw on canvases
-      data.canvasEfficiency->cd();
-      h1Efficiency1D->DrawCopy("SAME");
-
-      data.canvasSignalLoss->cd();
-      h1SignalLoss1D->DrawCopy("SAME");
-
-      // Write to file
-      if (accEffMultDir) {
-        accEffMultDir->cd();
-        h1Efficiency1D->Write(nullptr, TObject::kOverwrite);
-      }
-      if (sigLossMultDir) {
-        sigLossMultDir->cd();
-        h1SignalLoss1D->Write(nullptr, TObject::kOverwrite);
-      }
+      drawMaps(mapsInt, "SAME");
+      writeMaps(mapsInt);
     }
   }
 
@@ -320,23 +340,23 @@ class MCTask : public IAnalysisTask
     if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName}, false))
       RootIO::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
 
-    TDirectory* accEffSummaryDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "AccEff", "Summary"}, false);
-    TDirectory* sigLossSummaryDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "SigLoss", "Summary"}, false);
+    // Same rule as the histograms: the directory is created by the write, so a run
+    // with no merging leaves no empty folders behind.
+    auto writeCanvas = [&](const std::vector<std::string>& path, TCanvas* canvas) {
+      if (!canvas)
+        return;
+      if (TDirectory* dir = RootIO::GetOrCreatePath(fileMCOutput.get(), path, false)) {
+        dir->cd();
+        canvas->Write(nullptr, TObject::kOverwrite);
+      }
+    };
 
     // Save all diagnostic canvases and free the memory for the loaded objects
     for (auto& data : dataCollection) {
-      if (data.canvasEfficiency) {
-        if (accEffSummaryDir) {
-          accEffSummaryDir->cd();
-          data.canvasEfficiency->Write(nullptr, TObject::kOverwrite);
-        }
-      }
-      if (data.canvasSignalLoss) {
-        if (sigLossSummaryDir) {
-          sigLossSummaryDir->cd();
-          data.canvasSignalLoss->Write(nullptr, TObject::kOverwrite);
-        }
-      }
+      writeCanvas({globalCfgs.binningName, "AccEff", "Summary"}, data.canvasEfficiency.get());
+      writeCanvas({globalCfgs.binningName, "SigLoss", "Summary"}, data.canvasSignalLoss.get());
+      writeCanvas({globalCfgs.binningName, "AccEff", "Summary", "SourceBinning"}, data.canvasEfficiencySourceBinning.get());
+      writeCanvas({globalCfgs.binningName, "SigLoss", "Summary", "SourceBinning"}, data.canvasSignalLossSourceBinning.get());
     }
 
     if (fileMCOutput)
