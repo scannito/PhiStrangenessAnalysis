@@ -136,20 +136,18 @@ inline auto OptionalArray(const rapidjson::Value& node, const char* key, std::st
 // ---------------------------------------------------------------------------
 // Optional enumerations
 // ---------------------------------------------------------------------------
-// Reads a key whose legal values are a fixed, small set of names and maps it
-// onto an enum. The list of accepted spellings is the SAME object that builds
-// the error message, so a new entry cannot leave a stale "Available: ..." text
-// behind. Aliases are just two entries pointing at the same enumerator.
+// Maps one of a fixed, small set of names onto an enum. The list of accepted
+// spellings is the SAME object that builds the error message, so a new entry
+// cannot leave a stale "Available: ..." text behind. Aliases are just two entries
+// pointing at the same enumerator.
 //
-// The default is looked up in the table as well: a typo in the default given
-// at the call site fails here rather than silently resolving to it.
+// Split from the reading below so that a caller who needs the name as well - to
+// record it, to log it - gets it from the read and does not have to ask twice.
 
 template <typename E>
-inline E OptionalEnum(const rapidjson::Value& node, const char* key, std::string_view defaultName,
-                      std::initializer_list<std::pair<std::string_view, E>> options, std::string_view errCtx)
+inline E ResolveEnum(std::string_view requested, std::initializer_list<std::pair<std::string_view, E>> options,
+                     std::string_view key, std::string_view errCtx)
 {
-  const std::string requested = OptionalString(node, key, std::string(defaultName), errCtx);
-
   std::string available;
   for (const auto& [name, value] : options) {
     if (name == requested)
@@ -161,6 +159,16 @@ inline E OptionalEnum(const rapidjson::Value& node, const char* key, std::string
 
   throw std::runtime_error(std::format("[FATAL] {}: key '{}' has unknown value '{}'. Available: {}",
                                        errCtx, key, requested, available));
+}
+
+// The usual case: read the name, then resolve it. The default is looked up in the
+// table like any other value, so a typo in the default given at the call site
+// fails here rather than silently resolving to it.
+template <typename E>
+inline E OptionalEnum(const rapidjson::Value& node, const char* key, std::string_view defaultName,
+                      std::initializer_list<std::pair<std::string_view, E>> options, std::string_view errCtx)
+{
+  return ResolveEnum<E>(OptionalString(node, key, std::string(defaultName), errCtx), options, key, errCtx);
 }
 
 // ---------------------------------------------------------------------------
