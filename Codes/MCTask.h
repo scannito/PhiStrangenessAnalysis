@@ -39,9 +39,6 @@ class MCTask : public IAnalysisTask
 
     // 1. Check if a list of particle to compute MC corrections is provided
     auto particles = JsonConfig::RequireArray(taskConfig, "mc_particles", "MCTask");
-    /*if (!taskConfig.HasMember("mc_particles") || !taskConfig["mc_particles"].IsArray()) {
-      throw std::runtime_error("[FATAL ERROR] MCTask: 'mc_particles' array missing in JSON!");
-    }*/
 
     // 'input_mc_file' is now an optional TASK-LEVEL DEFAULT: used by particles that
     // don't specify their own "input_mc_file".

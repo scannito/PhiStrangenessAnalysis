@@ -138,9 +138,10 @@ inline void RequireSameAxis(const TAxis* lhs, const TAxis* rhs,
 {
   const std::string diff = Compare(AxisEdges(lhs), AxisEdges(rhs), lhsName, rhsName);
   if (!diff.empty()) {
-    throw std::runtime_error(std::format("[FATAL] Incompatible axes between '{}' and '{}':\n{}"
-                                         "These containers are combined bin by bin, so their axes must be identical.",
-                                         lhsName, rhsName, diff));
+    throw std::runtime_error(std::format(
+      "[FATAL] Incompatible axes between '{}' and '{}':\n{}"
+      "These containers are combined bin by bin, so their axes must be identical.",
+      lhsName, rhsName, diff));
   }
 }
 

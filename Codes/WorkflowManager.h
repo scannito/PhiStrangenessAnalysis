@@ -148,7 +148,6 @@ class WorkflowManager
   void LoadJsonFile(const std::string& path, rapidjson::Document& doc, std::string_view context)
   {
     std::unique_ptr<FILE, int (*)(FILE*)> fp(fopen(path.c_str(), "rb"), &fclose);
-    // FILE* fp = fopen(path.c_str(), "rb");
     if (!fp) {
       throw std::runtime_error(std::format("[FATAL] {}: cannot open configuration file at: {}", context, path));
     }
@@ -156,9 +155,7 @@ class WorkflowManager
     // 64KB read buffer for fast chunked I/O
     char readBuffer[65536];
     rapidjson::FileReadStream is(fp.get(), readBuffer, sizeof(readBuffer));
-    // rapidjson::FileReadStream is(fp, readBuffer, sizeof(readBuffer));
     doc.ParseStream(is);
-    // fclose(fp);
 
     if (doc.HasParseError()) {
       // RapidJSON provides the specific error code and the exact byte offset!

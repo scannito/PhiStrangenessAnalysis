@@ -16,14 +16,6 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     isPureGen = taskConfig["is_pure_gen"].GetBool();
 
     // 2. Load Data
-    /*if (!taskConfig.HasMember("input_data_file") || !taskConfig.HasMember("base_path_data"))
-      throw std::runtime_error("[FATAL ERROR] CorrelationWPDGTask: Missing input_data_file or base_path_data in JSON!");
-    std::string inputFile = taskConfig["input_data_file"].GetString();
-    basePathData = taskConfig["base_path_data"].GetString();
-
-    TFile* fileDataInput = new TFile(inputFile.c_str(), "READ");
-    if (!fileDataInput || fileDataInput->IsZombie())
-      throw std::runtime_error("[FATAL] CorrelationWPDGTask: Cannot open Data input file: " + inputFile);*/
 
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
     std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", "CorrelationWPDGTask");
@@ -31,16 +23,8 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
 
     if (!isPureGen) {
-      /*h3PhiData = static_cast<TH3F*>(fileDataInput->Get((basePathData + "phi/h3PhiData").c_str()));
-      if (!h3PhiData)
-        throw std::runtime_error("[FATAL] CorrelationWPDGTask: Missing h3PhiData!");
-      h3PhiData->SetDirectory(0);*/
       h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", "CorrelationWPDGTask");
     } else {
-      /*h3PhiData = static_cast<TH3F*>(fileDataInput->Get((basePathData + "phi/h3PhiMCGen").c_str()));
-      if (!h3PhiData)
-        throw std::runtime_error("[FATAL] CorrelationWPDGTask: Missing h3PhiMCGen for pure gen test!");
-      h3PhiData->SetDirectory(0);*/
       h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiMCGen", "CorrelationWPDGTask");
 
       // Pre-compute the 2D projection once, up front, so GetTriggerSignal()
@@ -55,18 +39,6 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     if (!useProjectionCache) {
       std::cout << "[INFO] CorrelationWPDGTask: Cache DISABLED. Loading heavy THnSparse data..." << std::endl;
 
-      /*TFile* fileDataMEInput{nullptr};
-      if (applyME) {
-        if (!taskConfig.HasMember("input_me_file") || !taskConfig.HasMember("base_path_me"))
-          throw std::runtime_error("[FATAL ERROR] CorrelationWPDGTask: ME files or paths missing in JSON despite applyME=true!");
-        std::string inputMEFile = taskConfig["input_me_file"].GetString();
-        basePathDataME = taskConfig["base_path_me"].GetString();
-
-        fileDataMEInput = new TFile(inputMEFile.c_str(), "READ");
-        if (!fileDataMEInput || fileDataMEInput->IsZombie())
-          throw std::runtime_error("[FATAL] CorrelationWPDGTask: Cannot open ME input file: " + inputMEFile);
-      }*/
-
       std::unique_ptr<TFile> fileDataMEInput{nullptr};
       if (applyME) {
         std::string inputMEFile = JsonConfig::RequireString(taskConfig, "input_me_file", GetName());
@@ -79,12 +51,10 @@ class CorrelationWPDGTask : public CorrelationTaskBase
         LoadedAssocData data;
         data.name = config.name;
         std::string baseData = basePathData + config.dirName + "/h5Phi" + config.name;
-        // data.h5DataSignal = static_cast<THnSparseF*>(fileDataInput->Get((baseData + (isPureGen ? "ClosureMCGen" : "DataSignal")).c_str()));
         data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + (isPureGen ? "ClosureMCGen" : "DataSignal")), "CorrelationWPDGTask");
 
         if (applyME) {
           std::string baseDataME = basePathDataME + config.dirName + "/h5Phi" + config.name;
-          // data.h5DataMESignal = static_cast<THnSparseF*>(fileDataMEInput->Get((baseDataME + (isPureGen ? "ClosureMCGenME" : "DataMESignal")).c_str()));
           data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + (isPureGen ? "ClosureMCGenME" : "DataMESignal")), "CorrelationWPDGTask");
         }
         loadedDataCollection.push_back(std::move(data));
@@ -105,17 +75,12 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     std::string basePathProj = taskConfig["output_dir_proj"].GetString();
     std::string basePathFinal = taskConfig["output_dir_final"].GetString();
     std::string phiSpectraName = basePathFinal + prefix + "PhiAssocSpectra.root";
-    // fileOutputSpectra = new TFile(phiSpectraName.c_str(), "RECREATE");
     fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "RECREATE", "CorrelationWPDGTask");
 
     std::string projMode = useProjectionCache ? "READ" : "RECREATE";
 
     for (const auto& p : assocParticles) {
       std::string fName = basePathProj + prefix + "Phi" + p.name + "DataHistograms.root";
-      /*TFile* fProj = new TFile(fName.c_str(), projMode.c_str());
-      if (useProjectionCache && (!fProj || fProj->IsZombie()))
-        throw std::runtime_error("[FATAL] Missing cache file: " + fName + ". Run with 'use_projection_cache': false first!");
-      filesPhiAssocDataOutput.push_back(fProj);*/
       std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), "CorrelationWPDGTask");
       filesPhiAssocDataOutput.push_back(std::move(fProj));
     }
@@ -150,8 +115,6 @@ class CorrelationWPDGTask : public CorrelationTaskBase
  private:
   bool isPureGen{false};
 
-  // TH3F* h3PhiData{nullptr};
-  // TH2* h2PhiData{nullptr};
   std::unique_ptr<TH3F> h3PhiData;
   std::unique_ptr<TH2D> h2PhiData;
 };

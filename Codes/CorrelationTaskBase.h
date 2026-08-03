@@ -120,11 +120,6 @@ class CorrelationTaskBase : public IAnalysisTask
           std::unique_ptr<TH1> hRatioExtrapMeas = AnalysisUtils::MakeRatioHist(h1MultTrendsExtrap[pIdx][yIdx].get(), h1MultTrends[pIdx][yIdx].get(),
                                                                                ratioName, title, 1.0, 1.0);
 
-          /*TH1* hRatioExtrapMeas = static_cast<TH1*>(h1MultTrendsExtrap[pIdx][yIdx]->Clone(ratioName.c_str()));
-          hRatioExtrapMeas->SetTitle(title.c_str());
-          hRatioExtrapMeas->SetDirectory(0);
-          hRatioExtrapMeas->Divide(h1MultTrendsExtrap[pIdx][yIdx], h1MultTrends[pIdx][yIdx], 1.0, 1.0);*/
-
           cRatioExtrapMeas->cd();
           AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas.get(), globalCfgs.GetMultTrendColor(yIdx));
           hRatioExtrapMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
@@ -202,10 +197,6 @@ class CorrelationTaskBase : public IAnalysisTask
             std::unique_ptr<TH1> hRatioMeas = AnalysisUtils::MakeRatioHist(h1MultTrends[idxNum][yIdx].get(), h1MultTrends[idxDen][yIdx].get(),
                                                                            ratioMeasName, ratioMeasTitle, numScale, denScale);
 
-            /*TH1* hRatioMeas = static_cast<TH1*>(h1MultTrends[idxNum][yIdx]->Clone(ratioMeasName.c_str()));
-            hRatioMeas->SetTitle(("Ratio;Multiplicity Percentile (%);" + ratioCfg.label).c_str());
-            hRatioMeas->SetDirectory(0);
-            hRatioMeas->Divide(h1MultTrends[idxNum][yIdx], h1MultTrends[idxDen][yIdx], numScale, denScale);*/
             AnalysisUtils::SetHistogramStyle(hRatioMeas.get(), globalCfgs.GetMultTrendColor(yIdx));
             hRatioMeas->SetMarkerStyle(24);
 
@@ -218,9 +209,6 @@ class CorrelationTaskBase : public IAnalysisTask
               std::string ratioExtrapTitle = "Extrapolated Ratio; Multiplicity percentile (%);" + ratioCfg.label;
               hRatioExtrap = AnalysisUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
 
-              /*hRatioExtrap = static_cast<TH1*>(hNumTrend->Clone(ratioExtrapName.c_str()));
-              hRatioExtrap->SetDirectory(0);
-              hRatioExtrap->Divide(hNumTrend, hDenTrend, numScale, denScale);*/
               AnalysisUtils::SetHistogramStyle(hRatioExtrap.get(), globalCfgs.GetMultTrendColor(yIdx));
               hRatioExtrap->SetMarkerStyle(20);
             }
@@ -233,9 +221,7 @@ class CorrelationTaskBase : public IAnalysisTask
             }
             hRatioMeas->GetYaxis()->SetRangeUser(globalMin * 0.9, globalMax * 1.2);
 
-            // hRatioMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
             // if (hRatioExtrap)
-            // hRatioExtrap->DrawCopy("SAME");
 
             TH1* cloneMeas = hRatioMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
             legend->AddEntry(cloneMeas, std::format("Meas. |#Delta y| < {}", dyTitleStr).c_str(), "p");
@@ -335,13 +321,6 @@ class CorrelationTaskBase : public IAnalysisTask
   {
     globalCfgs = globalSettings;
 
-    /*applyME = taskConfig["apply_mixed_events"].GetBool();
-    applyEfficiency = taskConfig["apply_efficiency"].GetBool();
-    applyExtrapolation = taskConfig["apply_extrapolation"].GetBool();
-    useIntegratedEfficiency = taskConfig["use_integrated_efficiency"].GetBool();
-    useProjectionCache = taskConfig["use_projection_cache"].GetBool();
-    use2DMENormalization = taskConfig["use_2d_me_normalization"].GetBool();*/
-
     applyME = JsonConfig::RequireBool(taskConfig, "apply_mixed_events", GetName());
     applyEfficiency = JsonConfig::RequireBool(taskConfig, "apply_efficiency", GetName());
     applyExtrapolation = JsonConfig::RequireBool(taskConfig, "apply_extrapolation", GetName());
@@ -415,7 +394,6 @@ class CorrelationTaskBase : public IAnalysisTask
       if (!taskConfig.HasMember("extrapolation_config_file"))
         throw std::runtime_error("[FATAL ERROR] " + GetName() + ": 'extrapolation_config_file' missing in JSON!");
       std::string extrapFile = taskConfig["extrapolation_config_file"].GetString();
-      // extrapConfigManager = new ExtrapConfigManager(extrapFile);
       extrapConfigManager = std::make_unique<ExtrapConfigManager>(extrapFile);
       std::cout << "[INFO] " << GetName() << ": Extrapolation configuration loaded successfully." << std::endl;
 
@@ -433,15 +411,6 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   void LoadCorrections(const rapidjson::Value& taskConfig)
   {
-    /*if (!taskConfig.HasMember("input_efficiency_file")) {
-      throw std::runtime_error("[FATAL ERROR] CorrelationTask: 'input_efficiency_file' missing in JSON!");
-    }
-
-    std::string inputEffFile = taskConfig["input_efficiency_file"].GetString();
-    TFile* fileEffInput = new TFile(inputEffFile.c_str(), "READ");
-    if (!fileEffInput || fileEffInput->IsZombie()) {
-      throw std::runtime_error("[FATAL] CorrelationTask: Efficiency requested but Corrections.root not found at: " + inputEffFile);
-    }*/
 
     std::string inputEffFile = JsonConfig::RequireString(taskConfig, "input_efficiency_file", GetName());
     std::unique_ptr<TFile> fileEffInput = RootIO::OpenOrThrow(inputEffFile, "READ", "CorrelationTaskBase::LoadCorrections");
@@ -566,7 +535,6 @@ class CorrelationTaskBase : public IAnalysisTask
       // Fetch integrated histograms ONLY if useIntegratedEfficiency is true
       std::unique_ptr<TH1F> hEffInt = fetchHist(accEffDir, effHistBase + "_multIntegrated", doAccEfficiency && useIntegratedEfficiency, targetBinning);
       // Note: Signal loss is typically not integrated, but we fetch it if requested for consistency
-      // std::unique_ptr<TH1F> hLossInt = fetchHist(sigLossDir, sigLossHistBase + "_multIntegrated", doSigLoss && useIntegratedEfficiency, targetBinning);
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
         std::string iStr = std::to_string(i);
@@ -602,7 +570,6 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   static std::string BinLabel(std::span<const double> edges, int bin)
   {
-    // return std::format("{:g}-{:g}", edges[bin], edges[bin + 1]);
     return BinningUtils::FormatEdge(edges[bin]) + "-" + BinningUtils::FormatEdge(edges[bin + 1]);
   }
 

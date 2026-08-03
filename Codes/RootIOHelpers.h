@@ -27,7 +27,6 @@ concept RootObject = std::derived_from<T, TObject>;
 
 inline std::unique_ptr<TFile> OpenOrThrow(const std::string& path, const char* mode, std::string_view errCtx)
 {
-  // std::unique_ptr<TFile> f = std::make_unique<TFile>(path.c_str(), mode);
   std::unique_ptr<TFile> f(TFile::Open(path.c_str(), mode));
   if (!f || f->IsZombie())
     throw std::runtime_error(std::format("[FATAL] {}: Cannot open '{}'", errCtx, path));

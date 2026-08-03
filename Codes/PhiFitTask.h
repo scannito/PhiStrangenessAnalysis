@@ -53,32 +53,9 @@ class PhiFitTask : public IAnalysisTask
     multBinning = globalCfgs.ResolveMultBinning(h3PhiData->GetXaxis(), origin);
     ptPhiBinning = globalCfgs.ResolvePtBinning("Phi", h3PhiData->GetYaxis(), origin);
 
-    /*if (!taskConfig.HasMember("input_data_file") || !taskConfig.HasMember("base_path_data"))
-    {
-      throw std::runtime_error("[FATAL ERROR] PhiFitTask: Missing input_data_file or base_path_data in JSON!");
-    }
-    std::string inputFile = taskConfig["input_data_file"].GetString();
-    basePathData = taskConfig["base_path_data"].GetString();
-
-    TFile* fileDataInput = new TFile(inputFile.c_str(), "READ");
-    if (!fileDataInput || fileDataInput->IsZombie()) {
-      throw std::runtime_error("[FATAL] PhiFitTask: Cannot open Data input file: " + inputFile);
-    }
-
-    h3PhiData = static_cast<TH3F*>(fileDataInput->Get((basePathData + "phi/h3PhiData").c_str()));
-    if (!h3PhiData)
-      throw std::runtime_error("[FATAL] PhiFitTask: Missing h3PhiData!");
-    h3PhiData->SetDirectory(0);
-    fileDataInput->Close();
-    delete fileDataInput;*/
-
     // 2. Fit Configuration
     std::string fitCfgPath = JsonConfig::RequireString(taskConfig, "fit_config_file", "PhiFitTask");
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
-    /*if (!taskConfig.HasMember("fit_config_file")) {
-      throw std::runtime_error("[FATAL ERROR] PhiFitTask: 'fit_config_file' missing in JSON!");
-    }
-    fitConfigManager = new FitConfigManager(taskConfig["fit_config_file"].GetString());*/
 
     // Resolve the fitter: an invalid name must stop the task before any output file is created,
     // and the loop should switch on a value that cannot be invalid.
@@ -96,12 +73,10 @@ class PhiFitTask : public IAnalysisTask
 
     // 3. Output Configuration
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "output_dir_proj", "PhiFitTask");
-    // std::string basePathProj = taskConfig["output_dir_proj"].GetString();
     std::string prefix = taskConfig.HasMember("output_prefix") ? taskConfig["output_prefix"].GetString() : "";
 
     std::string phiDataName = basePathProj + prefix + "PhiDataHistograms.root";
     filePhiDataOutput = RootIO::OpenOrThrow(phiDataName, "RECREATE", "PhiFitTask");
-    // filePhiDataOutput = new TFile(phiDataName.c_str(), "RECREATE");
 
     // Real bin edges on both axes, not 0..N counters: these matrices cross the
     // boundary to CorrelationTask, and with index axes the association to a pT

@@ -102,7 +102,6 @@ class PurityTask : public IAnalysisTask
     // 3. Read task-specific settings from the JSON node (DOM)
     // Keep the fit configuration file completely separated for physics tuning
     std::string fitCfgPath = JsonConfig::RequireString(taskConfig, "fit_config_file", "PurityTask");
-    // std::string fitCfgPath = taskConfig["fit_config_file"].GetString();
 
     // 4. Initialize specific mathematical tools
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
