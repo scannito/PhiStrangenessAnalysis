@@ -17,6 +17,7 @@
 #include "THnSparse.h"
 
 #include <algorithm>
+#include <cctype>
 #include <filesystem>
 #include <iostream>
 #include <map>
@@ -28,6 +29,10 @@
 class MCTask : public IAnalysisTask
 {
  public:
+  // The mode is defined by EfficiencyCalculator, which is what switches on it;
+  // this alias only spares the qualification at every mention below.
+  using CorrectionMode = EfficiencyCalculator::ParticleCorrectionMode;
+
   // Tells the WorkflowManager which JSON node to pass to this task
   std::string GetName() const override { return "mc_task"; }
 
@@ -40,17 +45,16 @@ class MCTask : public IAnalysisTask
     // 1. Check if a list of particle to compute MC corrections is provided
     auto particles = JsonConfig::RequireArray(taskConfig, "mc_particles", "MCTask");
 
-    // 'input_mc_file' is now an optional TASK-LEVEL DEFAULT: used by particles that
-    // don't specify their own "input_mc_file".
-    std::string defaultInputFile = taskConfig.HasMember("input_mc_file") ? taskConfig["input_mc_file"].GetString() : "";
+    // Task-level input file. Required: a particle may point somewhere else with
+    // its own "input_mc_file", but there must be a file to fall back on, and an
+    // empty string is not one.
+    std::string defaultInputFile = JsonConfig::RequireString(taskConfig, "input_mc_file", GetName());
 
     // 2. Allow JSON to override the internal ROOT directory base path
-    if (taskConfig.HasMember("mc_base_path")) {
-      mcBasePath = taskConfig["mc_base_path"].GetString();
-    }
+    mcBasePath = JsonConfig::RequireString(taskConfig, "mc_base_path", GetName());
 
-    outputDirectory = taskConfig["output_dir"].GetString();
-    outputPrefix = taskConfig.HasMember("output_prefix") ? taskConfig["output_prefix"].GetString() : "";
+    outputDirectory = JsonConfig::RequireString(taskConfig, "output_dir", GetName());
+    outputPrefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
 
     // CCDB-ready per-particle maps live under outputDirectory/{binningName}/ on disk,
     // since the ROOT object inside must be named literally "ccdb_object" with no
@@ -62,8 +66,11 @@ class MCTask : public IAnalysisTask
       throw std::runtime_error("[FATAL] MCTask: Cannot create output directory '" + ccdbOutputDir + "': " + ec.message());
     }
 
-    if (taskConfig.HasMember("particle_correction_mode"))
-      particleCorrectionMode = static_cast<EfficiencyCalculator::ParticleCorrectionMode>(taskConfig["particle_correction_mode"].GetInt());
+    particleCorrectionMode = JsonConfig::OptionalEnum<CorrectionMode>(taskConfig, "particle_correction_mode", "efficiency_only",
+                                                                     {{"efficiency_only", CorrectionMode::EfficiencyOnly},
+                                                                      {"signal_loss_only", CorrectionMode::SignalLossOnly},
+                                                                      {"combined", CorrectionMode::Combined}},
+                                                                     GetName());
 
     // Input files may be shared across particles (default) or overridden per
     // particle via "input_mc_file". Open each distinct file only once.
@@ -89,20 +96,19 @@ class MCTask : public IAnalysisTask
     for (const auto& p : particles) {
       std::string name = p["name"].GetString();
 
-      std::string dirName;
-      if (p.HasMember("dir_name") && p["dir_name"].IsString()) {
-        dirName = p["dir_name"].GetString();
-      } else {
-        dirName = name;
-        std::transform(dirName.begin(), dirName.end(), dirName.begin(), ::tolower);
-      }
+      // Default: the particle name lowercased, which is how the O2 task names
+      // its output directories. Override it when several species share one
+      // directory - Lambda and AntiLambda both live under "lambda" - since the
+      // histogram name still carries the species, only the folder is shared.
+      std::string dirName = name;
+      std::ranges::transform(dirName, dirName.begin(), [](unsigned char c) { return std::tolower(c); });
+      dirName = JsonConfig::OptionalString(p, "dir_name", dirName, GetName());
 
-      std::string particleInputFile = (p.HasMember("input_mc_file") && p["input_mc_file"].IsString())
-                                        ? p["input_mc_file"].GetString()
-                                        : defaultInputFile;
+      std::string particleInputFile = JsonConfig::OptionalString(p, "input_mc_file", defaultInputFile, GetName());
+      // The task-level key is required, so this only fires on an explicitly
+      // empty string, in the JSON or in the per-particle override.
       if (particleInputFile.empty()) {
-        throw std::runtime_error("[FATAL ERROR] MCTask: No input file for particle '" + name +
-                                 "' (neither task-level 'input_mc_file' nor a per-particle override was provided)!");
+        throw std::runtime_error("[FATAL ERROR] MCTask: empty 'input_mc_file' for particle '" + name + "'!");
       }
 
       LoadedMC data;
@@ -143,10 +149,10 @@ class MCTask : public IAnalysisTask
       multBinning = globalCfgs.ResolveMultBinning(data.h3MCGen->GetXaxis(), h3MCGenName + " in " + origin);
       globalCfgs.ResolvePtBinning(name, data.h3MCGen->GetYaxis(), h3MCGenName + " in " + origin);
 
-      if (p.HasMember("rebinning_pt") && p["rebinning_pt"].IsArray()) {
+      if (auto rebin = JsonConfig::OptionalArray(p, "rebinning_pt", GetName())) {
         std::vector<double> bins;
-        bins.reserve(p["rebinning_pt"].Size());
-        for (const auto& v : p["rebinning_pt"].GetArray()) {
+        bins.reserve(rebin->Size());
+        for (const auto& v : *rebin) {
           bins.push_back(v.GetDouble());
         }
         if (bins.size() < 2) {
@@ -352,11 +358,11 @@ class MCTask : public IAnalysisTask
   std::string outputDirectory;
   std::string ccdbOutputDir;
   std::string outputPrefix{""};
-  std::string mcBasePath{"phi-strange-correlation/phiStrangenessCorrelation/"};
+  std::string mcBasePath;
 
   // --- Variables for Global Event Loss ---
   std::unique_ptr<TH1F> hEventMultGenAssocReco;
   std::unique_ptr<TH1F> hEventMultGen;
 
-  EfficiencyCalculator::ParticleCorrectionMode particleCorrectionMode{EfficiencyCalculator::ParticleCorrectionMode::EfficiencyOnly};
+  CorrectionMode particleCorrectionMode{CorrectionMode::EfficiencyOnly};
 };

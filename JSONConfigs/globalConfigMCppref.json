@@ -165,7 +165,7 @@
                 "name": "Pi"
             }
         ],
-        "particle_correction_mode": 0
+        "particle_correction_mode": "efficiency_only"
     },
     "mc_task_Bpos": {
         "inherits": "mc_base_settings",

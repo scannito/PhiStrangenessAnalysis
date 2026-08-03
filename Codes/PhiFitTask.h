@@ -59,21 +59,14 @@ class PhiFitTask : public IAnalysisTask
 
     // Resolve the fitter: an invalid name must stop the task before any output file is created,
     // and the loop should switch on a value that cannot be invalid.
-    if (taskConfig.HasMember("fitter_type")) {
-      std::string requestedFitter = taskConfig["fitter_type"].GetString();
-      if (requestedFitter == "dynamicroofitter") {
-        fitterType = FitterType::DynamicRooFitter;
-      } else if (requestedFitter == "fitphisignalandbkg") {
-        fitterType = FitterType::FitPhiSignalAndBkg;
-      } else {
-        throw std::runtime_error("[FATAL] PhiFitTask: Unknown fitter_type '" + requestedFitter +
-                                 "'. Available: dynamicroofitter, fitphisignalandbkg");
-      }
-    }
+    fitterType = JsonConfig::OptionalEnum<FitterType>(taskConfig, "fitter_type", "dynamicroofitter",
+                                                      {{"dynamicroofitter", FitterType::DynamicRooFitter},
+                                                       {"fitphisignalandbkg", FitterType::FitPhiSignalAndBkg}},
+                                                      GetName());
 
     // 3. Output Configuration
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "output_dir_proj", "PhiFitTask");
-    std::string prefix = taskConfig.HasMember("output_prefix") ? taskConfig["output_prefix"].GetString() : "";
+    std::string prefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", "PhiFitTask");
 
     std::string phiDataName = basePathProj + prefix + "PhiDataHistograms.root";
     filePhiDataOutput = RootIO::OpenOrThrow(phiDataName, "RECREATE", "PhiFitTask");

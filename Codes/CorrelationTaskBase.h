@@ -26,7 +26,6 @@
 #include "TString.h"
 
 #include <algorithm>
-#include <ranges>
 #include <chrono>
 #include <format>
 #include <iostream>
@@ -328,40 +327,36 @@ class CorrelationTaskBase : public IAnalysisTask
     useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
     use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());
 
-    if (taskConfig.HasMember("use_legacy_extrapolation") && taskConfig["use_legacy_extrapolation"].IsBool()) {
-      useLegacyExtrapolation = taskConfig["use_legacy_extrapolation"].GetBool();
-    }
+    useLegacyExtrapolation = JsonConfig::OptionalBool(taskConfig, "use_legacy_extrapolation", useLegacyExtrapolation, GetName());
 
-    if (taskConfig.HasMember("projection_axis") && taskConfig["projection_axis"].IsString()) {
-      std::string pAxis = taskConfig["projection_axis"].GetString();
-      if (pAxis == "DeltaPhi" || pAxis == "delta_phi") {
-        projectionAxis = CorrelationCalculator::AxisTarget::DeltaPhi_X;
-        std::cout << "[INFO] " << GetName() << ": Physics projection axis set to Delta Phi (X)." << std::endl;
-      } else if (pAxis == "DeltaY" || pAxis == "delta_y") {
-        projectionAxis = CorrelationCalculator::AxisTarget::DeltaY_Y;
-        std::cout << "[INFO] " << GetName() << ": Physics projection axis set to Delta Y (Y)." << std::endl;
-      } else {
-        std::cerr << "[WARNING] " << GetName() << ": Unknown projection_axis '" << pAxis << "'. Defaulting to DeltaY." << std::endl;
-      }
-    }
+    // Both spellings of each axis are entries in the same table, so the accepted
+    // values and the error message can never drift apart.
+    using AxisTarget = CorrelationCalculator::AxisTarget;
+    projectionAxis = JsonConfig::OptionalEnum<AxisTarget>(taskConfig, "projection_axis", "delta_y",
+                                                          {{"delta_phi", AxisTarget::DeltaPhi_X},
+                                                           {"delta_y", AxisTarget::DeltaY_Y}},
+                                                          GetName());
+    std::cout << "[INFO] " << GetName() << ": Physics projection axis set to "
+              << (projectionAxis == AxisTarget::DeltaPhi_X ? "Delta Phi (X)" : "Delta Y (Y)") << "." << std::endl;
 
-    if (taskConfig.HasMember("yield_ratios") && taskConfig["yield_ratios"].IsArray()) {
-      for (const auto& r : taskConfig["yield_ratios"].GetArray()) {
+    if (auto yieldRatios = JsonConfig::OptionalArray(taskConfig, "yield_ratios", GetName())) {
+      int idx = 0;
+      for (const auto& r : *yieldRatios) {
+        // The index is in the context because the entries have no name of their
+        // own: without it a missing key only says "somewhere in yield_ratios".
+        const std::string ctx = std::format("{} yield_ratios[{}]", GetName(), idx++);
+
         YieldRatioConfig ratio;
-        ratio.num = r["numerator"].GetString();
-        ratio.den = r["denominator"].GetString();
-        if (r.HasMember("label") && r["label"].IsString()) {
-          ratio.label = r["label"].GetString();
-        } else {
-          ratio.label = ratio.num + "/" + ratio.den;
-        }
+        ratio.num = JsonConfig::RequireString(r, "numerator", ctx);
+        ratio.den = JsonConfig::RequireString(r, "denominator", ctx);
+        ratio.label = JsonConfig::OptionalString(r, "label", ratio.num + "/" + ratio.den, ctx);
         requestedRatios.push_back(ratio);
       }
     }
 
-    if (taskConfig.HasMember("delta_y_limits")) {
+    if (auto dyLimits = JsonConfig::OptionalArray(taskConfig, "delta_y_limits", GetName())) {
       deltaYLimits.clear();
-      for (const auto& v : taskConfig["delta_y_limits"].GetArray())
+      for (const auto& v : *dyLimits)
         deltaYLimits.push_back(v.GetDouble());
     }
   }
@@ -372,7 +367,7 @@ class CorrelationTaskBase : public IAnalysisTask
   void InitAssocParticles(const rapidjson::Value& taskConfig)
   {
     assocParticles.clear();
-    for (const auto& sp : taskConfig["associated_particles"].GetArray()) {
+    for (const auto& sp : JsonConfig::RequireArray(taskConfig, "associated_particles", GetName())) {
       std::string name = sp["name"].GetString();
       std::string dirName = sp["dir_name"].GetString();
       // The binning is left empty here: it is resolved from the input files in
@@ -391,9 +386,7 @@ class CorrelationTaskBase : public IAnalysisTask
       LoadCorrections(taskConfig);
 
     if (applyExtrapolation) {
-      if (!taskConfig.HasMember("extrapolation_config_file"))
-        throw std::runtime_error("[FATAL ERROR] " + GetName() + ": 'extrapolation_config_file' missing in JSON!");
-      std::string extrapFile = taskConfig["extrapolation_config_file"].GetString();
+      std::string extrapFile = JsonConfig::RequireString(taskConfig, "extrapolation_config_file", GetName());
       extrapConfigManager = std::make_unique<ExtrapConfigManager>(extrapFile);
       std::cout << "[INFO] " << GetName() << ": Extrapolation configuration loaded successfully." << std::endl;
 
@@ -429,8 +422,8 @@ class CorrelationTaskBase : public IAnalysisTask
     TDirectory* evLossDir = RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "EvLoss"}, true);
 
     std::vector<std::string> activeCorrections;
-    if (taskConfig.HasMember("active_corrections") && taskConfig["active_corrections"].IsArray()) {
-      for (const auto& val : taskConfig["active_corrections"].GetArray()) {
+    if (auto corrections = JsonConfig::OptionalArray(taskConfig, "active_corrections", GetName())) {
+      for (const auto& val : *corrections) {
         activeCorrections.push_back(val.GetString());
       }
     } else {
@@ -447,8 +440,8 @@ class CorrelationTaskBase : public IAnalysisTask
 
     // Read TO WHICH PARTICLES they should be applied
     std::vector<std::string> effParts;
-    if (taskConfig.HasMember("apply_efficiency_to") && taskConfig["apply_efficiency_to"].IsArray()) {
-      for (const auto& val : taskConfig["apply_efficiency_to"].GetArray())
+    if (auto effTargets = JsonConfig::OptionalArray(taskConfig, "apply_efficiency_to", GetName())) {
+      for (const auto& val : *effTargets)
         effParts.push_back(val.GetString());
     } else {
       // Secure fallback: if the user doesn't specify it in the JSON, apply to Phi + associated particles in the analysis
@@ -622,9 +615,11 @@ class CorrelationTaskBase : public IAnalysisTask
 
     const std::string diff = BinningUtils::Compare(common, found, firstName, thisName);
     if (!diff.empty()) {
-      throw std::runtime_error(std::format("[FATAL] {} differs between associated particles:\n{}"
-                                           "All species share the same multiplicity and trigger loops, "
-                                           "so these must agree.", what, diff));
+      throw std::runtime_error(std::format(
+        "[FATAL] {} differs between associated particles:\n{}"
+        "All species share the same multiplicity and trigger loops, "
+        "so these must agree.",
+        what, diff));
     }
   }
 

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CorrelationTaskBase.h"
+#include "JsonConfigHelpers.h"
 
 class CorrelationWPDGTask : public CorrelationTaskBase
 {
@@ -13,7 +14,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
     InitCommonFlags(taskConfig, globalSettings);
 
-    isPureGen = taskConfig["is_pure_gen"].GetBool();
+    isPureGen = JsonConfig::RequireBool(taskConfig, "is_pure_gen", GetName());
 
     // 2. Load Data
 
@@ -70,10 +71,10 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
     // 4. Output files (opened before the corrections: the cache carries the
     //    binning that everything below is loaded against)
-    std::string prefix = taskConfig.HasMember("input_output_prefix") ? taskConfig["input_output_prefix"].GetString() : "";
+    std::string prefix = JsonConfig::OptionalString(taskConfig, "input_output_prefix", "", GetName());
 
-    std::string basePathProj = taskConfig["output_dir_proj"].GetString();
-    std::string basePathFinal = taskConfig["output_dir_final"].GetString();
+    std::string basePathProj = JsonConfig::RequireString(taskConfig, "output_dir_proj", GetName());
+    std::string basePathFinal = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     std::string phiSpectraName = basePathFinal + prefix + "PhiAssocSpectra.root";
     fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "RECREATE", "CorrelationWPDGTask");
 

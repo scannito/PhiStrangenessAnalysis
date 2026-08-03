@@ -50,7 +50,7 @@
                 "name": "Pi"
             }
         ],
-        "particle_correction_mode": 0
+        "particle_correction_mode": "efficiency_only"
     },
     "phi_fit_base_settings": {
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_23luglio.root",
@@ -72,7 +72,7 @@
         "purity_prefix": "Data_",
         "trigger_prefix": "Data_",
         "output_prefix": "Data_",
-        "run_mode": 0,
+        "run_mode": "legacy",
         "associated_particles": [
             {
                 "name": "K0S",

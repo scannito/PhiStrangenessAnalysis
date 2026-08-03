@@ -37,12 +37,10 @@ class PurityTask : public IAnalysisTask
     std::unique_ptr<TFile> fileInput = RootIO::OpenOrThrow(inputFile, "READ", "PurityTask");
 
     // 2. Open Output files
-    std::string outputDir = taskConfig["output_dir"].GetString();
+    std::string outputDir = JsonConfig::RequireString(taskConfig, "output_dir", GetName());
 
     // Prefix to specify the type of analysis (Data vs MCClosure)
-    std::string prefix = "";
-    if (taskConfig.HasMember("output_prefix"))
-      prefix = taskConfig["output_prefix"].GetString();
+    std::string prefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
 
     auto particles = JsonConfig::RequireArray(taskConfig, "purity_particles", "PurityTask");
 
@@ -65,9 +63,9 @@ class PurityTask : public IAnalysisTask
       // distribution of the source bins it covers, not by merging the purities
       // afterwards: a purity is a ratio, and ratios do not add up.
       std::vector<double> analysisBinning = sourceBinning;
-      if (particle.HasMember("rebinning_pt") && particle["rebinning_pt"].IsArray()) {
+      if (auto rebin = JsonConfig::OptionalArray(particle, "rebinning_pt", GetName())) {
         analysisBinning.clear();
-        for (const auto& v : particle["rebinning_pt"].GetArray())
+        for (const auto& v : *rebin)
           analysisBinning.push_back(v.GetDouble());
 
         if (analysisBinning.size() < 2) {

@@ -1,7 +1,10 @@
 #pragma once
 
 #include "CorrelationTaskBase.h"
+#include "JsonConfigHelpers.h"
 #include "RootIOHelpers.h"
+
+#include <algorithm>
 
 class CorrelationTask : public CorrelationTaskBase
 {
@@ -17,27 +20,24 @@ class CorrelationTask : public CorrelationTaskBase
 
     InitCommonFlags(taskConfig, globalSettings);
 
-    applyPurity = taskConfig["apply_purity"].GetBool();
+    applyPurity = JsonConfig::RequireBool(taskConfig, "apply_purity", GetName());
 
-    if (taskConfig.HasMember("use_signal_cache") && taskConfig["use_signal_cache"].IsBool())
-      useSignalCache = taskConfig["use_signal_cache"].GetBool();
-    if (taskConfig.HasMember("do_more_qa") && taskConfig["do_more_qa"].IsBool())
-      doMoreQA = taskConfig["do_more_qa"].GetBool();
-    if (taskConfig.HasMember("run_mode") && taskConfig["run_mode"].IsInt())
-      runMode = static_cast<RunMode>(taskConfig["run_mode"].GetInt());
+    useSignalCache = JsonConfig::OptionalBool(taskConfig, "use_signal_cache", useSignalCache, GetName());
+    doMoreQA = JsonConfig::OptionalBool(taskConfig, "do_more_qa", doMoreQA, GetName());
+    runMode = JsonConfig::OptionalEnum<RunMode>(taskConfig, "run_mode", "legacy",
+                                                {{"legacy", RunMode::Legacy},
+                                                 {"optimized", RunMode::Optimized}},
+                                                GetName());
 
     // Prefix handling: search specific key -> Search fallback -> Search legacy
-    auto getPrefix = [](const rapidjson::Value& config, const std::string& specificKey, const std::string& fallbackKey) -> std::string {
-      // 1. Search for the highly specific prefix (e.g., "purity_prefix")
-      if (config.HasMember(specificKey.c_str()) && config[specificKey.c_str()].IsString())
-        return config[specificKey.c_str()].GetString();
-      // 2. Search for the fallback prefix (e.g., "input_prefix")
-      if (config.HasMember(fallbackKey.c_str()) && config[fallbackKey.c_str()].IsString())
-        return config[fallbackKey.c_str()].GetString();
-      // 3. Final fallback for legacy JSON configurations
-      if (config.HasMember("input_output_prefix") && config["input_output_prefix"].IsString())
-        return config["input_output_prefix"].GetString();
-      return "";
+    auto getPrefix = [ctx = GetName()](const rapidjson::Value& config, const std::string& specificKey, const std::string& fallbackKey) -> std::string {
+      // Most specific key first, then the shared one, then the legacy spelling.
+      std::string prefix = JsonConfig::OptionalString(config, specificKey.c_str(), "", ctx);
+      if (prefix.empty())
+        prefix = JsonConfig::OptionalString(config, fallbackKey.c_str(), "", ctx);
+      if (prefix.empty())
+        prefix = JsonConfig::OptionalString(config, "input_output_prefix", "", ctx);
+      return prefix;
     };
 
     purityPrefix = getPrefix(taskConfig, "purity_prefix", "input_prefix");
@@ -45,9 +45,7 @@ class CorrelationTask : public CorrelationTaskBase
     outputPrefix = getPrefix(taskConfig, "output_prefix", "output_prefix");
 
     // 2. Load Trigger information from PhiFitTask
-    if (!taskConfig.HasMember("input_dir_proj"))
-      throw std::runtime_error("[FATAL ERROR] CorrelationTask: 'input_dir_proj' missing in JSON!");
-    std::string basePathProj = taskConfig["input_dir_proj"].GetString();
+    std::string basePathProj = JsonConfig::RequireString(taskConfig, "input_dir_proj", GetName());
     std::string phiDataName = basePathProj + triggerPrefix + "PhiDataHistograms.root";
 
     std::unique_ptr<TFile> filePhiDataInput = RootIO::OpenOrThrow(phiDataName, "READ", "CorrelationTask");
@@ -104,7 +102,7 @@ class CorrelationTask : public CorrelationTaskBase
     // 4. Output files (opened before the corrections: the cache carries the
     //    binning that everything below is loaded against)
     std::string projMode = useProjectionCache ? "READ" : "UPDATE";
-    std::string basePathFinal = taskConfig["output_dir_final"].GetString();
+    std::string basePathFinal = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     std::string phiSpectraName = basePathFinal + outputPrefix + "PhiAssocSpectra.root";
     fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", "CorrelationTask");
 
