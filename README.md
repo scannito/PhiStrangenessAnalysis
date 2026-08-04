@@ -13,6 +13,29 @@ writes spectra, multiplicity trends and yield ratios.
 Everything is written as ROOT/Cling headers (C++20) — no build step, no CMake. The
 whole chain is driven by JSON.
 
+## A note on how this was written
+
+Large parts of this code were written with heavy use of large language models —
+Google Gemini and Anthropic Claude Opus — used as pair programmers rather than as
+code generators: proposing structure, arguing about trade-offs, writing and
+rewriting implementations under review.
+
+The physics is not theirs. The observable, the corrections, the choice of what is
+a check and what is a default, and every judgement about whether a number is right
+belong to the author. What the models contributed is engineering: the layering of
+the helpers, the error messages, the consistency checks that make a mismatch loud
+instead of silent.
+
+This is stated because it matters to anyone reading or reusing the code. Two
+consequences in particular:
+
+- **The comments explain reasoning, not just mechanics.** Where a comment says why
+  something is done a certain way, it records a decision that was argued through,
+  and is worth reading before changing the line under it.
+- **Review it as you would any code.** Fluency is not correctness. The checks in
+  this framework exist precisely because plausible-looking code that quietly does
+  the wrong thing is the failure mode that costs the most, whoever wrote it.
+
 ---
 
 ## Repository layout

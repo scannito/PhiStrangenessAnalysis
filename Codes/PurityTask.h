@@ -9,6 +9,7 @@
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
 #include "RootIOHelpers.h"
+#include "RunEnvironment.h"
 
 #include "TCanvas.h"
 #include "TFile.h"
@@ -38,8 +39,13 @@ class PurityTask : public IAnalysisTask
 
     // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
     // block, so a key added to the JSON tomorrow is recorded without touching this.
-    provenance["produced_at"] = RootIO::TimestampNow();
+    provenance["produced_at"] = RunEnvironment::TimestampNow();
     provenance["config_block"] = JsonConfig::Serialize(taskConfig);
+    // The facts about the run itself. std::map has no range insert before C++23,
+    // hence the iterator pair - but the reference is taken once: Facts() returns
+    // the same static object every time, so naming it says so.
+    const auto& runEnv = RunEnvironment::Facts();
+    provenance.insert(runEnv.begin(), runEnv.end());
 
     // 1. Open input file, extract 3D histograms to RAM, and immediately close it
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", "PurityTask");
@@ -125,6 +131,10 @@ class PurityTask : public IAnalysisTask
     // 3. Read task-specific settings from the JSON node (DOM)
     // Keep the fit configuration file completely separated for physics tuning
     std::string fitCfgPath = JsonConfig::RequireString(taskConfig, "fit_config_file", "PurityTask");
+
+    // A snapshot, not a path: this is the file being edited while the fits are
+    // tuned, so knowing which one it was says nothing about what was in it.
+    provenance["fit_config"] = JsonConfig::ReadFileText(fitCfgPath);
 
     // 4. Initialize specific mathematical tools
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);

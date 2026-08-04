@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BinningUtils.h"
+#include "RunEnvironment.h"
 
 #include "TDirectory.h"
 #include "TKey.h"
@@ -11,7 +12,6 @@
 
 #include <concepts>
 #include <format>
-#include <ctime>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -223,17 +223,6 @@ inline std::map<std::string, std::string> ReadProvenance(TDirectory* dir)
   return facts;
 }
 
-// Local time through strftime: std::format's chrono specifiers go through the
-// same consteval validation that already forced snprintf on floating-point ones.
-inline std::string TimestampNow()
-{
-  const std::time_t now = std::time(nullptr);
-  char buffer[32];
-  if (std::strftime(buffer, sizeof(buffer), "%Y-%m-%d %H:%M:%S", std::localtime(&now)) == 0)
-    return "unknown";
-  return buffer;
-}
-
 // For the task consuming the file. The serialised configuration is one long line,
 // so it is announced rather than printed: it is there to be diffed, not read in a
 // log.
@@ -247,8 +236,10 @@ inline void PrintProvenance(TDirectory* dir, std::string_view fileLabel)
 
   std::cout << "[INFO] " << fileLabel << " was produced by:" << std::endl;
   for (const auto& [key, value] : facts) {
-    if (key == "config_block")
-      std::cout << "         " << key << " = <" << value.size() << " chars of JSON, read it from the file>" << std::endl;
+    // The serialised blocks are one long line each: announced, not printed. They
+    // are there to be diffed against another file, not read in a log.
+    if (value.size() > 120)
+      std::cout << "         " << key << " = <" << value.size() << " chars, read it from the file>" << std::endl;
     else
       std::cout << "         " << key << " = " << value << std::endl;
   }

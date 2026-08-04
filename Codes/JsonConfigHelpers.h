@@ -5,6 +5,9 @@
 #include "rapidjson/writer.h"
 
 #include <format>
+#include <fstream>
+#include <iostream>
+#include <iterator>
 #include <initializer_list>
 #include <optional>
 #include <stdexcept>
@@ -29,6 +32,24 @@ inline std::string Serialize(const rapidjson::Value& node)
   rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
   node.Accept(writer);
   return buffer.GetString();
+}
+
+// The file as it is on disk, bytes and formatting included. Used to snapshot a
+// referenced configuration - the fit or the extrapolation one - inside an output
+// file: the path alone would say which file it was, not what was in it, and those
+// are exactly the files that get edited while tuning.
+//
+// Never throws: this feeds documentation, and a missing file is not a reason to
+// stop a run that is otherwise fine.
+inline std::string ReadFileText(const std::string& path)
+{
+  std::ifstream file(path, std::ios::binary);
+  if (!file) {
+    std::cerr << "[WARNING] JsonConfig::ReadFileText: cannot read '" << path
+              << "', it will not be recorded." << std::endl;
+    return "";
+  }
+  return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
 }
 
 // ---------------------------------------------------------------------------

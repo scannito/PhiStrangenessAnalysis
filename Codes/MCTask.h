@@ -8,6 +8,7 @@
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
 #include "RootIOHelpers.h"
+#include "RunEnvironment.h"
 
 #include "TCanvas.h"
 #include "TDirectory.h"
@@ -44,8 +45,13 @@ class MCTask : public IAnalysisTask
 
     // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
     // block, so a key added to the JSON tomorrow is recorded without touching this.
-    provenance["produced_at"] = RootIO::TimestampNow();
+    provenance["produced_at"] = RunEnvironment::TimestampNow();
     provenance["config_block"] = JsonConfig::Serialize(taskConfig);
+    // The facts about the run itself. std::map has no range insert before C++23,
+    // hence the iterator pair - but the reference is taken once: Facts() returns
+    // the same static object every time, so naming it says so.
+    const auto& runEnv = RunEnvironment::Facts();
+    provenance.insert(runEnv.begin(), runEnv.end());
 
     // 1. Check if a list of particle to compute MC corrections is provided
     auto particles = JsonConfig::RequireArray(taskConfig, "mc_particles", "MCTask");

@@ -230,6 +230,22 @@ it does not close, a systematic.
 
 ## 7. Engineering
 
+**Splitting RootIOHelpers further — a suggestion, not a decision.** The header now
+holds two families: file access (open, get, navigate) and the records written into
+those files (binning stamps, provenance). Both touch `TDirectory`, so by mechanism
+they belong together; by concern they do not.
+
+The first split was already made and was not a matter of taste: `RunEnvironment.h`
+came out because those functions do not include ROOT at all, which is a fact and
+not an opinion — and it left behind the only header in the framework that compiles
+with a plain compiler, which is worth something on its own.
+
+A second split into `Provenance.h` and `BinningStamps.h` is defensible but would be
+three headers where there is one, on an argument that could go either way. The
+signal to wait for is concrete: a caller that uses the stamps without the
+provenance, or the reverse. As long as the four tasks always use them together,
+separating them adds files without removing confusion.
+
 **Regression test.** A large amount changed on 31 July with the intention that the
 numbers stay identical except where deliberately changed. Nothing verifies this. A
 script that runs a known configuration and compares bin contents against a saved
@@ -266,6 +282,10 @@ being chosen.
   libc++ reaches `__builtin_clzg` through the unicode handling, which the
   interpreter cannot fold. Plain `{}` placeholders are fine. Hence
   `BinningUtils::FormatEdge`, which uses `snprintf("%g")`.
+- **The same applies to the chrono specifiers.** `{:%F %T}` and friends go through
+  that same consteval validation, so `RunEnv::TimestampNow` formats the time with
+  `strftime` rather than `std::format`. Assume any non-empty format spec is
+  suspect under Cling, not just the numeric ones.
 - **The code already requires C++20** beyond `std::format`: `emplace_back` on an
   aggregate uses parenthesised aggregate initialisation (P0960), which does not
   compile in C++17.

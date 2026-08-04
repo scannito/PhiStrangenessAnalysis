@@ -10,6 +10,7 @@
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
 #include "RootIOHelpers.h"
+#include "RunEnvironment.h"
 #include "SpectrumExtrapolator.h"
 #include "YieldMean.h"
 
@@ -339,8 +340,13 @@ class CorrelationTaskBase : public IAnalysisTask
     useIntegratedEfficiency = JsonConfig::RequireBool(taskConfig, "use_integrated_efficiency", GetName());
     // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
     // block, so a key added to the JSON tomorrow is recorded without touching this.
-    provenance["produced_at"] = RootIO::TimestampNow();
+    provenance["produced_at"] = RunEnvironment::TimestampNow();
     provenance["config_block"] = JsonConfig::Serialize(taskConfig);
+    // The facts about the run itself. std::map has no range insert before C++23,
+    // hence the iterator pair - but the reference is taken once: Facts() returns
+    // the same static object every time, so naming it says so.
+    const auto& runEnv = RunEnvironment::Facts();
+    provenance.insert(runEnv.begin(), runEnv.end());
 
     useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
     use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());
@@ -414,6 +420,10 @@ class CorrelationTaskBase : public IAnalysisTask
     if (applyExtrapolation) {
       std::string extrapFile = JsonConfig::RequireString(taskConfig, "extrapolation_config_file", GetName());
       extrapConfigManager = std::make_unique<ExtrapConfigManager>(extrapFile);
+
+      // Recorded only when extrapolation is on: a file that was not used has no
+      // business in the provenance of a result it did not shape.
+      provenance["extrap_config"] = JsonConfig::ReadFileText(extrapFile);
       std::cout << "[INFO] " << GetName() << ": Extrapolation configuration loaded successfully." << std::endl;
 
       for (const auto& p : assocParticles) {
