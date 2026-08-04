@@ -247,6 +247,17 @@ inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, st
   return mismatches;
 }
 
+// The target binning may cover less than the source: an efficiency computed up to
+// 10 GeV/c merged onto an analysis binning that stops at 6.4 is the normal case.
+// What happens to the rest is worth knowing and was measured, not assumed:
+//
+//   100 bins of content 1 over [0, 10], rebinned onto {0, 2, 4, 6}
+//   -> visible 60, overflow 40, nothing dropped
+//
+// So the counts above the target range accumulate in the overflow bin. The visible
+// bins are exact either way, and nothing in this framework reads the overflow -
+// IntegralAndErrorPair works on explicit limits and TH1::Integral() starts at bin
+// 1 - but GetEntries() and the statistics box do count it.
 template <RootHistogram THType>
 inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, std::span<const double> targetBins, std::string_view errCtx)
 {
