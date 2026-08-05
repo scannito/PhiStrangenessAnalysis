@@ -1,0 +1,25 @@
+# Merged with .gitignore, which already excludes *.root, *.log and *_C*.
+# Everything here is additional.
+
+# Vendored third-party. 140 of the 217 tracked files live here and none of them
+# is this analysis: left in, they dominate the graph with their own hubs and
+# communities and bury the 29 headers that actually matter.
+Codes/rapidjson/
+Codes/spdlog/
+
+# Rendered plots and compiled leftovers. The PDF is pictures of fits: the
+# semantic pass over it costs model time and returns nothing.
+Macros/*.pdf
+Macros/*.so
+Macros/*.d
+Macros/*_rdict.pcm
+
+# The previous monolithic macros, kept for reference only. Their functions share
+# names with the current ones (IntegralAndErrorPair, ConstructSpectrum), so
+# indexing both makes every query ambiguous.
+OldCodes/
+OldDataFile/
+
+# Inputs and outputs, not code.
+DataFile/
+Logs/
