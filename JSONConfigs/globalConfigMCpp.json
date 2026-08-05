@@ -1,6 +1,19 @@
 {
     "global_binning": {
         "binning_name": "MoreFullDifferential",
+        "multiplicity_binning": [
+            "0",
+            "1",
+            "5",
+            "10",
+            "15",
+            "20",
+            "30",
+            "40",
+            "50",
+            "70",
+            "100"
+        ],
         "pt_binning": {
             "Phi": [
                 "0.4",
@@ -151,16 +164,62 @@
         "output_prefix": "",
         "mc_particles": [
             {
-                "name": "Phi"
+                "name": "Phi",
+                "rebinning_pt": [
+                    "0.4",
+                    "0.8",
+                    "1.4",
+                    "2",
+                    "2.8",
+                    "4",
+                    "6",
+                    "10"
+                ]
             },
             {
-                "name": "K0S"
+                "name": "K0S",
+                "rebinning_pt": [
+                    "0",
+                    "0.3",
+                    "0.5",
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2",
+                    "2.4",
+                    "3",
+                    "4.2",
+                    "6.4"
+                ]
             },
             {
-                "name": "Xi"
+                "name": "Xi",
+                "rebinning_pt": [
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2",
+                    "2.4",
+                    "3",
+                    "4.2",
+                    "6.5"
+                ]
             },
             {
-                "name": "Pi"
+                "name": "Pi",
+                "rebinning_pt": [
+                    "0.2",
+                    "0.3",
+                    "0.4",
+                    "0.5",
+                    "0.6",
+                    "0.8",
+                    "1",
+                    "1.2",
+                    "1.5",
+                    "2",
+                    "3"
+                ]
             }
         ],
         "particle_correction_mode": "efficiency_only"

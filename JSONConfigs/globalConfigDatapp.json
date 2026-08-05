@@ -1,7 +1,30 @@
 {
     "global_binning": {
         "binning_name": "MoreFullDifferential",
+        "multiplicity_binning": [
+            "0",
+            "1",
+            "5",
+            "10",
+            "15",
+            "20",
+            "30",
+            "40",
+            "50",
+            "70",
+            "100"
+        ],
         "pt_binning": {
+            "Phi": [
+                "0.4",
+                "0.8",
+                "1.4",
+                "2",
+                "2.8",
+                "4",
+                "6",
+                "10"
+            ],
             "K0S": [
                 "0",
                 "0.3",
@@ -24,6 +47,19 @@
                 "3",
                 "4.2",
                 "6.5"
+            ],
+            "Pi": [
+                "0.2",
+                "0.3",
+                "0.4",
+                "0.5",
+                "0.6",
+                "0.8",
+                "1",
+                "1.2",
+                "1.5",
+                "2",
+                "3"
             ]
         }
     },
@@ -33,28 +69,23 @@
             "phi_fit_task_online_efficiency_2024",
             "correlation_task_offline_efficiency_2024",
             "correlation_task_online_efficiency_2024",
-            "correlation_task_online_efficiency_no_phi_2024",
-            "phi_fit_task_offline_efficiency_2026",
-            "phi_fit_task_online_efficiency_2026",
-            "correlation_task_offline_efficiency_2026",
-            "correlation_task_online_efficiency_2026",
-            "correlation_task_online_efficiency_no_phi_2026"
+            "correlation_task_online_efficiency_no_phi_2024"
         ]
     },
     "phi_fit_task_offline_efficiency_2024": {
         "inherits": "phi_fit_base_settings",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_28luglio.root",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_5agosto.root",
         "output_prefix": "Data_OfflineEff_2024_"
     },
     "phi_fit_task_online_efficiency_2024": {
         "inherits": "phi_fit_base_settings",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_28luglio.root",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_5agosto.root",
         "base_path_data": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "output_prefix": "Data_OnlineEff_2024_"
     },
     "correlation_task_offline_efficiency_2024": {
         "inherits": "correlation_task_offline_efficiency",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_28luglio.root",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_5agosto.root",
         "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2024_Corrections.root",
         "purity_prefix": "Data_2024_",
         "trigger_prefix": "Data_OfflineEff_2024_",
@@ -62,14 +93,14 @@
     },
     "correlation_task_online_efficiency_2024": {
         "inherits": "correlation_task_online_efficiency",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_28luglio.root",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_5agosto.root",
         "purity_prefix": "Data_2024_",
         "trigger_prefix": "Data_OnlineEff_2024_",
         "output_prefix": "Data_OnlineEff_2024_"
     },
     "correlation_task_online_efficiency_no_phi_2024": {
         "inherits": "correlation_task_online_efficiency_no_phi",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_28luglio.root",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_5agosto.root",
         "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2024_WTrigger_Corrections.root",
         "purity_prefix": "Data_2024_",
         "trigger_prefix": "Data_OfflineEff_2024_",
