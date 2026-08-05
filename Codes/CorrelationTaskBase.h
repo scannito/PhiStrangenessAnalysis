@@ -865,7 +865,7 @@ class CorrelationTaskBase : public IAnalysisTask
     if (useLegacyExtrapolation) {
       res = CalculateYieldAndMeanLegacy(hSpec, extrapModel.get(),
                                         eCfg.domainRange.first, eCfg.domainRange.second,
-                                        0.01, 0.1, "0QI", "../Logs/logExtrapolation.root",
+                                        0.01, 0.1, "0QI",
                                         eCfg.fitRange.first, eCfg.fitRange.second, config.name);
     } else {
       SpectrumExtrapolator extrapolator(hSpec, extrapModel.get());

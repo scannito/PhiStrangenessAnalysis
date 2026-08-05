@@ -2,9 +2,7 @@
 
 #include "AnalysisDataStructures.h"
 
-#include "TCanvas.h"
 #include "TF1.h"
-#include "TFile.h"
 #include "TH1.h"
 #include "TMath.h"
 #include "TROOT.h"
@@ -12,12 +10,6 @@
 #include "TVirtualFitter.h"
 
 #include <iostream>
-
-using namespace std;
-
-vector<Double_t> pTK0S_axis_yieldmean = {0.0, 0.1, 0.5, 0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0};
-vector<Double_t> pTPi_axis_yieldmean = {0.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0};
-vector<Double_t> pTXi_axis_yieldmean = {0.0, 0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0};
 
 /* definition of the fields in the histogram returned */
 enum EValue_t {
@@ -28,11 +20,11 @@ enum EValue_t {
   kExtra
 };
 
-TH1* YieldMean(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10., Double_t loprecision = 0.01, Double_t hiprecision = 0.1, Option_t* opt = "0q", TString logfilename = "logExtrapolation.root", Double_t minfit = 0.0, Double_t maxfit = 10.0, TString part = "");
+TH1* YieldMean(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10., Double_t loprecision = 0.01, Double_t hiprecision = 0.1, Option_t* opt = "0q", Double_t minfit = 0.0, Double_t maxfit = 10.0, TString part = "");
 
-ExtrapolationResult CalculateYieldAndMeanLegacy(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10., Double_t loprecision = 0.01, Double_t hiprecision = 0.1, Option_t* opt = "0q", TString logfilename = "logExtrapolation.root", Double_t minfit = 0.0, Double_t maxfit = 10.0, TString part = "")
+ExtrapolationResult CalculateYieldAndMeanLegacy(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10., Double_t loprecision = 0.01, Double_t hiprecision = 0.1, Option_t* opt = "0q", Double_t minfit = 0.0, Double_t maxfit = 10.0, TString part = "")
 {
-  std::unique_ptr<TH1> hYieldMean(YieldMean(hstat, f, min, max, loprecision, hiprecision, opt, logfilename, minfit, maxfit, part));
+  std::unique_ptr<TH1> hYieldMean(YieldMean(hstat, f, min, max, loprecision, hiprecision, opt, minfit, maxfit, part));
   ExtrapolationResult res;
 
   if (hYieldMean) {
@@ -64,7 +56,7 @@ TH1* YieldMean_ReturnExtremeSoftHisto(TH1* hin);
 TH1* YieldMean_ReturnExtremeLowHisto(TH1* hin);
 TH1* YieldMean_ReturnExtremeHighHisto(TH1* hin);
 
-TH1* YieldMean(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10., Double_t loprecision = 0.01, Double_t hiprecision = 0.1, Option_t* opt = "0q", TString logfilename = "logExtrapolation.root", Double_t minfit = 0.0, Double_t maxfit = 10.0, TString part = "")
+TH1* YieldMean(TH1* hstat, TF1* f, Double_t min, Double_t max, Double_t loprecision, Double_t hiprecision, Option_t* opt, Double_t minfit, Double_t maxfit, TString part)
 {
   if (maxfit > max)
     max = maxfit;
@@ -83,8 +75,6 @@ TH1* YieldMean(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10.,
   /* create histo with stat+sys errors */
   TH1* htot = (TH1*)hstat->Clone(Form("%sfittedwith%s", hstat->GetName(), f->GetName()));
 
-  TCanvas* cCanvasStat = new TCanvas(Form("cCanvas%sfittedwith%s", hstat->GetName(), f->GetName()));
-
   /*
    *   measure the central value
    */
@@ -99,40 +89,8 @@ TH1* YieldMean(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10.,
     }
   } while (fitres != 0);
 
-  TH1* htotextra;
-  if (part.Contains("K0S")) {
-    htotextra = new TH1D("htotextra", "", htot->GetNbinsX() + 1, pTK0S_axis_yieldmean.data());
-    htotextra->SetTitle("; #it{p}_{T} (GeV/#it{c}); 1/N_{ev,#phi} d^{2}N_{K^{0}_{S}}/d#it{y}d#it{p}_{T} [(GeV/#it{c})^{-1}]");
-  } else if (part.Contains("Pi")) {
-    htotextra = new TH1D("htotextra", "", htot->GetNbinsX() + 1, pTPi_axis_yieldmean.data());
-    htotextra->SetTitle("; #it{p}_{T} (GeV/#it{c}); 1/N_{ev,#phi} d^{2}N_{(#pi^{+}+#pi^{#minus})}/d#it{y}d#it{p}_{T} [(GeV/#it{c})^{-1}]");
-  } else if (part.Contains("Xi")) {
-    htotextra = new TH1D("htotextra", "", htot->GetNbinsX() + 1, pTXi_axis_yieldmean.data());
-    htotextra->SetTitle("; #it{p}_{T} (GeV/#it{c}); 1/N_{ev,#phi} d^{2}N_{#Xi^{-}+#bar{#Xi}^{+}}/d#it{y}d#it{p}_{T} [(GeV/#it{c})^{-1}]");
-  }
-
-  for (Int_t ibin = 2; ibin < htot->GetNbinsX() + 2; ibin++) {
-    htotextra->SetBinContent(ibin, htot->GetBinContent(ibin - 1));
-    htotextra->SetBinError(ibin, htot->GetBinError(ibin - 1));
-  }
-  // f->SetRange(min, max);
-  // f->SetRange(minfit, maxfit);
-  f->SetRange(min, maxfit);
-
-  cCanvasStat->cd();
-  htotextra->Draw();
-  f->Draw("same");
-
-  TFile* filewithfits = TFile::Open(logfilename.Data(), "UPDATE");
-  // filewithfits->cd();
-  cCanvasStat->Write(Form("cCanvas%sfittedwith%s", hstat->GetName(), f->GetName()), TObject::kSingleKey);
-  // htot->Write();
-  filewithfits->Close();
-  delete filewithfits;
-  delete cCanvasStat;
-
-  cout << " Fit sys+stat for " << f->GetName() << endl;
-  cout << "NDF=" << f->GetNDF() << " Chi^2=" << f->GetChisquare() << " Chi^2/NDF=" << f->GetChisquare() / f->GetNDF() << endl;
+  std::cout << " Fit sys+stat for " << f->GetName() << std::endl;
+  std::cout << "NDF=" << f->GetNDF() << " Chi^2=" << f->GetChisquare() << " Chi^2/NDF=" << f->GetChisquare() / f->GetNDF() << std::endl;
 
   hlo = YieldMean_LowExtrapolationHisto(htot, f, min, loprecision);
   hhi = YieldMean_HighExtrapolationHisto(htot, f, max, hiprecision);
@@ -216,8 +174,8 @@ TH1* YieldMean(TH1* hstat, TF1* f = NULL, Double_t min = 0., Double_t max = 10.,
 TH1* YieldMean_LowExtrapolationHisto(TH1* h, TF1* f, Double_t min, Double_t binwidth)
 {
   /* find lowest edge in histo */
-  Int_t binlo;
-  Double_t lo;
+  Int_t binlo = -1;
+  Double_t lo = 0.;
   for (Int_t ibin = 1; ibin < h->GetNbinsX() + 1; ibin++) {
     if (h->GetBinContent(ibin) != 0.) {
       binlo = ibin;
@@ -225,6 +183,10 @@ TH1* YieldMean_LowExtrapolationHisto(TH1* h, TF1* f, Double_t min, Double_t binw
       break;
     }
   }
+  // Was: binlo/lo left uninitialised (garbage) when every bin is empty, so
+  // the "nbins < 1" guard below could pass or fail on undefined values.
+  if (binlo < 0)
+    return 0x0;
 
   Int_t nbins = (lo - min) / binwidth;
   if (nbins < 1)
@@ -442,7 +404,7 @@ void YieldMean_IntegralMean(TH1* hdata, TH1* hlo, TH1* hhi, Double_t& integral, 
   }
   /* integrate high */
   if (printinfo)
-    cout << "low part data only = " << dataonly << " total = " << I << " ratio= " << dataonly / I << endl;
+    std::cout << "low part data only = " << dataonly << " total = " << I << " ratio= " << dataonly / I << std::endl;
   if (hhi) {
     for (Int_t ibin = 0; ibin < hhi->GetNbinsX(); ibin++) {
       cent = hhi->GetBinCenter(ibin + 1);
@@ -461,5 +423,5 @@ void YieldMean_IntegralMean(TH1* hdata, TH1* hlo, TH1* hhi, Double_t& integral, 
   mean = IX / I;
   extra = E;
   if (printinfo)
-    cout << "low+high data only = " << dataonly << " total = " << I << " ratio= " << dataonly / I << endl;
+    std::cout << "low+high data only = " << dataonly << " total = " << I << " ratio= " << dataonly / I << std::endl;
 }
