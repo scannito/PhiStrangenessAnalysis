@@ -1,0 +1,33 @@
+# This is a YAML configuration file for batch downloading merged files from the Grid (Hyperloop/JAliEn).
+# Each entry in the list corresponds to a specific train ID and its associated download parameters.
+
+# LHC24_pass1_MinBias (pp) Data
+- train_id: 731190
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2024_PtMod_5agosto.root"
+
+# LHC24aq_pass1_medium (pp reference in B-- config w/ & w/o strangeness injection) Data
+- train_id: 731395
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/Data"
+  output_name: "AnalysisResults_536_PtMod_Bneg_5agosto.root"
+
+# LHC24ap_pass1_medium (pp reference in B++ config w/ & w/o strangeness injection) Data
+- train_id: 731688
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/Data"
+  output_name: "AnalysisResults_536_PtMod_Bpos_5agosto.root"
+
+# LHC26ac_pass1_Thin_medium (pp) Data
+# - train_id: 726961
+#   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+#   output_name: "AnalysisResults_136_2026_PtMod_28luglio.root"
+
+
+
+
+
+
+
+
+
+
+

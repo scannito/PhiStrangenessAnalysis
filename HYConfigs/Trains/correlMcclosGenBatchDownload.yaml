@@ -1,0 +1,38 @@
+# This is a YAML configuration file for batch downloading merged files from the Grid (Hyperloop/JAliEn).
+# Each entry in the list corresponds to a specific train ID and its associated download parameters.
+
+# LHC24f4d (pp) MC closure Gen
+- train_id: 731346
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MCClosure"
+  output_name: "AnalysisResultsMCclosure_gen_136_2024_PtMod_4agosto.root"
+
+# LHC26e9 (pp) MC closure Gen
+- train_id: 731400
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MCClosure"
+  output_name: "AnalysisResultsMCclosure_gen_136_2026_PtMod_5agosto.root"
+
+# LHC25b4b6 (pp reference in B-- config) MC closure Gen
+- train_id: 731425
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MCClosure"
+  output_name: "AnalysisResultsMCclosure_gen_536_PtMod_Bneg_5agosto.root"
+
+# LHC25b4a6 (pp reference in B++ config) MC closure Gen
+- train_id: 731456
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MCClosure"
+  output_name: "AnalysisResultsMCclosure_gen_536_PtMod_Bpos_5agosto.root"
+
+# LHC26b1 (pp reference w/ strangeness injection) MC closure Gen
+- train_id: 731596
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MCClosure"
+  output_name: "AnalysisResultsMCclosure_gen_536_PtMod_strinj_5agosto.root"
+
+
+
+
+
+
+
+
+
+
+
