@@ -26,39 +26,40 @@ class ExtrapConfigManager : public BaseConfigManager
     const rapidjson::Value& partNode = document[particle.c_str()];
 
     // Local Lambda function to populate the config struct dynamically
+    // Every key here is optional because this lambda runs twice: once on "default"
+    // and once on the bin override, which only carries what it changes. Absent
+    // therefore means "keep what the previous pass set", never "reset".
     auto loadNodeIntoConfig = [&](const rapidjson::Value& node) {
-      if (node.HasMember("model"))
-        config.model = node["model"].GetString();
+      config.model = JsonConfig::OptionalString(node, "model", config.model, managerName);
 
-      if (node.HasMember("domain_range") && node["domain_range"].IsArray() && node["domain_range"].Size() == 2) {
-        config.domainRange.first = node["domain_range"][0].GetDouble();
-        config.domainRange.second = node["domain_range"][1].GetDouble();
-      }
+      if (auto range = JsonConfig::TryRange(node, "domain_range", managerName))
+        config.domainRange = *range;
 
-      if (node.HasMember("fit_range") && node["fit_range"].IsArray() && node["fit_range"].Size() == 2) {
-        config.fitRange.first = node["fit_range"][0].GetDouble();
-        config.fitRange.second = node["fit_range"][1].GetDouble();
-      }
+      if (auto range = JsonConfig::TryRange(node, "fit_range", managerName))
+        config.fitRange = *range;
 
       // DYNAMICALLY loop through all items inside the "params" object
-      if (node.HasMember("params") && node["params"].IsObject()) {
-        for (auto& m : node["params"].GetObject()) {
+      if (const rapidjson::Value* params = JsonConfig::TryObject(node, "params", managerName)) {
+        for (auto& m : params->GetObject()) {
           std::string paramName = m.name.GetString();
-          LoadParam(m.value, config.params[paramName]);
+          LoadParam(m.value, paramName, config.params[paramName]);
         }
       }
     };
 
     // 1. First, apply all "default" mathematical parameters
-    if (partNode.HasMember("default")) {
-      loadNodeIntoConfig(partNode["default"]);
+    if (const rapidjson::Value* defaults = JsonConfig::TryObject(partNode, "default", managerName)) {
+      loadNodeIntoConfig(*defaults);
     }
 
     // 2. Override with specific bin settings if they exist
     std::string binKey = "multBin" + std::to_string(multBin);
-    if (partNode.HasMember("bins") && partNode["bins"].HasMember(binKey.c_str())) {
+    // The outer key is fixed and must be an object; the inner one is built from the
+    // bin index, so its absence is the normal case and HasMember is the right tool.
+    const rapidjson::Value* bins = JsonConfig::TryObject(partNode, "bins", managerName);
+    if (bins && bins->HasMember(binKey.c_str())) {
       std::cout << "   [INFO] " << managerName << ": Found custom parameters for bin: " << binKey << std::endl;
-      loadNodeIntoConfig(partNode["bins"][binKey.c_str()]);
+      loadNodeIntoConfig((*bins)[binKey.c_str()]);
     }
 
     return config;

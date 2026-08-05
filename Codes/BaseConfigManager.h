@@ -1,14 +1,17 @@
 #pragma once
 
 #include "AnalysisDataStructures.h"
+#include "JsonConfigHelpers.h"
 
 #include "rapidjson/document.h"
 #include "rapidjson/filereadstream.h"
 
 #include <cstdio>
+#include <format>
 #include <iostream>
 #include <stdexcept>
 #include <string>
+#include <vector>
 
 class BaseConfigManager
 {
@@ -48,21 +51,29 @@ class BaseConfigManager
     std::cout << "[INFO] " << managerName << ": JSON successfully loaded into RAM." << std::endl;
   }
 
-  // Universal parameter parser (free or fixed)
-  void LoadParam(const rapidjson::Value& node, MathParam& param) const
+  // Universal parameter parser: [value, min, max] to let it float, a single value
+  // to fix it. Both forms accept numbers written as strings, like every other
+  // number in these configurations.
+  void LoadParam(const rapidjson::Value& node, const std::string& paramName, MathParam& param) const
   {
-    if (node.IsArray() && node.Size() == 3) {
-      // Free parameter: [initial_value, min, max]
-      param.val = node[0].GetDouble();
-      param.min = node[1].GetDouble();
-      param.max = node[2].GetDouble();
+    const std::string what = "parameter '" + paramName + "'";
+
+    if (node.IsArray()) {
+      const std::vector<double> values = JsonConfig::ReadNumberArray(node.GetArray(), what, managerName);
+      if (values.size() != 3) {
+        throw std::runtime_error(std::format("[FATAL] {}: {} is an array of {} entries; a free parameter needs "
+                                             "exactly three, [value, min, max].",
+                                             managerName, what, values.size()));
+      }
+      param.val = values[0];
+      param.min = values[1];
+      param.max = values[2];
       param.isConstant = false;
-    } else if (node.IsNumber()) {
-      // Fixed parameter: single number
-      param.val = node.GetDouble();
-      param.isConstant = true;
-    } else {
-      throw std::runtime_error("[FATAL ERROR] " + managerName + ": Invalid parameter format in JSON. Must be a Number or an Array of 3 Numbers.");
+      return;
     }
+
+    // Anything else must be a single number: ToNumber says so by name if it is not.
+    param.val = JsonConfig::ToNumber(node, what, managerName);
+    param.isConstant = true;
   }
 };

@@ -61,14 +61,28 @@ Do not turn one into the other.
 
 ## Configuration
 
-`JsonConfigHelpers.h` — never read a key with `HasMember` + `operator[]`:
+`JsonConfigHelpers.h` — never read a key with `HasMember` + `operator[]`. Three
+layers, and the right one depends on what you already hold:
 
-- `RequireX` — absent is fatal
-- `OptionalX` — absent means this default; **present with the wrong type is fatal**,
-  because "silently ignored" is how a config lies to you
-- `TryString` — absent is reported to the caller, type still checked
-- `OptionalEnum` / `ResolveEnum` — the table of accepted names is also what builds
-  the "Available: ..." message, so it cannot go stale
+| | |
+|---|---|
+| `ToNumber`, `ToArray` | you have the value; interpret it and name it if it is wrong |
+| `RequireMember`, `OptionalMember` | navigate by key, no opinion on the type |
+| `Require*`, `Optional*`, `Try*` | key and type together, which is what tasks use |
+
+The third layer differs only in what absence means: `Require*` is fatal, `Optional*`
+takes the fallback you pass, `Try*` returns an empty optional and lets you decide.
+Arrays and objects have no `Optional*` form — their views are not values, so there
+is no fallback to hand over.
+
+**Present with the wrong type is always fatal**, in every one of them, because
+"silently ignored" is how a configuration lies to you.
+
+Two more worth knowing: `ReadNumberArray` accepts `6.4` and `"6.4"` alike, because
+both spellings appear in the configurations and a value copied from one key to
+another must not change meaning; and `OptionalEnum`/`ResolveEnum` build the
+"Available: ..." message from the same table they match against, so it cannot go
+stale.
 
 Blocks resolve `inherits` recursively in `WorkflowManager::MergeTaskConfiguration`;
 a key that looks absent in a block may well be inherited, so read a configuration
@@ -112,8 +126,10 @@ through the chain and not block by block.
 
 ## Do not touch without asking
 
-- `YieldMean.h` — ALICE-standard code kept as received. Its known bugs are listed
-  in `DESIGN_NOTES.md`; fixing them changes published-style numbers.
+- `YieldMean.h` — ALICE-standard code kept as received. Its four known defects have
+  been fixed and `DESIGN_NOTES.md` records what they were, because syncing this file
+  from upstream would bring them all back. Anything else in it stays as received:
+  changing it changes published-style numbers.
 - `BkgMattia` / `VoigtBkgMattia` in `FitPhiSignalAndBkg.h` — an alternative
   background model, not dead code.
 - The commented-out lines that survived the cleanup are parked switches, not

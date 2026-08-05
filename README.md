@@ -90,7 +90,7 @@ block per task.
 ```jsonc
 "global_binning": {
   "binning_name": "DefaultBinning",     // names the output subdirectory
-  "multiplicity": [0, 1, 5, 10, ...],   // optional
+  "multiplicity_binning": [0, 1, 5, 10, ...],   // optional
   "pt_binning": {
     "Phi": [0.4, 0.6, ...],
     "K0S": [0.0, 0.3, ...]

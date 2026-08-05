@@ -13,6 +13,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <vector>
 #include <utility>
 
 namespace JsonConfig
@@ -50,6 +51,52 @@ inline std::string ReadFileText(const std::string& path)
     return "";
   }
   return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+}
+
+// Numbers appear in the configurations both as numbers and as strings - 6.4 and
+// "6.4" - so a value copied from one key to another must not change meaning. This
+// accepts either, and names what it could not read: rapidjson's GetDouble() on a
+// string does not throw, it asserts, and the process dies without a message.
+//
+// std::exception and not std::invalid_argument: stod also throws out_of_range, and
+// "1e400" would otherwise escape as an unhandled exception rather than a diagnostic.
+inline double ToNumber(const rapidjson::Value& value, std::string_view what, std::string_view errCtx)
+{
+  if (value.IsNumber())
+    return value.GetDouble();
+
+  if (value.IsString()) {
+    try {
+      return std::stod(value.GetString());
+    } catch (const std::exception&) {
+      throw std::runtime_error(std::format("[FATAL] {}: '{}' is the string \"{}\", which is not a number.",
+                                           errCtx, what, value.GetString()));
+    }
+  }
+
+  throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither a number nor a string.", errCtx, what));
+}
+
+// The array that a value already in hand must be. Separate from RequireArray for
+// the case of a loop over an object's members: there each value is already held,
+// and looking it up again by name would search for something that was not lost.
+inline rapidjson::Value::ConstArray ToArray(const rapidjson::Value& value, std::string_view what, std::string_view errCtx)
+{
+  if (!value.IsArray())
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' is not an array.", errCtx, what));
+  return value.GetArray();
+}
+
+// Takes the array and not the node: whether the key exists and whether it is an
+// array is what RequireArray and TryArray answer, and answering it twice would
+// mean two error messages for one mistake.
+inline std::vector<double> ReadNumberArray(rapidjson::Value::ConstArray array, std::string_view what, std::string_view errCtx)
+{
+  std::vector<double> values;
+  values.reserve(array.Size());
+  for (const auto& v : array)
+    values.push_back(ToNumber(v, what, errCtx));
+  return values;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,10 +149,7 @@ inline bool RequireBool(const rapidjson::Value& node, const char* key, std::stri
 
 inline auto RequireArray(const rapidjson::Value& node, const char* key, std::string_view errCtx)
 {
-  const auto& arr = RequireMember(node, key, errCtx);
-  if (!arr.IsArray())
-    throw std::runtime_error(std::format("[FATAL] {}: '{}' exists but is not an ARRAY!", errCtx, key));
-  return arr.GetArray();
+  return ToArray(RequireMember(node, key, errCtx), key, errCtx);
 }
 
 // ---------------------------------------------------------------------------
@@ -158,21 +202,6 @@ inline double OptionalDouble(const rapidjson::Value& node, const char* key, doub
   return val->GetDouble();
 }
 
-// Empty when the key is absent; throws when it is there but is not an array.
-// The alias is needed because a deduced return type has to agree across every
-// return statement, and a bare std::nullopt would not match the array branch.
-inline auto OptionalArray(const rapidjson::Value& node, const char* key, std::string_view errCtx)
-{
-  using Result = std::optional<rapidjson::Value::ConstArray>;
-
-  const rapidjson::Value* val = OptionalMember(node, key);
-  if (!val)
-    return Result{};
-  if (!val->IsArray())
-    throw std::runtime_error(std::format("[FATAL] {}: key '{}' is present but is NOT an array, so it would be silently ignored.", errCtx, key));
-  return Result{val->GetArray()};
-}
-
 // ---------------------------------------------------------------------------
 // Optional enumerations
 // ---------------------------------------------------------------------------
@@ -214,11 +243,74 @@ inline E OptionalEnum(const rapidjson::Value& node, const char* key, std::string
 // ---------------------------------------------------------------------------
 // Present-or-not, with the type still checked
 // ---------------------------------------------------------------------------
-// The third case, between Require and Optional. Require makes an absent key an
-// error, Optional replaces it with a default; these report whether it was there,
-// for callers whose default is not a constant but follows from something else.
-// Unlike OptionalMember they still refuse a value of the wrong type: absent and
+// The third case, between Require and Optional:
+//
+//   Require*  absent is fatal, returns the value
+//   Optional*  absent means the fallback you pass, returns the value
+//   Try*       absent means an empty optional, and you decide
+//
+// Try is what a caller needs when its default is not a constant but follows from
+// something else - AssocParticleConfig deriving dirName from the species name.
+//
+// Arrays and objects have no Optional form and cannot have one: ConstArray and
+// ConstObject are views into the document, not values, so there is no fallback to
+// hand over. They are Try by construction.
+//
+// Unlike OptionalMember these still refuse a value of the wrong type: absent and
 // misspelled must not look the same.
+
+// Empty when the key is absent; throws when it is there but is not an array.
+// The alias is needed because a deduced return type has to agree across every
+// return statement, and a bare std::nullopt would not match the array branch.
+inline auto TryArray(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  using Result = std::optional<rapidjson::Value::ConstArray>;
+
+  const rapidjson::Value* val = OptionalMember(node, key);
+  if (!val)
+    return Result{};
+  return Result{ToArray(*val, key, errCtx)};
+}
+
+// The same for an object, and for the same reason: a "params" or "observable"
+// block that is present but written as an array or a string would otherwise be
+// skipped by the HasMember + IsObject idiom without a word.
+//
+// Returns the node and not a ConstObject, unlike TryArray. Not because rapidjson
+// gets in the way - GenericObject has operator[], HasMember and FindMember, and is
+// as capable as GenericValue - but because the accessors in this header take a
+// Value. Handing back the view would leave the caller unable to pass it to
+// OptionalString and forced to look the key up again.
+//
+// Arrays escape this only because their one consumer here, ReadNumberArray, is
+// ours and takes the view. The rule is pragmatic, not principled: each Try returns
+// whatever its callers in this codebase can actually use.
+inline const rapidjson::Value* TryObject(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  const rapidjson::Value* val = OptionalMember(node, key);
+  if (!val)
+    return nullptr;
+  if (!val->IsObject())
+    throw std::runtime_error(std::format("[FATAL] {}: key '{}' is present but is NOT an object, so it would be silently ignored.", errCtx, key));
+  return val;
+}
+
+// A range written as [lo, hi]. Present but not a pair of numbers is an error and
+// not something to skip: "fit_range": 6.4 means someone meant something, and the
+// old "HasMember && IsArray && Size()==2" idiom would have ignored it in silence.
+inline std::optional<std::pair<double, double>> TryRange(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  auto array = TryArray(node, key, errCtx);
+  if (!array)
+    return std::nullopt;
+
+  const std::vector<double> values = ReadNumberArray(*array, key, errCtx);
+  if (values.size() != 2)
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' must have exactly two entries, [low, high], but has {}.",
+                                         errCtx, key, values.size()));
+
+  return std::pair{values[0], values[1]};
+}
 
 inline std::optional<std::string> TryString(const rapidjson::Value& node, const char* key, std::string_view errCtx)
 {

@@ -87,12 +87,8 @@ class PurityTask : public IAnalysisTask
       // distribution of the source bins it covers, not by merging the purities
       // afterwards: a purity is a ratio, and ratios do not add up.
       std::optional<std::vector<double>> rebinningPt;
-      if (auto rebin = JsonConfig::OptionalArray(particle, "rebinning_pt", GetName())) {
-        std::vector<double> bins;
-        bins.reserve(rebin->Size());
-        for (const auto& v : *rebin)
-          bins.push_back(v.GetDouble());
-
+      if (auto rebin = JsonConfig::TryArray(particle, "rebinning_pt", GetName())) {
+        std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, "rebinning_pt for '" + name + "'", GetName());
         if (bins.size() < 2) {
           throw std::runtime_error("[FATAL] PurityTask: 'rebinning_pt' for '" + name + "' needs at least 2 edges!");
         }

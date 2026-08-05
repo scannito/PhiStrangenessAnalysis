@@ -363,7 +363,7 @@ class CorrelationTaskBase : public IAnalysisTask
     std::cout << "[INFO] " << GetName() << ": Physics projection axis set to "
               << (projectionAxis == AxisTarget::DeltaPhi_X ? "Delta Phi (X)" : "Delta Y (Y)") << "." << std::endl;
 
-    if (auto yieldRatios = JsonConfig::OptionalArray(taskConfig, "yield_ratios", GetName())) {
+    if (auto yieldRatios = JsonConfig::TryArray(taskConfig, "yield_ratios", GetName())) {
       int idx = 0;
       for (const auto& r : *yieldRatios) {
         // The index is in the context because the entries have no name of their
@@ -378,10 +378,8 @@ class CorrelationTaskBase : public IAnalysisTask
       }
     }
 
-    if (auto dyLimits = JsonConfig::OptionalArray(taskConfig, "delta_y_limits", GetName())) {
-      deltaYLimits.clear();
-      for (const auto& v : *dyLimits)
-        deltaYLimits.push_back(v.GetDouble());
+    if (auto dyLimits = JsonConfig::TryArray(taskConfig, "delta_y_limits", GetName())) {
+      deltaYLimits = JsonConfig::ReadNumberArray(*dyLimits, "delta_y_limits", GetName());
     }
   }
 
@@ -461,7 +459,7 @@ class CorrelationTaskBase : public IAnalysisTask
     TDirectory* evLossDir = RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "EvLoss"}, true);
 
     std::vector<std::string> activeCorrections;
-    if (auto corrections = JsonConfig::OptionalArray(taskConfig, "active_corrections", GetName())) {
+    if (auto corrections = JsonConfig::TryArray(taskConfig, "active_corrections", GetName())) {
       for (const auto& val : *corrections) {
         activeCorrections.push_back(val.GetString());
       }
@@ -479,7 +477,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
     // Read TO WHICH PARTICLES they should be applied
     std::vector<std::string> effParts;
-    if (auto effTargets = JsonConfig::OptionalArray(taskConfig, "apply_efficiency_to", GetName())) {
+    if (auto effTargets = JsonConfig::TryArray(taskConfig, "apply_efficiency_to", GetName())) {
       for (const auto& val : *effTargets)
         effParts.push_back(val.GetString());
     } else {

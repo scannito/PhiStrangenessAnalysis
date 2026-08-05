@@ -160,12 +160,8 @@ class MCTask : public IAnalysisTask
       multBinning = globalCfgs.ResolveMultBinning(data.h3MCGen->GetXaxis(), h3MCGenName + " in " + origin);
       globalCfgs.ResolvePtBinning(name, data.h3MCGen->GetYaxis(), h3MCGenName + " in " + origin);
 
-      if (auto rebin = JsonConfig::OptionalArray(p, "rebinning_pt", GetName())) {
-        std::vector<double> bins;
-        bins.reserve(rebin->Size());
-        for (const auto& v : *rebin) {
-          bins.push_back(v.GetDouble());
-        }
+      if (auto rebin = JsonConfig::TryArray(p, "rebinning_pt", GetName())) {
+        std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, "rebinning_pt for '" + name + "'", GetName());
         if (bins.size() < 2) {
           throw std::runtime_error("[FATAL ERROR] MCTask: 'rebinning_pt' for particle '" + name + "' must have at least 2 edges!");
         }

@@ -170,17 +170,16 @@ file: they end up written into `PhiAssocSpectra.root` on close, and produce
 "Replacing existing TH1" warnings. Also `hIntegral_tmp` has range
 `0.5*integral … 1.5*integral`, degenerate when the integral is ≤ 0.
 
-**`YieldMean.h`** (legacy extrapolation path, `use_legacy_extrapolation: true`):
+**`YieldMean.h` — fixed, kept here for the record.** All four defects listed in
+earlier versions of this file are gone: the `htotextra` block that read ~34 doubles
+out of an 11-element array, and its uninitialised twin when `part` matched none of
+K0S/Pi/Xi, were removed with the block itself; `binlo`/`lo` in
+`YieldMean_LowExtrapolationHisto` now start at -1 with a guard, and the comment
+above it records what the bug was; `using namespace std;` is gone from the header;
+and the default arguments now appear only in the declaration.
 
-- `htotextra` is created with `htot->GetNbinsX() + 1` bins but with edges from a
-  hardcoded 11-element vector — with a 33-bin binning ROOT reads ~34 doubles out
-  of an array of 11;
-- `htotextra` is left uninitialised when `part` contains none of K0S/Pi/Xi;
-- `binlo` and `lo` in `YieldMean_LowExtrapolationHisto` are uninitialised when all
-  bins are empty;
-- `using namespace std;` at global scope in a header;
-- default arguments repeated between declaration and definition, which the
-  standard forbids — Cling tolerates it, a compiled build would not.
+Worth keeping written down because this is ALICE-standard code kept as received:
+the next person to sync it from upstream will reintroduce all four.
 
 **`PhiFitTask`, legacy fitter branch.** Only parameters 1, 2 and 3 of
 `VoigtBkgSourav` are set. Parameter 0 (the Voigtian normalisation) and 4–6 (all of
@@ -245,6 +244,27 @@ three headers where there is one, on an argument that could go either way. The
 signal to wait for is concrete: a caller that uses the stamps without the
 provenance, or the reverse. As long as the four tasks always use them together,
 separating them adds files without removing confusion.
+
+**What a Try\* returns is a pragmatic choice, not a principled one.**
+`TryArray` hands back a `ConstArray`, `TryObject` hands back the node. That looks
+like a statement about arrays versus objects and it is not: rapidjson's
+`GenericObject` has `operator[]`, `HasMember` and `FindMember`, and is as capable
+as `GenericValue`.
+
+The real reason is that the typed accessors in `JsonConfigHelpers.h` take a
+`const rapidjson::Value&`. An object view cannot be passed to `OptionalString`, so
+returning it would force the caller to look the key up a second time. Arrays escape
+this only because their one consumer, `ReadNumberArray`, is ours and takes the view.
+
+Two ways to make it principled, neither urgent:
+
+- overload the typed accessors to take a `ConstObject` as well — comfortable at the
+  call sites, eight or so extra overloads to maintain;
+- have `TryArray` return the node too, like `TryObject`, and let callers write
+  `GetArray()` — uniform and smaller, one more word per call site.
+
+The signal to act is a caller that suffers from the current shape. There is none
+today, and the comment above `TryObject` says all of this in place.
 
 **Regression test.** A large amount changed on 31 July with the intention that the
 numbers stay identical except where deliberately changed. Nothing verifies this. A

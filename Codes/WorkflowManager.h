@@ -11,12 +11,12 @@
 #include "rapidjson/filereadstream.h"
 
 #include <cstdio>
+#include <format>
 #include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
 #include <set>
-#include <format>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -197,59 +197,31 @@ class WorkflowManager
     }
 
     // Override multiplicity binning if specified in JSON
-    if (config.HasMember("multiplicity") && config["multiplicity"].IsArray()) {
-      globalSettings.binsMult.clear();
-      for (const auto& v : config["multiplicity"].GetArray())
-        globalSettings.binsMult.push_back(v.GetDouble());
+    if (auto multBins = JsonConfig::TryArray(config, "multiplicity_binning", "global_binning")) {
+      globalSettings.binsMult = JsonConfig::ReadNumberArray(*multBins, "multiplicity_binning", "global_binning");
       std::cout << "  -> Overridden 'multiplicity' binning from JSON." << std::endl;
     }
 
     // pT binning per species (e.g., Phi, K0S, Pi) can be overridden in the JSON as well
-    if (config.HasMember("pt_binning") && config["pt_binning"].IsObject()) {
-      for (auto& m : config["pt_binning"].GetObject()) {
+    if (const rapidjson::Value* ptBinning = JsonConfig::TryObject(config, "pt_binning", "global_binning")) {
+      for (auto& m : ptBinning->GetObject()) {
         std::string species = m.name.GetString();
-        std::vector<double> bins;
-
-        for (const auto& v : m.value.GetArray()) {
-          if (v.IsNumber()) {
-            // If it is already a number in the JSON, parse it directly
-            bins.push_back(v.GetDouble());
-          } else if (v.IsString()) {
-            // If it is a string, attempt to cast it to a double
-            try {
-              bins.push_back(std::stod(v.GetString()));
-            } catch (const std::invalid_argument& e) {
-              throw std::runtime_error("[FATAL ERROR] Cannot cast the string '" +
-                                       std::string(v.GetString()) + "' to a number for species: " + species);
-            }
-          } else {
-            // Unsupported type (e.g., boolean, null, or a nested array)
-            throw std::runtime_error("[FATAL ERROR] Invalid binning value for species: " + species +
-                                     ". It must be either a number or a string.");
-          }
-        }
-
-        globalSettings.speciesPtBinning[species] = std::move(bins);
+        globalSettings.speciesPtBinning[species] =
+          JsonConfig::ReadNumberArray(JsonConfig::ToArray(m.value, species, "global_binning.pt_binning"),
+                                      species, "global_binning.pt_binning");
         std::cout << "  -> Overridden pT binning for species '" << species << "' from JSON." << std::endl;
       }
     }
-
   }
 
   void ParseWorkflowTasks()
   {
-    if (!document.HasMember("workflow")) {
-      throw std::runtime_error("[FATAL] Missing 'workflow' block in Master JSON!");
-    }
+    const auto& workflowNode = JsonConfig::RequireMember(document, "workflow", "Master JSON");
 
-    const auto& workflowNode = document["workflow"];
-    if (workflowNode.HasMember("active_tasks") && workflowNode["active_tasks"].IsArray()) {
-      for (auto& taskValue : workflowNode["active_tasks"].GetArray()) {
-        activeTasksList.push_back(taskValue.GetString());
-      }
-    } else {
-      throw std::runtime_error("[FATAL] 'active_tasks' array missing or invalid in workflow block!");
-    }
+    // Missing and present-but-not-an-array used to give the same message; now the
+    // two are told apart, which matters when the mistake is a typo in the type.
+    for (auto& taskValue : JsonConfig::RequireArray(workflowNode, "active_tasks", "workflow"))
+      activeTasksList.push_back(taskValue.GetString());
   }
 
   // =========================================================================
