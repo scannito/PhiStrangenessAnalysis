@@ -17,9 +17,9 @@
   output_name: "AnalysisResults_536_PtMod_Bpos_5agosto.root"
 
 # LHC26ac_pass1_Thin_medium (pp) Data
-# - train_id: 726961
-#   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
-#   output_name: "AnalysisResults_136_2026_PtMod_28luglio.root"
+- train_id: 732309
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_PtMod_6agosto.root"
 
 
 

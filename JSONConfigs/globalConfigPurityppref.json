@@ -152,7 +152,10 @@
     "workflow": {
         "active_tasks": [
             "purity_task_Bneg",
-            "purity_task_Bpos"
+            "purity_task_Bpos",
+            "purity_task_Bneg_strinj",
+            "purity_task_Bpos_strinj",
+            "purity_task_strinj"
         ]
     },
     "purity_base_settings": {
@@ -238,12 +241,27 @@
     },
     "purity_task_Bneg": {
         "inherits": "purity_base_settings",
-        "input_data_file": "../DataFile/pp_ref/DeltaY/Data/AnalysisResults_536_PtMod_Bneg_24luglio.root",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/Data/AnalysisResults_536_PtMod_Bneg_5agosto.root",
         "output_prefix": "Data_Bneg_"
     },
     "purity_task_Bpos": {
         "inherits": "purity_base_settings",
-        "input_data_file": "../DataFile/pp_ref/DeltaY/Data/AnalysisResults_536_PtMod_Bpos_24luglio.root",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/Data/AnalysisResults_536_PtMod_Bpos_5agosto.root",
         "output_prefix": "Data_Bpos_"
+    },
+    "purity_task_Bneg_strinj": {
+        "inherits": "purity_base_settings",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/Data/AnalysisResults_536_PtMod_Bneg_strinj_5agosto.root",
+        "output_prefix": "Data_Bneg_strinj_"
+    },
+    "purity_task_Bpos_strinj": {
+        "inherits": "purity_base_settings",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/Data/AnalysisResults_536_PtMod_Bpos_strinj_5agosto.root",
+        "output_prefix": "Data_Bpos_strinj_"
+    },
+    "purity_task_strinj": {
+        "inherits": "purity_base_settings",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/Data/AnalysisResults_536_PtMod_strinj_5agosto.root",
+        "output_prefix": "Data_strinj_"
     }
 }

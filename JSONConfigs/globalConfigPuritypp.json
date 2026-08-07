@@ -151,7 +151,8 @@
     },
     "workflow": {
         "active_tasks": [
-            "purity_task_2024"
+            "purity_task_2024",
+            "purity_task_2026"
         ]
     },
     "purity_base_settings": {
@@ -242,7 +243,7 @@
     },
     "purity_task_2026": {
         "inherits": "purity_base_settings",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_23luglio.root",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_6agosto.root",
         "output_prefix": "Data_2026_"
     }
 }
