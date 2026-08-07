@@ -37,12 +37,23 @@ inline std::unique_ptr<TFile> OpenOrThrow(const std::string& path, const char* m
   return f;
 }
 
+// Which file a directory belongs to. Without it a "missing object" message names
+// the path but not the file, and a task that reads three files - data, mixed
+// events, corrections - sends you to look in the wrong one.
+inline std::string FileNameOf(const TDirectory* dir)
+{
+  if (!dir)
+    return "<no directory>";
+  const TFile* file = dir->GetFile();
+  return file ? file->GetName() : dir->GetName();
+}
+
 template <RootObject T>
 inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& objPath, std::string_view errCtx, bool detachFromFile = true)
 {
   T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
   if (!obj)
-    throw std::runtime_error(std::format("[FATAL] {}: Missing object '{}'", errCtx, objPath));
+    throw std::runtime_error(std::format("[FATAL] {}: Missing object '{}' in '{}'", errCtx, objPath, FileNameOf(dir)));
 
   if constexpr (std::is_base_of_v<TH1, T>) {
     if (detachFromFile)
@@ -57,7 +68,8 @@ inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& ob
 {
   T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
   if (!obj) {
-    std::cerr << "[WARNING] " << warnCtx << ": Missing object '" << objPath << "'" << std::endl;
+    std::cerr << "[WARNING] " << warnCtx << ": Missing object '" << objPath
+              << "' in '" << FileNameOf(dir) << "'" << std::endl;
     return nullptr;
   }
 
