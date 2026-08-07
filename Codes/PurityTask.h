@@ -170,7 +170,14 @@ class PurityTask : public IAnalysisTask
         // uses - a per-candidate correction needs the fine one.
         std::unique_ptr<TH1> h1PuritySeparateSource;
         if (task.rebinningPt) {
-          h1PuritySeparateSource = FitPuritySpectrum(task, i, SpectrumBinning::Source, fitDir);
+          // A copy rather than a push_back on fitPath: that vector is still the
+          // analysis path, and anything added below this line would silently start
+          // resolving to the subdirectory instead.
+          std::vector<std::string> sourceFitPath = fitPath;
+          sourceFitPath.push_back("SourceBinning");
+
+          TDirectory* fitDirSource = RootIO::GetOrCreatePath(task.outputFile, sourceFitPath, false);
+          h1PuritySeparateSource = FitPuritySpectrum(task, i, SpectrumBinning::Source, fitDirSource);
 
           AnalysisUtils::SetHistogramStyle(h1PuritySeparateSource.get(), globalCfgs.GetSpectraColor(i));
           task.canvasSourceBinning->cd();
@@ -179,10 +186,10 @@ class PurityTask : public IAnalysisTask
           // Own subdirectory rather than sitting next to the analysis spectra.
           // Created here, inside the branch that produces the spectrum, so it
           // exists if and only if something was written into it.
-          std::vector<std::string> fineSummaryPath = summaryPath;
-          fineSummaryPath.push_back("SourceBinning");
-          if (TDirectory* fineDir = RootIO::GetOrCreatePath(task.outputFile, fineSummaryPath, false)) {
-            fineDir->cd();
+          std::vector<std::string> sourceSummaryPath = summaryPath;
+          sourceSummaryPath.push_back("SourceBinning");
+          if (TDirectory* sourceDir = RootIO::GetOrCreatePath(task.outputFile, sourceSummaryPath, false)) {
+            sourceDir->cd();
             h1PuritySeparateSource->Write(nullptr, TObject::kOverwrite);
           }
         }

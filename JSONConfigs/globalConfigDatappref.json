@@ -65,84 +65,123 @@
     },
     "workflow": {
         "active_tasks": [
-            "phi_fit_task_offline_efficiency_2024",
-            "phi_fit_task_online_efficiency_2024",
-            "correlation_task_offline_efficiency_2024",
-            "correlation_task_online_efficiency_2024",
-            "correlation_task_online_efficiency_no_phi_2024",
-            "phi_fit_task_offline_efficiency_2026",
-            "phi_fit_task_online_efficiency_2026",
-            "correlation_task_offline_efficiency_2026",
-            "correlation_task_online_efficiency_2026",
-            "correlation_task_online_efficiency_no_phi_2026"
+            "phi_fit_task_offline_efficiency_Bneg",
+            "phi_fit_task_online_efficiency_Bneg",
+            "correlation_task_offline_efficiency_Bneg",
+            "correlation_task_online_efficiency_Bneg",
+            "correlation_task_online_efficiency_no_phi_Bneg",
+            "phi_fit_task_offline_efficiency_Bpos",
+            "phi_fit_task_online_efficiency_Bpos",
+            "correlation_task_offline_efficiency_Bpos",
+            "correlation_task_online_efficiency_Bpos",
+            "correlation_task_online_efficiency_no_phi_Bpos",
+            "phi_fit_task_offline_efficiency_strinj",
+            "phi_fit_task_online_efficiency_strinj",
+            "correlation_task_offline_efficiency_strinj",
+            "correlation_task_online_efficiency_strinj",
+            "correlation_task_online_efficiency_no_phi_strinj"
         ]
     },
-    "phi_fit_task_offline_efficiency_2024": {
+    "phi_fit_task_offline_efficiency_Bneg": {
         "inherits": "phi_fit_base_settings",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_28luglio.root",
-        "output_prefix": "Data_OfflineEff_2024_"
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_Bneg_5agosto.root",
+        "output_prefix": "Data_OfflineEff_Bneg_"
     },
-    "phi_fit_task_online_efficiency_2024": {
+    "phi_fit_task_online_efficiency_Bneg": {
         "inherits": "phi_fit_base_settings",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_28luglio.root",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_Bneg_5agosto.root",
         "base_path_data": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
-        "output_prefix": "Data_OnlineEff_2024_"
+        "output_prefix": "Data_OnlineEff_Bneg_"
     },
-    "correlation_task_offline_efficiency_2024": {
+    "correlation_task_offline_efficiency_Bneg": {
         "inherits": "correlation_task_offline_efficiency",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_28luglio.root",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2024_Corrections.root",
-        "purity_prefix": "Data_2024_",
-        "trigger_prefix": "Data_OfflineEff_2024_",
-        "output_prefix": "Data_OfflineEff_2024_"
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_Bneg_5agosto.root",
+        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Bneg_Corrections.root",
+        "purity_prefix": "Data_Bneg_",
+        "trigger_prefix": "Data_OfflineEff_Bneg_",
+        "output_prefix": "Data_OfflineEff_Bneg_"
     },
-    "correlation_task_online_efficiency_2024": {
+    "correlation_task_online_efficiency_Bneg": {
         "inherits": "correlation_task_online_efficiency",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_28luglio.root",
-        "purity_prefix": "Data_2024_",
-        "trigger_prefix": "Data_OnlineEff_2024_",
-        "output_prefix": "Data_OnlineEff_2024_"
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_Bneg_5agosto.root",
+        "purity_prefix": "Data_Bneg_",
+        "trigger_prefix": "Data_OnlineEff_Bneg_",
+        "output_prefix": "Data_OnlineEff_Bneg_"
     },
-    "correlation_task_online_efficiency_no_phi_2024": {
+    "correlation_task_online_efficiency_no_phi_Bneg": {
         "inherits": "correlation_task_online_efficiency_no_phi",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_28luglio.root",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2024_WTrigger_Corrections.root",
-        "purity_prefix": "Data_2024_",
-        "trigger_prefix": "Data_OfflineEff_2024_",
-        "output_prefix": "Data_OnlineEff_NoPhi_2024_"
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_Bneg_5agosto.root",
+        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Bneg_WTrigger_Corrections.root",
+        "purity_prefix": "Data_Bneg_",
+        "trigger_prefix": "Data_OfflineEff_Bneg_",
+        "output_prefix": "Data_OnlineEff_NoPhi_Bneg_"
     },
-    "phi_fit_task_offline_efficiency_2026": {
+    "phi_fit_task_offline_efficiency_Bpos": {
         "inherits": "phi_fit_base_settings",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_28luglio.root",
-        "output_prefix": "Data_OfflineEff_2026_"
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_Bpos_5agosto.root",
+        "output_prefix": "Data_OfflineEff_Bpos_"
     },
-    "phi_fit_task_online_efficiency_2026": {
+    "phi_fit_task_online_efficiency_Bpos": {
         "inherits": "phi_fit_base_settings",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_28luglio.root",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_Bpos_5agosto.root",
         "base_path_data": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
-        "output_prefix": "Data_OnlineEff_2026_"
+        "output_prefix": "Data_OnlineEff_Bpos_"
     },
-    "correlation_task_offline_efficiency_2026": {
+    "correlation_task_offline_efficiency_Bpos": {
         "inherits": "correlation_task_offline_efficiency",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_28luglio.root",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2026_Corrections.root",
-        "purity_prefix": "Data_2026_",
-        "trigger_prefix": "Data_OfflineEff_2026_",
-        "output_prefix": "Data_OfflineEff_2026_"
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_Bpos_5agosto.root",
+        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Bpos_Corrections.root",
+        "purity_prefix": "Data_Bpos_",
+        "trigger_prefix": "Data_OfflineEff_Bpos_",
+        "output_prefix": "Data_OfflineEff_Bpos_"
     },
-    "correlation_task_online_efficiency_2026": {
+    "correlation_task_online_efficiency_Bpos": {
         "inherits": "correlation_task_online_efficiency",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_28luglio.root",
-        "purity_prefix": "Data_2026_",
-        "trigger_prefix": "Data_OnlineEff_2026_",
-        "output_prefix": "Data_OnlineEff_2026_"
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_Bpos_5agosto.root",
+        "purity_prefix": "Data_Bpos_",
+        "trigger_prefix": "Data_OnlineEff_Bpos_",
+        "output_prefix": "Data_OnlineEff_Bpos_"
     },
-    "correlation_task_online_efficiency_no_phi_2026": {
+    "correlation_task_online_efficiency_no_phi_Bpos": {
         "inherits": "correlation_task_online_efficiency_no_phi",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_28luglio.root",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2026_WTrigger_Corrections.root",
-        "purity_prefix": "Data_2026_",
-        "trigger_prefix": "Data_OfflineEff_2026_",
-        "output_prefix": "Data_OnlineEff_NoPhi_2026_"
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_Bpos_5agosto.root",
+        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Bpos_WTrigger_Corrections.root",
+        "purity_prefix": "Data_Bpos_",
+        "trigger_prefix": "Data_OfflineEff_Bpos_",
+        "output_prefix": "Data_OnlineEff_NoPhi_Bpos_"
+    },
+    "phi_fit_task_offline_efficiency_strinj": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_strinj_5agosto.root",
+        "output_prefix": "Data_OfflineEff_strinj_"
+    },
+    "phi_fit_task_online_efficiency_strinj": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_strinj_5agosto.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_strinj_"
+    },
+    "correlation_task_offline_efficiency_strinj": {
+        "inherits": "correlation_task_offline_efficiency",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_strinj_5agosto.root",
+        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Strinj_Corrections.root",
+        "purity_prefix": "Data_strinj_",
+        "trigger_prefix": "Data_OfflineEff_strinj_",
+        "output_prefix": "Data_OfflineEff_strinj_"
+    },
+    "correlation_task_online_efficiency_strinj": {
+        "inherits": "correlation_task_online_efficiency",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_strinj_5agosto.root",
+        "purity_prefix": "Data_strinj_",
+        "trigger_prefix": "Data_OnlineEff_strinj_",
+        "output_prefix": "Data_OnlineEff_strinj_"
+    },
+    "correlation_task_online_efficiency_no_phi_strinj": {
+        "inherits": "correlation_task_online_efficiency_no_phi",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_536_PtMod_strinj_5agosto.root",
+        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Strinj_WTrigger_Corrections.root",
+        "purity_prefix": "Data_strinj_",
+        "trigger_prefix": "Data_OfflineEff_strinj_",
+        "output_prefix": "Data_OnlineEff_NoPhi_strinj_"
     }
 }
