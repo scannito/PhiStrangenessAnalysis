@@ -32,14 +32,14 @@ ExtrapolationResult CalculateYieldAndMeanLegacy(TH1* hstat, TF1* f = NULL, Doubl
     res.yieldStatErr = hYieldMean->GetBinContent(kYieldStat);
     res.meanPt = hYieldMean->GetBinContent(kMean);
     res.meanPtStatErr = hYieldMean->GetBinContent(kMeanStat);
-    res.extrapolatedFraction = hYieldMean->GetBinContent(kExtra);
+    res.extrapolatedYield = hYieldMean->GetBinContent(kExtra);
   } else {
     std::cerr << "[ERROR] YieldMean failed for " << part << std::endl;
     res.yield = 0.0;
     res.yieldStatErr = 0.0;
     res.meanPt = 0.0;
     res.meanPtStatErr = 0.0;
-    res.extrapolatedFraction = 0.0;
+    res.extrapolatedYield = 0.0;
   }
 
   return res;

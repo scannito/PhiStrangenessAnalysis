@@ -164,11 +164,110 @@ this codebase. Worth deciding before `rebinning_pt` is used in anger.
 
 ## 5. Known bugs, not yet fixed
 
-**`SpectrumExtrapolator`.** `hlo`, `hhi`, `hInt`, `hMean`, `hInt_tmp`, `hout_rnd`
-are created without `SetDirectory(0)` while `gDirectory` is the spectra output
-file: they end up written into `PhiAssocSpectra.root` on close, and produce
-"Replacing existing TH1" warnings. Also `hIntegral_tmp` has range
-`0.5*integral … 1.5*integral`, degenerate when the integral is ≤ 0.
+**`SpectrumExtrapolator` — fixed, kept here for the record.** The scratch
+histograms (`hlo`, `hhi`, `hInt`, `hMean`, `hInt_tmp`, `hout_rnd`, `hout_cohrnd`)
+now call `SetDirectory(nullptr)`. They were being created while `gDirectory` was
+the spectra output file, so they were written into `PhiAssocSpectra.root` and
+warned "Replacing existing TH1" once per toy iteration. `hIntegral_tmp` is still
+degenerate when the integral is ≤ 0 — untouched, because the legacy is too.
+
+**`SpectrumExtrapolator` did not reproduce `YieldMean`.** It was written to
+replace the legacy path, and both were reachable from the same `if`, but nobody
+had checked they agreed. Five parameters had drifted, none of which looks wrong
+when read on its own:
+
+| | legacy | was | effect |
+|---|---|---|---|
+| fit option | `"0QI"` (argument) | `"R0V"` | no `I`: function evaluated at the bin centre instead of integrated over the bin |
+| domain | `domain_range` (argument) | members `0…10`, never set | `domain_range` controlled only the TF1's range |
+| domain vs fit range | widened to cover `minfit`/`maxfit` | not widened | measured region between the two dropped from the yield |
+| coarse window | `0.75…1.25×` | `0.5…1.5×` | coarser sampling at 1000 bins either way |
+| fine window | `±10·RMS` | `±5·RMS` | clipped the tails, and that RMS *is* the quoted statistical error |
+
+The rule this settles, since the class exists to replace the reference: **what
+`YieldMean` takes as a parameter is settable here with the legacy value as the
+default; what is hardcoded there is hardcoded here to the same number.** The three
+values the caller supplies (`kFitOption`, `kLoPrecision`, `kHiPrecision` in
+`CorrelationTaskBase`) are now written once and passed to both branches, so the
+two cannot drift again without someone editing the line that feeds both.
+
+The fit option in particular is a member and not a constant *because* it is an
+argument in the reference — hardcoding it would have been a second, quieter
+divergence of the same kind.
+
+**A sixth divergence, in what the two branches returned.** `ExtrapolationResult`
+had a field `extrapolatedFraction` that the legacy filled with `YieldMean`'s
+`kExtra` — an *integral* — while `SpectrumExtrapolator` filled it with
+`extra/integral`, an actual fraction. Same field, two units, selected by a JSON
+flag. No result was wrong because nothing read it yet; the first reader would have
+been.
+
+The field is now `extrapolatedYield`, absolute, because that is what both
+extrapolators compute, and `ExtrapolatedFraction()` derives the ratio. Storing the
+fraction would have meant one of the two branches converting on the way in, which
+is exactly where they had already diverged once.
+
+Worth noting where this one came from: it was not found by comparing the two
+implementations line by line, but by asking what each `extra` *meant*. The five
+above are parameters, and a parameter that differs shows up in a diff. A field
+that means two things does not.
+
+**Why there is only one fit, and when that stops being true.** The upstream
+`YieldMean.C` takes two histograms, `hstat` and `hsys`, and builds
+`htot = sqrt(stat^2 + sys^2)`. It then fits twice on purpose: the central value
+comes from the fit weighted with the *total* error, while the toy MC must start
+from a fit weighted with the *statistical* error only, or the statistical
+uncertainty it returns would contain the systematic.
+
+`hsys` was deliberately removed from our copy - `hout` went from 9 bins to 5, the
+`kYieldSysHi/Lo` and `kMeanSysHi/Lo` entries went with it, and so did the whole
+SYSTEMATICS section (four more fits: high, low, hard, soft). What is left of the
+first fit is a bare `Clone` of `hstat`, so the two fits run on identical data and
+the second is the first repeated. Only the comments ("create histo with stat+sys
+errors", "Fit sys+stat") survive from the two-histogram version.
+
+That is what makes `SpectrumExtrapolator`'s single fit correct - not a shortcut,
+but not unconditional either. **The condition is that the central value and the
+statistical error are measured on the same histogram.** The day systematics come
+back, the two-fit structure is the thing to restore.
+
+Upstream: https://github.com/alisw/AliPhysics/blob/master/PWGLF/SPECTRA/UTILS/YieldMean.C
+
+**The systematic machinery is half ported, and the half that exists is wired to
+the wrong errors.** `SpectrumExtrapolator::GetExtremeHighHisto`, `GetExtremeLow`,
+`GetExtremeSoft`, `GetExtremeHard` and `ReturnExtremeHisto` are all there and
+nobody calls them. Missing is the driver: fit each variation, integrate, take the
+absolute difference from the central value. Missing more quietly is the input -
+upstream builds these from `hsys`, while ours build them from
+`fMeasuredSpectrum`, whose errors are statistical. Wired up as they stand they
+would return the statistical error propagated coherently, wearing the name of a
+systematic. Change the input before the driver.
+
+**The toy MC seed.** The legacy path uses `gRandom`; the new one had a member
+`TRandom3` seeded with `SetSeed(0)`, which in ROOT does not mean seed zero - it
+draws one from `TUUID`. The quoted statistical error therefore changed on every
+run over the same files. Now seeded with 4357, `TRandom3`'s own default and
+`gRandom`'s starting point, with `SetRandomSeed` to override.
+
+This splits the comparison between the two branches in two, and the split is not
+a detail:
+
+- **Yield and mean p_T involve no random numbers.** They come from the fit and
+  from `Integrate`, both deterministic. They must agree; a difference there is a
+  real bug.
+- **The two statistical errors are the RMS of 1000 toys drawn from different
+  streams.** At N = 1000 the RMS estimate itself carries about 1/sqrt(2N) ~ 2%,
+  so a few percent of disagreement is expected even from identical code.
+  Comparing them for exact equality is chasing noise.
+
+`Integrate` was checked line by line against `YieldMean_IntegralMean` and matches,
+`err <= 0.` guard included; the error extraction (`central * sigma / mu`, `gaus`
+from `gROOT`) matches too.
+
+Still to do: run both branches on the same spectrum and compare yield and mean for
+exact agreement, and the errors only within the toy noise, before deleting
+`use_legacy_extrapolation`. Agreement is the only thing that justifies removing
+the reference.
 
 **`YieldMean.h` — fixed, kept here for the record.** All four defects listed in
 earlier versions of this file are gone: the `htotextra` block that read ~34 doubles

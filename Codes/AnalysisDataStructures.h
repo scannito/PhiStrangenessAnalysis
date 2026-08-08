@@ -212,7 +212,10 @@ struct ExtrapolationResult {
   double yieldStatErr{0.0};
   double meanPt{0.0};
   double meanPtStatErr{0.0};
-  double extrapolatedFraction{0.0};
+  double extrapolatedYield{0.0};
+
+  // Derived, so it cannot contradict the number it comes from.
+  double ExtrapolatedFraction() const { return yield > 0. ? extrapolatedYield / yield : 0.0; }
 };
 
 struct YieldRatioConfig {

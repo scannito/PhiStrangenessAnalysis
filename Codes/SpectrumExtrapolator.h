@@ -11,11 +11,17 @@
 #include "TVirtualFitter.h"
 
 #include <iostream>
+#include <algorithm>
 #include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
 
+// Replaces the legacy YieldMean path, and until it is shown to reproduce it, that
+// is the specification: whatever YieldMean takes as a parameter is settable here
+// with the legacy value as default, and whatever is hardcoded there is hardcoded
+// here to the same number. Any difference is a bug until it is a documented
+// decision - see DESIGN_NOTES.md.
 class SpectrumExtrapolator
 {
  public:
@@ -29,7 +35,12 @@ class SpectrumExtrapolator
 
     // Clone the fit model to avoid polluting the global namespace or the user's object
     fFitModel = static_cast<TF1*>(fitModel->Clone(Form("%s_clone", fitModel->GetName())));
-    fRandomGen.SetSeed(0); // Randomize seed
+    // Was SetSeed(0), which in ROOT does not mean "seed zero": it draws one from
+    // TUUID. The toy MC - and with it the quoted statistical error - therefore
+    // changed on every run of the same analysis over the same files. A published
+    // number that moves when you re-run it is a problem on its own, before any
+    // comparison with the legacy path.
+    fRandomGen.SetSeed(kDefaultSeed);
   }
 
   // Configuration Setters
@@ -38,6 +49,21 @@ class SpectrumExtrapolator
     fMinPt = minPt;
     fMaxPt = maxPt;
   }
+
+  // The ROOT fit option, exposed because YieldMean took it as a parameter. The
+  // default is the value the legacy path is called with, so a run that does not
+  // set it reproduces the reference; diverging takes a deliberate call.
+  //
+  // "0QI": 0 do not draw, Q quiet, and I compare the INTEGRAL of the function over
+  // each bin with the bin content rather than its value at the centre. On a
+  // steeply falling spectrum with wide bins the two differ, and the extrapolated
+  // yield is the integral of the fitted function below the first measured point.
+  void SetFitOption(std::string option) { fFitOption = std::move(option); }
+
+  // Passing 0 restores ROOT's non-reproducible behaviour, which is a legitimate
+  // thing to want - checking that a result does not depend on the stream - but it
+  // has to be asked for.
+  void SetRandomSeed(unsigned int seed) { fRandomGen.SetSeed(seed); }
 
   void SetFitRange(double minFit, double maxFit)
   {
@@ -62,12 +88,21 @@ class SpectrumExtrapolator
   {
     ExtrapolationResult res;
 
+    // The domain has to cover the fit range, as in YieldMean. Integrating only up
+    // to fMaxPt while the fit was performed up to a larger fMaxFit would drop the
+    // measured region between the two from the yield - silently, since both
+    // numbers are legitimate on their own. Widening rather than throwing because
+    // it is what the reference does, and the configurations rely on it.
+    const double minPt = std::min(fMinPt, fMinFit);
+    const double maxPt = std::max(fMaxPt, fMaxFit);
+
     // 1. Fit the measured data
+    // Enough iterations that minimisation is not stopped by MAX_CALLS.
     TVirtualFitter::SetMaxIterations(1000000);
     int fitres;
     int trials = 0;
     do {
-      fitres = fMeasuredSpectrum->Fit(fFitModel, "R0V", "", fMinFit, fMaxFit);
+      fitres = fMeasuredSpectrum->Fit(fFitModel, fFitOption.c_str(), "", fMinFit, fMaxFit);
       trials++;
       if (trials > 10) {
         std::cerr << "[WARNING] SpectrumExtrapolator: Fit did not converge after 10 trials!" << std::endl;
@@ -76,20 +111,26 @@ class SpectrumExtrapolator
     } while (fitres != 0);
 
     // 2. Extrapolate standard values
-    auto hlo = CreateLowExtrapolationHisto(fMeasuredSpectrum, fFitModel);
-    auto hhi = CreateHighExtrapolationHisto(fMeasuredSpectrum, fFitModel);
+    auto hlo = CreateLowExtrapolationHisto(fMeasuredSpectrum, fFitModel, minPt);
+    auto hhi = CreateHighExtrapolationHisto(fMeasuredSpectrum, fFitModel, maxPt);
 
     double integral = 0.0, mean = 0.0, extra = 0.0;
     Integrate(fMeasuredSpectrum, hlo.get(), hhi.get(), integral, mean, extra);
 
     res.yield = integral;
     res.meanPt = mean;
-    res.extrapolatedFraction = (integral > 0) ? (extra / integral) : 0.0;
+    res.extrapolatedYield = extra;
 
     // 3. Statistical Error Evaluation via Toy MC
     // 3a. Coarse phase (to find the bounds for the histograms)
-    std::unique_ptr<TH1F> hIntegral_tmp = std::make_unique<TH1F>("hInt_tmp", "", 1000, 0.5 * integral, 1.5 * integral);
-    std::unique_ptr<TH1F> hMean_tmp = std::make_unique<TH1F>("hMean_tmp", "", 1000, 0.5 * mean, 1.5 * mean);
+    // 0.75 to 1.25, as YieldMean: with 1000 bins either way, a wider window means
+    // wider bins and a coarser sampled distribution, which moves the uncertainty
+    // read off it. Hardcoded in the legacy too, so it is matched rather than
+    // exposed.
+    std::unique_ptr<TH1F> hIntegral_tmp = std::make_unique<TH1F>("hInt_tmp", "", 1000, 0.75 * integral, 1.25 * integral);
+    std::unique_ptr<TH1F> hMean_tmp = std::make_unique<TH1F>("hMean_tmp", "", 1000, 0.75 * mean, 1.25 * mean);
+    hIntegral_tmp->SetDirectory(nullptr);
+    hMean_tmp->SetDirectory(nullptr);
 
     for (int irnd = 0; irnd < fTrialsCoarse; irnd++) {
       auto hrnd = ReturnRandomHisto(fMeasuredSpectrum);
@@ -104,13 +145,18 @@ class SpectrumExtrapolator
     }
 
     // 3b. Fine phase (actual evaluation)
+    // 10 RMS, as YieldMean. This window is not cosmetic: the RMS of these
+    // histograms IS the quoted statistical uncertainty, so a window that clips the
+    // tails returns a smaller error. At 5 it was clipping them.
     std::unique_ptr<TH1F> hIntegral = std::make_unique<TH1F>("hInt", "", 100,
-                                                             hIntegral_tmp->GetMean() - 5. * hIntegral_tmp->GetRMS(),
-                                                             hIntegral_tmp->GetMean() + 5. * hIntegral_tmp->GetRMS());
+                                                             hIntegral_tmp->GetMean() - 10. * hIntegral_tmp->GetRMS(),
+                                                             hIntegral_tmp->GetMean() + 10. * hIntegral_tmp->GetRMS());
 
     std::unique_ptr<TH1F> hMean = std::make_unique<TH1F>("hMean", "", 100,
-                                                         hMean_tmp->GetMean() - 5. * hMean_tmp->GetRMS(),
-                                                         hMean_tmp->GetMean() + 5. * hMean_tmp->GetRMS());
+                                                         hMean_tmp->GetMean() - 10. * hMean_tmp->GetRMS(),
+                                                         hMean_tmp->GetMean() + 10. * hMean_tmp->GetRMS());
+    hIntegral->SetDirectory(nullptr);
+    hMean->SetDirectory(nullptr);
 
     for (int irnd = 0; irnd < fTrialsFine; irnd++) {
       auto hrnd = ReturnRandomHisto(fMeasuredSpectrum);
@@ -177,6 +223,13 @@ class SpectrumExtrapolator
   TH1* fMeasuredSpectrum{nullptr};
   TF1* fFitModel{nullptr}; // Cloned internally to avoid modifying the user's original object
 
+  // TRandom3's own default, which is also where gRandom starts, so the first
+  // spectrum of a job draws the stream the legacy path draws. Later ones do not:
+  // gRandom is shared and keeps advancing from one multiplicity bin to the next,
+  // while this generator is re-seeded per instance. Reproducing that exactly is
+  // not the goal; not moving between runs is.
+  static constexpr unsigned int kDefaultSeed = 4357;
+
   TRandom3 fRandomGen;
 
   // Extrapolation Ranges
@@ -186,6 +239,8 @@ class SpectrumExtrapolator
   double fMaxFit{10.0};
 
   // Integration parameters
+  std::string fFitOption{"0QI"};
+
   double fLoPrecision{0.01};
   double fHiPrecision{0.1};
 
@@ -242,7 +297,9 @@ class SpectrumExtrapolator
     extra = E;
   }
 
-  std::unique_ptr<TH1> CreateLowExtrapolationHisto(TH1* h, TF1* f) const
+  // minPt, not fMinPt: the caller has already widened the domain to cover the
+  // fit range, and reading the member here would quietly undo that.
+  std::unique_ptr<TH1> CreateLowExtrapolationHisto(TH1* h, TF1* f, double minPt) const
   {
     int binlo = 1;
     double lo = fMinPt;
@@ -254,11 +311,14 @@ class SpectrumExtrapolator
       }
     }
 
-    int nbins = static_cast<int>((lo - fMinPt) / fLoPrecision);
+    int nbins = static_cast<int>((lo - minPt) / fLoPrecision);
     if (nbins < 1)
       return nullptr;
 
-    auto hlo = std::make_unique<TH1F>("hlo", "", nbins, fMinPt, lo);
+    auto hlo = std::make_unique<TH1F>("hlo", "", nbins, minPt, lo);
+    // Detached: these are scratch, and gDirectory here is the physics output
+    // file. Attached they get written into it and warn on the next bin.
+    hlo->SetDirectory(nullptr);
 
     for (int ibin = 0; ibin < hlo->GetNbinsX(); ibin++) {
       double width = hlo->GetBinWidth(ibin + 1);
@@ -271,7 +331,7 @@ class SpectrumExtrapolator
     return hlo;
   }
 
-  std::unique_ptr<TH1> CreateHighExtrapolationHisto(TH1* h, TF1* f) const
+  std::unique_ptr<TH1> CreateHighExtrapolationHisto(TH1* h, TF1* f, double maxPt) const
   {
     int binhi = h->GetNbinsX();
     double hi = fMaxPt;
@@ -288,11 +348,12 @@ class SpectrumExtrapolator
       return nullptr;
     }
 
-    int nbins = static_cast<int>((fMaxPt - hi) / fHiPrecision);
+    int nbins = static_cast<int>((maxPt - hi) / fHiPrecision);
     if (nbins < 1)
       return nullptr;
 
-    auto hhi = std::make_unique<TH1F>("hhi", "", nbins, hi, fMaxPt);
+    auto hhi = std::make_unique<TH1F>("hhi", "", nbins, hi, maxPt);
+    hhi->SetDirectory(nullptr);
 
     for (int ibin = 0; ibin < hhi->GetNbinsX(); ibin++) {
       double width = hhi->GetBinWidth(ibin + 1);
@@ -310,6 +371,10 @@ class SpectrumExtrapolator
     if (!hin)
       return nullptr;
     auto hout = std::unique_ptr<TH1>(static_cast<TH1*>(hin->Clone("hout_rnd")));
+    // Clone inherits the directory of the original, and the measured spectrum
+    // lives in the output file: 1100 toy iterations under one name is what the
+    // "Replacing existing TH1" warnings were.
+    hout->SetDirectory(nullptr);
     hout->Reset();
 
     for (int ibin = 0; ibin < hin->GetNbinsX(); ibin++) {
@@ -328,6 +393,10 @@ class SpectrumExtrapolator
     if (!hin)
       return nullptr;
     auto hout = std::unique_ptr<TH1>(static_cast<TH1*>(hin->Clone("hout_cohrnd")));
+    // Clone inherits the directory of the original, and the measured spectrum
+    // lives in the output file: 1100 toy iterations under one name is what the
+    // "Replacing existing TH1" warnings were.
+    hout->SetDirectory(nullptr);
     hout->Reset();
 
     double cohe = fRandomGen.Gaus(0., 1.);

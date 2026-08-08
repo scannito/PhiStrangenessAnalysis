@@ -859,15 +859,34 @@ class CorrelationTaskBase : public IAnalysisTask
     }*/
 
     // 3. Perform the extrapolation using either legacy or new method
+    // The two branches must compute the same number, so what they are given is
+    // written once. As literals in one branch and member defaults in the other,
+    // the fit option and the precisions had already drifted apart without either
+    // side looking wrong on its own.
+    //
+    // "I" integrates the function over each bin instead of taking its value at the
+    // centre: on a steeply falling spectrum with wide bins the two differ, and the
+    // extrapolated yield is an integral of this fit below the first measured point.
+    constexpr const char* kFitOption = "0QI";
+    constexpr double kLoPrecision = 0.01;
+    constexpr double kHiPrecision = 0.1;
+
     ExtrapolationResult res;
     if (useLegacyExtrapolation) {
       res = CalculateYieldAndMeanLegacy(hSpec, extrapModel.get(),
                                         eCfg.domainRange.first, eCfg.domainRange.second,
-                                        0.01, 0.1, "0QI",
+                                        kLoPrecision, kHiPrecision, kFitOption,
                                         eCfg.fitRange.first, eCfg.fitRange.second, config.name);
     } else {
       SpectrumExtrapolator extrapolator(hSpec, extrapModel.get());
       extrapolator.SetFitRange(eCfg.fitRange.first, eCfg.fitRange.second);
+      // YieldMean takes these as arguments, so they are set rather than left to the
+      // defaults. Without the limits in particular the class kept its own 0..10 and
+      // 'domain_range' looked like it controlled the integration while controlling
+      // only the range of the TF1.
+      extrapolator.SetExtrapolationLimits(eCfg.domainRange.first, eCfg.domainRange.second);
+      extrapolator.SetFitOption(kFitOption);
+      extrapolator.SetIntegrationPrecisions(kLoPrecision, kHiPrecision);
 
       res = extrapolator.CalculateYieldAndMean();
     }
@@ -885,6 +904,8 @@ class CorrelationTaskBase : public IAnalysisTask
       std::cout << "  -> Raw Data Integral (ROOT): " << rawIntegral << std::endl;
       std::cout << "  -> Total Extrapolated (extY): " << res.yield << std::endl;
       std::cout << "  -> Fit Integral [0.0 - " << firstDataPt << "]: " << fitLowPtIntegral << std::endl;
+      std::cout << "  -> Extrapolated: " << res.extrapolatedYield
+                << " (" << 100. * res.ExtrapolatedFraction() << "% of the yield)" << std::endl;
     }
 
     // 5. Create extended binning dynamically
