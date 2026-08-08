@@ -130,7 +130,7 @@
             0.5,
             0.1
         ],
-        "use_legacy_extrapolation": true,
+        "use_legacy_extrapolation": false,
         "extrapolation_config_file": "../JSONConfigs/extrapConfignew.json",
         "yield_ratios": [
             {
