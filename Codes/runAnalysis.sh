@@ -27,7 +27,7 @@ JSON_PATH_BASE=""
 case "$KEYWORD" in
     "data")
         JSON_PATH="../JSONConfigs/globalConfigData${COLL_SYS}.json"
-        JSON_PATH_BASE="../JSONConfigs/globalConfigBase.json"
+        JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
         ;;
     "purity")
         JSON_PATH="../JSONConfigs/globalConfigPurity${COLL_SYS}.json"
