@@ -216,6 +216,19 @@ struct ExtrapolationResult {
 
   // Derived, so it cannot contradict the number it comes from.
   double ExtrapolatedFraction() const { return yield > 0. ? extrapolatedYield / yield : 0.0; }
+
+  // Fit quality. Here because a converged fit is not a good fit, and roughly a
+  // third of the yield is an integral of this function outside the measured range:
+  // the yield alone gives no way to tell a description from an extrapolation of
+  // nonsense. YieldMean printed it and SpectrumExtrapolator did not, so dropping
+  // the legacy branch would have quietly removed the only warning there was.
+  double chi2{0.0};
+  int ndf{0};
+
+  // No threshold and no warning attached: what counts as an acceptable chi2 is a
+  // physics judgement, and inventing a cut here would only hide it. It is printed
+  // on every extrapolation instead.
+  double ReducedChi2() const { return ndf > 0 ? chi2 / ndf : 0.0; }
 };
 
 struct YieldRatioConfig {

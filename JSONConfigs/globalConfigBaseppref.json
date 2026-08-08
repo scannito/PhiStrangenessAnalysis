@@ -120,7 +120,7 @@
                 "file_suffix": "PiPurity.root"
             }
         ],
-        "use_projection_cache": false,
+        "use_projection_cache": true,
         "use_2d_me_normalization": false,
         "projection_axis": "delta_y",
         "use_signal_cache": false,
@@ -150,7 +150,6 @@
         "active_corrections": [
             "acceptance_efficiency"
         ],
-        "use_projection_cache": false,
         "use_2d_me_normalization": false
     },
     "correlation_task_online_efficiency": {
@@ -158,7 +157,6 @@
         "base_path_data": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "base_path_me": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "apply_efficiency": false,
-        "use_projection_cache": false,
         "use_2d_me_normalization": false,
         "do_more_qa": false
     },
@@ -175,7 +173,6 @@
             "Xi",
             "Pi"
         ],
-        "use_projection_cache": false,
         "use_2d_me_normalization": false
     }
 }

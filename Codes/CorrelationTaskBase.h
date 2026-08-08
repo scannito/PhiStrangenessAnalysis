@@ -871,6 +871,8 @@ class CorrelationTaskBase : public IAnalysisTask
     constexpr double kLoPrecision = 0.01;
     constexpr double kHiPrecision = 0.1;
 
+    const double firstMeasuredPt = config.binning[0];
+
     ExtrapolationResult res;
     if (useLegacyExtrapolation) {
       res = CalculateYieldAndMeanLegacy(hSpec, extrapModel.get(),
@@ -891,21 +893,44 @@ class CorrelationTaskBase : public IAnalysisTask
       res = extrapolator.CalculateYieldAndMean();
     }
 
+    // Both branches fit 'extrapModel' in place, so from here on it carries the
+    // fitted parameters whichever one ran. That is what makes this line - and the
+    // curve attached to the extended spectrum further down - mean the same thing in
+    // both, which they did not while SpectrumExtrapolator fitted a clone.
+    double fitLowPtIntegral = 0.0;
+    if (firstMeasuredPt > 0.0)
+      fitLowPtIntegral = extrapModel->Integral(0.0, firstMeasuredPt);
+
     // 4. Debug output
     {
-      double rawIntegral = hSpec->Integral(1, hSpec->GetNbinsX(), "width");
-      double firstDataPt = config.binning[0];
-      double fitLowPtIntegral = 0.0;
-      if (firstDataPt > 0.0) {
-        fitLowPtIntegral = extrapModel->Integral(0.0, firstDataPt);
-      }
-
+      const double rawIntegral = hSpec->Integral(1, hSpec->GetNbinsX(), "width");
       std::cout << "\n[DEBUG EXTRAP] " << std::endl;
-      std::cout << "  -> Raw Data Integral (ROOT): " << rawIntegral << std::endl;
-      std::cout << "  -> Total Extrapolated (extY): " << res.yield << std::endl;
-      std::cout << "  -> Fit Integral [0.0 - " << firstDataPt << "]: " << fitLowPtIntegral << std::endl;
-      std::cout << "  -> Extrapolated: " << res.extrapolatedYield
+      std::cout << "  -> Raw data integral:            " << rawIntegral << std::endl;
+      std::cout << "  -> Yield after extrapolation:    " << res.yield << std::endl;
+      std::cout << "  -> Extrapolated part:            " << res.extrapolatedYield
                 << " (" << 100. * res.ExtrapolatedFraction() << "% of the yield)" << std::endl;
+      std::cout << "  -> Fitted function [0, " << firstMeasuredPt << "]: " << fitLowPtIntegral << std::endl;
+
+      // The four numbers the two extrapolation branches must be compared on. Yield
+      // and mean involve no random numbers and have to agree exactly; the two
+      // errors are the RMS of 1000 toys and agree only to within a few percent.
+      std::cout << "  -> Yield:  " << res.yield << " +- " << res.yieldStatErr
+                << "   <pT>: " << res.meanPt << " +- " << res.meanPtStatErr << std::endl;
+
+      // A converged fit is not a good fit, and roughly a third of the yield above is
+      // an integral of this function outside the measured range. Only YieldMean used
+      // to print this, so it came from the result now and both branches report it.
+      std::cout << "  -> Fit " << eCfg.model << " over [" << eCfg.fitRange.first << ", "
+                << eCfg.fitRange.second << "]: chi2/ndf = " << res.chi2 << "/" << res.ndf
+                << " = " << res.ReducedChi2() << std::endl;
+
+      // The two being equal is not a coincidence worth leaving to the eye: it means
+      // nothing was added, i.e. the extrapolation silently dropped out.
+      if (res.yield == rawIntegral)
+        std::cerr << "[WARNING] " << hSpec->GetName()
+                  << ": the extrapolated yield equals the raw integral exactly - nothing was "
+                     "extrapolated. Check the fit above."
+                  << std::endl;
     }
 
     // 5. Create extended binning dynamically
@@ -930,6 +955,7 @@ class CorrelationTaskBase : public IAnalysisTask
     hSpecExt->SetBinError(1, 0.0);
 
     AnalysisUtils::SetHistogramStyle(hSpecExt.get(), globalCfgs.GetSpectraColor(multBin));
+    // The fitted curve, travelling with the spectrum it describes.
     hSpecExt->GetListOfFunctions()->Add(extrapModel->Clone());
 
     targetDir->cd();

@@ -264,10 +264,87 @@ a detail:
 `err <= 0.` guard included; the error extraction (`central * sigma / mu`, `gaus`
 from `gROOT`) matches too.
 
-Still to do: run both branches on the same spectrum and compare yield and mean for
-exact agreement, and the errors only within the toy noise, before deleting
-`use_legacy_extrapolation`. Agreement is the only thing that justifies removing
-the reference.
+**A seventh divergence, and the one that was actually breaking the run: the fit
+model was cloned.** `SpectrumExtrapolator` used to do
+`fitModel->Clone(Form("%s_clone", ...))` and fit the copy. Under Cling a `TF1`
+built from a compiled function pointer (`LevyTsallisFunc`) does not survive that
+clone as a usable function, and everything downstream followed: GSL `qags`
+roundoff errors from integrating it, a fit that never converged in 10 trials, and
+`IntegralError` returning 0 - which the `err <= 0` guard in `Integrate` then turned
+into an extrapolation contributing exactly nothing. The reported yield was the raw
+data integral, with no error raised.
+
+Note what the earlier hypotheses were: the `"I"` fit option, and a fit range too
+narrow for the free parameters. Both were wrong. The clone was found by asking who
+owns the TF1, not by looking at the numerics.
+
+The clone is gone; the model is fitted in place, as `YieldMean` does. That is the
+right choice *here* - not in general - because the caller creates the model fresh
+per spectrum (`ExtrapolationModelFactory::CreateModel`, a local `unique_ptr`), so
+there is nothing to protect, and it wants the fitted parameters back: it prints
+them and attaches the curve to the extended spectrum it writes. With a clone it
+silently got the initial guess in both places, so the saved plots carried an
+unfitted curve. The clone was also never deleted, and since every `TF1` registers
+in `gROOT->GetListOfFunctions()`, each spectrum added another object under the
+same name - the `TCanvas` trap in `CLAUDE.md`, on a different global list.
+
+**Reproduction verified.** Data pp, both branches on the same two spectra:
+
+| | legacy | new |
+|---|---|---|
+| yield (1) | 4.05537 | 4.05537 |
+| mean pT (1) | 0.445138 | 0.445138 |
+| chi2/ndf (1) | 157.241/3 | 157.241/3 |
+| yield (2) | 4.08771 | 4.08771 |
+| mean pT (2) | 0.449833 | 0.449833 |
+| chi2/ndf (2) | 36.9467/3 | 36.9467/3 |
+
+Every printed digit, and the raw integral, the extrapolated part and the integral
+of the fitted function agree as well. The chi2 is the strongest of these: equal
+yields could in principle come from slightly different fits compensating inside the
+integrals, but an identical chi2 to six digits means the two branches performed the
+same fit, not merely reached the same total.
+
+The extrapolation also cross-checks internally. YieldMean prints its own running
+totals, and for the first spectrum they decompose as low = 4.03671 - 2.81778 =
+1.21893 and high = 4.05537 - 4.03671 = 0.01866, summing to 1.23759 against the
+1.2376 reported as the extrapolated part - while 1.21893 is exactly the
+`Fitted function [0, 0.2]` line, which is computed by direct integration of the TF1
+rather than by summing a 0.01-wide histogram. The diagnostic added to find the bug
+validates itself against a number obtained another way. The statistical errors differ by -2.1%,
+-7.0%, +2.4%, -4.1%: varying sign, which is the signature of toy noise rather than
+of a systematic difference. Roughly 2.2% is expected from 1/sqrt(2N) at N = 1000;
+the outlier is larger because the errors are not the bare RMS but sigma/mu of a
+Gaussian fitted to the toy distribution, which carries its own uncertainty.
+
+`use_legacy_extrapolation` can now be removed. Keeping it costs nothing and it is
+the only executable definition of "correct" this code has, so removing it should be
+its own commit, reversible, and only after the open question below is settled -
+because if the fit turns out to be wrong, the reference is what tells us whether
+the new path is wrong in the same way.
+
+**Open, and no longer a code question: the fit does not describe the data.**
+
+```
+NDF=3  Chi^2=157.241  Chi^2/NDF=52.4138
+NDF=3  Chi^2=36.9467  Chi^2/NDF=12.3156
+```
+
+The fit converges, which is not the same as being good. A Levy-Tsallis over
+[0.2, 1.0] with three free parameters is rejected by the data at that chi^2, and
+between 26% and 30% of the yield comes from extrapolating it - for pi, the tail
+above the measured range contributes only ~3% of the yield but enters the mean p_T
+weighted by p_T, so it matters far more there than the yield fraction suggests.
+
+Two readings, and they call for different fixes:
+
+- the model or the fit range is wrong for this spectrum, or
+- the uncertainties on the spectrum are underestimated, which inflates chi^2
+  without the model being at fault - the usual cause being bins correlated through
+  the efficiency and purity corrections but treated as independent.
+
+Separate these before trusting the extrapolated yields, whichever branch produced
+them: this chi^2 is the same in both.
 
 **`YieldMean.h` — fixed, kept here for the record.** All four defects listed in
 earlier versions of this file are gone: the `htotextra` block that read ~34 doubles

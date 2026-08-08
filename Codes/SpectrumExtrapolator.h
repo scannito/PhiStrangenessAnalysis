@@ -25,16 +25,23 @@
 class SpectrumExtrapolator
 {
  public:
-  // Constructor: Takes the measured spectrum and the initialized fit function (e.g., Levy-Tsallis)
+  // Takes the measured spectrum and the initialised fit function (e.g. Levy-Tsallis).
+  //
+  // NOTE: 'fitModel' IS FITTED IN PLACE, as YieldMean does. It used to be cloned,
+  // to protect the caller's object, but the caller creates it fresh for each
+  // spectrum and wants the fitted parameters back - it prints them and writes the
+  // curve alongside the spectrum. With a clone it silently got the initial guess
+  // instead, in the debug output and in the saved plots. The clone also leaked (no
+  // destructor) and, since every TF1 registers in gROOT's global function list,
+  // added one more object under the same name per spectrum - the same trap as the
+  // TCanvas one recorded in CLAUDE.md.
   SpectrumExtrapolator(TH1* measuredSpectrum, TF1* fitModel)
-    : fMeasuredSpectrum(measuredSpectrum)
+    : fMeasuredSpectrum(measuredSpectrum), fFitModel(fitModel)
   {
-    if (!fMeasuredSpectrum || !fitModel) {
+    if (!fMeasuredSpectrum || !fFitModel) {
       throw std::invalid_argument("[SpectrumExtrapolator] Invalid input pointers.");
     }
 
-    // Clone the fit model to avoid polluting the global namespace or the user's object
-    fFitModel = static_cast<TF1*>(fitModel->Clone(Form("%s_clone", fitModel->GetName())));
     // Was SetSeed(0), which in ROOT does not mean "seed zero": it draws one from
     // TUUID. The toy MC - and with it the quoted statistical error - therefore
     // changed on every run of the same analysis over the same files. A published
@@ -42,6 +49,10 @@ class SpectrumExtrapolator
     // comparison with the legacy path.
     fRandomGen.SetSeed(kDefaultSeed);
   }
+
+  // No FittedModel() accessor: the fit happens in place, so the caller already
+  // holds the fitted function - it is the TF1 it passed in.
+  bool FitConverged() const { return fFitConverged; }
 
   // Configuration Setters
   void SetExtrapolationLimits(double minPt, double maxPt)
@@ -105,10 +116,24 @@ class SpectrumExtrapolator
       fitres = fMeasuredSpectrum->Fit(fFitModel, fFitOption.c_str(), "", fMinFit, fMaxFit);
       trials++;
       if (trials > 10) {
-        std::cerr << "[WARNING] SpectrumExtrapolator: Fit did not converge after 10 trials!" << std::endl;
+        // Not just "the fit is bad": a failed fit leaves no usable covariance
+        // matrix, so TF1::IntegralError returns 0 for every bin of hlo/hhi, and
+        // the 'error <= 0' guard in Integrate - which exists to skip empty bins -
+        // then drops the whole extrapolation. The yield that comes out is the raw
+        // data integral, looks perfectly plausible, and is not extrapolated.
+        std::cerr << "[WARNING] SpectrumExtrapolator: the fit of '" << fMeasuredSpectrum->GetName()
+                  << "' with '" << fFitModel->GetName() << "' did not converge in 10 trials over ["
+                  << fMinFit << ", " << fMaxFit << "]. The covariance matrix is unusable, so the "
+                     "extrapolation will contribute nothing and the yield below is the raw integral, "
+                     "NOT an extrapolated one. Do not use it."
+                  << std::endl;
+        fFitConverged = false;
         break;
       }
     } while (fitres != 0);
+
+    res.chi2 = fFitModel->GetChisquare();
+    res.ndf = fFitModel->GetNDF();
 
     // 2. Extrapolate standard values
     auto hlo = CreateLowExtrapolationHisto(fMeasuredSpectrum, fFitModel, minPt);
@@ -120,6 +145,19 @@ class SpectrumExtrapolator
     res.yield = integral;
     res.meanPt = mean;
     res.extrapolatedYield = extra;
+
+    // Independent of the fit status, because a zero contribution from a region
+    // that exists is the observable symptom whatever caused it. Checked here and
+    // not left to the reader of the log: 'extra == 0' is indistinguishable from a
+    // legitimately tiny extrapolation unless you compare the yield against the raw
+    // integral by eye, which is how this went unnoticed.
+    if (extra == 0. && (hlo || hhi)) {
+      std::cerr << "[WARNING] SpectrumExtrapolator: an extrapolation region was built for '"
+                << fMeasuredSpectrum->GetName()
+                << "' but contributed exactly zero, so every one of its bins was skipped for having "
+                   "a non-positive error. This is what a failed fit looks like downstream."
+                << std::endl;
+    }
 
     // 3. Statistical Error Evaluation via Toy MC
     // 3a. Coarse phase (to find the bounds for the histograms)
@@ -221,7 +259,7 @@ class SpectrumExtrapolator
 
  private:
   TH1* fMeasuredSpectrum{nullptr};
-  TF1* fFitModel{nullptr}; // Cloned internally to avoid modifying the user's original object
+  TF1* fFitModel{nullptr}; // Owned by the caller, and fitted in place - see the constructor
 
   // TRandom3's own default, which is also where gRandom starts, so the first
   // spectrum of a job draws the stream the legacy path draws. Later ones do not:
@@ -229,6 +267,8 @@ class SpectrumExtrapolator
   // while this generator is re-seeded per instance. Reproducing that exactly is
   // not the goal; not moving between runs is.
   static constexpr unsigned int kDefaultSeed = 4357;
+
+  bool fFitConverged{true};
 
   TRandom3 fRandomGen;
 

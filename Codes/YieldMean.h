@@ -33,6 +33,14 @@ ExtrapolationResult CalculateYieldAndMeanLegacy(TH1* hstat, TF1* f = NULL, Doubl
     res.meanPt = hYieldMean->GetBinContent(kMean);
     res.meanPtStatErr = hYieldMean->GetBinContent(kMeanStat);
     res.extrapolatedYield = hYieldMean->GetBinContent(kExtra);
+
+    // From the LAST fit YieldMean performed, which is the one on hstat. Identical
+    // to the first as long as no systematic errors are supplied, since htot is then
+    // a bare clone of hstat - see DESIGN_NOTES.md.
+    if (f) {
+      res.chi2 = f->GetChisquare();
+      res.ndf = f->GetNDF();
+    }
   } else {
     std::cerr << "[ERROR] YieldMean failed for " << part << std::endl;
     res.yield = 0.0;
@@ -40,6 +48,8 @@ ExtrapolationResult CalculateYieldAndMeanLegacy(TH1* hstat, TF1* f = NULL, Doubl
     res.meanPt = 0.0;
     res.meanPtStatErr = 0.0;
     res.extrapolatedYield = 0.0;
+    res.chi2 = 0.0;
+    res.ndf = 0;
   }
 
   return res;
