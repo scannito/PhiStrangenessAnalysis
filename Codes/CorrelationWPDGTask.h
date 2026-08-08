@@ -2,6 +2,11 @@
 
 #include "CorrelationTaskBase.h"
 #include "JsonConfigHelpers.h"
+#include "RootIOHelpers.h"
+
+#include "TFile.h"
+#include "TH2D.h"
+#include "TH3F.h"
 
 class CorrelationWPDGTask : public CorrelationTaskBase
 {

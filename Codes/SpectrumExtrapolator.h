@@ -17,17 +17,22 @@
 #include <string>
 #include <vector>
 
-// Replaces the legacy YieldMean path, and until it is shown to reproduce it, that
-// is the specification: whatever YieldMean takes as a parameter is settable here
-// with the legacy value as default, and whatever is hardcoded there is hardcoded
-// here to the same number. Any difference is a bug until it is a documented
-// decision - see DESIGN_NOTES.md.
+// Replaces the ALICE-standard YieldMean, kept as OldCodes/YieldMean.h. The two were
+// run side by side until they agreed on yield, mean pT and chi2 to every printed
+// digit; DESIGN_NOTES.md records the numbers and the seven differences that had to
+// be closed to get there.
+//
+// That history is what the comments below marked "as YieldMean" are for: each one
+// is a value that looks arbitrary and is not, because it was matched to the
+// reference. Changing one changes published-style numbers, so it wants a measured
+// reason rather than a tidier-looking one. The reference is still in the repository
+// if a claim here ever needs checking.
 class SpectrumExtrapolator
 {
  public:
   // Takes the measured spectrum and the initialised fit function (e.g. Levy-Tsallis).
   //
-  // NOTE: 'fitModel' IS FITTED IN PLACE, as YieldMean does. It used to be cloned,
+  // NOTE: 'fitModel' IS FITTED IN PLACE, as YieldMean did. It used to be cloned,
   // to protect the caller's object, but the caller creates it fresh for each
   // spectrum and wants the fitted parameters back - it prints them and writes the
   // curve alongside the spectrum. With a clone it silently got the initial guess
@@ -45,8 +50,7 @@ class SpectrumExtrapolator
     // Was SetSeed(0), which in ROOT does not mean "seed zero": it draws one from
     // TUUID. The toy MC - and with it the quoted statistical error - therefore
     // changed on every run of the same analysis over the same files. A published
-    // number that moves when you re-run it is a problem on its own, before any
-    // comparison with the legacy path.
+    // number that moves when you re-run it is a problem on its own.
     fRandomGen.SetSeed(kDefaultSeed);
   }
 
@@ -61,9 +65,9 @@ class SpectrumExtrapolator
     fMaxPt = maxPt;
   }
 
-  // The ROOT fit option, exposed because YieldMean took it as a parameter. The
-  // default is the value the legacy path is called with, so a run that does not
-  // set it reproduces the reference; diverging takes a deliberate call.
+  // Settable because it was a parameter of YieldMean rather than a constant in it,
+  // and the default is the value it was called with - so a caller that says nothing
+  // reproduces the reference, and diverging takes a deliberate call.
   //
   // "0QI": 0 do not draw, Q quiet, and I compare the INTEGRAL of the function over
   // each bin with the bin content rather than its value at the centre. On a
@@ -163,8 +167,8 @@ class SpectrumExtrapolator
     // 3a. Coarse phase (to find the bounds for the histograms)
     // 0.75 to 1.25, as YieldMean: with 1000 bins either way, a wider window means
     // wider bins and a coarser sampled distribution, which moves the uncertainty
-    // read off it. Hardcoded in the legacy too, so it is matched rather than
-    // exposed.
+    // read off it. A constant in the reference too, so it is matched here rather
+    // than exposed.
     std::unique_ptr<TH1F> hIntegral_tmp = std::make_unique<TH1F>("hInt_tmp", "", 1000, 0.75 * integral, 1.25 * integral);
     std::unique_ptr<TH1F> hMean_tmp = std::make_unique<TH1F>("hMean_tmp", "", 1000, 0.75 * mean, 1.25 * mean);
     hIntegral_tmp->SetDirectory(nullptr);
@@ -185,7 +189,8 @@ class SpectrumExtrapolator
     // 3b. Fine phase (actual evaluation)
     // 10 RMS, as YieldMean. This window is not cosmetic: the RMS of these
     // histograms IS the quoted statistical uncertainty, so a window that clips the
-    // tails returns a smaller error. At 5 it was clipping them.
+    // tails returns a smaller error. At 5, which is what this class used to have,
+    // it was clipping them.
     std::unique_ptr<TH1F> hIntegral = std::make_unique<TH1F>("hInt", "", 100,
                                                              hIntegral_tmp->GetMean() - 10. * hIntegral_tmp->GetRMS(),
                                                              hIntegral_tmp->GetMean() + 10. * hIntegral_tmp->GetRMS());
@@ -261,11 +266,12 @@ class SpectrumExtrapolator
   TH1* fMeasuredSpectrum{nullptr};
   TF1* fFitModel{nullptr}; // Owned by the caller, and fitted in place - see the constructor
 
-  // TRandom3's own default, which is also where gRandom starts, so the first
-  // spectrum of a job draws the stream the legacy path draws. Later ones do not:
-  // gRandom is shared and keeps advancing from one multiplicity bin to the next,
-  // while this generator is re-seeded per instance. Reproducing that exactly is
-  // not the goal; not moving between runs is.
+  // TRandom3's own default, and also where gRandom - which YieldMean used - starts.
+  // Matching that stream exactly was never the goal and is not possible anyway:
+  // gRandom is shared and keeps advancing from one spectrum to the next, while this
+  // generator is re-seeded per instance. What matters is that the quoted statistical
+  // error does not move between two runs over the same files, which it did while
+  // this was SetSeed(0).
   static constexpr unsigned int kDefaultSeed = 4357;
 
   bool fFitConverged{true};

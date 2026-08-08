@@ -220,8 +220,8 @@ struct ExtrapolationResult {
   // Fit quality. Here because a converged fit is not a good fit, and roughly a
   // third of the yield is an integral of this function outside the measured range:
   // the yield alone gives no way to tell a description from an extrapolation of
-  // nonsense. YieldMean printed it and SpectrumExtrapolator did not, so dropping
-  // the legacy branch would have quietly removed the only warning there was.
+  // nonsense. YieldMean printed it and SpectrumExtrapolator did not, so retiring
+  // that path would have quietly removed the only warning there was.
   double chi2{0.0};
   int ndf{0};
 

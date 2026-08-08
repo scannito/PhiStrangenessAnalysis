@@ -12,7 +12,6 @@
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 #include "SpectrumExtrapolator.h"
-#include "YieldMean.h"
 
 #include "TCanvas.h"
 #include "TDirectory.h"
@@ -22,6 +21,7 @@
 #include "TH1D.h"
 #include "TH1F.h"
 #include "TH2D.h"
+#include "TH3F.h"
 #include "THnSparse.h"
 #include "TLegend.h"
 #include "TString.h"
@@ -269,7 +269,6 @@ class CorrelationTaskBase : public IAnalysisTask
 
   bool applyME{false}, applyEfficiency{false}, applyExtrapolation{false};
   bool useIntegratedEfficiency{false}, useProjectionCache{false}, use2DMENormalization{false};
-  bool useLegacyExtrapolation{false};
 
   std::unique_ptr<TH1> hEventLoss;
 
@@ -350,8 +349,6 @@ class CorrelationTaskBase : public IAnalysisTask
 
     useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
     use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());
-
-    useLegacyExtrapolation = JsonConfig::OptionalBool(taskConfig, "use_legacy_extrapolation", useLegacyExtrapolation, GetName());
 
     // Both spellings of each axis are entries in the same table, so the accepted
     // values and the error message can never drift apart.
@@ -858,11 +855,15 @@ class CorrelationTaskBase : public IAnalysisTask
       cDebug->Write(nullptr, TObject::kOverwrite);
     }*/
 
-    // 3. Perform the extrapolation using either legacy or new method
-    // The two branches must compute the same number, so what they are given is
-    // written once. As literals in one branch and member defaults in the other,
-    // the fit option and the precisions had already drifted apart without either
-    // side looking wrong on its own.
+    // 3. Extrapolate.
+    //
+    // These three are the values the reference implementation was called with -
+    // OldCodes/YieldMean.h, which this replaced after being shown to reproduce it
+    // number for number (DESIGN_NOTES.md has the comparison). They are spelled out
+    // here rather than left to the defaults of SpectrumExtrapolator so that the
+    // agreement rests on something visible at the call site: the same three values
+    // once lived as literals here and as member defaults there, and drifted apart
+    // without either side looking wrong on its own.
     //
     // "I" integrates the function over each bin instead of taking its value at the
     // centre: on a steeply falling spectrum with wide bins the two differ, and the
@@ -873,30 +874,21 @@ class CorrelationTaskBase : public IAnalysisTask
 
     const double firstMeasuredPt = config.binning[0];
 
-    ExtrapolationResult res;
-    if (useLegacyExtrapolation) {
-      res = CalculateYieldAndMeanLegacy(hSpec, extrapModel.get(),
-                                        eCfg.domainRange.first, eCfg.domainRange.second,
-                                        kLoPrecision, kHiPrecision, kFitOption,
-                                        eCfg.fitRange.first, eCfg.fitRange.second, config.name);
-    } else {
-      SpectrumExtrapolator extrapolator(hSpec, extrapModel.get());
-      extrapolator.SetFitRange(eCfg.fitRange.first, eCfg.fitRange.second);
-      // YieldMean takes these as arguments, so they are set rather than left to the
-      // defaults. Without the limits in particular the class kept its own 0..10 and
-      // 'domain_range' looked like it controlled the integration while controlling
-      // only the range of the TF1.
-      extrapolator.SetExtrapolationLimits(eCfg.domainRange.first, eCfg.domainRange.second);
-      extrapolator.SetFitOption(kFitOption);
-      extrapolator.SetIntegrationPrecisions(kLoPrecision, kHiPrecision);
+    SpectrumExtrapolator extrapolator(hSpec, extrapModel.get());
+    extrapolator.SetFitRange(eCfg.fitRange.first, eCfg.fitRange.second);
+    // The limits especially: without this call the class kept its own 0..10 and
+    // 'domain_range' looked like it controlled the integration while controlling
+    // only the range of the TF1.
+    extrapolator.SetExtrapolationLimits(eCfg.domainRange.first, eCfg.domainRange.second);
+    extrapolator.SetFitOption(kFitOption);
+    extrapolator.SetIntegrationPrecisions(kLoPrecision, kHiPrecision);
 
-      res = extrapolator.CalculateYieldAndMean();
-    }
+    ExtrapolationResult res = extrapolator.CalculateYieldAndMean();
 
-    // Both branches fit 'extrapModel' in place, so from here on it carries the
-    // fitted parameters whichever one ran. That is what makes this line - and the
-    // curve attached to the extended spectrum further down - mean the same thing in
-    // both, which they did not while SpectrumExtrapolator fitted a clone.
+    // 'extrapModel' is fitted in place, so from here on it carries the fitted
+    // parameters. That is what makes this line - and the curve attached to the
+    // extended spectrum further down - show the fit rather than the initial guess,
+    // which is what they showed while SpectrumExtrapolator worked on a clone.
     double fitLowPtIntegral = 0.0;
     if (firstMeasuredPt > 0.0)
       fitLowPtIntegral = extrapModel->Integral(0.0, firstMeasuredPt);
@@ -911,15 +903,19 @@ class CorrelationTaskBase : public IAnalysisTask
                 << " (" << 100. * res.ExtrapolatedFraction() << "% of the yield)" << std::endl;
       std::cout << "  -> Fitted function [0, " << firstMeasuredPt << "]: " << fitLowPtIntegral << std::endl;
 
-      // The four numbers the two extrapolation branches must be compared on. Yield
-      // and mean involve no random numbers and have to agree exactly; the two
-      // errors are the RMS of 1000 toys and agree only to within a few percent.
+      // The four numbers to check against the reference if this ever has to be
+      // verified again. Yield and mean are deterministic and must agree exactly;
+      // the two errors are the RMS of 1000 toys and agree only to a few percent,
+      // so comparing them for equality is chasing noise.
       std::cout << "  -> Yield:  " << res.yield << " +- " << res.yieldStatErr
                 << "   <pT>: " << res.meanPt << " +- " << res.meanPtStatErr << std::endl;
 
       // A converged fit is not a good fit, and roughly a third of the yield above is
-      // an integral of this function outside the measured range. Only YieldMean used
-      // to print this, so it came from the result now and both branches report it.
+      // an integral of this function outside the measured range - so this line is
+      // not decoration. It used to be printed only by YieldMean, which meant
+      // retiring that path would have silently removed the only sign that the fit
+      // does not describe the data. See DESIGN_NOTES.md, which still lists that as
+      // open.
       std::cout << "  -> Fit " << eCfg.model << " over [" << eCfg.fitRange.first << ", "
                 << eCfg.fitRange.second << "]: chi2/ndf = " << res.chi2 << "/" << res.ndf
                 << " = " << res.ReducedChi2() << std::endl;
