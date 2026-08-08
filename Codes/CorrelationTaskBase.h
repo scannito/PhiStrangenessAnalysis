@@ -883,6 +883,11 @@ class CorrelationTaskBase : public IAnalysisTask
     extrapolator.SetFitOption(kFitOption);
     extrapolator.SetIntegrationPrecisions(kLoPrecision, kHiPrecision);
 
+    // No SetSystematicSpectrum: nothing in this chain produces per-bin systematic
+    // uncertainties yet, so the four variations stay switched off and the result
+    // reports hasSystematics == false. This is the one line to change once a
+    // systematics driver exists - see DESIGN_NOTES.md.
+
     ExtrapolationResult res = extrapolator.CalculateYieldAndMean();
 
     // 'extrapModel' is fitted in place, so from here on it carries the fitted
@@ -919,6 +924,10 @@ class CorrelationTaskBase : public IAnalysisTask
       std::cout << "  -> Fit " << eCfg.model << " over [" << eCfg.fitRange.first << ", "
                 << eCfg.fitRange.second << "]: chi2/ndf = " << res.chi2 << "/" << res.ndf
                 << " = " << res.ReducedChi2() << std::endl;
+
+      if (res.hasSystematics)
+        std::cout << "  -> Systematics: yield +" << res.yieldSysHi << " -" << res.yieldSysLo
+                  << "   <pT> +" << res.meanPtSysHi << " -" << res.meanPtSysLo << std::endl;
 
       // The two being equal is not a coincidence worth leaving to the eye: it means
       // nothing was added, i.e. the extrapolation silently dropped out.

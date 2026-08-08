@@ -80,6 +80,29 @@ class SpectrumExtrapolator
   // has to be asked for.
   void SetRandomSeed(unsigned int seed) { fRandomGen.SetSeed(seed); }
 
+  // The systematic band of the spectrum.
+  //
+  // CONTRACT: this is the SPECTRUM, not the errors. Bin contents are the measured
+  // values, the same ones as the spectrum passed to the constructor; bin ERRORS are
+  // the systematic uncertainty. Handing over a histogram whose contents are the
+  // systematic errors compiles, runs, and produces wrong numbers in silence -
+  // MakeTotalErrorSpectrum only reads the errors, but the four variations read the
+  // contents too, and would end up computing "systematic plus systematic".
+  //
+  // Not checked, deliberately. Comparing the contents against the measured spectrum
+  // needs a tolerance, and the right tolerance depends on how the systematic band is
+  // produced - by a driver that does not exist yet. A check written now would be a
+  // guess, and the first false alarm would widen it into uselessness. It belongs
+  // with the producer. The bin count IS checked, in ComputeSystematics, because that
+  // is structural and holds whoever produces it.
+  //
+  // Optional, and nullptr is the normal state today: nothing in this chain produces
+  // systematic uncertainties (DESIGN_NOTES.md). Without it the four variations are
+  // skipped, the central value is fitted with statistical errors only, and the
+  // result reports hasSystematics == false - rather than four zeros that would read
+  // as "measured and found to be negligible".
+  void SetSystematicSpectrum(TH1* sysSpectrum) { fSysSpectrum = sysSpectrum; }
+
   void SetFitRange(double minFit, double maxFit)
   {
     fMinFit = minFit;
@@ -111,40 +134,31 @@ class SpectrumExtrapolator
     const double minPt = std::min(fMinPt, fMinFit);
     const double maxPt = std::max(fMaxPt, fMaxFit);
 
-    // 1. Fit the measured data
-    // Enough iterations that minimisation is not stopped by MAX_CALLS.
-    TVirtualFitter::SetMaxIterations(1000000);
-    int fitres;
-    int trials = 0;
-    do {
-      fitres = fMeasuredSpectrum->Fit(fFitModel, fFitOption.c_str(), "", fMinFit, fMaxFit);
-      trials++;
-      if (trials > 10) {
-        // Not just "the fit is bad": a failed fit leaves no usable covariance
-        // matrix, so TF1::IntegralError returns 0 for every bin of hlo/hhi, and
-        // the 'error <= 0' guard in Integrate - which exists to skip empty bins -
-        // then drops the whole extrapolation. The yield that comes out is the raw
-        // data integral, looks perfectly plausible, and is not extrapolated.
-        std::cerr << "[WARNING] SpectrumExtrapolator: the fit of '" << fMeasuredSpectrum->GetName()
-                  << "' with '" << fFitModel->GetName() << "' did not converge in 10 trials over ["
-                  << fMinFit << ", " << fMaxFit << "]. The covariance matrix is unusable, so the "
-                     "extrapolation will contribute nothing and the yield below is the raw integral, "
-                     "NOT an extrapolated one. Do not use it."
-                  << std::endl;
-        fFitConverged = false;
-        break;
-      }
-    } while (fitres != 0);
+    // 1. The central value, from a fit weighted with the TOTAL error.
+    //
+    // This is why YieldMean fits twice. The measurement is the fit that accounts
+    // for everything known about the uncertainty of each point, so the central
+    // value comes from stat (+) sys in quadrature. The toy MC below must instead
+    // start from a fit weighted with the statistical error ALONE, or the
+    // "statistical" uncertainty it returns would carry the systematic inside it.
+    //
+    // Without a systematic spectrum the two are the same histogram and the second
+    // fit is the first repeated - which is the state this class was written in, and
+    // the reason a single fit was correct until now.
+    std::unique_ptr<TH1> hTotal = MakeTotalErrorSpectrum();
+    TH1* hCentral = hTotal ? hTotal.get() : fMeasuredSpectrum;
+
+    fFitConverged = FitOrWarn(hCentral);
 
     res.chi2 = fFitModel->GetChisquare();
     res.ndf = fFitModel->GetNDF();
 
     // 2. Extrapolate standard values
-    auto hlo = CreateLowExtrapolationHisto(fMeasuredSpectrum, fFitModel, minPt);
-    auto hhi = CreateHighExtrapolationHisto(fMeasuredSpectrum, fFitModel, maxPt);
+    auto hlo = CreateLowExtrapolationHisto(hCentral, fFitModel, minPt);
+    auto hhi = CreateHighExtrapolationHisto(hCentral, fFitModel, maxPt);
 
     double integral = 0.0, mean = 0.0, extra = 0.0;
-    Integrate(fMeasuredSpectrum, hlo.get(), hhi.get(), integral, mean, extra);
+    Integrate(hCentral, hlo.get(), hhi.get(), integral, mean, extra);
 
     res.yield = integral;
     res.meanPt = mean;
@@ -164,6 +178,19 @@ class SpectrumExtrapolator
     }
 
     // 3. Statistical Error Evaluation via Toy MC
+    //
+    // Refit on the statistical spectrum, and rebuild the extrapolation histograms
+    // from it: the toys sample these, so their errors have to be the statistical
+    // ones. Skipped when there is no systematic spectrum, because hCentral is then
+    // fMeasuredSpectrum and this would refit the same data a second time - which is
+    // what the reference does, harmlessly, and what produced its duplicated 'hlo'
+    // and 'hhi' warnings.
+    if (hTotal) {
+      FitOrWarn(fMeasuredSpectrum);
+      hlo = CreateLowExtrapolationHisto(fMeasuredSpectrum, fFitModel, minPt);
+      hhi = CreateHighExtrapolationHisto(fMeasuredSpectrum, fFitModel, maxPt);
+    }
+
     // 3a. Coarse phase (to find the bounds for the histograms)
     // 0.75 to 1.25, as YieldMean: with 1000 bins either way, a wider window means
     // wider bins and a coarser sampled distribution, which moves the uncertainty
@@ -226,45 +253,16 @@ class SpectrumExtrapolator
       res.meanPtStatErr = res.meanPt * gaus->GetParameter(2) / gaus->GetParameter(1);
     }
 
+    // 5. Systematic uncertainty, only if a systematic spectrum was supplied
+    ComputeSystematics(res, minPt, maxPt);
+
     return res;
-  }
-
-  // Systematic variations (Caller takes ownership of the returned pointers)
-  TH1* GetExtremeHighHisto() const
-  {
-    TH1* hout = static_cast<TH1*>(fMeasuredSpectrum->Clone(Form("%s_extremehigh", fMeasuredSpectrum->GetName())));
-    for (int ibin = 0; ibin < fMeasuredSpectrum->GetNbinsX(); ibin++) {
-      if (fMeasuredSpectrum->GetBinError(ibin + 1) <= 0.)
-        continue;
-      hout->SetBinContent(ibin + 1, fMeasuredSpectrum->GetBinContent(ibin + 1) + fMeasuredSpectrum->GetBinError(ibin + 1));
-    }
-    return hout;
-  }
-
-  TH1* GetExtremeLowHisto() const
-  {
-    TH1* hout = static_cast<TH1*>(fMeasuredSpectrum->Clone(Form("%s_extremelow", fMeasuredSpectrum->GetName())));
-    for (int ibin = 0; ibin < fMeasuredSpectrum->GetNbinsX(); ibin++) {
-      if (fMeasuredSpectrum->GetBinError(ibin + 1) <= 0.)
-        continue;
-      hout->SetBinContent(ibin + 1, fMeasuredSpectrum->GetBinContent(ibin + 1) - fMeasuredSpectrum->GetBinError(ibin + 1));
-    }
-    return hout;
-  }
-
-  TH1* GetExtremeSoftHisto() const
-  {
-    return ReturnExtremeHisto(fMeasuredSpectrum, -1.0);
-  }
-
-  TH1* GetExtremeHardHisto() const
-  {
-    return ReturnExtremeHisto(fMeasuredSpectrum, 1.0);
   }
 
  private:
   TH1* fMeasuredSpectrum{nullptr};
-  TF1* fFitModel{nullptr}; // Owned by the caller, and fitted in place - see the constructor
+  TF1* fFitModel{nullptr};      // Owned by the caller, and fitted in place - see the constructor
+  TH1* fSysSpectrum{nullptr};   // Owned by the caller, optional - see SetSystematicSpectrum
 
   // TRandom3's own default, and also where gRandom - which YieldMean used - starts.
   // Matching that stream exactly was never the goal and is not possible anyway:
@@ -293,6 +291,149 @@ class SpectrumExtrapolator
   // Toy MC parameters
   int fTrialsCoarse{100};
   int fTrialsFine{1000};
+
+  // The four systematic variations of YieldMean, all built from the SYSTEMATIC
+  // spectrum and never from the measured one. They used to read fMeasuredSpectrum,
+  // whose errors are statistical: wired up that way they would have returned the
+  // statistical error propagated coherently, under the name of a systematic.
+  //
+  // Shifted: every bin moved by +-sigma together. A coherent normalisation-like
+  // move, which changes the yield and leaves the shape - hence the mean - almost
+  // untouched.
+  std::unique_ptr<TH1> ShiftedHisto(const TH1* src, double sign, const char* suffix) const
+  {
+    std::unique_ptr<TH1> hout(static_cast<TH1*>(src->Clone(Form("%s_%s", src->GetName(), suffix))));
+    hout->SetDirectory(nullptr);
+    for (int ibin = 0; ibin < src->GetNbinsX(); ibin++) {
+      if (src->GetBinError(ibin + 1) <= 0.)
+        continue;
+      hout->SetBinContent(ibin + 1, src->GetBinContent(ibin + 1) + sign * src->GetBinError(ibin + 1));
+    }
+    return hout;
+  }
+
+  // stat (+) sys in quadrature, as YieldMean builds htot. Null when no systematic
+  // spectrum was supplied, which is how the caller tells the two regimes apart
+  // without asking twice.
+  std::unique_ptr<TH1> MakeTotalErrorSpectrum() const
+  {
+    if (!fSysSpectrum)
+      return nullptr;
+
+    std::unique_ptr<TH1> hTotal(static_cast<TH1*>(fMeasuredSpectrum->Clone(
+      Form("%s_statplussys", fMeasuredSpectrum->GetName()))));
+    hTotal->SetDirectory(nullptr);
+
+    for (int ibin = 1; ibin <= fMeasuredSpectrum->GetNbinsX(); ibin++) {
+      const double stat = fMeasuredSpectrum->GetBinError(ibin);
+      const double sys = fSysSpectrum->GetBinError(ibin);
+      hTotal->SetBinError(ibin, TMath::Sqrt(stat * stat + sys * sys));
+    }
+
+    return hTotal;
+  }
+
+  // Propagates the systematic band of the spectrum through the extrapolation, as
+  // YieldMean does: refit each extreme, rebuild its extrapolation histograms,
+  // re-integrate, and take the absolute shift of the central value.
+  //
+  // The pairing is the reference's and it is deliberate: the yield uncertainty
+  // comes from the SHIFTED pair and the mean from the TILTED one. A coherent
+  // +-sigma shift moves the integral while barely touching the shape, and a tilt
+  // does the opposite, so each pair is read where it is sensitive. Taking all four
+  // numbers from all four variations would not be more conservative, only noisier.
+  void ComputeSystematics(ExtrapolationResult& res, double minPt, double maxPt)
+  {
+    if (!fSysSpectrum)
+      return;
+
+    if (fSysSpectrum->GetNbinsX() != fMeasuredSpectrum->GetNbinsX())
+      throw std::runtime_error(
+        "[FATAL] SpectrumExtrapolator: the systematic spectrum has a different number of bins "
+        "than the measured one, so bin i does not mean the same interval in the two.");
+
+    // The model is fitted in place and the caller keeps using it afterwards - it
+    // integrates it and writes the curve next to the spectrum. Four more fits are
+    // about to run, so the central parameters are saved and restored below;
+    // otherwise what the caller draws would be the last systematic variation.
+    std::vector<double> centralPars(fFitModel->GetNpar());
+    fFitModel->GetParameters(centralPars.data());
+
+    // Yield and mean of one variation, refitted exactly as the central value was.
+    // Falls back to the central numbers when the variation could not be built, so
+    // that the resulting shift is zero rather than the distance from nothing.
+    auto integrateVariation = [&](const std::unique_ptr<TH1>& hvar, double& yield, double& meanPt) {
+      yield = res.yield;
+      meanPt = res.meanPt;
+      if (!hvar)
+        return;
+
+      FitOrWarn(hvar.get());
+      auto hlo = CreateLowExtrapolationHisto(hvar.get(), fFitModel, minPt);
+      auto hhi = CreateHighExtrapolationHisto(hvar.get(), fFitModel, maxPt);
+
+      double extra = 0.0;
+      Integrate(hvar.get(), hlo.get(), hhi.get(), yield, meanPt, extra);
+    };
+
+    double varYield = 0.0, varMean = 0.0;
+
+    // high, hard, low, soft - the order of the reference, not grouped by type. It
+    // matters because all four refit the same TF1, so each starts from the previous
+    // one's converged parameters: reordering them changes the starting points, and
+    // with them the results, for no stated reason.
+    integrateVariation(ShiftedHisto(fSysSpectrum, +1.0, "extremehigh"), varYield, varMean);
+    res.yieldSysHi = TMath::Abs(varYield - res.yield);
+
+    integrateVariation(TiltedHisto(fSysSpectrum, +1.0), varYield, varMean);
+    res.meanPtSysHi = TMath::Abs(varMean - res.meanPt);
+
+    integrateVariation(ShiftedHisto(fSysSpectrum, -1.0, "extremelow"), varYield, varMean);
+    res.yieldSysLo = TMath::Abs(varYield - res.yield);
+
+    integrateVariation(TiltedHisto(fSysSpectrum, -1.0), varYield, varMean);
+    res.meanPtSysLo = TMath::Abs(varMean - res.meanPt);
+
+    res.hasSystematics = true;
+
+    // Parameters only: the covariance matrix left in the global fitter belongs to
+    // the last variation. Nothing reads it after this point, and res.chi2 was taken
+    // from the central fit long before, but anything added here that calls
+    // TF1::IntegralError would silently use the wrong one.
+    fFitModel->SetParameters(centralPars.data());
+  }
+
+  // The fit procedure, in one place: the systematic variations have to be fitted
+  // exactly as the central value is, and duplicating the loop is how the two would
+  // come to differ. Returns whether it converged.
+  bool FitOrWarn(TH1* h)
+  {
+    // Enough iterations that minimisation is not stopped by MAX_CALLS.
+    TVirtualFitter::SetMaxIterations(1000000);
+
+    int fitres = 0;
+    int trials = 0;
+    do {
+      fitres = h->Fit(fFitModel, fFitOption.c_str(), "", fMinFit, fMaxFit);
+      trials++;
+      if (trials > 10) {
+        // Not just "the fit is bad": a failed fit leaves no usable covariance
+        // matrix, so TF1::IntegralError returns 0 for every bin of hlo/hhi, and
+        // the 'error <= 0' guard in Integrate - which exists to skip empty bins -
+        // then drops the whole extrapolation. The yield that comes out is the raw
+        // data integral, looks perfectly plausible, and is not extrapolated.
+        std::cerr << "[WARNING] SpectrumExtrapolator: the fit of '" << h->GetName()
+                  << "' with '" << fFitModel->GetName() << "' did not converge in 10 trials over ["
+                  << fMinFit << ", " << fMaxFit << "]. The covariance matrix is unusable, so the "
+                     "extrapolation will contribute nothing and the yield below is the raw integral, "
+                     "NOT an extrapolated one. Do not use it."
+                  << std::endl;
+        return false;
+      }
+    } while (fitres != 0);
+
+    return true;
+  }
 
   // Internal Utility Methods
   void Integrate(TH1* hdata, TH1* hlo, TH1* hhi, double& integral, double& mean, double& extra) const
@@ -457,7 +598,11 @@ class SpectrumExtrapolator
     return hout;
   }
 
-  TH1* ReturnExtremeHisto(TH1* hin, float sign) const
+  // Tilted: the error is applied with a pT-dependent sign that pivots around a
+  // node, and the node scanned for is the one that moves the mean the most. A
+  // shape-like move, which is why YieldMean takes the mean from this pair and the
+  // yield from the shifted one.
+  std::unique_ptr<TH1> TiltedHisto(const TH1* hin, double sign) const
   {
     double ptlow = 0.0, pthigh = 0.0;
     for (int ibin = 0; ibin < hin->GetNbinsX(); ibin++) {
@@ -473,13 +618,14 @@ class SpectrumExtrapolator
       }
     }
 
-    double mean = hin->GetMean();
+    const double mean = hin->GetMean();
     double maxdiff = 0.;
-    TH1* hmax = nullptr;
+    std::unique_ptr<TH1> hmax;
 
     for (int inode = 0; inode < hin->GetNbinsX(); inode++) {
-      double ptnode = hin->GetBinCenter(inode + 1);
+      const double ptnode = hin->GetBinCenter(inode + 1);
       std::unique_ptr<TH1> hout(static_cast<TH1*>(hin->Clone("tmp_extreme")));
+      hout->SetDirectory(nullptr);
 
       for (int ibin = 0; ibin < hin->GetNbinsX(); ibin++) {
         if (hin->GetBinError(ibin + 1) <= 0.)
@@ -496,14 +642,15 @@ class SpectrumExtrapolator
         hout->SetBinContent(ibin + 1, val + sign * err);
       }
 
-      double diff = TMath::Abs(mean - hout->GetMean());
+      const double diff = TMath::Abs(mean - hout->GetMean());
       if (diff > maxdiff) {
-        if (hmax)
-          delete hmax;
-        hmax = static_cast<TH1*>(hout->Clone(Form("%s_extreme_sys", hin->GetName())));
+        hmax.reset(static_cast<TH1*>(hout->Clone(Form("%s_tilted", hin->GetName()))));
+        hmax->SetDirectory(nullptr);
         maxdiff = diff;
       }
     }
-    return hmax; // The caller must take ownership of this pointer!
+
+    // Null when no node moves the mean at all, e.g. a spectrum with no errors set.
+    return hmax;
   }
 };

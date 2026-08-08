@@ -229,6 +229,21 @@ struct ExtrapolationResult {
   // physics judgement, and inventing a cut here would only hide it. It is printed
   // on every extrapolation instead.
   double ReducedChi2() const { return ndf > 0 ? chi2 / ndf : 0.0; }
+
+  // Systematic uncertainty from propagating the spectrum's own systematic band
+  // through the extrapolation - NOT a systematic on the choice of extrapolation
+  // model, which is a separate contribution and is not computed anywhere yet.
+  //
+  // Asymmetric because the two sides come from different variations and there is
+  // no reason for them to be equal. Zero unless 'hasSystematics' is set: the
+  // extrapolator only computes them when it is given a systematic spectrum, and a
+  // systematic of exactly zero would otherwise be indistinguishable from one that
+  // was never computed.
+  double yieldSysHi{0.0};
+  double yieldSysLo{0.0};
+  double meanPtSysHi{0.0};
+  double meanPtSysLo{0.0};
+  bool hasSystematics{false};
 };
 
 struct YieldRatioConfig {

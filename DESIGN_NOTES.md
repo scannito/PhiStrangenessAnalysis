@@ -25,6 +25,14 @@ multiplicity trends, extrap/measured ratios, cross-species ratios.
 
 ### Why it is worth doing
 
+- **Systematics force the split anyway.** A systematic uncertainty on a spectrum
+  is the spread over N varied runs of Task A, so it does not exist until all of
+  them have finished. Extrapolation consumes that spread - `SpectrumExtrapolator`
+  now takes it through `SetSystematicSpectrum` - which makes extrapolation a step
+  that runs *after* the whole set, not inside the task that produces one member of
+  it. As long as the two live in one task, the extrapolation can only ever see
+  statistical errors, whatever machinery is bolted onto it.
+
 - **Mixed provenance.** Task B can take `K0S` from a correlation task run without
   PDG matching and `Xi` from one run with it. Today a ratio between two species
   is only computable if both were produced by the same task, hence by the same
@@ -212,36 +220,78 @@ implementations line by line, but by asking what each `extra` *meant*. The five
 above are parameters, and a parameter that differs shows up in a diff. A field
 that means two things does not.
 
-**Why there is only one fit, and when that stops being true.** The upstream
-`YieldMean.C` takes two histograms, `hstat` and `hsys`, and builds
-`htot = sqrt(stat^2 + sys^2)`. It then fits twice on purpose: the central value
-comes from the fit weighted with the *total* error, while the toy MC must start
-from a fit weighted with the *statistical* error only, or the statistical
-uncertainty it returns would contain the systematic.
+**Why there are two fits again.** The upstream `YieldMean.C` takes `hstat` and
+`hsys` and builds `htot = sqrt(stat^2 + sys^2)`. It then fits twice on purpose: the
+central value comes from the fit weighted with the *total* error, because that is
+the measurement, while the toy MC must start from a fit weighted with the
+*statistical* error alone - otherwise the statistical uncertainty it returns
+carries the systematic inside it.
 
-`hsys` was deliberately removed from our copy - `hout` went from 9 bins to 5, the
-`kYieldSysHi/Lo` and `kMeanSysHi/Lo` entries went with it, and so did the whole
-SYSTEMATICS section (four more fits: high, low, hard, soft). What is left of the
-first fit is a bare `Clone` of `hstat`, so the two fits run on identical data and
-the second is the first repeated. Only the comments ("create histo with stat+sys
-errors", "Fit sys+stat") survive from the two-histogram version.
+`hsys` had been removed from our copy, so `htot` was a bare clone of `hstat`, the
+two fits ran on identical data, and a single fit was correct. That is what
+`SpectrumExtrapolator` was written with, and the condition was recorded here as
+"the day systematics come back, the two-fit structure is the thing to restore".
 
-That is what makes `SpectrumExtrapolator`'s single fit correct - not a shortcut,
-but not unconditional either. **The condition is that the central value and the
-statistical error are measured on the same histogram.** The day systematics come
-back, the two-fit structure is the thing to restore.
+It has now been restored, conditionally: `MakeTotalErrorSpectrum()` returns null
+when no systematic spectrum was supplied, `hCentral` falls back to the measured
+spectrum, and the second fit is skipped. So with no `hsys` - today's state - the
+behaviour is exactly the single-fit one that was verified number for number against
+the reference. With `hsys` the two fits separate again, as upstream.
 
 Upstream: https://github.com/alisw/AliPhysics/blob/master/PWGLF/SPECTRA/UTILS/YieldMean.C
 
-**The systematic machinery is half ported, and the half that exists is wired to
-the wrong errors.** `SpectrumExtrapolator::GetExtremeHighHisto`, `GetExtremeLow`,
-`GetExtremeSoft`, `GetExtremeHard` and `ReturnExtremeHisto` are all there and
-nobody calls them. Missing is the driver: fit each variation, integrate, take the
-absolute difference from the central value. Missing more quietly is the input -
-upstream builds these from `hsys`, while ours build them from
-`fMeasuredSpectrum`, whose errors are statistical. Wired up as they stand they
-would return the statistical error propagated coherently, wearing the name of a
-systematic. Change the input before the driver.
+**The systematic machinery is back, and waiting for its input.** It was half
+ported and wired to the wrong errors: the four builders existed, nobody called
+them, and they read `fMeasuredSpectrum`, whose errors are statistical - so
+switching them on would have returned the statistical error propagated
+coherently, wearing the name of a systematic.
+
+Now `SetSystematicSpectrum(TH1*)` supplies the systematic band explicitly,
+`ComputeSystematics` refits each of the four extremes exactly as the central value
+was fitted (same `FitOrWarn`, extracted so the two cannot drift), re-integrates,
+and takes the absolute shift. `nullptr` is the normal state today and the
+variations are simply skipped.
+
+Three things worth keeping in mind about it:
+
+- `hasSystematics` exists so that "not computed" and "computed and found to be
+  zero" are different states. Four zeros in a result that carries no such flag is
+  exactly the ambiguity that `extrapolatedFraction` cost us.
+- The pairing is the reference's: the **yield** uncertainty comes from the shifted
+  pair (every bin moved coherently by +-sigma, which moves the integral and barely
+  the shape) and the **mean** from the tilted pair (a pT-dependent pivot, chosen by
+  scanning for the node that moves the mean most, which does the opposite). Reading
+  all four numbers from all four variations would not be more conservative, only
+  noisier.
+- The model is fitted in place, so the four extra fits would leave it on the last
+  variation's parameters - and the caller integrates it and writes the curve next
+  to the spectrum. `ComputeSystematics` saves the central parameters and restores
+  them. The covariance matrix in the global fitter is *not* restored; nothing reads
+  it afterwards today, but anything added there that calls `TF1::IntegralError`
+  would silently use the wrong one.
+
+What is still missing is the input. Nothing in this chain produces per-bin
+systematic uncertainties (see "Systematics" below), so this is machinery ready for
+a driver that does not exist yet. `CorrelationTaskBase` carries the one line to
+change when it does.
+
+When that driver is written, two things belong with it. First, the systematic
+spectrum is the SPECTRUM - measured contents, systematic errors - not a histogram
+of the errors; `SetSystematicSpectrum` documents the contract because getting it
+backwards runs silently and produces "systematic plus systematic" in the
+variations. Second, that contract is the place for a content-versus-measured
+check, which is deliberately absent today: it needs a tolerance, and the tolerance
+depends on how the band is built. Written now it would be a guess, and the first
+false alarm would widen it into nothing. The bin count is checked already, being
+structural.
+
+Note also that this is only *one* of the two things called a systematic on the
+extrapolation. It propagates the spectrum's own band. The systematic on the
+**choice of extrapolation** - refitting with the other four models the factory
+already builds, and with alternative fit ranges, then taking the spread - is a
+separate contribution, needs no `hsys`, and is not computed anywhere. Given a
+chi2/ndf of 52 and an extrapolated fraction near 30%, it is likely the larger of
+the two.
 
 **The toy MC seed.** The legacy path uses `gRandom`; the new one had a member
 `TRandom3` seeded with `SetSeed(0)`, which in ROOT does not mean seed zero - it
