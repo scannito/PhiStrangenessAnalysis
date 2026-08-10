@@ -10,8 +10,8 @@
 #include "TString.h"
 #include "TVirtualFitter.h"
 
-#include <iostream>
 #include <algorithm>
+#include <iostream>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -121,8 +121,11 @@ class SpectrumExtrapolator
     fTrialsFine = nTrialsFine;
   }
 
-  // Main execution method
-  ExtrapolationResult CalculateYieldAndMean()
+  // Does everything the class exists for: fits the spectrum, integrates it together
+  // with the extrapolated regions, estimates the statistical uncertainty by toy MC
+  // and, if a systematic spectrum was supplied, propagates the systematic band
+  // through all of it.
+  ExtrapolationResult Extrapolate()
   {
     ExtrapolationResult res;
 
@@ -261,8 +264,8 @@ class SpectrumExtrapolator
 
  private:
   TH1* fMeasuredSpectrum{nullptr};
-  TF1* fFitModel{nullptr};      // Owned by the caller, and fitted in place - see the constructor
-  TH1* fSysSpectrum{nullptr};   // Owned by the caller, optional - see SetSystematicSpectrum
+  TF1* fFitModel{nullptr};    // Owned by the caller, and fitted in place - see the constructor
+  TH1* fSysSpectrum{nullptr}; // Owned by the caller, optional - see SetSystematicSpectrum
 
   // TRandom3's own default, and also where gRandom - which YieldMean used - starts.
   // Matching that stream exactly was never the goal and is not possible anyway:
@@ -425,8 +428,8 @@ class SpectrumExtrapolator
         std::cerr << "[WARNING] SpectrumExtrapolator: the fit of '" << h->GetName()
                   << "' with '" << fFitModel->GetName() << "' did not converge in 10 trials over ["
                   << fMinFit << ", " << fMaxFit << "]. The covariance matrix is unusable, so the "
-                     "extrapolation will contribute nothing and the yield below is the raw integral, "
-                     "NOT an extrapolated one. Do not use it."
+                                                   "extrapolation will contribute nothing and the yield below is the raw integral, "
+                                                   "NOT an extrapolated one. Do not use it."
                   << std::endl;
         return false;
       }

@@ -888,7 +888,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // reports hasSystematics == false. This is the one line to change once a
     // systematics driver exists - see DESIGN_NOTES.md.
 
-    ExtrapolationResult res = extrapolator.CalculateYieldAndMean();
+    ExtrapolationResult res = extrapolator.Extrapolate();
 
     // 'extrapModel' is fitted in place, so from here on it carries the fitted
     // parameters. That is what makes this line - and the curve attached to the
