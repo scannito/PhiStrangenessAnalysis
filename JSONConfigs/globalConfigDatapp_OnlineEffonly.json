@@ -82,12 +82,10 @@
         "run_mode": 0,
         "associated_particles": [
             {
-                "name": "K0S",
-                "dir_name": "phiK0S"
+                "name": "K0S"
             },
             {
-                "name": "Pi",
-                "dir_name": "phiPi"
+                "name": "Pi"
             }
         ],
         "apply_mixed_events": true,

@@ -1,39 +1,139 @@
 {
+    "global_binning": {
+        "binning_name": "MoreFullDifferential",
+        "multiplicity_binning": [
+            "0",
+            "1",
+            "5",
+            "10",
+            "15",
+            "20",
+            "30",
+            "40",
+            "50",
+            "70",
+            "100"
+        ],
+        "pt_binning": {
+            "Phi": [
+                "0.4",
+                "0.8",
+                "1.4",
+                "2",
+                "2.8",
+                "4",
+                "6",
+                "10"
+            ],
+            "K0S": [
+                "0",
+                "0.3",
+                "0.5",
+                "0.8",
+                "1.2",
+                "1.6",
+                "2",
+                "2.4",
+                "3",
+                "4.2",
+                "6.4"
+            ],
+            "Xi": [
+                "0.8",
+                "1.2",
+                "1.6",
+                "2",
+                "2.4",
+                "3",
+                "4.2",
+                "6.5"
+            ],
+            "Pi": [
+                "0.2",
+                "0.3",
+                "0.4",
+                "0.5",
+                "0.6",
+                "0.8",
+                "1",
+                "1.2",
+                "1.5",
+                "2",
+                "3"
+            ]
+        }
+    },
     "workflow": {
         "active_tasks": [
-            "mc_task",
-            "correlation_wpdg_task"
+            "correlation_wpdg_task_offline_efficiency_Bneg",
+            "correlation_wpdg_task_online_efficiency_Bneg",
+            "correlation_wpdg_task_online_efficiency_no_phi_Bneg",
+            "correlation_wpdg_task_offline_efficiency_Bpos",
+            "correlation_wpdg_task_online_efficiency_Bpos",
+            "correlation_wpdg_task_online_efficiency_no_phi_Bpos",
+            "correlation_wpdg_task_offline_efficiency_strinj",
+            "correlation_wpdg_task_online_efficiency_strinj",
+            "correlation_wpdg_task_online_efficiency_no_phi_strinj"
         ]
     },
-    "mc_task": {
-        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536.root",
-        "mc_base_path": "phi-strangeness-correlation/phiStrangenessCorrelation/",
-        "output_dir": "../DataFile/pp_ref/DeltaY/Corrections/"
+    "correlation_wpdg_task_offline_efficiency_Bneg": {
+        "inherits": "correlation_wpdg_task_offline_efficiency",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bneg_4agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bneg_4agosto.root",
+        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Bneg_Corrections.root",
+        "input_output_prefix": "MCClosurewPDG_OfflineEff_Bneg_"
     },
-    "correlation_wpdg_task": {
-        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResults_536_wpdg_26marzo.root",
-        "base_path_data": "phi-strangeness-correlation/phiStrangenessCorrelation/",
-        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResults_536_wpdg_26marzo.root",
-        "base_path_me": "phi-strangeness-correlation/phiStrangenessCorrelation/",
-        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Corrections.root",
-        "output_dir_proj": "../DataFile/pp_ref/DeltaY/ProjData/",
-        "output_dir_final": "../DataFile/pp_ref/DeltaY/FinalResults/",
-        "input_output_prefix": "MCClosureWPDG_",
-        "apply_mixed_events": true,
-        "apply_efficiency": true,
-        "apply_extrapolation": false,
-        "use_integrated_efficiency": true,
-        "use_projection_cache": true,
-        "is_pure_gen": false,
-        "delta_y_limits": [
-            1.0,
-            0.5,
-            0.1
-        ],
-        "extrap_function": "LevyTsallis",
-        "extrap_fit_range": [
-            0.4,
-            6.0
-        ]
+    "correlation_wpdg_task_online_efficiency_Bneg": {
+        "inherits": "correlation_wpdg_task_online_efficiency",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bneg_4agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bneg_4agosto.root",
+        "input_output_prefix": "MCClosurewPDG_OnlineEff_Bneg_"
+    },
+    "correlation_wpdg_task_online_efficiency_no_phi_Bneg": {
+        "inherits": "correlation_wpdg_task_online_efficiency_no_phi",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bneg_4agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bneg_4agosto.root",
+        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Bneg_WTrigger_Corrections.root",
+        "input_output_prefix": "MCClosurewPDG_OnlineEff_NoPhi_Bneg_"
+    },
+    "correlation_wpdg_task_offline_efficiency_Bpos": {
+        "inherits": "correlation_wpdg_task_offline_efficiency",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bpos_4agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bpos_4agosto.root",
+        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Bpos_Corrections.root",
+        "input_output_prefix": "MCClosurewPDG_OfflineEff_Bpos_"
+    },
+    "correlation_wpdg_task_online_efficiency_Bpos": {
+        "inherits": "correlation_wpdg_task_online_efficiency",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bpos_4agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bpos_4agosto.root",
+        "input_output_prefix": "MCClosurewPDG_OnlineEff_Bpos_"
+    },
+    "correlation_wpdg_task_online_efficiency_no_phi_Bpos": {
+        "inherits": "correlation_wpdg_task_online_efficiency_no_phi",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bpos_4agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bpos_4agosto.root",
+        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Bpos_WTrigger_Corrections.root",
+        "input_output_prefix": "MCClosurewPDG_OnlineEff_NoPhi_Bpos_"
+    },
+    "correlation_wpdg_task_offline_efficiency_strinj": {
+        "inherits": "correlation_wpdg_task_offline_efficiency",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_strinj_4agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_strinj_4agosto.root",
+        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Strinj_Corrections.root",
+        "input_output_prefix": "MCClosurewPDG_OfflineEff_strinj_"
+    },
+    "correlation_wpdg_task_online_efficiency_strinj": {
+        "inherits": "correlation_wpdg_task_online_efficiency",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_strinj_4agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_strinj_4agosto.root",
+        "input_output_prefix": "MCClosurewPDG_OnlineEff_strinj_"
+    },
+    "correlation_wpdg_task_online_efficiency_no_phi_strinj": {
+        "inherits": "correlation_wpdg_task_online_efficiency_no_phi",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_strinj_4agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_strinj_4agosto.root",
+        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Strinj_WTrigger_Corrections.root",
+        "input_output_prefix": "MCClosurewPDG_OnlineEff_NoPhi_strinj_"
     }
 }

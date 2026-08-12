@@ -75,16 +75,13 @@
         "run_mode": "legacy",
         "associated_particles": [
             {
-                "name": "K0S",
-                "dir_name": "phiK0S"
+                "name": "K0S"
             },
             {
-                "name": "Xi",
-                "dir_name": "phiXi"
+                "name": "Xi"
             },
             {
-                "name": "Pi",
-                "dir_name": "phiPi"
+                "name": "Pi"
             }
         ],
         "apply_mixed_events": true,
@@ -130,12 +127,12 @@
             0.5,
             0.1
         ],
-        "extrapolation_config_file": "../JSONConfigs/extrapConfignew.json",
+        "extrapolation_config_file": "../JSONConfigs/extrapConfig.json",
         "yield_ratios": [
             {
                 "numerator": "K0S",
                 "denominator": "Pi",
-                "label": "2K^{0}_{S}/#pi^{+}+#pi^{-})"
+                "label": "2K^{0}_{S}/(#pi^{+}+#pi^{-})"
             },
             {
                 "numerator": "Xi",
@@ -148,8 +145,7 @@
         "inherits": "correlation_base_settings",
         "active_corrections": [
             "acceptance_efficiency"
-        ],
-        "use_2d_me_normalization": false
+        ]
     },
     "correlation_task_online_efficiency": {
         "inherits": "correlation_base_settings",
@@ -171,7 +167,95 @@
             "K0S",
             "Xi",
             "Pi"
+        ]
+    },
+    "correlation_wpdg_base_settings": {
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResults_136_wpdg_26marzo.root",
+        "base_path_data": "phi-strange-correlation/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResults_136_wpdg_26marzo.root",
+        "base_path_me": "phi-strange-correlation/phiStrangenessCorrelation/",
+        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Corrections.root",
+        "output_dir_proj": "../DataFile/pp/DeltaY/ProjData/",
+        "output_dir_final": "../DataFile/pp/DeltaY/FinalResults/",
+        "input_output_prefix": "MCClosureWPDG_",
+        "associated_particles": [
+            {
+                "name": "K0S"
+            },
+            {
+                "name": "Xi"
+            },
+            {
+                "name": "Pi"
+            }
         ],
+        "apply_mixed_events": true,
+        "apply_efficiency": true,
+        "apply_extrapolation": true,
+        "use_integrated_efficiency": true,
+        "active_corrections": [
+            "acceptance_efficiency",
+            "signal_loss",
+            "event_loss"
+        ],
+        "apply_efficiency_to": [
+            "Phi",
+            "K0S",
+            "Xi",
+            "Pi"
+        ],
+        "use_projection_cache": false,
+        "use_2d_me_normalization": false,
+        "is_pure_gen": false,
+        "delta_y_limits": [
+            1.0,
+            0.5,
+            0.1
+        ],
+        "extrapolation_config_file": "../JSONConfigs/extrapConfig.json",
+        "yield_ratios": [
+            {
+                "numerator": "K0S",
+                "denominator": "Pi",
+                "label": "2K^{0}_{S}/(#pi^{+}+#pi^{-})"
+            },
+            {
+                "numerator": "Xi",
+                "denominator": "Pi",
+                "label": "(#Xi^{-}+#bar{#Xi}^{+})/(#pi^{+}+#pi^{-})"
+            }
+        ]
+    },
+    "correlation_wpdg_task_offline_efficiency": {
+        "inherits": "correlation_wpdg_base_settings",
+        "active_corrections": [
+            "acceptance_efficiency"
+        ]
+    },
+    "correlation_wpdg_task_online_efficiency": {
+        "inherits": "correlation_wpdg_base_settings",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
+        "apply_efficiency": false,
         "use_2d_me_normalization": false
+    },
+    "correlation_wpdg_task_online_efficiency_no_phi": {
+        "inherits": "correlation_wpdg_base_settings",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi/phiStrangenessCorrelation/",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi/phiStrangenessCorrelation/",
+        "active_corrections": [
+            "signal_loss",
+            "event_loss"
+        ],
+        "apply_efficiency_to": [
+            "K0S",
+            "Xi",
+            "Pi"
+        ]
+    },
+    "correlation_wpdg_task_gen": {
+        "inherits": "correlation_wpdg_base_settings",
+        "apply_efficiency": false,
+        "is_pure_gen": true
     }
 }

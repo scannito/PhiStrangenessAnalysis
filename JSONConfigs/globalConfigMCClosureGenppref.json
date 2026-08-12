@@ -1,0 +1,116 @@
+{
+    "global_binning": {
+        "binning_name": "MoreFullDifferential",
+        "multiplicity_binning": [
+            "0",
+            "1",
+            "5",
+            "10",
+            "15",
+            "20",
+            "30",
+            "40",
+            "50",
+            "70",
+            "100"
+        ],
+        "pt_binning": {
+            "Phi": [
+                "0.4",
+                "0.8",
+                "1.4",
+                "2",
+                "2.8",
+                "4",
+                "6",
+                "10"
+            ],
+            "K0S": [
+                "0.0",
+                "0.3",
+                "0.5",
+                "0.8",
+                "1.2",
+                "1.6",
+                "2",
+                "2.4",
+                "3",
+                "4.2",
+                "6.4"
+            ],
+            "Xi": [
+                "0.0",
+                "0.2",
+                "0.4",
+                "0.8",
+                "1.2",
+                "1.6",
+                "2",
+                "2.4",
+                "3",
+                "4.2",
+                "6.5"
+            ],
+            "Pi": [
+                "0.0",
+                "0.2",
+                "0.3",
+                "0.4",
+                "0.5",
+                "0.6",
+                "0.8",
+                "1",
+                "1.2",
+                "1.5",
+                "2",
+                "3"
+            ]
+        }
+    },
+    "workflow": {
+        "active_tasks": [
+            "correlation_wpdg_task_gen_Bneg",
+            "correlation_wpdg_task_gen_bypass_ptcut_Bneg",
+            "correlation_wpdg_task_gen_Bpos",
+            "correlation_wpdg_task_gen_bypass_ptcut_Bpos",
+            "correlation_wpdg_task_gen_strinj",
+            "correlation_wpdg_task_gen_bypass_ptcut_strinj"
+        ]
+    },
+    "correlation_wpdg_task_gen_Bneg": {
+        "inherits": "correlation_wpdg_task_gen",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bneg_5agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bneg_5agosto.root",
+        "input_output_prefix": "MCClosureGen_Bneg_"
+    },
+    "correlation_wpdg_task_gen_bypass_ptcut_Bneg": {
+        "inherits": "correlation_wpdg_task_gen",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bneg_5agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bneg_5agosto.root",
+        "input_output_prefix": "MCClosureGen_Bneg_BypassPtCut_"
+    },
+    "correlation_wpdg_task_gen_Bpos": {
+        "inherits": "correlation_wpdg_task_gen",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bpos_5agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bpos_5agosto.root",
+        "input_output_prefix": "MCClosureGen_Bpos_"
+    },
+    "correlation_wpdg_task_gen_bypass_ptcut_Bpos": {
+        "inherits": "correlation_wpdg_task_gen",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bpos_5agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bpos_5agosto.root",
+        "input_output_prefix": "MCClosureGen_Bpos_BypassPtCut_"
+    },
+    "correlation_wpdg_task_gen_strinj": {
+        "inherits": "correlation_wpdg_task_gen",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_strinj_5agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_strinj_5agosto.root",
+        "input_output_prefix": "MCClosureGen_strinj_"
+    },
+    "correlation_wpdg_task_gen_bypass_ptcut_strinj": {
+        "inherits": "correlation_wpdg_task_gen",
+        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_strinj_5agosto.root",
+        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_strinj_5agosto.root",
+        "input_output_prefix": "MCClosureGen_strinj_BypassPtCut_"
+    }
+}

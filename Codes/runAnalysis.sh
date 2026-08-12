@@ -40,9 +40,11 @@ case "$KEYWORD" in
         ;;
     "mcclosurewpdg")
         JSON_PATH="../JSONConfigs/globalConfigMCClosureWPDG${COLL_SYS}.json"
+        JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
         ;;
     "mcclosuregen")
         JSON_PATH="../JSONConfigs/globalConfigMCClosureGen${COLL_SYS}.json"
+        JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
         ;;
     *)
         # Fallback: if keyword is not recognized, try to use it directly as a filename/path

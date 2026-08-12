@@ -1,30 +1,110 @@
 {
+    "global_binning": {
+        "binning_name": "MoreFullDifferential",
+        "multiplicity_binning": [
+            "0",
+            "1",
+            "5",
+            "10",
+            "15",
+            "20",
+            "30",
+            "40",
+            "50",
+            "70",
+            "100"
+        ],
+        "pt_binning": {
+            "Phi": [
+                "0.4",
+                "0.8",
+                "1.4",
+                "2",
+                "2.8",
+                "4",
+                "6",
+                "10"
+            ],
+            "K0S": [
+                "0.0",
+                "0.3",
+                "0.5",
+                "0.8",
+                "1.2",
+                "1.6",
+                "2",
+                "2.4",
+                "3",
+                "4.2",
+                "6.4"
+            ],
+            "Xi": [
+                "0.0",
+                "0.2",
+                "0.4",
+                "0.8",
+                "1.2",
+                "1.6",
+                "2",
+                "2.4",
+                "3",
+                "4.2",
+                "6.5"
+            ],
+            "Pi": [
+                "0.0",
+                "0.2",
+                "0.3",
+                "0.4",
+                "0.5",
+                "0.6",
+                "0.8",
+                "1",
+                "1.2",
+                "1.5",
+                "2",
+                "3"
+            ]
+        }
+    },
     "workflow": {
         "active_tasks": [
-            "correlation_wpdg_task"
+            "correlation_wpdg_task_gen_2024",
+            "correlation_wpdg_task_gen_bypass_ptcut_2024",
+            "correlation_wpdg_task_gen_2026",
+            "correlation_wpdg_task_gen_bypass_ptcut_2026"
         ]
     },
-    "correlation_wpdg_task": {
-        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResults_136_gen_14aprile.root",
-        "base_path_data": "phi-strangeness-correlation/phiStrangenessCorrelation/",
-        "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResults_136_gen_14aprile.root",
-        "base_path_me": "phi-strangeness-correlation/phiStrangenessCorrelation/",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Corrections.root",
-        "output_dir_proj": "../DataFile/pp/DeltaY/ProjData/",
-        "output_dir_final": "../DataFile/pp/DeltaY/FinalResults/",
-        "input_output_prefix": "MCClosureGen_",
-        "apply_mixed_events": true,
-        "apply_efficiency": false,
-        "apply_extrapolation": true,
-        "use_integrated_efficiency": true,
-        "use_projection_cache": true,
-        "is_pure_gen": true,
-        "delta_y_limits": [
-            1.0,
-            0.5,
-            0.1
-        ],
-        "use_legacy_extrapolation": true,
-        "extrapolation_config_file": "../JSONConfigs/extrapConfig.json"
+    "correlation_wpdg_task_gen_2024": {
+        "inherits": "correlation_wpdg_task_gen",
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2024_PtMod_4agosto.root",
+        "base_path_data": "phi-strange-correlation_id51983/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2024_PtMod_4agosto.root",
+        "base_path_me": "phi-strange-correlation_id51983/phiStrangenessCorrelation/",
+        "input_output_prefix": "MCClosureGen_2024_"
+    },
+    "correlation_wpdg_task_gen_bypass_ptcut_2024": {
+        "inherits": "correlation_wpdg_task_gen",
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2024_PtMod_4agosto.root",
+        "base_path_data": "phi-strange-correlation_BypassMinPt/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2024_PtMod_4agosto.root",
+        "base_path_me": "phi-strange-correlation_BypassMinPt/phiStrangenessCorrelation/",
+        "input_output_prefix": "MCClosureGen_BypassPtCut_2024_"
+    },
+    "correlation_wpdg_task_gen_2026": {
+        "inherits": "correlation_wpdg_task_gen",
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2026_PtMod_5agosto.root",
+        "base_path_data": "phi-strange-correlation_id52254/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2026_PtMod_5agosto.root",
+        "base_path_me": "phi-strange-correlation_id52254/phiStrangenessCorrelation/",
+        "input_output_prefix": "MCClosureGen_2026_"
+    },
+    "correlation_wpdg_task_gen_bypass_ptcut_2026": {
+        "inherits": "correlation_wpdg_task_gen",
+        "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2026_PtMod_5agosto.root",
+        "base_path_data": "phi-strange-correlation_BypassMinPt/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2026_PtMod_5agosto.root",
+        "base_path_me": "phi-strange-correlation_BypassMinPt/phiStrangenessCorrelation/",
+        "input_output_prefix": "MCClosureGen_BypassPtCut_2026_"
     }
 }
