@@ -42,8 +42,10 @@ class WorkflowManager
       std::cout << "[INFO] WorkflowManager: Single-file configuration mode activated." << std::endl;
     }
 
-    ParseGlobalSettings();
-    ParseWorkflowTasks();
+    // Resolved once and handed to both: they read the same node.
+    const auto& workflowNode = JsonConfig::RequireMember(document, "workflow", "Master JSON");
+    ParseGlobalSettings(workflowNode);
+    ParseWorkflowTasks(workflowNode);
   }
 
   void BuildWorkflow()
@@ -183,27 +185,35 @@ class WorkflowManager
     }
   }
 
-  void ParseGlobalSettings()
+  // 'global_binning' lives inside 'workflow' because the top level of these files
+  // is the namespace MergeTaskConfiguration searches for blocks: anything there can
+  // be the target of an "inherits". Settings sat in it by convention only.
+  void ParseGlobalSettings(const rapidjson::Value& workflowNode)
   {
-    if (!document.HasMember("global_binning")) {
-      std::cout << "[INFO] WorkflowManager: 'global_binning' missing in JSON. Using default historical binning." << std::endl;
+    const rapidjson::Value* config = JsonConfig::TryObject(workflowNode, "global_binning", "workflow");
+    if (!config) {
+      // Not "using defaults": there are none. AnalysisSettings deliberately ships an
+      // empty speciesPtBinning, because the correlation and MC productions have
+      // different binnings and either one built in would be a false alarm for the
+      // other family. Empty means VerifyPtBinning has nothing to compare against, so
+      // the axes found in the input files are used unverified - which is the check
+      // this framework is built on, switched off.
+      std::cout << "[INFO] WorkflowManager: no 'global_binning' in 'workflow'. The pT and multiplicity "
+                   "axes found in the input files will be used WITHOUT verification."
+                << std::endl;
       return;
     }
 
-    const auto& config = document["global_binning"];
-
-    if (config.HasMember("binning_name")) {
-      globalSettings.binningName = config["binning_name"].GetString();
-    }
+    globalSettings.binningName = JsonConfig::OptionalString(*config, "binning_name", globalSettings.binningName, "global_binning");
 
     // Override multiplicity binning if specified in JSON
-    if (auto multBins = JsonConfig::TryArray(config, "multiplicity_binning", "global_binning")) {
+    if (auto multBins = JsonConfig::TryArray(*config, "multiplicity_binning", "global_binning")) {
       globalSettings.binsMult = JsonConfig::ReadNumberArray(*multBins, "multiplicity_binning", "global_binning");
       std::cout << "  -> Overridden 'multiplicity' binning from JSON." << std::endl;
     }
 
-    // pT binning per species (e.g., Phi, K0S, Pi) can be overridden in the JSON as well
-    if (const rapidjson::Value* ptBinning = JsonConfig::TryObject(config, "pt_binning", "global_binning")) {
+    // pT binning per species (e.g. Phi, K0S, Pi) can be overridden in the JSON as well
+    if (const rapidjson::Value* ptBinning = JsonConfig::TryObject(*config, "pt_binning", "global_binning")) {
       for (auto& m : ptBinning->GetObject()) {
         std::string species = m.name.GetString();
         globalSettings.speciesPtBinning[species] =
@@ -214,10 +224,8 @@ class WorkflowManager
     }
   }
 
-  void ParseWorkflowTasks()
+  void ParseWorkflowTasks(const rapidjson::Value& workflowNode)
   {
-    const auto& workflowNode = JsonConfig::RequireMember(document, "workflow", "Master JSON");
-
     // Missing and present-but-not-an-array used to give the same message; now the
     // two are told apart, which matters when the mistake is a typo in the type.
     for (auto& taskValue : JsonConfig::RequireArray(workflowNode, "active_tasks", "workflow"))
