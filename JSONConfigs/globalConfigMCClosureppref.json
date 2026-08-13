@@ -1,56 +1,100 @@
 {
     "workflow": {
+        "global_binning": {
+            "binning_name": "MoreFullDifferential",
+            "multiplicity_binning": [
+                "0",
+                "1",
+                "5",
+                "10",
+                "15",
+                "20",
+                "30",
+                "40",
+                "50",
+                "70",
+                "100"
+            ],
+            "pt_binning": {
+                "Phi": [
+                    "0.4",
+                    "0.8",
+                    "1.4",
+                    "2",
+                    "2.8",
+                    "4",
+                    "6",
+                    "10"
+                ],
+                "K0S": [
+                    "0",
+                    "0.3",
+                    "0.5",
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2",
+                    "2.4",
+                    "3",
+                    "4.2",
+                    "6.4"
+                ],
+                "Xi": [
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2",
+                    "2.4",
+                    "3",
+                    "4.2",
+                    "6.5"
+                ],
+                "Pi": [
+                    "0.2",
+                    "0.3",
+                    "0.4",
+                    "0.5",
+                    "0.6",
+                    "0.8",
+                    "1",
+                    "1.2",
+                    "1.5",
+                    "2",
+                    "3"
+                ]
+            }
+        },
         "active_tasks": [
-            "purity_task",
-            "mc_task",
-            "phi_fit_task",
-            "correlation_task"
+            "phi_fit_task_offline_efficiency_Bneg",
+            "phi_fit_task_online_efficiency_Bneg",
+            "correlation_task_offline_efficiency_Bneg",
+            "correlation_task_online_efficiency_Bneg",
+            "correlation_task_online_efficiency_no_phi_Bneg",
+            "phi_fit_task_offline_efficiency_Bpos",
+            "phi_fit_task_online_efficiency_Bpos",
+            "correlation_task_offline_efficiency_Bpos",
+            "correlation_task_online_efficiency_Bpos",
+            "correlation_task_online_efficiency_no_phi_Bpos",
+            "phi_fit_task_offline_efficiency_strinj",
+            "phi_fit_task_online_efficiency_strinj",
+            "correlation_task_offline_efficiency_strinj",
+            "correlation_task_online_efficiency_strinj",
+            "correlation_task_online_efficiency_no_phi_strinj"
         ]
     },
-    "purity_task": {
-        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResults_536_26marzo.root",
-        "output_dir": "../DataFile/pp_ref/DeltaY/Purities/",
-        "output_prefix": "MCClosure_",
-        "fit_config_file": "../JSONConfigs/fitConfig.json"
-    },
-    "mc_task": {
-        "input_mc_file": "../DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536.root",
-        "mc_base_path": "phi-strangeness-correlation/phiStrangenessCorrelation/",
-        "output_dir": "../DataFile/pp_ref/DeltaY/Corrections/"
-    },
-    "phi_fit_task": {
-        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResults_536_26marzo.root",
-        "base_path_data": "phi-strangeness-correlation_id45540/phiStrangenessCorrelation/",
-        "fit_config_file": "../JSONConfigs/fitConfig.json",
-        "fitter_type": "fitphisignalandbkg",
-        "output_dir_proj": "../DataFile/pp_ref/DeltaY/ProjData/",
-        "input_output_prefix": "MCClosure_"
-    },
-    "correlation_task": {
-        "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResults_536_26marzo.root",
-        "base_path_data": "phi-strangeness-correlation_id45540/phiStrangenessCorrelation/",
-        "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResults_536_26marzo.root",
-        "base_path_me": "phi-strangeness-correlation_id49958/phiStrangenessCorrelation/",
-        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Corrections.root",
-        "input_dir_purity": "../DataFile/pp_ref/DeltaY/Purities/",
-        "input_dir_proj": "../DataFile/pp_ref/DeltaY/ProjData/",
-        "output_dir_final": "../DataFile/pp_ref/DeltaY/FinalResults/",
-        "input_output_prefix": "MCClosure_",
-        "apply_mixed_events": true,
-        "apply_efficiency": true,
-        "apply_purity": true,
-        "apply_extrapolation": false,
-        "use_integrated_efficiency": true,
-        "use_projection_cache": true,
-        "delta_y_limits": [
-            1.0,
-            0.5,
-            0.1
-        ],
-        "extrap_function": "LevyTsallis",
-        "extrap_fit_range": [
-            0.4,
-            6.0
-        ]
-    }
+    "phi_fit_task_offline_efficiency_Bneg": {},
+    "phi_fit_task_online_efficiency_Bneg": {},
+    "correlation_task_offline_efficiency_Bneg": {},
+    "correlation_task_online_efficiency_Bneg": {},
+    "correlation_task_online_efficiency_no_phi_Bneg": {},
+    "phi_fit_task_offline_efficiency_Bpos": {},
+    "phi_fit_task_online_efficiency_Bpos": {},
+    "correlation_task_offline_efficiency_Bpos": {},
+    "correlation_task_online_efficiency_Bpos": {},
+    "correlation_task_online_efficiency_no_phi_Bpos": {},
+    "phi_fit_task_offline_efficiency_strinj": {},
+    "phi_fit_task_online_efficiency_strinj": {},
+    "correlation_task_offline_efficiency_strinj": {},
+    "correlation_task_online_efficiency_strinj": {},
+    "correlation_task_online_efficiency_no_phi_strinj": {}
 }

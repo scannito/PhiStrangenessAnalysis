@@ -21,13 +21,20 @@ fi
 KEYWORD=$1
 COLL_SYS=$2
 JSON_PATH=""
-JSON_PATH_BASE=""
+
+# The base configuration is the same whatever is being run: every named mode
+# inherits its shared blocks from it. It used to be repeated inside each branch
+# below, and three of the six forgot it - which is why those three carried their own
+# copies of blocks that already existed here, free to drift apart.
+#
+# Set here and cleared only by the fallback: a JSON handed to this script by path is
+# meant to stand alone.
+JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
 
 # 2. Map the keyword to the specific JSON configuration file
 case "$KEYWORD" in
     "data")
         JSON_PATH="../JSONConfigs/globalConfigData${COLL_SYS}.json"
-        JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
         ;;
     "purity")
         JSON_PATH="../JSONConfigs/globalConfigPurity${COLL_SYS}.json"
@@ -40,27 +47,37 @@ case "$KEYWORD" in
         ;;
     "mcclosurewpdg")
         JSON_PATH="../JSONConfigs/globalConfigMCClosureWPDG${COLL_SYS}.json"
-        JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
         ;;
     "mcclosuregen")
         JSON_PATH="../JSONConfigs/globalConfigMCClosureGen${COLL_SYS}.json"
-        JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
         ;;
     *)
-        # Fallback: if keyword is not recognized, try to use it directly as a filename/path
+        # Fallback: if the keyword is not recognized, try to use it directly as a
+        # filename/path. No base: a configuration passed this way is self-contained,
+        # which is the point of being able to pass one - a quick test inheriting from
+        # nothing. WorkflowManager runs single-file when the base is empty.
+        JSON_PATH_BASE=""
         if [[ "$KEYWORD" == *".json" ]]; then
             JSON_PATH="$KEYWORD"
-            #JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
         else
             JSON_PATH="../JSONConfigs/${KEYWORD}${COLL_SYS}.json"
-            #JSON_PATH_BASE="../JSONConfigs/globalConfigBase${COLL_SYS}.json"
         fi
         ;;
 esac
 
-# 3. Check if the mapped JSON file actually exists
+# 3. Check that the mapped JSON files actually exist
 if [ ! -f "$JSON_PATH" ]; then
     echo "Error: The JSON file '$JSON_PATH' does not exist!"
+    exit 1
+fi
+
+# Only when one is expected. An empty base means single-file mode, which is a
+# legitimate way to run - the fallback branch above uses it - so what is checked is
+# that a base which was ASKED for is there, not that there must be one. Failing here
+# names the missing file before ROOT has started.
+if [ -n "$JSON_PATH_BASE" ] && [ ! -f "$JSON_PATH_BASE" ]; then
+    echo "Error: The base JSON file '$JSON_PATH_BASE' does not exist!"
+    echo "The named run modes inherit their shared blocks from it."
     exit 1
 fi
 
@@ -75,6 +92,7 @@ echo "Starting ROOT analysis..."
 echo "Keyword mapped : $KEYWORD"
 echo "System         : $COLL_SYS"
 echo "Configuration  : $JSON_PATH"
+echo "Base config    : ${JSON_PATH_BASE:-<none, single-file mode>}"
 echo "Log file       : $LOG_FILE"
 echo "=========================================================="
 

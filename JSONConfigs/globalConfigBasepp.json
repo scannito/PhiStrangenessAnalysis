@@ -9,25 +9,74 @@
                 "name": "K0S",
                 "purity_key": "k0s",
                 "hist_name": "k0s-reduced-cand-producer/k0sReducedCandidates/h3K0sCandidatesMass",
-                "output_file_suffix": "K0SPurity.root"
+                "output_file_suffix": "K0SPurity.root",
+                "rebinning_pt": [
+                    "0.0",
+                    "0.3",
+                    "0.5",
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2.0",
+                    "2.4",
+                    "3.0",
+                    "4.2",
+                    "6.4"
+                ]
             },
             {
                 "name": "Xi",
                 "purity_key": "xi",
                 "hist_name": "xi-reduced-cand-producer/xiReducedCandidates/h3XiCandidatesMass",
-                "output_file_suffix": "XiPurity.root"
+                "output_file_suffix": "XiPurity.root",
+                "rebinning_pt": [
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2.0",
+                    "2.4",
+                    "3.0",
+                    "4.2",
+                    "6.5"
+                ]
             },
             {
                 "name": "Pi",
                 "purity_key": "pi_tpc",
                 "hist_name": "pion-track-producer/pionTracks/h3PionTPCnSigma",
-                "output_file_suffix": "PiPurity.root"
+                "output_file_suffix": "PiPurity.root",
+                "rebinning_pt": [
+                    "0.2",
+                    "0.3",
+                    "0.4",
+                    "0.5",
+                    "0.6",
+                    "0.8",
+                    "1.0",
+                    "1.2",
+                    "1.5",
+                    "2.0",
+                    "3.0"
+                ]
             },
             {
                 "name": "Pi",
                 "purity_key": "pi_tof",
                 "hist_name": "pion-track-producer/pionTracks/h3PionTOFnSigma",
-                "output_file_suffix": "PiPurity.root"
+                "output_file_suffix": "PiPurity.root",
+                "rebinning_pt": [
+                    "0.2",
+                    "0.3",
+                    "0.4",
+                    "0.5",
+                    "0.6",
+                    "0.8",
+                    "1.0",
+                    "1.2",
+                    "1.5",
+                    "2.0",
+                    "3.0"
+                ]
             }
         ]
     },
@@ -38,16 +87,62 @@
         "output_prefix": "",
         "mc_particles": [
             {
-                "name": "Phi"
+                "name": "Phi",
+                "rebinning_pt": [
+                    "0.4",
+                    "0.8",
+                    "1.4",
+                    "2.0",
+                    "2.8",
+                    "4.0",
+                    "6.0",
+                    "10.0"
+                ]
             },
             {
-                "name": "K0S"
+                "name": "K0S",
+                "rebinning_pt": [
+                    "0.0",
+                    "0.3",
+                    "0.5",
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2.0",
+                    "2.4",
+                    "3.0",
+                    "4.2",
+                    "6.4"
+                ]
             },
             {
-                "name": "Xi"
+                "name": "Xi",
+                "rebinning_pt": [
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2.0",
+                    "2.4",
+                    "3.0",
+                    "4.2",
+                    "6.5"
+                ]
             },
             {
-                "name": "Pi"
+                "name": "Pi",
+                "rebinning_pt": [
+                    "0.2",
+                    "0.3",
+                    "0.4",
+                    "0.5",
+                    "0.6",
+                    "0.8",
+                    "1.0",
+                    "1.2",
+                    "1.5",
+                    "2.0",
+                    "3.0"
+                ]
             }
         ],
         "particle_correction_mode": "efficiency_only"
