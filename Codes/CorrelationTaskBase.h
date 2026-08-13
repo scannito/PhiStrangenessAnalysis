@@ -81,6 +81,13 @@ class CorrelationTaskBase : public IAnalysisTask
 
       if (!trendsDir || !spectraDir)
         continue;
+
+      // The associated pT binning, with the particle it belongs to rather than
+      // encoded in the object name. What it guards is the Trends directory next to
+      // it: those are integrals over pT, so a disagreement there does not show up in
+      // any axis. See the note by the scheme-level stamps below.
+      RootIO::WriteBinningStamp(RootIO::GetOrCreatePath(fileOutputSpectra.get(), particlePath),
+                                "binning_ptAssoc", assocParticles[pIdx].binning);
       trendsDir->cd();
 
       // --- Save measured trends ---
@@ -150,16 +157,23 @@ class CorrelationTaskBase : public IAnalysisTask
     }
 
     // The binnings this file was produced with. Unlike the provenance below, these
-    // ARE a check: the spectra are named by multiplicity INDEX, so a task dividing
-    // two of these files matches "_multBin3" on both sides whatever the two
-    // productions meant by it - and multiplicity is not an axis of the objects being
-    // divided, so comparing their axes would never notice. The pT binning is stamped
-    // too, since it costs nothing and makes the message say which of the two differs.
+    // ARE a check, and each is here for a reason that comparing axes would not cover.
+    //
+    // Multiplicity is in the NAME of the spectra ("_multBin3"), so two files produced
+    // apart match on it whatever they meant by it, and it is not an axis of anything
+    // being divided. Trigger pT is integrated away everywhere, so it is not an axis
+    // either: two productions summing over different trigger ranges would compare
+    // cleanly and mean different things.
+    //
+    // The associated pT is stamped per particle, next to that particle's objects -
+    // see the loop in the section above. It is NOT here, and it is not redundant with
+    // RequireSameAxis either: for the spectra it would be, since pT is their X axis,
+    // but the TRENDS are integrated over pT and carry multiplicity on theirs, so two
+    // productions with different pT binnings would produce trends whose axes agree
+    // perfectly and whose contents are integrals over different ranges.
     if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName}, false)) {
       RootIO::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
       RootIO::WriteBinningStamp(schemeDir, "binning_ptPhi", ptPhiBinning);
-      for (const auto& p : assocParticles)
-        RootIO::WriteBinningStamp(schemeDir, "binning_ptAssoc_" + p.name, p.binning);
     }
 
     // The spectra leave this task and, once the trends and ratios move to a task
