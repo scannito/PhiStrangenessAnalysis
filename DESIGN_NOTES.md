@@ -118,55 +118,65 @@ Internal clean-ups that come almost free once the constructor is split:
 
 ---
 
-## 4. Name objects by interval, not by index
+## 4. Name objects by interval, not by index — DONE
 
-Half the framework already does this. `CorrelationTaskBase::CellSuffix` names its
-objects `_mult0-1_ptPhi0.8-1_pt0.3-0.5` through `BinLabel`. `MCTask`, `PurityTask`
-and `PhiFitTask` still name theirs `_multBin0`, `_ptBin3`.
+`BinLabel` now lives in `BinningUtils`, next to the `FormatEdge` it is built on, so
+the five tasks share one definition instead of `CorrelationTaskBase` having its own.
 
-The difference is not cosmetic. With an index, a producer and a consumer that
-disagree on the binning still *find* each other: `_multBin3` exists on both sides
-and matches, it just means two different intervals. With an interval, `_mult10-15`
-simply is not there, and a missing object is an error instead of a wrong number.
+Converted, producer and consumer in lockstep:
 
-This is why the binning stamps exist: they are the patch that is needed *because*
-the names are indices. Interval names would make a whole class of mismatch
-impossible rather than detectable after the fact.
+| object | producer | consumer |
+|---|---|---|
+| `h1{p}Efficiency_mult0-1`, `h1{p}SigLoss_mult0-1` | `EfficiencyCalculator::Compute1DMaps` | `CorrelationTaskBase::LoadCorrections` |
+| `h1{p}Purity_mult0-1` | `PurityTask::FitPuritySpectrum` | `CorrelationTask::LoadPurities` |
+| `h1SpectrumPhi{p}_dy{d}_mult0-1` | `CorrelationTaskBase` | whatever compares productions |
 
-### Scope
+`Compute1DMaps` gained a `multBinning` argument for no other reason than to name its
+output; the alternative was passing a ready-made suffix string, which would have let
+two callers use different conventions - the very thing `CellSuffix` was created to
+stop.
 
-Producers: `MCTask` (efficiency, signal loss, canvases), `PurityTask` (purity
-spectra, fit canvases), `PhiFitTask` (mass projections, fit canvases).
+The third row is the one that matters most for what comes next. Those spectra are
+what a ratio between productions divides - MC closure, old against new - and two
+productions with different multiplicity binnings would both contain `_multBin3` and
+produce a ratio between different intervals, silently. With the interval in the name
+the object is simply absent.
 
-Consumers that must change in lockstep: `CorrelationTaskBase::LoadCorrections`
-(`h1{name}Efficiency_multBin{i}`) and `CorrelationTask::LoadPurities`
-(`h1{key}Purity_multBin{i}`).
+Local temporaries were converted too, for consistency rather than safety: the
+projections in `PhiFitTask`, `CorrelationWPDGTask`, `PurityTask` and
+`EfficiencyCalculator` are all `SetDirectory(0)` and never written.
 
-`BinLabel` should move from `CorrelationTaskBase` to `BinningUtils` — it needs only
-edges, an index and `FormatEdge`, which already lives there — so that the five
-tasks share one definition.
+### What this does NOT close
 
-### Cost
+`ExtrapConfigManager` still keys its per-bin overrides as `multBin{i}`, a JSON key
+rather than an object name, and `fitConfig.json` does the same with `mult<i>_pt<k>`.
+Same disease: the moment a `rebinning_pt` is declared, `pt4` is looked up with a
+coarse index and applies parameters tuned for a different interval. Two ways out -
+key them by interval as above, or hand the binning to the manager and have it verify.
+Worth deciding before `rebinning_pt` is used in anger.
 
-Every file already produced becomes unreadable to the new code: corrections,
-purities, projection caches. The whole chain has to be re-run once, in order.
-Nothing is silently wrong in the meantime — the objects are simply not found — but
-it is not a change that can be deployed halfway.
+The binning stamps stay, and calling them redundant would be wrong twice.
 
-Keep it as its own commit, unmixed with anything else. It is the change with the
-highest potential to break things quietly, and it should be revertible alone.
+In the projection cache they are not a check at all. Read mode does not load the
+`THnSparse` containers - that is the whole point of the cache - so there is no axis
+to read the binning from, and `CorrelationTaskBase` recovers it *from the stamps*
+(`particle.binning = ReadBinningStamp(schemeDir, "binning_ptAssoc")` and its two
+siblings). They are load-bearing there; removing them breaks the cache outright.
+The write-mode stamp additionally refuses to overwrite a scheme directory that
+already holds projections of another binning.
 
-### The same disease in the fit configuration
+At the other two sites - the efficiency map and the purity file - they are genuine
+checks, and the interval names now detect the same class of mismatch. What the
+stamp still buys is the quality of the failure: it fires before any object is read
+and names the differing edge with both values, where a missing object reports what
+was expected and not what the file actually contained. By this codebase's own
+standard - a check whose message says what to do about it - that is worth keeping.
 
-`fitConfig.json` keys its per-bin overrides as `mult<i>_pt<k>`. Today `k0s` has
-twenty of them, all on `pt4` and `pt5`, and those indices refer to the source
-binning because no `rebinning_pt` is declared anywhere yet. The moment one is
-declared, the analysis loop will look up `pt4` with a *coarse* index and apply
-parameters tuned for a different pT interval, silently.
+### Cost, unchanged
 
-Two ways out: key the overrides by interval as above, or hand the binning to
-`FitConfigManager` and have it verify — the same choice made everywhere else in
-this codebase. Worth deciding before `rebinning_pt` is used in anger.
+Every file already produced is unreadable to this code: corrections, purities,
+projection caches, spectra. The whole chain has to be re-run once, in order. Nothing
+is silently wrong in the meantime - the objects are simply not found.
 
 ---
 

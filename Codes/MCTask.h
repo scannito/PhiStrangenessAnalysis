@@ -311,7 +311,7 @@ class MCTask : public IAnalysisTask
       for (int i{0}; i < BinningUtils::NBins(multBinning); i++) {
         // 'rebinning_pt' is applied inside the calculator, on the counts, before
         // they are divided: rebinning the ratio afterwards would sum efficiencies.
-        EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, i, globalCfgs.GetSpectraColor(i));
+        EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, i, multBinning, globalCfgs.GetSpectraColor(i));
 
         drawMaps(maps, i == 0 ? "" : "SAME");
         writeMaps(maps);

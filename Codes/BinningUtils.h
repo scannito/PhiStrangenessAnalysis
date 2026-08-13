@@ -52,6 +52,18 @@ inline std::string FormatEdge(double value)
   return buffer;
 }
 
+// The name of a bin, as its interval rather than its index.
+//
+// Objects that cross a task boundary are addressed by NAME, and a name carrying an
+// index matches whatever the consumer's binning happens to be: "_multBin3" exists
+// on both sides and means two different intervals. "_mult10-15" simply is not
+// there, so a mismatch is a missing object instead of a wrong number. This is the
+// same hole the binning stamps patch after the fact.
+inline std::string BinLabel(std::span<const double> edges, int bin)
+{
+  return FormatEdge(edges[bin]) + "-" + FormatEdge(edges[bin + 1]);
+}
+
 // Number of bins described by a sequence of edges. Provided so that the count
 // is never stored alongside the edges: a cached size is state that can go stale,
 // and this is a subtraction.

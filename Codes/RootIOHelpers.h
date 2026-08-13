@@ -167,28 +167,36 @@ inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& 
   return BinningUtils::AxisEdges(stamp->GetXaxis());
 }
 
-// Cached histograms are addressed by bin INDEX (they are named ..._ptBin7), so
-// reusing a cache built with a different binning silently mixes two
-// segmentations: index 31 stops meaning the same pT interval.
+// Does the file this directory belongs to describe the same binning as the run
+// reading it?
+//
+// Used for three different files - the projection cache, the efficiency map, the
+// purity spectra - so the messages below name none of them and let the caller's
+// errCtx say which one it is.
+//
+// Objects are now named by interval rather than by index, so a mismatch would also
+// surface as a missing object. This still earns its place by failing earlier and
+// better: before anything is read, and naming the edge that differs together with
+// both values, where a missing object says what was expected and not what the file
+// actually holds.
 inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name,
                                         std::span<const double> current, std::string_view errCtx)
 {
-  const std::vector<double> cached = ReadBinningStamp(dir, name);
+  const std::vector<double> stamped = ReadBinningStamp(dir, name);
 
-  if (cached.empty()) {
-    std::cerr << "[WARNING] " << errCtx << ": the cache carries no '" << name
-              << "' stamp, so the binning it was built with cannot be verified. Delete the cache "
-                 "files if the input production has changed since they were produced."
+  if (stamped.empty()) {
+    std::cerr << "[WARNING] " << errCtx << ": no '" << name
+              << "' stamp, so the binning it was produced with cannot be verified. Re-produce it "
+                 "if the input production has changed since."
               << std::endl;
     return;
   }
 
-  const std::string diff = BinningUtils::Compare(cached, current, "cache", "current run");
+  const std::string diff = BinningUtils::Compare(stamped, current, "that file", "current run");
   if (!diff.empty()) {
     throw std::runtime_error(std::format(
-      "[FATAL] {}: the cached projections were built with a different '{}':\n{}"
-      "Cached histograms are addressed by bin index, so reusing them would mix "
-      "two binnings. Re-run with the cache disabled to rebuild them.",
+      "[FATAL] {}: it was produced with a different '{}':\n{}"
+      "Re-run the task that produced it, or delete it, so that the two agree.",
       errCtx, name, diff));
   }
 }

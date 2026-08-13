@@ -295,13 +295,16 @@ class PurityTask : public IAnalysisTask
     const std::vector<double>& binning = atSource ? task.sourceBinning : task.AnalysisBinning();
     const std::string nameSuffix = atSource ? "_sourceBinning" : "";
 
-    std::string hName = "h1" + task.name + "Purity_multBin" + std::to_string(multBin) + nameSuffix;
+    // By interval: CorrelationTask::LoadPurities reads this back by name, and an
+    // index would match whatever binning it happens to have.
+    const std::string multLabel = "_mult" + BinningUtils::BinLabel(multBinning, multBin);
+    std::string hName = "h1" + task.name + "Purity" + multLabel + nameSuffix;
     std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
                                                                    BinningUtils::NBins(binning), binning.data());
     h1PuritySpectrum->SetDirectory(0);
 
     for (int k{0}; k < BinningUtils::NBins(binning); k++) {
-      std::string histName = "h1" + task.name + "_multBin" + std::to_string(multBin) + "_ptBin" + std::to_string(k) + nameSuffix;
+      std::string histName = "h1" + task.name + multLabel + "_pt" + BinningUtils::BinLabel(binning, k) + nameSuffix;
 
       const BinningUtils::BinRange range = atSource ? BinningUtils::BinRange{k + 1, k + 1} : task.mappedSourceBins[k];
       std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), multBin + 1, multBin + 1,

@@ -229,7 +229,7 @@ class CorrelationTask : public CorrelationTaskBase
         "binning_mult", multBinning, "purity file '" + purityFilePath + "'");
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-        std::string hName = folderPath + "h1" + purityKey + "Purity_multBin" + std::to_string(i);
+        std::string hName = folderPath + "h1" + purityKey + "Purity_mult" + BinningUtils::BinLabel(multBinning, i);
         std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(filePurity.get(), hName, "CorrelationTask");
 
         // Verified, NOT rebinned: a purity is a ratio, and merging its bins would

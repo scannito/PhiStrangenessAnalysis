@@ -118,7 +118,8 @@ class PhiFitTask : public IAnalysisTask
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-        std::string phiHistName = "h1PhiData_multBin" + std::to_string(i) + "_ptBin" + std::to_string(j);
+        std::string phiHistName = "h1PhiData_mult" + BinningUtils::BinLabel(multBinning, i) +
+                                  "_ptPhi" + BinningUtils::BinLabel(ptPhiBinning, j);
         std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), i + 1, i + 1, j + 1, j + 1)));
         h1PhiData->SetDirectory(0);
 

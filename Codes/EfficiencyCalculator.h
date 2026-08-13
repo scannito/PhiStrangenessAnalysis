@@ -3,6 +3,7 @@
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
 #include "AnalysisUtils.h"
+#include "BinningUtils.h"
 
 #include "TCanvas.h"
 #include "TH1.h"
@@ -13,6 +14,7 @@
 
 #include <array>
 #include <memory>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -265,14 +267,18 @@ class EfficiencyCalculator
   }
 
   // Returns the maps for one multiplicity bin.
-  static Maps1D Compute1DMaps(const LoadedMC& data, int multBin, int color)
+  // 'multBinning' only to name the output by interval instead of by index. The maps
+  // are read back by name in CorrelationTaskBase::LoadCorrections, and an index
+  // there matches whatever binning the consumer happens to have.
+  static Maps1D Compute1DMaps(const LoadedMC& data, int multBin, std::span<const double> multBinning, int color)
   {
     AnalysisUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
     AnalysisUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {multBin + 1, multBin + 1}};
     AnalysisUtils::AxisToCut axisToCutY{.axis = 3, .bins = {1, data.h4MCReco->GetAxis(3)->GetNbins()}};
 
     // Project Generator level 1D
-    std::string h1GenName = "h1" + data.name + "MCGen_multBin" + std::to_string(multBin) + "_temp";
+    const std::string multLabel = "_mult" + BinningUtils::BinLabel(multBinning, multBin);
+    std::string h1GenName = "h1" + data.name + "MCGen" + multLabel + "_temp";
     std::unique_ptr<TH1> h1MCGen(data.h3MCGen->ProjectionY(h1GenName.c_str(), multBin + 1, multBin + 1, 1, data.h3MCGen->GetZaxis()->GetNbins()));
     h1MCGen->SetDirectory(0);
 
@@ -280,7 +286,7 @@ class EfficiencyCalculator
     std::unique_ptr<TH1> h1MCGenAssocReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp");
     std::unique_ptr<TH1> h1MCReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp");
 
-    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, "_multBin" + std::to_string(multBin), color);
+    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, multLabel, color);
   }
 
   // Same, integrated over ALL multiplicity bins.

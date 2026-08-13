@@ -564,16 +564,19 @@ class CorrelationTaskBase : public IAnalysisTask
       // Note: Signal loss is typically not integrated, but we fetch it if requested for consistency
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-        std::string iStr = std::to_string(i);
+        // By interval, matching what EfficiencyCalculator::Compute1DMaps writes. An
+        // index would find an object whatever the producer's binning was; this one
+        // is simply absent if the two disagree.
+        const std::string multLabel = "_mult" + BinningUtils::BinLabel(multBinning, i);
 
         // Fetch binned histograms ONLY if useIntegratedEfficiency is false
-        std::unique_ptr<TH1F> hEffBin = fetchHist(accEffDir, effHistBase + "_multBin" + iStr, doAccEfficiency && !useIntegratedEfficiency, targetBinning);
+        std::unique_ptr<TH1F> hEffBin = fetchHist(accEffDir, effHistBase + multLabel, doAccEfficiency && !useIntegratedEfficiency, targetBinning);
         // Note: Signal loss is typically not integrated, so we fetch the binned version if signal loss correction is requested,
         // regardless of the useIntegratedEfficiency flag
-        std::unique_ptr<TH1F> hLossBin = fetchHist(sigLossDir, sigLossHistBase + "_multBin" + iStr, doSigLoss, targetBinning);
+        std::unique_ptr<TH1F> hLossBin = fetchHist(sigLossDir, sigLossHistBase + multLabel, doSigLoss, targetBinning);
 
-        corr.h1Corrections[i] = combineHists(hEffBin.get(), hLossBin.get(), "h1Corrected_" + name + "_multBin" + iStr);
-        corr.h1CorrectionsEffMultInt[i] = combineHists(hEffInt.get(), hLossBin.get(), "h1Corrected_" + name + "_multInt" + iStr);
+        corr.h1Corrections[i] = combineHists(hEffBin.get(), hLossBin.get(), "h1Corrected_" + name + multLabel);
+        corr.h1CorrectionsEffMultInt[i] = combineHists(hEffInt.get(), hLossBin.get(), "h1Corrected_" + name + "_effMultInt_sigLoss" + BinningUtils::BinLabel(multBinning, i));
       }
 
       correctionCollection[name] = std::move(corr);
@@ -595,26 +598,21 @@ class CorrelationTaskBase : public IAnalysisTask
   // separately, with different conventions, so a cache produced by one was not
   // readable by the other.
   // -------------------------------------------------------------------------
-  static std::string BinLabel(std::span<const double> edges, int bin)
-  {
-    return BinningUtils::FormatEdge(edges[bin]) + "-" + BinningUtils::FormatEdge(edges[bin + 1]);
-  }
-
   // Per (multiplicity, trigger pT, associated pT) cell.
   std::string CellSuffix(const AssocParticleConfig& particle, int multBin, int ptPhiBin, int ptAssocBin) const
   {
     return std::format("_mult{}_ptPhi{}_pt{}",
-                       BinLabel(multBinning, multBin),
-                       BinLabel(ptPhiBinning, ptPhiBin),
-                       BinLabel(particle.binning, ptAssocBin));
+                       BinningUtils::BinLabel(multBinning, multBin),
+                       BinningUtils::BinLabel(ptPhiBinning, ptPhiBin),
+                       BinningUtils::BinLabel(particle.binning, ptAssocBin));
   }
 
   // For the objects accumulated over the trigger pT bins.
   std::string CellSuffix(const AssocParticleConfig& particle, int multBin, int ptAssocBin) const
   {
     return std::format("_mult{}_pt{}",
-                       BinLabel(multBinning, multBin),
-                       BinLabel(particle.binning, ptAssocBin));
+                       BinningUtils::BinLabel(multBinning, multBin),
+                       BinningUtils::BinLabel(particle.binning, ptAssocBin));
   }
 
   // -------------------------------------------------------------------------
@@ -837,7 +835,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
     /*{
       // std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}", hSpec->GetName(), extrapFunction);
-      std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}_multBin{}", hSpec->GetName(), eCfg.model, multBin);
+      std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}_mult{}", hSpec->GetName(), eCfg.model, BinningUtils::BinLabel(multBinning, multBin));
       std::unique_ptr<TCanvas> cDebug = std::make_unique<TCanvas>(debugCanvasName.c_str(), "Debug Guesses", 800, 600);
       // cDebug->SetLogy();
 
@@ -986,7 +984,12 @@ class CorrelationTaskBase : public IAnalysisTask
 
         auto [dyTitleStr, dyNameStr] = AnalysisUtils::FormatDeltaY(dyLimit);
 
-        std::string spectraName = std::format("h1SpectrumPhi{}_dy{}_multBin{}", config.name, dyNameStr, multBin);
+        // The spectra are the output others will divide - closure, old against new -
+        // so this is the name where an index is most dangerous: two productions with
+        // different multiplicity binnings would match on "_multBin3" and give a ratio
+        // between different intervals.
+        std::string spectraName = std::format("h1SpectrumPhi{}_dy{}_mult{}", config.name, dyNameStr,
+                                              BinningUtils::BinLabel(multBinning, multBin));
 
         std::vector<TH1*> views;
         views.reserve(h1PhiAssocNoPtPhi[pIdx][multBin].size());

@@ -109,7 +109,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
   double GetTriggerSignal(int multBin, int ptPhiBin) override
   {
     if (!isPureGen) {
-      std::string phiHistName = "h1PhiData_multBin" + std::to_string(multBin) + "_ptBin" + std::to_string(ptPhiBin);
+      std::string phiHistName = "h1PhiData_mult" + BinningUtils::BinLabel(multBinning, multBin) + "_ptPhi" + BinningUtils::BinLabel(ptPhiBinning, ptPhiBin);
       std::unique_ptr<TH1D> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
       h1PhiData->SetDirectory(0);
       return h1PhiData->Integral();
