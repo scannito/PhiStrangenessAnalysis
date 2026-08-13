@@ -63,28 +63,39 @@ class CorrelationTaskBase : public IAnalysisTask
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const std::string& pName = assocParticles[pIdx].name;
 
-      // Create a dedicated subdirectory for each particle (e.g., Extract1D/K0S)
+      // One directory per particle, split by what the objects are: the spectra on
+      // one side, everything that lives on the multiplicity axis on the other. The
+      // spectra used to sit flat in the scheme directory while only the trends had a
+      // per-particle folder, so a reader had to know the naming convention to tell
+      // which spectrum belonged to which species. This makes the layout say it.
       std::vector<std::string> particlePath = baseLogicalPath;
       particlePath.push_back(pName);
-      TDirectory* particleDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), particlePath);
 
-      if (!particleDir)
+      std::vector<std::string> trendsPath = particlePath;
+      trendsPath.push_back("Trends");
+      std::vector<std::string> spectraPath = particlePath;
+      spectraPath.push_back("Spectra");
+
+      TDirectory* trendsDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), trendsPath);
+      TDirectory* spectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), spectraPath);
+
+      if (!trendsDir || !spectraDir)
         continue;
-      particleDir->cd();
+      trendsDir->cd();
 
       // --- Save measured trends ---
       std::string cNameMeas = std::format("cTrend_Meas_{}", pName);
       std::unique_ptr<TCanvas> cTrendMeas = std::make_unique<TCanvas>(cNameMeas.c_str(), "Measured Yield Trend", 800, 600);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
-        particleDir->cd();
+        trendsDir->cd();
         h1MultTrends[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
         cTrendMeas->cd();
         AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx].get(), globalCfgs.GetMultTrendColor(yIdx));
         h1MultTrends[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
       }
-      particleDir->cd();
+      trendsDir->cd();
       cTrendMeas->Write(nullptr, TObject::kOverwrite);
 
       // --- Save extrapolated trends ---
@@ -94,14 +105,14 @@ class CorrelationTaskBase : public IAnalysisTask
         std::unique_ptr<TCanvas> cTrendExtrap = std::make_unique<TCanvas>(cNameExtrap.c_str(), "Extrapolated Yield Trend", 800, 600);
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
-          particleDir->cd();
+          trendsDir->cd();
           h1MultTrendsExtrap[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
           cTrendExtrap->cd();
           AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx].get(), globalCfgs.GetMultTrendColor(yIdx));
           h1MultTrendsExtrap[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
         }
-        particleDir->cd();
+        trendsDir->cd();
         cTrendExtrap->Write(nullptr, TObject::kOverwrite);
       }
 
@@ -125,17 +136,30 @@ class CorrelationTaskBase : public IAnalysisTask
           hRatioExtrapMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
         }
 
-        particleDir->cd();
+        trendsDir->cd();
         cRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
       }
 
       // --- Save accumulated spectra Canvases for this species ---
       for (auto& canvas : spectraCanvases[pIdx]) {
         if (canvas) {
-          particleDir->cd();
+          spectraDir->cd();
           canvas->Write(nullptr, TObject::kOverwrite);
         }
       }
+    }
+
+    // The binnings this file was produced with. Unlike the provenance below, these
+    // ARE a check: the spectra are named by multiplicity INDEX, so a task dividing
+    // two of these files matches "_multBin3" on both sides whatever the two
+    // productions meant by it - and multiplicity is not an axis of the objects being
+    // divided, so comparing their axes would never notice. The pT binning is stamped
+    // too, since it costs nothing and makes the message say which of the two differs.
+    if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName}, false)) {
+      RootIO::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
+      RootIO::WriteBinningStamp(schemeDir, "binning_ptPhi", ptPhiBinning);
+      for (const auto& p : assocParticles)
+        RootIO::WriteBinningStamp(schemeDir, "binning_ptAssoc_" + p.name, p.binning);
     }
 
     // The spectra leave this task and, once the trends and ratios move to a task
@@ -975,10 +999,16 @@ class CorrelationTaskBase : public IAnalysisTask
   void GenerateSpectraAndTrends(int multBin, double totalTriggerSignalPerMult)
   {
     std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
-    TDirectory* targetSpectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName, dirName});
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];
+
+      // Per particle, alongside the Trends written in Terminate(). Resolved inside
+      // the loop and not once outside it, because the directory now depends on which
+      // species this iteration is producing.
+      TDirectory* targetSpectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName, dirName, config.name, "Spectra"});
+      if (!targetSpectraDir)
+        continue;
       bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.contains(config.name) && doExtrapolationPerParticle.at(config.name);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
