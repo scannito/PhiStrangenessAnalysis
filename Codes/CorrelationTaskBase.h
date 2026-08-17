@@ -138,8 +138,12 @@ class CorrelationTaskBase : public IAnalysisTask
           std::unique_ptr<TH1> hRatioExtrapMeas = AnalysisUtils::MakeRatioHist(h1MultTrendsExtrap[pIdx][yIdx].get(), h1MultTrends[pIdx][yIdx].get(),
                                                                                ratioName, title, 1.0, 1.0);
 
-          cRatioExtrapMeas->cd();
           AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas.get(), globalCfgs.GetMultTrendColor(yIdx));
+
+          trendsDir->cd();
+          hRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
+
+          cRatioExtrapMeas->cd();
           hRatioExtrapMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
         }
 
@@ -242,6 +246,9 @@ class CorrelationTaskBase : public IAnalysisTask
             AnalysisUtils::SetHistogramStyle(hRatioMeas.get(), globalCfgs.GetMultTrendColor(yIdx));
             hRatioMeas->SetMarkerStyle(24);
 
+            ratioDir->cd();
+            hRatioMeas->Write(nullptr, TObject::kOverwrite);
+
             std::unique_ptr<TH1> hRatioExtrap{nullptr};
             if (doExtrapRatio) {
               TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[idxNum][yIdx].get() : h1MultTrends[idxNum][yIdx].get();
@@ -253,6 +260,9 @@ class CorrelationTaskBase : public IAnalysisTask
 
               AnalysisUtils::SetHistogramStyle(hRatioExtrap.get(), globalCfgs.GetMultTrendColor(yIdx));
               hRatioExtrap->SetMarkerStyle(20);
+
+              ratioDir->cd();
+              hRatioExtrap->Write(nullptr, TObject::kOverwrite);
             }
 
             double globalMax = hRatioMeas->GetMaximum();
@@ -264,6 +274,8 @@ class CorrelationTaskBase : public IAnalysisTask
             hRatioMeas->GetYaxis()->SetRangeUser(globalMin * 0.9, globalMax * 1.2);
 
             // if (hRatioExtrap)
+
+            canvasRatio->cd();
 
             TH1* cloneMeas = hRatioMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
             legend->AddEntry(cloneMeas, std::format("Meas. |#Delta y| < {}", dyTitleStr).c_str(), "p");
