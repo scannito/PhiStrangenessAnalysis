@@ -114,6 +114,32 @@ through the chain and not block by block.
   `TDirectory`: two canvases with the same name alive at once collide even in
   different directories. This caused a segfault; keep canvas names unique.
 
+## How a task opens the file it writes
+
+Three regimes, and the choice is about **ownership of the file**, not about taste.
+Opening mode and clearing are two separate decisions:
+
+| | when | who |
+|---|---|---|
+| `RECREATE` | the whole file is this task's | `PhiFitTask`, `PurityTask`, `ComparisonTask`, the per-particle maps |
+| `UPDATE` + `RootIO::ClearPath` | the file is shared; the owned subtree is rewritten from scratch | `CorrelationTask`, `CorrelationWPDGTask` (`PhiAssocSpectra.root`), `MCTask` (`Corrections.root`) |
+| `UPDATE`, no clearing | the file is shared; the owned subtree is defended by REFUSING | the projection caches |
+
+`UPDATE` says "this file may hold things that are not mine" - another
+`binning_name`, the other `Extract1D`/`Extract2D`. `ClearPath` says "and what IS
+mine I rewrite from nothing". Without the second, a task whose output has changed
+shape leaves both generations in the file and nothing says which is current; with
+`RECREATE` instead of the pair, the siblings are destroyed along with the stale
+objects.
+
+The third row is not an oversight. A projection cache costs too much to rebuild for
+it to be replaced silently, so ownership there is exercised by throwing when the
+directory already holds projections of another binning - see
+`ResolveBinningAndCache`. Clearing and refusing are opposite answers to the same
+question, and which one is right depends on what it costs to lose the contents.
+
+A new task that writes into a file somebody else also writes into belongs in row two.
+
 ## Cling constraints
 
 - `std::format` with any non-empty format spec fails: `{:g}`, `{:.2f}`, `{:%F}`.

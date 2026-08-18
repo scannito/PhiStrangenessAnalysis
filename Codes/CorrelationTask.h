@@ -109,6 +109,13 @@ class CorrelationTask : public CorrelationTaskBase
     std::string phiSpectraName = basePathFinal + outputPrefix + "PhiAssocSpectra.root";
     fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", "CorrelationTask");
 
+    // This run rewrites its whole scheme directory, so whatever a previous one left
+    // there - produced when the layout or the object names were different - would sit
+    // beside the new objects with nothing to tell them apart. UPDATE and not RECREATE
+    // because only this subtree is ours: another 'binning_name', or the other
+    // Extract1D/2D, belongs to somebody else and stays.
+    RootIO::ClearPath(fileOutputSpectra.get(), {globalCfgs.binningName, SchemeDirName()});
+
     for (const auto& p : assocParticles) {
       std::string fName = basePathProj + outputPrefix + "Phi" + p.name + "DataHistograms.root";
       std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), "CorrelationTask");
@@ -276,7 +283,7 @@ class CorrelationTask : public CorrelationTaskBase
       }
     }
 
-    std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
+    const std::string dirName = SchemeDirName();
     std::vector<std::string> logicalPath{globalCfgs.binningName, dirName};
 
     // =========================================================================

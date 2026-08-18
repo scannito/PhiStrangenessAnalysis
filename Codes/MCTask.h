@@ -198,6 +198,16 @@ class MCTask : public IAnalysisTask
     std::string outPath = outputDirectory + outputPrefix + "Corrections.root";
     fileMCOutput = RootIO::OpenOrThrow(outPath, "UPDATE", "MCTask");
 
+    // This run rewrites its whole scheme directory - AccEff, SigLoss, EvLoss and the
+    // stamps - so anything a previous one left there would sit beside the new maps
+    // with nothing to tell them apart. Not hypothetical: the moment the object names
+    // change, the file would carry both generations and the reader would have no way
+    // to know which is current.
+    //
+    // UPDATE and not RECREATE because only this subtree is ours: a run under a
+    // different 'binning_name' writing to the same file keeps its own.
+    RootIO::ClearPath(fileMCOutput.get(), {globalCfgs.binningName});
+
     std::cout << "[INFO] MCTask: Initialization complete." << std::endl;
   }
 

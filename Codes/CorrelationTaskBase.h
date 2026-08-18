@@ -54,7 +54,7 @@ class CorrelationTaskBase : public IAnalysisTask
   {
     std::cout << "[INFO] " << GetName() << ": TERMINATING AND CLEANING UP..." << std::endl;
 
-    std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
+    const std::string dirName = SchemeDirName();
     std::vector<std::string> baseLogicalPath = {globalCfgs.binningName, dirName};
 
     // =========================================================================
@@ -1024,7 +1024,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   void GenerateSpectraAndTrends(int multBin, double totalTriggerSignalPerMult)
   {
-    std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
+    const std::string dirName = SchemeDirName();
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];
@@ -1119,7 +1119,7 @@ class CorrelationTaskBase : public IAnalysisTask
       }
     }
 
-    std::string dirName = use2DMENormalization ? "Extract2D" : "Extract1D";
+    const std::string dirName = SchemeDirName();
     std::vector<std::string> logicalPath{globalCfgs.binningName, dirName};
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
@@ -1168,6 +1168,11 @@ class CorrelationTaskBase : public IAnalysisTask
       GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
     }
   }
+
+  // Which of the two extraction schemes this task writes into. Derived rather than
+  // stored: it follows from use2DMENormalization, and the same ternary was spelled
+  // out in four places - four chances for one of them to be edited alone.
+  std::string SchemeDirName() const { return use2DMENormalization ? "Extract2D" : "Extract1D"; }
 
   static double GetYieldScaleFactor(const std::string& name)
   {

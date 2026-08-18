@@ -81,9 +81,19 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "output_dir_proj", GetName());
     std::string basePathFinal = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     std::string phiSpectraName = basePathFinal + prefix + "PhiAssocSpectra.root";
-    fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "RECREATE", "CorrelationWPDGTask");
+    fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", "CorrelationWPDGTask");
 
-    std::string projMode = useProjectionCache ? "READ" : "RECREATE";
+    // Same as CorrelationTask, which this used to differ from for no stated reason:
+    // this run rewrites its whole scheme directory, so a previous run's objects would
+    // otherwise sit beside the new ones. UPDATE and not RECREATE because only this
+    // subtree is ours - another 'binning_name', or the other Extract1D/2D, stays.
+    RootIO::ClearPath(fileOutputSpectra.get(), {globalCfgs.binningName, SchemeDirName()});
+
+    // UPDATE and not RECREATE here too, and for a different reason: the cache is
+    // expensive to rebuild, so a scheme directory that already holds projections of
+    // another binning must be REFUSED rather than silently replaced. That guard lives
+    // in ResolveBinningAndCache and only has something to guard if the file survives.
+    std::string projMode = useProjectionCache ? "READ" : "UPDATE";
 
     for (const auto& p : assocParticles) {
       std::string fName = basePathProj + prefix + "Phi" + p.name + "DataHistograms.root";

@@ -120,6 +120,44 @@ inline TDirectory* GetOrCreatePath(TDirectory* baseDir, const std::vector<std::s
   return currentDir;
 }
 
+// Removes a subtree, so that a task about to rewrite it does not leave the previous
+// run's objects beside the new ones.
+//
+// A task OWNS the directory it writes. When what it produces changes - a different
+// layout, an object that used to be flat and is now nested - opening the file in
+// UPDATE keeps both generations and nothing says which is current. This is why the
+// pair UPDATE + ClearPath is not a roundabout way of writing RECREATE: it clears
+// only the owned path, so a sibling scheme or the other Extract1D/2D in the same
+// file survive. That coexistence is what 'binningName' and the Extract split are
+// for, and it is not currently exercised - which is a reason to keep it working, not
+// evidence that it is unwanted.
+//
+// Delete("name;*") on the parent removes every cycle of the key, the directory and
+// its contents included - the ROOT documentation is explicit about the namecycle
+// form.
+//
+// What it does NOT do is shrink the file: the freed bytes become free segments that
+// ROOT reuses for later keys, so an output rewritten on every run does not grow
+// without bound, but it will not be as small as the same content written with
+// RECREATE either. If one of these files ever looks disproportionate, that is why,
+// and TFile::Purge or one RECREATE pass is the answer - not a change here.
+inline void ClearPath(TDirectory* baseDir, const std::vector<std::string>& pathNodes)
+{
+  if (!baseDir || pathNodes.empty())
+    return;
+
+  // Read-only navigation is the existence test used throughout this header: if the
+  // path is not there, there is nothing to clear and nothing to report.
+  if (!GetOrCreatePath(baseDir, pathNodes, true))
+    return;
+
+  // The parent must resolve, since the full path just did.
+  const std::vector<std::string> parentPath(pathNodes.begin(), pathNodes.end() - 1);
+  TDirectory* parent = parentPath.empty() ? baseDir : GetOrCreatePath(baseDir, parentPath, true);
+
+  parent->Delete((pathNodes.back() + ";*").c_str());
+}
+
 // Builds the ROOT directory prefix "node1/node2/", trailing slash included, so
 // that the caller can append the object name and hand the result to Get().
 inline std::string MakeDirPath(const std::vector<std::string>& path)
