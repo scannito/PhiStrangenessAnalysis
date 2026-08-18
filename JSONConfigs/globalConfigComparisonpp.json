@@ -1,0 +1,36 @@
+{
+  "workflow": {
+    "global_binning": {
+      "...": "come negli altri master"
+    },
+    "active_tasks": [
+      "comparison_task_closure"
+    ]
+  },
+  "comparison_task_closure": {
+    "target": "trends",
+    "input_dir_name": "Extract1D",
+    "output_dir_final": "../DataFile/pp/DeltaY/FinalResults/",
+    "output_prefix": "Closure_",
+    "comparisons": [
+      {
+        "label": "closure_2024",
+        "numerator": "../DataFile/pp/DeltaY/FinalResults/MCClosureWPDG_2024_PhiAssocSpectra.root",
+        "denominator": "../DataFile/pp/DeltaY/FinalResults/MCClosureGen_2024_PhiAssocSpectra.root",
+        "divide_option": "B"
+      },
+      {
+        "label": "closure_2026",
+        "numerator": "../DataFile/pp/DeltaY/FinalResults/MCClosureWPDG_2026_PhiAssocSpectra.root",
+        "denominator": "../DataFile/pp/DeltaY/FinalResults/MCClosureGen_2026_PhiAssocSpectra.root",
+        "divide_option": "B"
+      },
+      {
+        "label": "prod_2026_su_2024",
+        "numerator": "../DataFile/pp/DeltaY/FinalResults/Data_2026_PhiAssocSpectra.root",
+        "denominator": "../DataFile/pp/DeltaY/FinalResults/Data_2024_PhiAssocSpectra.root",
+        "divide_option": ""
+      }
+    ]
+  }
+}
