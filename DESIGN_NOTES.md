@@ -450,17 +450,58 @@ The mechanism is therefore present and dormant, deliberately. It exists so that 
 day `hsys` is produced the extrapolation already takes it; until then it takes a
 `nullptr` and `hasSystematics` stays false.
 
-What is missing is everything upstream of that. The framework is parameterised in
-the right way — signal and background models, integration and sideband ranges,
-differential vs integrated efficiency, 1D vs 2D ME normalisation, five
-extrapolation models are all JSON keys — but nothing generates the varied
-configurations, runs them, and collects the spread per bin (plus a Barlow check to
-decide whether a variation is significant).
+What is missing is everything upstream of that: `hsys` itself.
 
-`Macros/run_systematics.py` is the skeleton of that driver: it deep-copies the
-nominal configuration, applies a dictionary of changes, prefixes the outputs and
-runs each through `runAnalysis.sh`. **It is not usable as it stands**, and the three
-reasons are worth writing down because two of them fail silently:
+### Where `hsys` has to come from
+
+`OldCodes/ratioK0SPiCorrectedUpdated.C` already does all of this, in the
+pre-framework style, and it is the reference for the port — `BarlowVar2`, the
+per-source breakdown, the pass/fail histograms against multiplicity, the five
+extrapolation models as a source. This is a port, not a blank page.
+
+Reading it corrects an assumption that was written here before: **most systematic
+sources are not offline variations.** They are separate O2 productions —
+
+```
+Systematics/K0S/DCADauToPV/phik0shortanalysis_tightDCADauToPV_id25651Systematics.root
+Systematics/K0S/NSigmaTPC/phik0shortanalysis_tightNSigmaTPC_id25957Systematics.root
+Systematics/K0SPiCorrelated/NTPCClusters/..._tightTPCClusters_id25957Systematics.root
+```
+
+— different Hyperloop trains, different selections, arriving as files. The offline
+chain does not generate them; it consumes them. Only the fit systematic and the
+extrapolation model are born offline.
+
+That changes what the driver is. It is not primarily a configuration generator:
+it is a **collector**, and the thing that produces variation-over-nominal ratios
+already exists — `ComparisonTask`, which was built to divide the same quantity
+produced by two separate runs.
+
+Steps, in dependency order:
+
+1. Run the chain on each variation production. One configuration per variation,
+   changing `input_data_file` and `output_prefix` and nothing else. No new code.
+2. Ratio each variation to the nominal with `ComparisonTask`, `target: "spectra"`.
+3. A new collector task reads the N ratios and emits `hsys`: a TH1 shaped like the
+   spectrum whose bin errors are the combined systematic. Barlow decides whether a
+   variation is significant; the uncorrelated sources add in quadrature.
+4. **Correlated sources are propagated on the ratio, not per species.** A cut that
+   moves K0S and pi together partly cancels in K0S/pi, so the ratio needs its own
+   `hsys` and it is NOT the quadrature of the two. This is the detail a port loses
+   most easily, because the result stays plausible either way.
+5. Decide about the `Smooth(1)` the old macro applies to the systematic-versus-
+   multiplicity profiles: port it with the reason written next to it, or leave it
+   out deliberately.
+
+Note the level: `hsys` is a **spectrum**, per particle and multiplicity bin. Once
+it exists, `SetSystematicSpectrum` carries it to the trend by itself, and the four
+`ExtrapolationResult` numbers stop being zero. Producing a trend-level systematic
+directly would be solving the problem at the wrong layer.
+
+### `Macros/run_systematics.py`
+
+The skeleton of the offline half only, and **not usable as it stands**. Three
+reasons, two of which fail silently:
 
 - The example variations set `extrap_function` and `extrap_fit_range` inside
   `correlation_task`. **No such keys exist.** The extrapolation model and its
@@ -472,13 +513,24 @@ reasons are worth writing down because two of them fail silently:
   failing. Blocks are named `correlation_task_2024`, not `correlation_task`, so a
   literal name matches nothing — again silently, and again producing a full set of
   "varied" results identical to the nominal.
-- There is no collection step. Generating and running is the cheap half; what makes
-  it a systematics driver is reading the N outputs back and computing the spread.
+- There is no collection step. Generating and running is the cheap half.
 
 The first two are the same defect the C++ side is built to prevent — a
 configuration that lies — reintroduced in Python, where none of the checks apply.
-Whoever finishes this should make the driver resolve keys against the same
-configuration chain the tasks use, and treat an unmatched block name as fatal.
+Whoever finishes this should resolve keys against the same configuration chain the
+tasks use, and treat an unmatched block name as fatal.
+
+### Two things to check when wiring it up
+
+- `yieldSysHi` and `yieldSysLo` are `TMath::Abs` of a shift, so they are
+  **magnitudes and not directions**. Drawing them as a +Hi/−Lo band assumes the
+  +1sigma variation moves the yield upwards. Usually true, not guaranteed if the
+  fit responds non-monotonically, and nothing verifies it.
+- They need somewhere to go. Today the only thing that touches them is a
+  `std::cout` in `CorrelationTaskBase`. Two TH1 beside the trends, `_systHi` and
+  `_systLo` — two and not one, because they are genuinely asymmetric. And decide
+  what `ComparisonTask` should do with them: `ListHistograms` discovers by content,
+  so it would divide them on its own.
 
 **MC closure has no verdict — half of it now exists.** `ComparisonTask` computes
 the corrected/generated ratio bin by bin, with `divide_option: "B"` for the
@@ -490,7 +542,52 @@ the ratio into one.
 
 ---
 
-## 7. Engineering
+## 7. The delivery format, and the stage that is missing
+
+The chain ends at "corrected trends, as TH1". A published result is not that, and
+the gap is not cosmetic — it is three things a TH1 structurally cannot carry:
+
+- **two errors per point.** Statistical and systematic need two objects.
+- **asymmetric errors.** `ExtrapolationResult` already produces `yieldSysHi` and
+  `yieldSysLo` separately.
+- **an error on x.** In `OldCodes/ratioK0SPiCorrectedUpdated.C` the abscissa is
+  `mult[] = {28.51, 24.54, ...}` with `errstatmult` and `errsystmult`: it is
+  <dN/deta>, a *measured quantity with its own statistical and systematic
+  uncertainty*, not the centrality percentile the trends carry on their axis.
+
+The old macro delivers pairs of `TGraphAsymmErrors` sharing the same points and
+differing only in the error, grouped in `TMultiGraph`, and finally a canvas.
+
+**The decision: TH1 stays the internal currency, the graph is a terminal
+rendering.** Everything that compares works on histograms — `ComparisonTask`,
+`RequireSameAxis`, `TH1::Divide` with `"B"` — and a `TGraph` has neither an axis to
+verify nor a division. So the conversion happens once, at the exit, in one
+direction. Old results come *in* as TH1 through `Macros/convertGraphHist.C`; new
+results go *out* as graphs at the last step and nothing downstream consumes them.
+
+What is missing is that last stage: a task taking trends, the two systematic
+histograms and the <dN/deta> table, and emitting the graph pairs. Two notes for
+whoever writes it:
+
+- `histToGraph` is not enough as it stands. It uses bin centres, and the published
+  abscissa is <dN/deta> — so it needs the same explicit map `graphToHist` demands,
+  in the other direction, and the table of <dN/deta> values is an input with a
+  provenance, not a constant in the code.
+
+  This is also, in hindsight, *why* `graphToHist` refuses to compute the
+  correspondence from the x values. That was argued on general grounds when it was
+  written; the old macro shows it is not general at all. Going from a centrality
+  interval to <dN/deta> is a measurement, not a reformatting.
+
+- **Keep the data and the figure apart.** In the old macro the canvas *is* the
+  result — saved to `/Users/stefanocannito/Downloads/updateK0SPi2.pdf`, a personal
+  path, no provenance, and the numbers reachable only by opening a `TCanvas` and
+  digging the graphs out of it. Every intermediate stage of this framework already
+  solves that; it would be a poor place to lose it.
+
+---
+
+## 8. Engineering
 
 **Splitting RootIOHelpers further — a suggestion, not a decision.** The header now
 holds two families: file access (open, get, navigate) and the records written into
@@ -558,7 +655,7 @@ being chosen.
 
 ---
 
-## 8. Cling constraints learned the hard way
+## 9. Cling constraints learned the hard way
 
 - **`std::format` with floating-point specs does not compile.** `{:g}`, `{:.2f}`
   and friends make the consteval format-string validation fail: for float specs
