@@ -1,5 +1,6 @@
 #pragma once
 
+#include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
 #include "AnalysisUtils.h"
 #include "FitConfigManager.h"
@@ -28,6 +29,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <format>
 #include <iostream>
 #include <memory>
 #include <sstream>
@@ -260,10 +262,43 @@ class DynamicRooFitter
     // Extract the [val, min, max, isConstant] struct from the map
     const MathParam& p = config.model.params.at(name);
 
+    // No setConstant() anywhere in this class, and none is needed: which RooRealVar
+    // constructor is called IS the choice. Three arguments builds a constant - that
+    // overload exists for exactly this and calls setConstant(true) itself - while
+    // adding min and max builds a free parameter with those limits. So a scalar in the
+    // JSON ("width_sig": 0.00426) is fixed and an array is fitted, which is the whole
+    // meaning of MathParam::isConstant.
     if (p.isConstant) {
       return Own<RooRealVar>(name.c_str(), name.c_str(), p.val);
     } else {
       return Own<RooRealVar>(name.c_str(), name.c_str(), p.val, p.min, p.max);
+    }
+  }
+
+  // The K+K- threshold, 2*m_K: the phase-space backgrounds are built on (M - 2*m_K)
+  // and are real only above it. Derived rather than written out, so this file holds no
+  // second copy of the kaon mass - it used to, as 0.987354, and it disagreed with
+  // AnalysisConstants in the sixth decimal because the constant had a digit missing.
+  static double TwoKaonThreshold() { return 2.0 * AnalysisConstants::GetMass("K"); }
+
+  // A model that takes sqrt() or a non-integer power of (M - threshold) is NaN below
+  // the threshold, and RooFit does not report that as an error: it reports a fit that
+  // did not converge, or converged on nonsense, with no mention of the reason.
+  //
+  // The observable range is the normalisation domain of every PDF in the model, so it
+  // is the range that decides whether the evaluation ever goes below the threshold -
+  // not the integration range, which is a sub-interval of it. Hence the check is on
+  // the observable, and it runs when the model is built rather than when it is
+  // evaluated, so the message names the model and the two numbers.
+  void RequireThresholdBelowRange(const std::string& modelType) const
+  {
+    if (obs->getMin() < TwoKaonThreshold()) {
+      throw std::runtime_error(std::format(
+        "[FATAL] DynamicRooFitter: background model '{}' is only defined above the K+K- "
+        "threshold {}, but the observable starts at {}. Below the threshold it evaluates "
+        "to NaN and the fit fails without saying why. Raise 'observable.min' in the fit "
+        "configuration, or choose a background with no threshold (Chebychev*, Exponential).",
+        modelType, TwoKaonThreshold(), obs->getMin()));
     }
   }
 
@@ -312,18 +347,41 @@ class DynamicRooFitter
     } else if (modelType == "BkgSourav1") {
       // Custom Phase-Space Background for Phi -> K+ K-
       // Formula: 1.0 + c1*M + c2*sqrt(M - 2*m_K)
-      // m_K = 0.493677 GeV/c^2  -> 2*m_K = 0.987354 GeV/c^2
+      RequireThresholdBelowRange(modelType);
       RooRealVar* c1 = CreateVar("c1" + suffix);
       RooRealVar* c2 = CreateVar("c2" + suffix);
-      pdf = Own<RooGenericPdf>(name.c_str(), "Sourav Background", "1.0 + @1*@0 + @2*sqrt(@0 - 0.987354)", RooArgList(*obs, *c1, *c2));
+      pdf = Own<RooGenericPdf>(name.c_str(), "Sourav Background",
+                               std::format("1.0 + @1*@0 + @2*sqrt(@0 - {})", TwoKaonThreshold()).c_str(),
+                               RooArgList(*obs, *c1, *c2));
     } else if (modelType == "BkgSourav2") {
       // Custom Phase-Space Background for Phi -> K+ K-
-      // Formula: c0 + c1*M + c2*sqrt(M - 2*m_K)
-      // m_K = 0.493677 GeV/c^2  -> 2*m_K = 0.987354 GeV/c^2
+      // Formula: 1.0 + c1*M + c2*M^2 + c3*sqrt(M - 2*m_K)
+      RequireThresholdBelowRange(modelType);
       RooRealVar* c1 = CreateVar("c1" + suffix);
       RooRealVar* c2 = CreateVar("c2" + suffix);
       RooRealVar* c3 = CreateVar("c3" + suffix);
-      pdf = Own<RooGenericPdf>(name.c_str(), "Sourav Background", "1.0 + @1*@0 +@2*@0*@0 + @3*sqrt(@0 - 0.987354)", RooArgList(*obs, *c1, *c2, *c3));
+      pdf = Own<RooGenericPdf>(name.c_str(), "Sourav Background",
+                               std::format("1.0 + @1*@0 + @2*@0*@0 + @3*sqrt(@0 - {})", TwoKaonThreshold()).c_str(),
+                               RooArgList(*obs, *c1, *c2, *c3));
+    } else if (modelType == "BkgMattia") {
+      // Formula: (M - 2*m_K)^n * exp(c1*(M - 2*m_K) + c2*(M - 2*m_K)^2 + c3*(M - 2*m_K)^3)
+      //
+      // Needs 'n', 'c1', 'c2', 'c3' in the fit configuration; CreateVar names the
+      // one that is missing. Note that 'c1'..'c3' also exist for BkgSourav2, where
+      // they multiply powers of M and not of (M - 2*m_K): the names are shared, the
+      // meanings are not, so this model belongs in its own block rather than as a
+      // one-key override of a Sourav one.
+      RequireThresholdBelowRange(modelType);
+      RooRealVar* n = CreateVar("n" + suffix);
+      RooRealVar* c1 = CreateVar("c1" + suffix);
+      RooRealVar* c2 = CreateVar("c2" + suffix);
+      RooRealVar* c3 = CreateVar("c3" + suffix);
+      const double thr = TwoKaonThreshold();
+      pdf = Own<RooGenericPdf>(name.c_str(), "Mattia Background",
+                               std::format("pow(@0 - {}, @1) * exp(@2*(@0 - {}) + @3*pow(@0 - {}, 2) + @4*pow(@0 - {}, 3))",
+                                           thr, thr, thr, thr)
+                                 .c_str(),
+                               RooArgList(*obs, *n, *c1, *c2, *c3));
     }
 
     else {
