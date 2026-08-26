@@ -9,7 +9,9 @@
 #include "TMatrixDSym.h"
 
 #include <cmath>
-#include <iostream>
+#include <format>
+#include <memory>
+#include <stdexcept>
 #include <utility>
 #include <vector>
 
@@ -72,16 +74,40 @@ class FitPhiSignalAndBkg
                      std::pair<double, double> sidebandRegion = PhiFitModels::kPhiSidebandRange)
     : h1(h), fitFunction(fitFunc)
   {
+    // This class decomposes into Voigt (4 parameters) + BkgSourav (3), and those two
+    // shapes are written below rather than derived from what was passed: whatever
+    // 'fitFunc' holds, the pieces integrated afterwards are always those two. Handing
+    // it VoigtBkgMattia would fit correctly and then decompose with the WRONG
+    // background, and the yields would come out wrong with nothing to show for it.
+    //
+    // A TF1 cannot be asked which formula it carries, so the parameter layout is the
+    // closest available proxy for the shape - and it catches the case that matters,
+    // since VoigtBkgMattia has 9 parameters and not 7.
+    //
+    // Note what this makes explicit: 'indexFirstBkgParam' has exactly one legal value.
+    // It is an argument that cannot vary, which is the definition of a parameter that
+    // should not be one.
+    if (fitFunction->GetNpar() != kNPars || indexFirstBkgParam != kNSignalPars) {
+      throw std::runtime_error(std::format(
+        "[FATAL] FitPhiSignalAndBkg: this class only decomposes Voigt + BkgSourav, which is "
+        "{} parameters with the background starting at index {}. It was given {} parameters "
+        "with indexFirstBkgParam = {}. For any other model use DynamicRooFitter, which builds "
+        "the components from the configuration instead of assuming them.",
+        kNPars, kNSignalPars, fitFunction->GetNpar(), indexFirstBkgParam));
+    }
+
     double binWidth = h1->GetXaxis()->GetBinWidth(1);
 
     TFitResultPtr fitResult = h1->Fit(fitFunction, "RS");
     TMatrixDSym covMatrix = fitResult->GetCovarianceMatrix();
 
-    // h1->GetListOfFunctions()->Add(fitFunction->Clone());
-
-    TF1* signalFunction = new TF1("Voigt", PhiFitModels::Voigt, signalRegion.first, signalRegion.second, 4);
+    // Owned here until they are handed to the histogram below. They used to be raw
+    // 'new TF1' whose clones went to the histogram while the originals were never
+    // deleted - nBinMult x nBinPt of them per run, all sharing two names in ROOT's
+    // global function list.
+    std::unique_ptr<TF1> signalFunction = std::make_unique<TF1>("Voigt", PhiFitModels::Voigt, signalRegion.first, signalRegion.second, kNSignalPars);
     signalFunction->SetLineColor(kBlue);
-    TF1* bkgFunction = new TF1("Bkg", PhiFitModels::BkgSourav, signalRegion.first, signalRegion.second, 3);
+    std::unique_ptr<TF1> bkgFunction = std::make_unique<TF1>("Bkg", PhiFitModels::BkgSourav, signalRegion.first, signalRegion.second, kNBkgPars);
     bkgFunction->SetLineColor(kGreen + 2);
 
     TMatrixDSym covSignal(indexFirstBkgParam);
@@ -101,9 +127,6 @@ class FitPhiSignalAndBkg
       }
     }
 
-    h1->GetListOfFunctions()->Add(signalFunction->Clone());
-    h1->GetListOfFunctions()->Add(bkgFunction->Clone());
-
     signalIntegralAndError.first = signalFunction->Integral(signalRegion.first, signalRegion.second) / binWidth;
     signalIntegralAndError.second = signalFunction->IntegralError(signalRegion.first, signalRegion.second, fitFunction->GetParameters(), covSignal.GetMatrixArray()) / binWidth;
 
@@ -117,9 +140,12 @@ class FitPhiSignalAndBkg
       bkgIntegralAndErrorInSideRegion = AnalysisUtils::IntegralAndErrorPair(h1, sidebandRegion.first, sidebandRegion.second);
     }
 
-    std::cout << "Signal Integral: " << signalIntegralAndError.first << " +/- " << signalIntegralAndError.second << std::endl;
-    std::cout << "Bkg Integral in Signal Region: " << bkgIntegralAndErrorInSigRegion.first << " +/- " << bkgIntegralAndErrorInSigRegion.second << std::endl;
-    std::cout << "Bkg Integral in Sideband Region: " << bkgIntegralAndErrorInSideRegion.first << " +/- " << bkgIntegralAndErrorInSideRegion.second << std::endl;
+    // Handed over last, once nothing here needs them any more. TH1 owns what goes into
+    // its function list and deletes it with itself, so releasing is the transfer: the
+    // caller gets the same two curves drawn with the histogram as before, and nothing
+    // is left behind. Previously these were clones and the originals were the leak.
+    h1->GetListOfFunctions()->Add(signalFunction.release());
+    h1->GetListOfFunctions()->Add(bkgFunction.release());
   }
 
   std::pair<double, double> GetSignalAndError() const { return signalIntegralAndError; }
@@ -127,6 +153,12 @@ class FitPhiSignalAndBkg
   std::pair<double, double> GetBkgInSideRegionAndError() const { return bkgIntegralAndErrorInSideRegion; }
 
  private:
+  // The shape this class can decompose, spelled out because the decomposition below
+  // assumes it rather than reading it: Voigt has 4 parameters, BkgSourav 3.
+  static constexpr int kNSignalPars = 4;
+  static constexpr int kNBkgPars = 3;
+  static constexpr int kNPars = kNSignalPars + kNBkgPars;
+
   TH1* h1{nullptr};
   TF1* fitFunction{nullptr};
 
