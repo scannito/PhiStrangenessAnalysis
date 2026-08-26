@@ -319,6 +319,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
   bool applyME{false}, applyEfficiency{false}, applyExtrapolation{false};
   bool useIntegratedEfficiency{false}, useProjectionCache{false}, use2DMENormalization{false};
+  AnalysisUtils::TrendComposition trendComposition{AnalysisUtils::TrendComposition::TotalExtrapolated};
 
   std::unique_ptr<TH1> hEventLoss;
 
@@ -399,6 +400,15 @@ class CorrelationTaskBase : public IAnalysisTask
 
     useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
     use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());
+
+    // Defaulted to what the chain has always done, so a configuration that says nothing
+    // reproduces the previous numbers. The alternative exists to be compared against
+    // it: see AnalysisUtils::TrendComposition.
+    trendComposition = JsonConfig::OptionalEnum<AnalysisUtils::TrendComposition>(
+      taskConfig, "trend_composition", "total_extrapolated",
+      {{"total_extrapolated", AnalysisUtils::TrendComposition::TotalExtrapolated},
+       {"measured_plus_extrapolated", AnalysisUtils::TrendComposition::MeasuredPlusExtrapolated}},
+      GetName());
 
     // Both spellings of each axis are entries in the same table, so the accepted
     // values and the error message can never drift apart.
@@ -954,9 +964,22 @@ class CorrelationTaskBase : public IAnalysisTask
       std::cout << "\n[DEBUG EXTRAP] " << std::endl;
       std::cout << "  -> Raw data integral:            " << rawIntegral << std::endl;
       std::cout << "  -> Yield after extrapolation:    " << res.yield << std::endl;
-      std::cout << "  -> Extrapolated part:            " << res.extrapolatedYield
+      std::cout << "  -> Extrapolated part:            " << res.ExtrapolatedYield()
                 << " (" << 100. * res.ExtrapolatedFraction() << "% of the yield)" << std::endl;
-      std::cout << "  -> Fitted function [0, " << firstMeasuredPt << "]: " << fitLowPtIntegral << std::endl;
+
+      // Split by side, and printed next to the independent computation of the low one.
+      // The two low numbers come by completely different routes - a sum over a
+      // histogram of 0.01-wide bins, each filled with TF1::Integral, against one direct
+      // TF1::Integral - so agreement says the whole extrapolation machinery works, and
+      // it is how the silently-dropped extrapolation was found in the first place.
+      //
+      // They differ legitimately when the first declared bin is empty: the histogram
+      // starts at the first NON-empty edge while the direct integral starts at
+      // config.binning[0]. If they differ and the first bin is filled, something is
+      // wrong.
+      std::cout << "       low  " << res.extrapolatedYieldLow
+                << "   vs fitted function over [0, " << firstMeasuredPt << "]: " << fitLowPtIntegral << std::endl;
+      std::cout << "       high " << res.extrapolatedYieldHigh << std::endl;
 
       // The four numbers to check against the reference if this ever has to be
       // verified again. Yield and mean are deterministic and must agree exactly;
@@ -1081,12 +1104,13 @@ class CorrelationTaskBase : public IAnalysisTask
         targetSpectraDir->cd();
         h1Spectrum->Write(nullptr, TObject::kOverwrite);
 
-        AnalysisUtils::ConstructMultTrend(h1MultTrends[pIdx][yIdx].get(), h1Spectrum.get(), multBin);
+        AnalysisUtils::FillTrendFromSpectrum(h1MultTrends[pIdx][yIdx].get(), h1Spectrum.get(), multBin);
 
         // Extrapolate and Fill Trend
         if (doExtrapForThis) {
           ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir);
-          AnalysisUtils::ConstructMultTrend(h1MultTrendsExtrap[pIdx][yIdx].get(), res, multBin);
+          AnalysisUtils::FillTrendFromExtrapolation(h1MultTrendsExtrap[pIdx][yIdx].get(), h1Spectrum.get(),
+                                                    res, trendComposition, multBin);
         }
       }
     }

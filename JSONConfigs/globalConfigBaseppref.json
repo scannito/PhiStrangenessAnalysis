@@ -183,6 +183,7 @@
         "apply_efficiency": true,
         "apply_purity": false,
         "apply_extrapolation": true,
+        "trend_composition": "total_extrapolated",
         "use_integrated_efficiency": true,
         "active_corrections": [
             "acceptance_efficiency",
@@ -287,6 +288,7 @@
         "apply_mixed_events": true,
         "apply_efficiency": true,
         "apply_extrapolation": true,
+        "trend_composition": "total_extrapolated",
         "use_integrated_efficiency": true,
         "active_corrections": [
             "acceptance_efficiency",

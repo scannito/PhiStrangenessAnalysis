@@ -88,6 +88,18 @@ Blocks resolve `inherits` recursively in `WorkflowManager::MergeTaskConfiguratio
 a key that looks absent in a block may well be inherited, so read a configuration
 through the chain and not block by block.
 
+**A key that changes a number is declared even when it equals the default.**
+Provenance records `JsonConfig::Serialize(taskConfig)` — the merged block, so only
+the keys the JSON actually contains. A run that leans on a C++ default leaves no
+trace of which value was in force, and changing that default later silently
+reinterprets every file already produced. `trend_composition` is spelled out in the
+base configurations for exactly this reason, at its default value.
+
+The converse holds too, and it is why the `dir_name` entries came out: a key that
+changes no number is better absent, because it is one more copy of a rule to keep
+aligned. The test is not "is it obvious" but "would a reader of the output need to
+know it".
+
 ## Physics that the code depends on
 
 - **Efficiency and purity are ratios.** A coarser binning is obtained by merging
@@ -110,9 +122,13 @@ through the chain and not block by block.
   `AnalysisUtils`, `RunEnvironment`, `PhiFitModels`.
 - Tasks communicate through ROOT files, never in memory. `WorkflowManager` destroys
   each task right after `Terminate()`.
-- `TCanvas` registers in ROOT's global list, which knows nothing about
-  `TDirectory`: two canvases with the same name alive at once collide even in
-  different directories. This caused a segfault; keep canvas names unique.
+- **ROOT's global lists know nothing about `TDirectory`.** `TCanvas` registers in
+  one: two canvases with the same name alive at once collide even in different
+  directories, which caused a segfault, so keep canvas names unique. `TF1`
+  registers in `gROOT->GetListOfFunctions()` the same way — an undeleted fit model
+  created once per spectrum piles up objects under one name, which was half of the
+  `SpectrumExtrapolator` clone bug. The rule generalises: when a ROOT class keeps
+  itself in a global list, a unique name and a clear owner are not style.
 
 ## How a task opens the file it writes
 
@@ -149,6 +165,11 @@ A new task that writes into a file somebody else also writes into belongs in row
   parenthesised aggregate initialisation (P0960).
 - The filesystem on macOS is case-insensitive and hides include-name mismatches
   that would break on Linux. `MCTask.h` was already renamed once by accident.
+- The same case-insensitivity reaches git, by a different route. With
+  `core.ignorecase` a file staged under the wrong case (`McTask.h` for `MCTask.h`)
+  is ambiguous to a path-targeted `git restore --staged`, which may resolve to the
+  entry you were not trying to touch. Unstage the whole index and re-add instead:
+  `git reset` costs nothing here, since nothing is committed by it.
 
 ## Do not touch without asking
 

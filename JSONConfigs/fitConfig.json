@@ -4,7 +4,7 @@
             "name": "mass",
             "title": "M(K^{+}K^{-}) (GeV/c^{2})",
             "min": 0.995,
-            "max": 1.055
+            "max": 1.1
         },
         "fit_setup": {
             "default": {

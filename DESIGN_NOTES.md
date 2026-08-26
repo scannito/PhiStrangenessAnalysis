@@ -438,18 +438,55 @@ treated as a systematic. Decision pending.
 particles, the correction silently absorbs secondaries from weak decays instead of
 subtracting them. Relevant especially for pions. Needs checking on the O2 side.
 
-**Systematics.** There is no machinery at all: results carry statistical
-uncertainties only. The framework is already parameterised in the right way —
-signal and background models, integration and sideband ranges, differential vs
-integrated efficiency, 1D vs 2D ME normalisation, five extrapolation models are
-all JSON keys. What is missing is a driver that generates N varied configurations,
-runs them, and collects the spread per bin (plus a Barlow check to decide whether
-a variation is significant). This is the real reason to write a Python driver.
+**Systematics.** Results carry statistical uncertainties only, with one exception:
+`SpectrumExtrapolator` propagates the four upstream variations (extreme high, hard,
+extreme low, soft) when a systematic spectrum is supplied, and fills
+`yieldSysHi/Lo` and `meanPtSysHi/Lo` in `ExtrapolationResult`. Nothing supplies one
+yet: `SetSystematicSpectrum` is never called, and the place where it *would* be
+called says so — see the comment in `CorrelationTaskBase::ExtrapolateSpectrum`, just
+before `Extrapolate()`, which is the one line to change once a driver exists.
 
-**MC closure has no verdict.** Both pieces exist (`CorrelationWPDGTask`,
-`is_pure_gen`) but nothing computes the corrected/true ratio bin by bin and states
-whether it closes within uncertainties — which is both a validity check and, when
-it does not close, a systematic.
+The mechanism is therefore present and dormant, deliberately. It exists so that the
+day `hsys` is produced the extrapolation already takes it; until then it takes a
+`nullptr` and `hasSystematics` stays false.
+
+What is missing is everything upstream of that. The framework is parameterised in
+the right way — signal and background models, integration and sideband ranges,
+differential vs integrated efficiency, 1D vs 2D ME normalisation, five
+extrapolation models are all JSON keys — but nothing generates the varied
+configurations, runs them, and collects the spread per bin (plus a Barlow check to
+decide whether a variation is significant).
+
+`Macros/run_systematics.py` is the skeleton of that driver: it deep-copies the
+nominal configuration, applies a dictionary of changes, prefixes the outputs and
+runs each through `runAnalysis.sh`. **It is not usable as it stands**, and the three
+reasons are worth writing down because two of them fail silently:
+
+- The example variations set `extrap_function` and `extrap_fit_range` inside
+  `correlation_task`. **No such keys exist.** The extrapolation model and its
+  ranges are `model`, `fit_range` and `domain_range`, and they live in
+  `extrapConfig.json`, a *different file* the task only points at. A variation
+  written this way runs to completion and reproduces the nominal numbers under a
+  new prefix.
+- `if task_name in current_config` skips a block that is not found instead of
+  failing. Blocks are named `correlation_task_2024`, not `correlation_task`, so a
+  literal name matches nothing — again silently, and again producing a full set of
+  "varied" results identical to the nominal.
+- There is no collection step. Generating and running is the cheap half; what makes
+  it a systematics driver is reading the N outputs back and computing the spread.
+
+The first two are the same defect the C++ side is built to prevent — a
+configuration that lies — reintroduced in Python, where none of the checks apply.
+Whoever finishes this should make the driver resolve keys against the same
+configuration chain the tasks use, and treat an unmatched block name as fatal.
+
+**MC closure has no verdict — half of it now exists.** `ComparisonTask` computes
+the corrected/generated ratio bin by bin, with `divide_option: "B"` for the
+correlated case, and writes it. What it deliberately does *not* do is state whether
+it closes: no threshold, no pass/fail. That was a design decision rather than an
+omission — the task divides, the physicist reads — but it means the second half of
+this item is still open. Closure not closing is a systematic, and nothing yet turns
+the ratio into one.
 
 ---
 

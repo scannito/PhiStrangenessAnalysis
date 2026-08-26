@@ -212,10 +212,21 @@ struct ExtrapolationResult {
   double yieldStatErr{0.0};
   double meanPt{0.0};
   double meanPtStatErr{0.0};
-  double extrapolatedYield{0.0};
+  // Split by side. They are separate measurements of separate things: the low part
+  // is what the fit says lies below the first measured point, the high part what lies
+  // above the last, and the two are constrained by different data - the first bins for
+  // one, the last for the other. Summed, a large low part hides a runaway high tail
+  // and the other way round.
+  //
+  // The low part is also the one directly checkable: it is the same number as the
+  // integral of the fitted function below the first measured point, computed by a
+  // completely different route.
+  double extrapolatedYieldLow{0.0};
+  double extrapolatedYieldHigh{0.0};
 
   // Derived, so it cannot contradict the number it comes from.
-  double ExtrapolatedFraction() const { return yield > 0. ? extrapolatedYield / yield : 0.0; }
+  double ExtrapolatedYield() const { return extrapolatedYieldLow + extrapolatedYieldHigh; }
+  double ExtrapolatedFraction() const { return yield > 0. ? ExtrapolatedYield() / yield : 0.0; }
 
   // Fit quality. Here because a converged fit is not a good fit, and roughly a
   // third of the yield is an integral of this function outside the measured range:

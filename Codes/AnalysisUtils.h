@@ -20,7 +20,6 @@
 #include <string_view>
 #include <type_traits>
 #include <utility>
-#include <variant>
 #include <vector>
 
 namespace AnalysisUtils
@@ -146,26 +145,59 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
 }
 
 // Construct multiplicity trends from pT spectra
-inline void ConstructMultTrend(TH1* hMultTrend,
-                               const std::variant<TH1*, ExtrapolationResult>& source,
-                               int i)
+// How the extrapolated point of a multiplicity trend is assembled.
+//
+// The two are not meant to differ, and that is the point of being able to run both:
+// where they do, something between the measurement and the extrapolation does not add
+// up, and the difference says by how much.
+//
+// Named for what the value IS and not for where it was fetched: both alternatives read
+// from the ExtrapolationResult, so provenance would distinguish nothing. What differs
+// is how the number is put together, which is also what the enum is called.
+enum class TrendComposition {
+  // One number: the total as SpectrumExtrapolator computed it, integrating the data
+  // histogram together with the extrapolation histograms in a single pass. This is
+  // what the chain has always done.
+  TotalExtrapolated = 0,
+
+  // The measured part is taken from the spectrum itself and only the extrapolated part
+  // from the result. Same quantity by construction, assembled from two clearly
+  // separated sources: a measurement and a model, added in the open.
+  //
+  // Not merely cosmetic. SpectrumExtrapolator::Integrate skips bins whose error is
+  // non-positive, while TH1::Integral counts every bin, so a bin that is filled but
+  // carries no error enters one sum and not the other - and that is exactly the
+  // condition a failed fit produces downstream.
+  MeasuredPlusExtrapolated
+};
+
+// The measured trend: bin 'i' of the trend gets the integral of the spectrum.
+inline void FillTrendFromSpectrum(TH1* hTrend, TH1* hSpectrum, int i)
 {
-  double content{};
-  double error{};
+  auto [content, error] =
+    IntegralAndErrorPair(hSpectrum, hSpectrum->GetXaxis()->GetXmin(), hSpectrum->GetXaxis()->GetXmax(), "width");
 
-  if (std::holds_alternative<TH1*>(source)) {
-    TH1* hPtSpectrum = std::get<TH1*>(source);
-    auto [c, e] = IntegralAndErrorPair(hPtSpectrum, hPtSpectrum->GetXaxis()->GetXmin(), hPtSpectrum->GetXaxis()->GetXmax(), "width");
-    content = c;
-    error = e;
-  } else {
-    const auto& ext = std::get<ExtrapolationResult>(source);
-    content = ext.yield;
-    error = ext.yieldStatErr;
-  }
+  hTrend->SetBinContent(i + 1, content);
+  hTrend->SetBinError(i + 1, error);
+}
 
-  hMultTrend->SetBinContent(i + 1, content);
-  hMultTrend->SetBinError(i + 1, error);
+// The extrapolated trend. 'hSpectrum' is the spectrum this result was computed FROM,
+// and it has one meaning here: where the measured part comes from when the caller asks
+// for the two to be added separately.
+//
+// The error is the one from the toy MC in both compositions. It is the uncertainty on
+// the TOTAL, and the toys sample the measured and the extrapolated parts together with
+// their correlation; taking the measured error from the histogram and adding something
+// for the extrapolated part would either double count or throw that correlation away.
+inline void FillTrendFromExtrapolation(TH1* hTrend, TH1* hSpectrum, const ExtrapolationResult& res,
+                                       TrendComposition composition, int i)
+{
+  const double content = (composition == TrendComposition::MeasuredPlusExtrapolated)
+                           ? hSpectrum->Integral(1, hSpectrum->GetNbinsX(), "width") + res.ExtrapolatedYield()
+                           : res.yield;
+
+  hTrend->SetBinContent(i + 1, content);
+  hTrend->SetBinError(i + 1, res.yieldStatErr);
 }
 
 // -----------------------------------------------------------------------------

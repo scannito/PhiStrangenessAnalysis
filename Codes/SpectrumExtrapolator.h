@@ -160,25 +160,32 @@ class SpectrumExtrapolator
     auto hlo = CreateLowExtrapolationHisto(hCentral, fFitModel, minPt);
     auto hhi = CreateHighExtrapolationHisto(hCentral, fFitModel, maxPt);
 
-    double integral = 0.0, mean = 0.0, extra = 0.0;
-    Integrate(hCentral, hlo.get(), hhi.get(), integral, mean, extra);
+    double integral = 0.0, mean = 0.0, extraLow = 0.0, extraHigh = 0.0;
+    Integrate(hCentral, hlo.get(), hhi.get(), integral, mean, extraLow, extraHigh);
 
     res.yield = integral;
     res.meanPt = mean;
-    res.extrapolatedYield = extra;
+    res.extrapolatedYieldLow = extraLow;
+    res.extrapolatedYieldHigh = extraHigh;
 
     // Independent of the fit status, because a zero contribution from a region
     // that exists is the observable symptom whatever caused it. Checked here and
     // not left to the reader of the log: 'extra == 0' is indistinguishable from a
     // legitimately tiny extrapolation unless you compare the yield against the raw
     // integral by eye, which is how this went unnoticed.
-    if (extra == 0. && (hlo || hhi)) {
-      std::cerr << "[WARNING] SpectrumExtrapolator: an extrapolation region was built for '"
-                << fMeasuredSpectrum->GetName()
-                << "' but contributed exactly zero, so every one of its bins was skipped for having "
-                   "a non-positive error. This is what a failed fit looks like downstream."
-                << std::endl;
-    }
+    // Per side, now that the two are separate: a region that exists and contributes
+    // exactly zero is the observable symptom, and checking the sum would let one side
+    // hide behind the other.
+    const auto warnIfEmpty = [this](const char* side, const TH1* region, double contribution) {
+      if (region && contribution == 0.0)
+        std::cerr << "[WARNING] SpectrumExtrapolator: the " << side << " extrapolation region of '"
+                  << fMeasuredSpectrum->GetName()
+                  << "' was built but contributed exactly zero, so every one of its bins was skipped "
+                     "for having a non-positive error. This is what a failed fit looks like downstream."
+                  << std::endl;
+    };
+    warnIfEmpty("low", hlo.get(), extraLow);
+    warnIfEmpty("high", hhi.get(), extraHigh);
 
     // 3. Statistical Error Evaluation via Toy MC
     //
@@ -209,8 +216,10 @@ class SpectrumExtrapolator
       auto hrndlo = ReturnCoherentRandomHisto(hlo.get());
       auto hrndhi = ReturnCoherentRandomHisto(hhi.get());
 
-      double tmpInt, tmpMean, tmpExt;
-      Integrate(hrnd.get(), hrndlo.get(), hrndhi.get(), tmpInt, tmpMean, tmpExt);
+      // The extrapolated parts are discarded here: what the toys sample is the total
+      // and the mean, and the two sides carry no information the sum does not.
+      double tmpInt = 0.0, tmpMean = 0.0, tmpLow = 0.0, tmpHigh = 0.0;
+      Integrate(hrnd.get(), hrndlo.get(), hrndhi.get(), tmpInt, tmpMean, tmpLow, tmpHigh);
 
       hIntegral_tmp->Fill(tmpInt);
       hMean_tmp->Fill(tmpMean);
@@ -236,8 +245,10 @@ class SpectrumExtrapolator
       auto hrndlo = ReturnCoherentRandomHisto(hlo.get());
       auto hrndhi = ReturnCoherentRandomHisto(hhi.get());
 
-      double tmpInt, tmpMean, tmpExt;
-      Integrate(hrnd.get(), hrndlo.get(), hrndhi.get(), tmpInt, tmpMean, tmpExt);
+      // The extrapolated parts are discarded here: what the toys sample is the total
+      // and the mean, and the two sides carry no information the sum does not.
+      double tmpInt = 0.0, tmpMean = 0.0, tmpLow = 0.0, tmpHigh = 0.0;
+      Integrate(hrnd.get(), hrndlo.get(), hrndhi.get(), tmpInt, tmpMean, tmpLow, tmpHigh);
 
       hIntegral->Fill(tmpInt);
       hMean->Fill(tmpMean);
@@ -375,8 +386,8 @@ class SpectrumExtrapolator
       auto hlo = CreateLowExtrapolationHisto(hvar.get(), fFitModel, minPt);
       auto hhi = CreateHighExtrapolationHisto(hvar.get(), fFitModel, maxPt);
 
-      double extra = 0.0;
-      Integrate(hvar.get(), hlo.get(), hhi.get(), yield, meanPt, extra);
+      double extraLow = 0.0, extraHigh = 0.0;
+      Integrate(hvar.get(), hlo.get(), hhi.get(), yield, meanPt, extraLow, extraHigh);
     };
 
     double varYield = 0.0, varMean = 0.0;
@@ -439,9 +450,12 @@ class SpectrumExtrapolator
   }
 
   // Internal Utility Methods
-  void Integrate(TH1* hdata, TH1* hlo, TH1* hhi, double& integral, double& mean, double& extra) const
+  void Integrate(TH1* hdata, TH1* hlo, TH1* hhi, double& integral, double& mean,
+                 double& extraLow, double& extraHigh) const
   {
-    double I = 0., IX = 0., E = 0.;
+    double I = 0., IX = 0.;
+    extraLow = 0.0;
+    extraHigh = 0.0;
 
     // Data integration
     for (int ibin = 0; ibin < hdata->GetNbinsX(); ibin++) {
@@ -464,7 +478,7 @@ class SpectrumExtrapolator
           continue;
         I += cont;
         IX += cont * cent;
-        E += cont;
+        extraLow += cont;
       }
     }
 
@@ -478,13 +492,12 @@ class SpectrumExtrapolator
           continue;
         I += cont;
         IX += cont * cent;
-        E += cont;
+        extraHigh += cont;
       }
     }
 
     integral = I;
     mean = (I > 0) ? (IX / I) : 0.0;
-    extra = E;
   }
 
   // minPt, not fMinPt: the caller has already widened the domain to cover the
