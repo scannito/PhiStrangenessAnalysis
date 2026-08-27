@@ -109,6 +109,43 @@ class ComparisonTask : public IAnalysisTask
       // The task cannot infer which case it is in, so it refuses to choose.
       comp.divideOption = JsonConfig::RequireString(c, "divide_option", ctx);
 
+      // Optional, and its presence switches the whole comparison into a different
+      // mode: the denominator is a file this framework did not produce - results from
+      // before it existed - so there is nothing to discover and nothing to verify.
+      //
+      // What is given up is stated plainly because it cannot be recovered: a foreign
+      // file carries no binning stamps, so binning_mult, binning_ptPhi and
+      // binning_ptAssoc are all unavailable. The only check left is RequireSameAxis on
+      // the two objects, which compares the edges they actually carry - so what it
+      // covers depends on what you declared. For a trend it is the multiplicity, which
+      // is exactly what the stamps would have checked. For a spectrum it is the
+      // associated pT, and the multiplicity interval stays unchecked because that one
+      // is in the name. In this mode YOU assert that the two objects are comparable.
+      //
+      // Convert graphs to histograms first - Macros/convertGraphHist.C - taking the
+      // binning from the new result. Then RequireSameAxis has something to say again:
+      // it checks that the conversion landed where it was meant to.
+      if (auto objs = JsonConfig::TryArray(c, "objects", ctx)) {
+        int oIdx = 0;
+        for (const auto& o : *objs) {
+          const std::string octx = std::format("{} objects[{}]", ctx, oIdx++);
+
+          ObjectPair pair;
+          pair.numeratorPath = JsonConfig::RequireString(o, "numerator", octx);
+          pair.denominatorPath = JsonConfig::RequireString(o, "denominator", octx);
+          // Defaulted from the numerator: the object being characterised is the new
+          // one, and repeating a name is how two of them come to disagree.
+          pair.outName = JsonConfig::OptionalString(o, "name", LeafName(pair.numeratorPath) + "_ratio", octx);
+
+          comp.objects.push_back(std::move(pair));
+        }
+
+        if (comp.objects.empty())
+          throw std::runtime_error(std::format(
+            "[FATAL] {}: 'objects' is present but empty. Remove it to compare by discovery, "
+            "or list the pairs to compare.", ctx));
+      }
+
       comparisons.push_back(std::move(comp));
     }
 
@@ -154,11 +191,23 @@ class ComparisonTask : public IAnalysisTask
   }
 
  private:
+  // One object named on each side, for a denominator this framework did not write.
+  struct ObjectPair {
+    std::string numeratorPath;
+    std::string denominatorPath;
+    std::string outName;
+  };
+
   struct Comparison {
     std::string label;
     std::string numeratorFile;
     std::string denominatorFile;
     std::string divideOption;
+
+    // Empty means the normal mode: both files come from this chain, so the objects
+    // are discovered and matched by name. Non-empty means the denominator is foreign
+    // and every pair is spelled out - see the note on ObjectPair in Init.
+    std::vector<ObjectPair> objects;
   };
 
   // A pair of open input files, with their binnings already agreed upon.
@@ -195,12 +244,52 @@ class ComparisonTask : public IAnalysisTask
     pair.num = RootIO::OpenOrThrow(comp.numeratorFile, "READ", ctx);
     pair.den = RootIO::OpenOrThrow(comp.denominatorFile, "READ", ctx);
 
+    pair.outDir = RootIO::GetOrCreatePath(fileOutput.get(), {comp.label});
+    if (!pair.outDir)
+      throw std::runtime_error(std::format("[FATAL] {}: cannot create the output directory '{}'.", ctx, comp.label));
+
+    // What was divided, travelling with the result. Provenance never throws: a path
+    // that moved is not a reason to fail a comparison that is otherwise fine.
+    //
+    // An input may legitimately carry none - a denominator this framework did not
+    // write, or one produced before the records existed - and in that case the reason
+    // is written down instead of leaving the directory empty. An empty directory reads
+    // as "something failed while writing this"; a note reads as "there was nothing to
+    // write", which is what actually happened. Both possible causes are named because
+    // the task cannot tell them apart either, and the file name goes in because it is
+    // the only thing that identifies an input nothing else is known about.
+    const auto copyProvenance = [&](TFile* src, const char* dirName, const std::string& fileName) {
+      auto facts = RootIO::ReadProvenance(RootIO::GetOrCreatePath(src, {inputScheme, "Provenance"}, true));
+      if (facts.empty())
+        facts["no_provenance"] = "'" + fileName + "' carries nothing under '" + inputScheme +
+                                 "/Provenance': either it was not produced by this framework, "
+                                 "or it predates the provenance records.";
+      RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileOutput.get(), {comp.label, dirName}, false), facts);
+    };
+
+    copyProvenance(pair.num.get(), "Provenance_numerator", comp.numeratorFile);
+    copyProvenance(pair.den.get(), "Provenance_denominator", comp.denominatorFile);
+
+    // A declared comparison stops here. Its denominator was not written by this
+    // framework, so it has no scheme directory to navigate and no stamps to compare -
+    // everything below would fail on a file that is not at fault. What remains is
+    // RequireSameAxis on each divided pair, and the caller's word that the two objects
+    // mean the same thing.
+    if (!comp.objects.empty()) {
+      std::cout << "  -> declared comparison: the denominator is not a product of this chain, "
+                   "so no binning is verified beyond the axes of the objects themselves."
+                << std::endl;
+      return pair;
+    }
+
     TDirectory* numScheme = RootIO::GetOrCreatePath(pair.num.get(), {inputScheme}, true);
     TDirectory* denScheme = RootIO::GetOrCreatePath(pair.den.get(), {inputScheme}, true);
     if (!numScheme || !denScheme)
       throw std::runtime_error(std::format(
         "[FATAL] {}: no '{}' directory in '{}'. Either the inputs were produced under a different "
-        "'binning_name', or 'input_binning_name' does not name the one they carry.",
+        "'binning_name', or 'input_binning_name' does not name the one they carry. If the "
+        "denominator was not produced by this chain at all, list the objects to divide under "
+        "'objects' instead.",
         ctx, inputScheme, numScheme ? comp.denominatorFile : comp.numeratorFile));
 
     // The two productions must mean the same thing by their bins. Read from the
@@ -231,17 +320,6 @@ class ComparisonTask : public IAnalysisTask
     if (!pair.numDir || !pair.denDir)
       throw std::runtime_error(std::format("[FATAL] {}: no '{}' directory under '{}' in one of the two inputs.",
                                            ctx, inputDirName, inputScheme));
-
-    pair.outDir = RootIO::GetOrCreatePath(fileOutput.get(), {comp.label});
-    if (!pair.outDir)
-      throw std::runtime_error(std::format("[FATAL] {}: cannot create the output directory '{}'.", ctx, comp.label));
-
-    // What was divided, travelling with the result. Provenance never throws: a path
-    // that moved is not a reason to fail a comparison that is otherwise fine.
-    RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileOutput.get(), {comp.label, "Provenance_numerator"}, false),
-                            RootIO::ReadProvenance(RootIO::GetOrCreatePath(pair.num.get(), {inputScheme, "Provenance"}, true)));
-    RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileOutput.get(), {comp.label, "Provenance_denominator"}, false),
-                            RootIO::ReadProvenance(RootIO::GetOrCreatePath(pair.den.get(), {inputScheme, "Provenance"}, true)));
 
     return pair;
   }
@@ -302,7 +380,10 @@ class ComparisonTask : public IAnalysisTask
     for (const auto& comp : comparisons) {
       std::cout << "[INFO] " << GetName() << ": '" << comp.label << "' (" << what << ")" << std::endl;
       OpenPair pair = OpenAndVerify(comp);
-      const int done = body(pair, comp);
+      // A declared comparison ignores the target: it divides the pairs it was given,
+      // wherever they live. 'target' says which family of objects to DISCOVER, and
+      // here nothing is discovered.
+      const int done = comp.objects.empty() ? body(pair, comp) : DivideDeclared(pair, comp);
 
       // Counted in terms of what was DIVIDED, not of what came out: with the
       // 'ratios' target the inputs are themselves ratios, so "N ratios written"
@@ -314,6 +395,56 @@ class ComparisonTask : public IAnalysisTask
                   << ". The two files share no object under '" << inputScheme << "/" << inputDirName
                   << "' for this target." << std::endl;
     }
+  }
+
+  // Divides the pairs named in the configuration, each by its full path from the root
+  // of its own file. Nothing is discovered and nothing but the axes is checked - see
+  // the note on 'objects' in Init.
+  int DivideDeclared(const OpenPair& pair, const Comparison& comp)
+  {
+    int done = 0;
+    for (const ObjectPair& obj : comp.objects) {
+      const std::string ctx = GetName() + " '" + comp.label + "'";
+
+      // Both fatal, unlike the discovered mode where a missing object means the two
+      // productions legitimately differ: here every pair was written out by hand, so
+      // one that does not resolve is a typo or a stale path, not a difference.
+      std::unique_ptr<TH1> num = RootIO::GetUniqueOrThrow<TH1>(pair.num.get(), obj.numeratorPath, ctx);
+      std::unique_ptr<TH1> den = RootIO::GetUniqueOrThrow<TH1>(pair.den.get(), obj.denominatorPath, ctx);
+
+      // The only check left, and what it covers depends on what was declared - nothing
+      // here restricts the pairs to one kind of object.
+      //
+      // For a trend the X axis IS the multiplicity, so this verifies the very binning
+      // the stamps would have verified. For a spectrum the X axis is the associated pT,
+      // so it verifies that instead - which is real, but leaves the multiplicity
+      // interval unchecked, because that one lives in the name and a foreign file does
+      // not spell names the same way. There you are asserting that the two objects
+      // belong to the same interval, and nothing can check it for you: in this mode the
+      // task holds two paths and two TH1, and guessing the kind from an axis title
+      // would be a check that fails quietly the first time a title changes.
+      BinningUtils::RequireSameAxis(num->GetXaxis(), den->GetXaxis(),
+                                    "numerator " + obj.numeratorPath + " of " + comp.numeratorFile,
+                                    "denominator " + obj.denominatorPath + " of " + comp.denominatorFile);
+
+      std::unique_ptr<TH1> ratio = AnalysisUtils::MakeRatioHist(
+        num.get(), den.get(), obj.outName,
+        std::format("{};{};ratio", comp.label, num->GetXaxis()->GetTitle()),
+        1.0, 1.0, comp.divideOption.c_str());
+
+      pair.outDir->cd();
+      ratio->Write(nullptr, TObject::kOverwrite);
+      ++done;
+    }
+    return done;
+  }
+
+  // The leaf of a "a/b/c" path, so that a declared pair can name its output after the
+  // numerator without the directories coming along.
+  static std::string LeafName(const std::string& path)
+  {
+    const std::size_t slash = path.find_last_of('/');
+    return slash == std::string::npos ? path : path.substr(slash + 1);
   }
 
   // Divides every histogram the numerator holds in 'subPath' by the one of the same

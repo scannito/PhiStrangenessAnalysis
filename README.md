@@ -289,12 +289,14 @@ particle, and `RequireSameAxis` on each pair.
 
 Listing `objects` switches that off, and it is for one situation: a denominator this
 framework did not produce, whose objects have unrelated names. A foreign file carries
-no stamps, so what is left is `RequireSameAxis` — which covers a trend, whose axis *is*
-the multiplicity, and covers nothing for a spectrum, whose multiplicity interval lives
-in a name the foreign file does not share. **In this mode you assert that the two
-objects are comparable.** Convert graphs first with `Macros/convertGraphHist.C`, taking
-the binning from the new result, and `RequireSameAxis` has something to say again: it
-checks that the conversion landed where it was meant to.
+no stamps, so what is left is `RequireSameAxis` — and what that covers depends on what
+you listed. For a trend it is the multiplicity, which is exactly what the stamps would
+have checked. For a spectrum it is the associated pT, and the multiplicity interval
+stays unchecked, because that one lives in the name. **In this mode you assert that the
+two objects are comparable**, and nothing restricts the pairs to one kind of object.
+Convert graphs first with `Macros/convertGraphHist.C`, taking the binning from the new
+result, and `RequireSameAxis` has something to say again: it checks that the conversion
+landed where it was meant to.
 
 `Comparisons.root` is opened `RECREATE` — the whole file is this task's — and holds one
 directory per `label`, mirroring the input sub-paths, with the provenance of *both*
