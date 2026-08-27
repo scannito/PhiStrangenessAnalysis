@@ -14,10 +14,12 @@
 #include "TH1.h"
 #include "TKey.h"
 
+#include <algorithm>
 #include <format>
 #include <iostream>
 #include <map>
 #include <memory>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -133,9 +135,11 @@ class ComparisonTask : public IAnalysisTask
           ObjectPair pair;
           pair.numeratorPath = JsonConfig::RequireString(o, "numerator", octx);
           pair.denominatorPath = JsonConfig::RequireString(o, "denominator", octx);
-          // Defaulted from the numerator: the object being characterised is the new
-          // one, and repeating a name is how two of them come to disagree.
-          pair.outName = JsonConfig::OptionalString(o, "name", LeafName(pair.numeratorPath) + "_ratio", octx);
+          // Defaulted from the numerator, unchanged: the object being characterised is
+          // the new one, and the leaf alone is the name because a ROOT object name
+          // holding a '/' is read as a path by Write(). No suffix, for the reason given
+          // where the discovered ratios are built.
+          pair.outName = JsonConfig::OptionalString(o, "name", LeafName(pair.numeratorPath), octx);
 
           comp.objects.push_back(std::move(pair));
         }
@@ -144,10 +148,62 @@ class ComparisonTask : public IAnalysisTask
           throw std::runtime_error(std::format(
             "[FATAL] {}: 'objects' is present but empty. Remove it to compare by discovery, "
             "or list the pairs to compare.", ctx));
+
+        // Declared pairs land flat in the comparison's directory, so two of them whose
+        // numerators share a leaf name would collapse onto one output and the second
+        // would overwrite the first without a word. The discovered mode cannot hit this
+        // because its output mirrors the input directories. Checked here, where every
+        // name is already known, rather than on the way out.
+        std::set<std::string> seen;
+        for (const ObjectPair& o : comp.objects)
+          if (!seen.insert(o.outName).second)
+            throw std::runtime_error(std::format(
+              "[FATAL] {}: two declared pairs would both be written as '{}'. Names default to the "
+              "leaf of the numerator path, which is not unique across directories - give at least "
+              "one of them an explicit 'name'.", ctx, o.outName));
       }
 
       comparisons.push_back(std::move(comp));
     }
+
+    // Before the two questions below, because both are vacuously true on an empty list
+    // and would answer about comparisons that do not exist. A task configured to divide
+    // nothing is a configuration error in its own right: it would run, report nothing
+    // and write an output file holding only its own provenance.
+    if (comparisons.empty())
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: 'comparisons' is empty, so there is nothing to divide.", GetName()));
+
+    // 'objects' says the denominator is foreign, and that is a property of the TASK
+    // rather than of one entry: 'target' lives at task level, so a mixed list would
+    // carry one target that selects something for half the comparisons and means
+    // nothing for the other half. There is no correct way to write that, so it is
+    // refused instead of resolved arbitrarily - put the two kinds in two task blocks.
+    //
+    // Which is also the answer if these comparisons ever stop being occasional: not a
+    // richer 'objects', but converting the old results into this framework's layout
+    // once. See DESIGN_NOTES.md.
+    const bool anyDeclared = std::ranges::any_of(comparisons, [](const Comparison& c) { return !c.objects.empty(); });
+    const bool allDeclared = std::ranges::all_of(comparisons, [](const Comparison& c) { return !c.objects.empty(); });
+
+    if (anyDeclared && !allDeclared)
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: some comparisons list 'objects' and some do not. Those are two different "
+        "kinds of comparison - one discovers what to divide and verifies the binning stamps, the "
+        "other divides what you named and can verify nothing beyond the axes - and 'target' is a "
+        "task-level key that cannot mean both. Split them into two task blocks.", GetName()));
+
+    // Presence in the JSON, not the value of the member: 'target' always HAS a value,
+    // its default, so testing the member would refuse every declared comparison ever
+    // written. What is refused is spelling it out, and the reason is that it would be
+    // inert rather than wrong - it selects which family to DISCOVER, and here nothing
+    // is discovered. A key that changes no behaviour is better absent than present and
+    // silently doing nothing, which is the converse of the rule in CLAUDE.md.
+    if (allDeclared && JsonConfig::OptionalMember(taskConfig, "target"))
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: 'target' selects which family of objects to DISCOVER, and every comparison "
+        "here lists its objects explicitly, so it selects nothing - it would be inert, not wrong. "
+        "Remove it.", GetName()));
 
     std::string outName = outputDir + outputPrefix + "Comparisons.root";
     fileOutput = RootIO::OpenOrThrow(outName, "RECREATE", GetName());
@@ -378,18 +434,24 @@ class ComparisonTask : public IAnalysisTask
   void ForEachComparison(const char* what, F&& body)
   {
     for (const auto& comp : comparisons) {
-      std::cout << "[INFO] " << GetName() << ": '" << comp.label << "' (" << what << ")" << std::endl;
+      // 'what' names the target, and a declared comparison has none: 'target' would
+      // still hold its default there, so reporting it would put "ratios" next to a
+      // list of spectra you named yourself. The label follows what was actually
+      // divided rather than a key that selected nothing.
+      const bool declared = !comp.objects.empty();
+      const char* divided = declared ? "declared pairs" : what;
+
+      std::cout << "[INFO] " << GetName() << ": '" << comp.label << "' (" << divided << ")" << std::endl;
       OpenPair pair = OpenAndVerify(comp);
-      // A declared comparison ignores the target: it divides the pairs it was given,
-      // wherever they live. 'target' says which family of objects to DISCOVER, and
-      // here nothing is discovered.
-      const int done = comp.objects.empty() ? body(pair, comp) : DivideDeclared(pair, comp);
+      const int done = declared ? DivideDeclared(pair, comp) : body(pair, comp);
 
       // Counted in terms of what was DIVIDED, not of what came out: with the
       // 'ratios' target the inputs are themselves ratios, so "N ratios written"
       // would leave a reader guessing which of the two it meant.
-      std::cout << "  -> " << done << " " << what << " divided." << std::endl;
+      std::cout << "  -> " << done << " " << divided << " divided." << std::endl;
 
+      // Unreachable for a declared comparison - a missing object is fatal there and an
+      // empty list is refused in Init - which is why the message may speak of discovery.
       if (done == 0)
         std::cerr << "[WARNING] " << GetName() << ": '" << comp.label << "' divided no " << what
                   << ". The two files share no object under '" << inputScheme << "/" << inputDirName
@@ -482,8 +544,16 @@ class ComparisonTask : public IAnalysisTask
                                     "numerator " + name + " of " + comp.numeratorFile,
                                     "denominator " + name + " of " + comp.denominatorFile);
 
+      // The name is carried over unchanged, not suffixed. Nothing here needs
+      // disambiguating - the numerator lives in another file, this whole file holds
+      // nothing but ratios, and the directory already carries the comparison's label -
+      // so a suffix would be a third copy of what the file and the path already say.
+      //
+      // It also keeps the names stable across a round trip: this output can itself be
+      // the input of another comparison, and discovery matches by name. A suffix added
+      // at every pass would make the second comparison find nothing.
       std::unique_ptr<TH1> ratio = AnalysisUtils::MakeRatioHist(
-        num.get(), den.get(), name + "_ratio",
+        num.get(), den.get(), name,
         std::format("{};{};ratio", comp.label, num->GetXaxis()->GetTitle()),
         1.0, 1.0, comp.divideOption.c_str());
 

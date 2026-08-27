@@ -436,8 +436,8 @@
         "observable": {
             "name": "mass",
             "title": "M(p#pi#pi) (GeV/c^{2})",
-            "min": 1.2,
-            "max": 1.4
+            "min": 1.29,
+            "max": 1.36
         },
         "fit_setup": {
             "default": {

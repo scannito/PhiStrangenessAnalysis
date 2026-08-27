@@ -62,7 +62,7 @@ cd Codes
 ```
 
 `<keyword>` selects the configuration file — `data`, `purity`, `mc`, `mcclosure`,
-`mcclosurewpdg`, `mcclosuregen`, or a path to a `.json` — and `<system>` is appended
+`mcclosurewpdg`, `mcclosuregen`, `comparison`, or a path to a `.json` — and `<system>` is appended
 to the file name, so `./runAnalysis.sh mc pp` runs `JSONConfigs/globalConfigMCpp.json`.
 Anything else is passed through as a file name. Output is teed to
 `Logs/log_output_<config>.log`, and the script exits with ROOT's own status.
@@ -419,7 +419,7 @@ chain and no task depends on them.
 | `copyTFileContent.C` | Recursive copy of a ROOT file, excluding chosen directories. |
 | `TestProjections.C`, `esporta_fit.C` | Ad-hoc checks. |
 | `uploadToCCDB.{C,py}`, `downloadHYOutput.py` | Moving maps in and out of CCDB / HEPData. |
-| `run_systematics.py` | Skeleton of the systematics driver — generates varied configurations and runs them. **Not usable as it stands**; see `DESIGN_NOTES.md` §6. |
+| `run_systematics.py` | Skeleton of the systematics driver — generates varied configurations and runs them. **Not usable as it stands**; see the Systematics note in `DESIGN_NOTES.md`. |
 
 `convertGraphHist.C` deserves a note, because the assumption it carries is not
 recoverable from the file. The graph's abscissa is generally a *different quantity* from

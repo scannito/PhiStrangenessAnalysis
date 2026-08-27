@@ -36,15 +36,16 @@ multiplicity trends, extrap/measured ratios, cross-species ratios.
 - **Mixed provenance.** Task B can take `K0S` from a correlation task run without
   PDG matching and `Xi` from one run with it. Today a ratio between two species
   is only computable if both were produced by the same task, hence by the same
-  method — which is exactly the constraint we want to lift (see item 2).
+  method — which is exactly the constraint we want to lift (see "Per-particle
+  choice of PDG matching").
 - **Re-running the cheap half.** Extrapolations and ratios can be redone without
   repeating the extraction. The projection caches exist to work around this; a
   dedicated task makes it structural.
 - **Dependencies.** Task A would lose `ExtrapolationModelFactory`,
   `SpectrumExtrapolator`, `ExtrapConfigManager` and — most importantly —
   `YieldMean.h`, which today is included by every path that goes through the
-  correlation task, i.e. by the whole data analysis. See item 7 for why that
-  matters. Task A also loses `AnalysisConstants`: the particle mass in
+  correlation task, i.e. by the whole data analysis. See the Engineering section
+  for why that matters. Task A also loses `AnalysisConstants`: the particle mass in
   `AssocParticleConfig` is used *only* by `ExtrapolateSpectrum`, so that struct
   reduces to name, dirName and binning.
 
@@ -77,7 +78,8 @@ about particle masses and spectral models.
 
 Generalising only the second covers the mixed case (PDG matching for species
 where the conditions for doing without it are not met, no matching for the
-others) without touching the structure. Do it *after* item 1, not before: it adds
+others) without touching the structure. Do it *after* splitting
+`CorrelationTaskBase`, not before: it adds
 responsibility to a class that already has too much.
 
 ---
@@ -542,7 +544,50 @@ the ratio into one.
 
 ---
 
-## 7. The delivery format, and the stage that is missing
+## 7. Comparing against pre-framework results: `objects` is the temporary answer
+
+`ComparisonTask` has two modes. Normally it discovers what to divide and verifies
+three levels of binning. When `objects` is listed, the denominator is a file this
+framework did not write, nothing can be discovered, and nothing can be verified
+beyond the axes of the objects themselves.
+
+That second mode is deliberately a stopgap, and the reasoning is worth keeping
+because it will look like an incomplete feature otherwise.
+
+**Why it is not a separate task.** It arguably should be: `objects` sits in a
+per-comparison entry while what it denotes — "the denominator is foreign" — is a
+property of the whole task, since `target` lives at task level and cannot mean two
+things at once. That is why mixing declared and discovered comparisons in one block
+is now refused outright. Once mixing is forbidden, a task is entirely in one mode or
+the other, which is very nearly two tasks already.
+
+It was left as one because splitting costs about 280 lines moved for roughly 30
+duplicated, and buys structure for a mode that should not outlive the checks it
+exists for.
+
+**What to do instead when these comparisons stop being occasional.** Not a richer
+`objects`, and not a task of its own: **convert the old results into this
+framework's layout, once.** `Macros/convertGraphHist.C` already takes the target
+binning from the new result, so it can equally write the converted histogram at the
+same path and under the same name in a file of its own. The ordinary discovered
+comparison then works, with `RequireSameAxis` on every pair.
+
+The stamps are the part that decides this, and the answer is not the obvious one:
+**do not copy them from the reference.** That would verify the numerator against
+itself, and a circular check is worse than no check because it looks like a check.
+Write the converted file *without* stamps —
+`RootIO::RequireMatchingBinningStamp` warns and continues when a stamp is missing,
+rather than throwing, so the comparison runs and says out loud, per stamp, what it
+could not verify. Which is the honest outcome: the assertion is still yours, it is
+just made once at conversion time instead of once per JSON entry.
+
+One thing to fix if that route is taken: the wording of that warning is written for
+the projection cache — it ends with "delete the cache files" — and would read as a
+non sequitur in a comparison.
+
+---
+
+## 8. The delivery format, and the stage that is missing
 
 The chain ends at "corrected trends, as TH1". A published result is not that, and
 the gap is not cosmetic — it is three things a TH1 structurally cannot carry:
@@ -587,7 +632,7 @@ whoever writes it:
 
 ---
 
-## 8. Engineering
+## 9. Engineering
 
 **Splitting RootIOHelpers further — a suggestion, not a decision.** The header now
 holds two families: file access (open, get, navigate) and the records written into
@@ -655,7 +700,7 @@ being chosen.
 
 ---
 
-## 9. Cling constraints learned the hard way
+## 10. Cling constraints learned the hard way
 
 - **`std::format` with floating-point specs does not compile.** `{:g}`, `{:.2f}`
   and friends make the consteval format-string validation fail: for float specs

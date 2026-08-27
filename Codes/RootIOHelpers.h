@@ -51,9 +51,15 @@ inline std::string FileNameOf(const TDirectory* dir)
 template <RootObject T>
 inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& objPath, std::string_view errCtx, bool detachFromFile = true)
 {
-  T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
+  // dynamic_cast and not static_cast: Get() returns whatever is under that name, and
+  // a static_cast to the wrong class yields a pointer that is not caught by the null
+  // check below and blows up on first use. The name being right does not make the
+  // class right - a foreign file may hold a TGraphErrors where a TH1 was expected -
+  // and this turns that into the message already written here.
+  T* obj = dynamic_cast<T*>(dir->Get(objPath.c_str()));
   if (!obj)
-    throw std::runtime_error(std::format("[FATAL] {}: Missing object '{}' in '{}'", errCtx, objPath, FileNameOf(dir)));
+    throw std::runtime_error(std::format("[FATAL] {}: Missing object '{}' in '{}', or it is not a {}",
+                                         errCtx, objPath, FileNameOf(dir), T::Class_Name()));
 
   if constexpr (std::is_base_of_v<TH1, T>) {
     if (detachFromFile)
@@ -66,10 +72,11 @@ inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& o
 template <RootObject T>
 inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& objPath, std::string_view warnCtx, bool detachFromFile = true)
 {
-  T* obj = static_cast<T*>(dir->Get(objPath.c_str()));
+  // dynamic_cast, for the reason spelled out in GetUniqueOrThrow above.
+  T* obj = dynamic_cast<T*>(dir->Get(objPath.c_str()));
   if (!obj) {
     std::cerr << "[WARNING] " << warnCtx << ": Missing object '" << objPath
-              << "' in '" << FileNameOf(dir) << "'" << std::endl;
+              << "' in '" << FileNameOf(dir) << "', or it is not a " << T::Class_Name() << std::endl;
     return nullptr;
   }
 
