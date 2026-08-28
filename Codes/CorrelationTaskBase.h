@@ -158,6 +158,15 @@ class CorrelationTaskBase : public IAnalysisTask
           canvas->Write(nullptr, TObject::kOverwrite);
         }
       }
+
+      // The extrapolated view, beside the measured one. Null for a species that is
+      // not extrapolated, which is why this loop cannot be merged with the one above.
+      for (auto& canvas : spectraExtrapCanvases[pIdx]) {
+        if (canvas) {
+          spectraDir->cd();
+          canvas->Write(nullptr, TObject::kOverwrite);
+        }
+      }
     }
 
     // The binnings this file was produced with. Unlike the provenance below, these
@@ -353,6 +362,8 @@ class CorrelationTaskBase : public IAnalysisTask
   std::vector<std::unique_ptr<TFile>> filesPhiAssocQAOutput;
 
   std::vector<std::vector<std::unique_ptr<TCanvas>>> spectraCanvases;
+  // Same shape as spectraCanvases, null where the species is not extrapolated.
+  std::vector<std::vector<std::unique_ptr<TCanvas>>> spectraExtrapCanvases;
 
   std::vector<YieldRatioConfig> requestedRatios;
 
@@ -375,6 +386,37 @@ class CorrelationTaskBase : public IAnalysisTask
   // hold different things: a TH2 read from PhiFitTask in one case, a TH3
   // projected in place in the other.
   virtual std::pair<const TAxis*, const TAxis*> TriggerAxes() const = 0;
+
+  // Content, which is the one thing the binning machinery structurally cannot see:
+  // an empty histogram has impeccable axes, so every check in this framework passes
+  // over it. Both tasks need this and for the same reason - every spectrum is divided
+  // by a sum over this container, and if the sum is zero the normalisation is skipped
+  // and raw counts are left in an object labelled as a per-trigger yield.
+  //
+  // It is a call the DERIVED task makes, not something GetUniqueOrThrow does, because
+  // whether empty is impossible is a statement about the physics and not about the
+  // file. A spectrum of a rare species in a small sample may legitimately be empty; a
+  // trigger container may not.
+  //
+  // Tested on the contents and not on GetEntries(): PhiFitTask fills its trigger
+  // matrices with SetBinContent, which leaves fEntries saying nothing about whether
+  // any of them is non-zero. GetMaximum/GetMinimum work whichever way it was filled.
+  // Not null-checked, like every other helper here that takes a histogram: the callers
+  // get theirs from GetUniqueOrThrow, which has already refused a missing object.
+  // A guard here would only be able to pass silently on a case that cannot arise.
+  static void RequireNonEmptyTrigger(const TH1* trigger, std::string_view what,
+                                     std::string_view origin, std::string_view remedy)
+  {
+    if (trigger->GetMaximum() != 0.0 || trigger->GetMinimum() != 0.0)
+      return;
+
+    throw std::runtime_error(std::format(
+      "[FATAL] the trigger container {} in '{}' holds nothing but zeros. Its axes and binning are "
+      "fine, which is why nothing else objects - but every spectrum is normalised by a sum over "
+      "it, so with no triggers the normalisation is skipped and the spectra come out as raw "
+      "counts rather than per-trigger yields. {}",
+      what, origin, remedy));
+  }
 
   // -------------------------------------------------------------------------
   // Shared JSON parsing for flags common to both derived Init() implementations.
@@ -848,6 +890,7 @@ class CorrelationTaskBase : public IAnalysisTask
     }
 
     spectraCanvases.resize(assocParticles.size());
+    spectraExtrapCanvases.resize(assocParticles.size());
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& p = assocParticles[pIdx];
@@ -879,6 +922,25 @@ class CorrelationTaskBase : public IAnalysisTask
         std::unique_ptr<TCanvas> cSpec = std::make_unique<TCanvas>(cSpecName.c_str(), cSpecTitle.c_str(), 800, 600);
         cSpec->SetLogy();
         spectraCanvases[pIdx].push_back(std::move(cSpec));
+
+        // The same spectra on an axis that reaches pT = 0, with the fitted model drawn
+        // over each one. The measured canvas above starts at the first measured bin, so
+        // the region the extrapolation is about - which is where a third of the yield
+        // comes from - is precisely the part it cannot show.
+        //
+        // A null entry when this species is not extrapolated, rather than a shorter
+        // vector: the index has to keep meaning the same delta-y as everywhere else,
+        // and Terminate() already skips null canvases.
+        if (doExtrapForThis) {
+          std::string cExtName = std::format("cSpectraExtrap_{}_dy{}", p.name, dyNameStr);
+          std::string cExtTitle = std::format("Spectra with extrapolation {} |#Delta y| < {}", p.name, dyTitleStr);
+
+          std::unique_ptr<TCanvas> cExt = std::make_unique<TCanvas>(cExtName.c_str(), cExtTitle.c_str(), 800, 600);
+          cExt->SetLogy();
+          spectraExtrapCanvases[pIdx].push_back(std::move(cExt));
+        } else {
+          spectraExtrapCanvases[pIdx].push_back(nullptr);
+        }
       }
     }
   }
@@ -886,7 +948,13 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   // Extrapolation function
   // -------------------------------------------------------------------------
-  ExtrapolationResult ExtrapolateSpectrum(TH1* hSpec, const AssocParticleConfig& config, int multBin, TDirectory* targetDir)
+  // 'overlay' is where the extended spectrum is drawn, one multiplicity bin per call,
+  // and may be null. It is a parameter for the same reason 'targetDir' is: this
+  // function knows the spectrum but not which particle or delta-y index it belongs to,
+  // and the alternative - handing it the two indices so it can look the canvas up - is
+  // giving it a way to reach objects that are none of its business.
+  ExtrapolationResult ExtrapolateSpectrum(TH1* hSpec, const AssocParticleConfig& config, int multBin,
+                                          TDirectory* targetDir, TCanvas* overlay)
   {
     // 1. Fetch configuration for THIS particle and THIS multBin from JSON
     ExtrapConfig eCfg = extrapConfigManager->GetConfig(config.name, multBin);
@@ -894,6 +962,17 @@ class CorrelationTaskBase : public IAnalysisTask
 
     // 2. Generate configured TF1 model
     std::unique_ptr<TF1> extrapModel = ExtrapolationModelFactory::CreateModel(eCfg, hSpec->GetMaximum());
+
+    // The factory names by model - every Levy-Tsallis is "fLevyTsallis" - and this
+    // function runs once per particle, delta-y and multiplicity bin, each time cloning
+    // the model into the extended spectrum and now also onto an overlay canvas. Every
+    // TF1 registers itself in gROOT->GetListOfFunctions(), so without this they would
+    // all pile up there under one name: the rule in CLAUDE.md about ROOT's global
+    // lists, which cost a segfault once already through TCanvas.
+    //
+    // Renamed here, before anything clones it, so the unique name propagates to every
+    // copy by itself.
+    extrapModel->SetName(std::format("{}_{}", extrapModel->GetName(), hSpec->GetName()).c_str());
 
     /*{
       // std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}", hSpec->GetName(), extrapFunction);
@@ -950,66 +1029,8 @@ class CorrelationTaskBase : public IAnalysisTask
 
     ExtrapolationResult res = extrapolator.Extrapolate();
 
-    // 'extrapModel' is fitted in place, so from here on it carries the fitted
-    // parameters. That is what makes this line - and the curve attached to the
-    // extended spectrum further down - show the fit rather than the initial guess,
-    // which is what they showed while SpectrumExtrapolator worked on a clone.
-    double fitLowPtIntegral = 0.0;
-    if (firstMeasuredPt > 0.0)
-      fitLowPtIntegral = extrapModel->Integral(0.0, firstMeasuredPt);
-
-    // 4. Debug output
-    {
-      const double rawIntegral = hSpec->Integral(1, hSpec->GetNbinsX(), "width");
-      std::cout << "\n[DEBUG EXTRAP] " << std::endl;
-      std::cout << "  -> Raw data integral:            " << rawIntegral << std::endl;
-      std::cout << "  -> Yield after extrapolation:    " << res.yield << std::endl;
-      std::cout << "  -> Extrapolated part:            " << res.ExtrapolatedYield()
-                << " (" << 100. * res.ExtrapolatedFraction() << "% of the yield)" << std::endl;
-
-      // Split by side, and printed next to the independent computation of the low one.
-      // The two low numbers come by completely different routes - a sum over a
-      // histogram of 0.01-wide bins, each filled with TF1::Integral, against one direct
-      // TF1::Integral - so agreement says the whole extrapolation machinery works, and
-      // it is how the silently-dropped extrapolation was found in the first place.
-      //
-      // They differ legitimately when the first declared bin is empty: the histogram
-      // starts at the first NON-empty edge while the direct integral starts at
-      // config.binning[0]. If they differ and the first bin is filled, something is
-      // wrong.
-      std::cout << "       low  " << res.extrapolatedYieldLow
-                << "   vs fitted function over [0, " << firstMeasuredPt << "]: " << fitLowPtIntegral << std::endl;
-      std::cout << "       high " << res.extrapolatedYieldHigh << std::endl;
-
-      // The four numbers to check against the reference if this ever has to be
-      // verified again. Yield and mean are deterministic and must agree exactly;
-      // the two errors are the RMS of 1000 toys and agree only to a few percent,
-      // so comparing them for equality is chasing noise.
-      std::cout << "  -> Yield:  " << res.yield << " +- " << res.yieldStatErr
-                << "   <pT>: " << res.meanPt << " +- " << res.meanPtStatErr << std::endl;
-
-      // A converged fit is not a good fit, and roughly a third of the yield above is
-      // an integral of this function outside the measured range - so this line is
-      // not decoration. It used to be printed only by YieldMean, which meant
-      // retiring that path would have silently removed the only sign that the fit
-      // does not describe the data. See DESIGN_NOTES.md, which still lists that as
-      // open.
-      std::cout << "  -> Fit " << eCfg.model << " over [" << eCfg.fitRange.first << ", "
-                << eCfg.fitRange.second << "]: chi2/ndf = " << res.chi2 << "/" << res.ndf
-                << " = " << res.ReducedChi2() << std::endl;
-
-      if (res.hasSystematics)
-        std::cout << "  -> Systematics: yield +" << res.yieldSysHi << " -" << res.yieldSysLo
-                  << "   <pT> +" << res.meanPtSysHi << " -" << res.meanPtSysLo << std::endl;
-
-      // The two being equal is not a coincidence worth leaving to the eye: it means
-      // nothing was added, i.e. the extrapolation silently dropped out.
-      if (res.yield == rawIntegral)
-        std::cerr << "[WARNING] " << hSpec->GetName()
-                  << ": the extrapolated yield equals the raw integral exactly - nothing was "
-                     "extrapolated. Check the fit above."
-                  << std::endl;
-    }
+    // 4. Report what happened. Reads nothing back into the result.
+    ReportExtrapolation(hSpec, res, eCfg, extrapModel.get(), firstMeasuredPt);
 
     // 5. Create extended binning dynamically
     std::vector<double> extBinning;
@@ -1033,13 +1054,90 @@ class CorrelationTaskBase : public IAnalysisTask
     hSpecExt->SetBinError(1, 0.0);
 
     AnalysisUtils::SetHistogramStyle(hSpecExt.get(), globalCfgs.GetSpectraColor(multBin));
-    // The fitted curve, travelling with the spectrum it describes.
-    hSpecExt->GetListOfFunctions()->Add(extrapModel->Clone());
+    // The fitted curve, travelling with the spectrum it describes. Same colour as the
+    // points, so that on the overlay below each curve is readable against its own
+    // spectrum rather than against the one next to it.
+    std::unique_ptr<TF1> fittedCurve(static_cast<TF1*>(extrapModel->Clone()));
+    fittedCurve->SetLineColor(globalCfgs.GetSpectraColor(multBin));
+    fittedCurve->SetLineWidth(2);
+    hSpecExt->GetListOfFunctions()->Add(fittedCurve.release());
 
     targetDir->cd();
     hSpecExt->Write(nullptr, TObject::kOverwrite);
 
+    // Drawn after the curve is attached, so DrawCopy carries it along: the copy
+    // clones the function list too, which is what puts one curve per multiplicity bin
+    // on this canvas without a second explicit draw.
+    if (overlay) {
+      overlay->cd();
+      hSpecExt->DrawCopy(multBin == 0 ? "" : "SAME");
+    }
+
     return res;
+  }
+
+  // What the extrapolation of one spectrum has to say for itself. It computes nothing
+  // that survives the call - which is the reason to give it a name of its own, since
+  // that fact is invisible while it sits inline among the steps that do.
+  //
+  // 'model' must be the FITTED function, which it is: SpectrumExtrapolator fits in
+  // place. It is passed rather than a precomputed number because the low-pT
+  // cross-check below has to be taken HERE, by a different route from the one
+  // Extrapolate() used - a number computed once and passed in would compare a value
+  // with itself.
+  static void ReportExtrapolation(const TH1* hSpec, const ExtrapolationResult& res,
+                                  const ExtrapConfig& eCfg, TF1* model, double firstMeasuredPt)
+  {
+    const double rawIntegral = hSpec->Integral(1, hSpec->GetNbinsX(), "width");
+
+    std::cout << "\n[DEBUG EXTRAP] " << hSpec->GetName() << std::endl;
+    std::cout << "  -> Raw data integral:            " << rawIntegral << std::endl;
+    std::cout << "  -> Yield after extrapolation:    " << res.yield << std::endl;
+    std::cout << "  -> Extrapolated part:            " << res.ExtrapolatedYield()
+              << " (" << 100. * res.ExtrapolatedFraction() << "% of the yield)" << std::endl;
+
+    // Split by side, and printed next to an independent computation of the low one.
+    // The two low numbers come by completely different routes - a sum over a histogram
+    // of 0.01-wide bins, each filled with TF1::Integral, against one direct
+    // TF1::Integral - so agreement says the whole extrapolation machinery works, and it
+    // is how the silently-dropped extrapolation was found in the first place.
+    //
+    // They differ legitimately when the first declared bin is empty: the histogram
+    // starts at the first NON-EMPTY edge while the direct integral starts at
+    // config.binning[0]. If they differ and the first bin is filled, something is wrong.
+    const double fitLowPtIntegral = firstMeasuredPt > 0.0 ? model->Integral(0.0, firstMeasuredPt) : 0.0;
+
+    std::cout << "       low  " << res.extrapolatedYieldLow
+              << "   vs fitted function over [0, " << firstMeasuredPt << "]: " << fitLowPtIntegral << std::endl;
+    std::cout << "       high " << res.extrapolatedYieldHigh << std::endl;
+
+    // The four numbers to check against the reference if this ever has to be verified
+    // again. Yield and mean are deterministic and must agree exactly; the two errors
+    // are the RMS of 1000 toys and agree only to a few percent, so comparing them for
+    // equality is chasing noise.
+    std::cout << "  -> Yield:  " << res.yield << " +- " << res.yieldStatErr
+              << "   <pT>: " << res.meanPt << " +- " << res.meanPtStatErr << std::endl;
+
+    // A converged fit is not a good fit, and roughly a third of the yield above is an
+    // integral of this function outside the measured range - so this line is not
+    // decoration. It used to be printed only by YieldMean, which meant retiring that
+    // path would have silently removed the only sign that the fit does not describe
+    // the data. See DESIGN_NOTES.md, which still lists that as open.
+    std::cout << "  -> Fit " << eCfg.model << " over [" << eCfg.fitRange.first << ", "
+              << eCfg.fitRange.second << "]: chi2/ndf = " << res.chi2 << "/" << res.ndf
+              << " = " << res.ReducedChi2() << std::endl;
+
+    if (res.hasSystematics)
+      std::cout << "  -> Systematics: yield +" << res.yieldSysHi << " -" << res.yieldSysLo
+                << "   <pT> +" << res.meanPtSysHi << " -" << res.meanPtSysLo << std::endl;
+
+    // The two being equal is not a coincidence worth leaving to the eye: it means
+    // nothing was added, i.e. the extrapolation silently dropped out.
+    if (res.yield == rawIntegral)
+      std::cerr << "[WARNING] " << hSpec->GetName()
+                << ": the extrapolated yield equals the raw integral exactly - nothing was "
+                   "extrapolated. Check the fit above."
+                << std::endl;
   }
 
   // -------------------------------------------------------------------------
@@ -1088,7 +1186,28 @@ class CorrelationTaskBase : public IAnalysisTask
         // Normalize by the total number of triggers AND the Delta Y phase space
         if (totalTriggerSignalPerMult > 0.0) {
           h1Spectrum->Scale(1.0 / (effectiveTriggers * 2.0 * dyLimit));
+        } else if (h1Spectrum->GetMaximum() != 0.0 || h1Spectrum->GetMinimum() != 0.0) {
+          // Zero triggers with a NON-EMPTY spectrum is a contradiction, not a sparse
+          // sample. This is a correlation analysis: the associated container is filled
+          // per trigger, so every pair in that spectrum came from a phi the trigger
+          // container says does not exist. The two disagree, and since the trigger is
+          // read by (multiplicity, pT) bin index, the way they come to disagree is that
+          // one of those indices addresses the wrong cell.
+          //
+          // Fatal, because the alternative is what used to happen: the scaling is
+          // skipped and RAW COUNTS are left in an object whose axis title says
+          // 1/N_trig dN/dpT dDeltaY. It reads as a spectrum, plots as a spectrum, and
+          // is orders of magnitude away from one - which is how a trigger container
+          // indexed the wrong way round survived until somebody looked at a canvas.
+          throw std::runtime_error(std::format(
+            "[FATAL] {}: '{}' has entries but the trigger count for multiplicity class {} is zero. "
+            "In a correlation analysis the associated pairs exist only where a trigger did, so the "
+            "two containers contradict each other - the trigger yields are being read from the "
+            "wrong cells. Check that the trigger container and the associated data share the "
+            "multiplicity and trigger-pT binnings.",
+            GetName(), spectraName, BinLabel(multBinning, multBin)));
         }
+        // Both empty: nothing happened in this class, and nothing to say about it.
 
         // Purity correction hook: no-op unless overridden (CorrelationTask does).
         if (TH1* hPurity = GetPurityHist(config.name, multBin)) {
@@ -1108,7 +1227,8 @@ class CorrelationTaskBase : public IAnalysisTask
 
         // Extrapolate and Fill Trend
         if (doExtrapForThis) {
-          ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir);
+          ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir,
+                                                        spectraExtrapCanvases[pIdx][yIdx].get());
           AnalysisUtils::FillTrendFromExtrapolation(h1MultTrendsExtrap[pIdx][yIdx].get(), h1Spectrum.get(),
                                                     res, trendComposition, multBin);
         }
@@ -1188,6 +1308,19 @@ class CorrelationTaskBase : public IAnalysisTask
           }
         }
       }
+
+      // The single number every spectrum of this multiplicity class is divided by, and
+      // until now nothing printed it. A per-trigger yield that comes out orders of
+      // magnitude off, or identical across classes, is a statement about THIS number
+      // and about nothing further downstream - but with the number invisible, the first
+      // place it could be noticed was the shape of a canvas.
+      //
+      // Two classes sharing a value is the signature of trigger cells being read by the
+      // wrong index; a value that does not fall with the multiplicity percentile is the
+      // signature of the wrong container.
+      std::cout << "[INFO] " << GetName() << ": mult "
+                << BinLabel(multBinning, i) << " -> triggers = "
+                << totalTriggerSignalPerMult << std::endl;
 
       GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
     }

@@ -5,8 +5,13 @@
 #include "RootIOHelpers.h"
 
 #include "TFile.h"
-#include "TH2D.h"
+#include "TH1D.h"
 #include "TH3F.h"
+
+#include <format>
+#include <memory>
+#include <stdexcept>
+#include <string>
 
 class CorrelationWPDGTask : public CorrelationTaskBase
 {
@@ -31,14 +36,22 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     if (!isPureGen) {
       h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", "CorrelationWPDGTask");
     } else {
-      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiMCGen", "CorrelationWPDGTask");
-
-      // Pre-compute the 2D projection once, up front, so GetTriggerSignal()
-      // during Run() is a pure lookup with no per-call state management.
-      TH2D* rawh2PhiData = static_cast<TH2D*>(h3PhiData->Project3D("yx"));
-      rawh2PhiData->SetDirectory(0);
-      h2PhiData = std::unique_ptr<TH2D>(rawh2PhiData);
+      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiMCClosureGen", "CorrelationWPDGTask");
     }
+
+    // Checked here rather than left to the guard in GenerateSpectraAndTrends, which is
+    // correct but only fires after every projection has been built: this fails in
+    // seconds, and it can name the O2 process function to enable, which that guard
+    // cannot because by then the container is out of scope.
+    RequireNonEmptyTrigger(
+      h3PhiData.get(),
+      "'" + basePathData + "phi/" + (isPureGen ? "h3PhiMCClosureGen" : "h3PhiData") + "'",
+      inputFile,
+      isPureGen
+        ? "It is filled by the O2 process function 'processMCGenClosure' - check it was enabled "
+          "in the production this file comes from. Note that 'h3PhiMCGen' is a different "
+          "container, filled by 'processParticleEfficiency', and is empty in a closure production."
+        : "Check that the production this file comes from actually reconstructed phi candidates.");
 
     InitAssocParticles(taskConfig);
 
@@ -116,20 +129,47 @@ class CorrelationWPDGTask : public CorrelationTaskBase
   }
 
  protected:
+  // One expression for both modes, which needs saying carefully: the two containers do
+  // NOT hold the same thing on their third axis.
+  //
+  //   h3PhiData    (mult, pT, M_inv)  200 bins over [0.95, 1.2]
+  //   h3PhiMCGen   (mult, pT, y)       20 bins over [-0.5, 0.5]
+  //
+  // So this is not one quantity computed twice. It is a count over the whole third
+  // axis, which happens to be the right count in both cases for INDEPENDENT reasons:
+  // [0.9, 1.2] is the mass window the candidates were filled in, and |y| < 0.5 is the
+  // acceptance of the analysis. Both are the trigger count under the selection that
+  // container already carries. That coincidence is written down because relying on it
+  // silently is how the two paths came to be maintained as if they were the same.
+  //
+  // What this replaces: the pure-gen branch read its trigger from a cached
+  // Project3D("yx") indexed as (mult, ptPhi). Which axis of a TH3 becomes X of the
+  // projection is a ROOT convention, not something the code stated - and with 10
+  // multiplicity bins against 7 trigger-pT bins, getting it the wrong way round sends
+  // multiplicity indices 8, 9 and 10 into the overflow of a 7-bin axis. Those classes
+  // then get a trigger count of zero, the normalisation in GenerateSpectraAndTrends is
+  // skipped, and the "per-trigger yields" come out as raw counts. Naming both bin
+  // ranges explicitly, as the reconstructed branch always did, removes the convention
+  // from the problem.
+  //
+  // VerifyTriggerAxes() could not catch it: it checks the axes of h3PhiData, which were
+  // always right. The projected TH2 was the object actually indexed and nothing looked
+  // at it - an object addressed by bin index whose axes were never compared with what
+  // the consumer assumed, which is the one thing this framework exists to prevent.
   double GetTriggerSignal(int multBin, int ptPhiBin) override
   {
-    if (!isPureGen) {
-      std::string phiHistName = "h1PhiData_multBin" + std::to_string(multBin) + "_ptBin" + std::to_string(ptPhiBin);
-      std::unique_ptr<TH1D> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
-      h1PhiData->SetDirectory(0);
-      return h1PhiData->Integral();
-    }
-    return h2PhiData->GetBinContent(multBin + 1, ptPhiBin + 1);
+    std::string phiHistName = "h1PhiTrigger_multBin" + std::to_string(multBin) + "_ptBin" + std::to_string(ptPhiBin);
+    std::unique_ptr<TH1D> h1PhiTrigger(static_cast<TH1D*>(h3PhiData->ProjectionZ(
+      phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
+    h1PhiTrigger->SetDirectory(0);
+
+    // Bins 1..N, so the under/overflow of the third axis is excluded. Deliberate on
+    // both paths: outside [0.9, 1.2] is not a phi candidate, and outside |y| < 0.5 is
+    // outside the acceptance the spectra are normalised to.
+    return h1PhiTrigger->Integral();
   }
   // GetTriggerBkgRatio not overridden: base default (0.0) is correct for WPDG.
 
-  // h2PhiData, when it exists, is a projection of h3PhiData and shares its axes,
-  // so one answer covers both branches of GetTriggerSignal above.
   std::pair<const TAxis*, const TAxis*> TriggerAxes() const override
   {
     return {h3PhiData->GetXaxis(), h3PhiData->GetYaxis()};
@@ -139,5 +179,4 @@ class CorrelationWPDGTask : public CorrelationTaskBase
   bool isPureGen{false};
 
   std::unique_ptr<TH3F> h3PhiData;
-  std::unique_ptr<TH2D> h2PhiData;
 };

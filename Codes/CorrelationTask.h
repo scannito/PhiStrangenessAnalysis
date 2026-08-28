@@ -59,6 +59,15 @@ class CorrelationTask : public CorrelationTaskBase
     h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerSignal", "CorrelationTask");
     h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerBkgRatio", "CorrelationTask");
 
+    // The same exposure the WPDG task has, by a different route: this matrix is written
+    // cell by cell by PhiFitTask, so a run where every fit failed leaves it present,
+    // correctly binned and entirely zero. From there the normalisation is skipped and
+    // the spectra come out as raw counts, which is exactly the failure that went
+    // unnoticed in the closure - the object is not missing, it is empty.
+    RequireNonEmptyTrigger(h2TriggerSignal.get(), "'" + folderPath + "h2TriggerSignal'", phiDataName,
+                           "It is written by phi_fit_task: check its log for fits that did not "
+                           "converge, and that it ran on the production this task is reading.");
+
     // 3. Associated particles + data loading
     InitAssocParticles(taskConfig);
 
