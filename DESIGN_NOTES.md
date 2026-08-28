@@ -587,7 +587,51 @@ non sequitur in a comparison.
 
 ---
 
-## 8. The delivery format, and the stage that is missing
+## 8. Deciding by itself whether the projection cache is usable
+
+`use_projection_cache` is set by hand, and the obvious wish is for the task to work
+it out: build the projections the first time, reuse them afterwards. It is worth
+writing down why that is not a matter of checking whether the file exists.
+
+**The stamps answer the wrong question.** A cache carries `binning_mult`,
+`binning_ptPhi` and `binning_ptAssoc`, so it can say *with what binning* its
+projections were built. Nothing in it says *what they were built from*. Two
+productions - 2024 and 2026, or the same one re-run after a change in the O2 task -
+routinely share a binning, so a cache reused across them passes every check that
+exists and holds the projections of the wrong input.
+
+That is the same shape as the trigger-container bug recorded under "Known bugs":
+the binning was right, the contents came from elsewhere, and every check passed
+because every check was about binning. Auto-switching would reintroduce it one
+level up, on objects that are expensive enough that nobody rebuilds them casually.
+
+**Note which direction is already safe.** Asking for the cache when none exists is
+fatal today, with a message saying to run once with `false`. So forgetting to build
+it cannot hurt. The unguarded direction is reusing a stale one - and that is
+precisely the one an automatic switch would make more likely. The flag is not
+protecting against forgetting; it is protecting against remembering wrong.
+
+**What has to come first, and is now done.** The cache writes its provenance -
+`config_block`, timestamp, git commit - beside the stamps. Documentation only:
+nothing reads it back on reuse. But without it the question "is this cache mine?"
+had no answer at all, and `Macros/ShowProvenance.C` had nothing to say about these
+files.
+
+**The remaining two steps.** On reuse, compare a *restricted* key rather than the
+whole block: `input_data_file`, `base_path_data`, `is_pure_gen`, and the names and
+`dir_name` of the particles. Not the whole block, or changing `output_prefix` would
+invalidate a perfectly good cache. Then the rule becomes statable: use the cache if
+it exists, came from this input, and agrees on the binnings; rebuild if it is
+absent; and **refuse** if it exists but came from something else - because
+rebuilding silently there would mean two productions are quietly fighting over one
+file.
+
+Do not land this while output files are being rebuilt: introducing a cache key
+invalidates every existing cache at once.
+
+---
+
+## 9. The delivery format, and the stage that is missing
 
 The chain ends at "corrected trends, as TH1". A published result is not that, and
 the gap is not cosmetic — it is three things a TH1 structurally cannot carry:
@@ -632,7 +676,7 @@ whoever writes it:
 
 ---
 
-## 9. Engineering
+## 10. Engineering
 
 **Splitting RootIOHelpers further — a suggestion, not a decision.** The header now
 holds two families: file access (open, get, navigate) and the records written into
@@ -700,7 +744,7 @@ being chosen.
 
 ---
 
-## 10. Cling constraints learned the hard way
+## 11. Cling constraints learned the hard way
 
 - **`std::format` with floating-point specs does not compile.** `{:g}`, `{:.2f}`
   and friends make the consteval format-string validation fail: for float specs

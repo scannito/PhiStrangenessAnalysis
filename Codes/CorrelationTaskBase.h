@@ -799,6 +799,20 @@ class CorrelationTaskBase : public IAnalysisTask
         RootIO::WriteBinningStamp(schemeDir, "binning_ptAssoc", particle.binning);
         RootIO::WriteBinningStamp(schemeDir, "binning_ptPhi", ptPhi);
         RootIO::WriteBinningStamp(schemeDir, "binning_mult", mult);
+
+        // The stamps say WITH WHAT BINNING these projections were built. They cannot
+        // say WHAT THEY WERE BUILT FROM, and two productions can share a binning - so
+        // a cache reused across them matches on every check there is and holds the
+        // projections of the wrong input. Recording the config block is what makes
+        // that answerable at all; ShowProvenance.C can also read it back, which on
+        // these files it previously could not.
+        //
+        // Documentation and not a check, like everywhere else provenance is written:
+        // nothing reads it on reuse yet. Turning it into a cache key - and with it
+        // deciding automatically whether the cache is usable - is a separate step,
+        // and one that must not land while files are being rebuilt. See DESIGN_NOTES.
+        RootIO::WriteProvenance(RootIO::GetOrCreatePath(cacheFile, {globalCfgs.binningName, "Provenance"}, false),
+                                provenance);
       } else {
         TDirectory* schemeDir = RootIO::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, true);
         if (!schemeDir) {
