@@ -154,7 +154,18 @@
             "mc_task_2024",
             "mc_task_2024_wtrigger",
             "mc_task_2026",
-            "mc_task_2026_wtrigger"
+            "mc_task_2026_wtrigger",
+            "mc_task_2023",
+            "mc_task_2023_wtrigger",
+            "mc_task_2023_strange_injected",
+            "mc_task_2023_strange_injected_wtrigger",
+            "mc_task_2026_highIR",
+            "mc_task_2026_lowIR",
+            "mc_task_2026_lowIRad",
+            "mc_task_2026_lowIRae",
+            "mc_task_2026_lowIRaf",
+            "mc_task_2026_lowIRag",
+            "mc_task_2026_lowIRai"
         ]
     },
     "mc_task_2024": {
@@ -176,5 +187,60 @@
         "inherits": "mc_base_settings",
         "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_PtMod_WTrigger_20luglio.root",
         "output_prefix": "2026_WTrigger_"
+    },
+    "mc_task_2023": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2023_PtMod_11settembre.root",
+        "output_prefix": "2023_"
+    },
+    "mc_task_2023_wtrigger": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2023_PtMod_WTrigger_11settembre.root",
+        "output_prefix": "2023_WTrigger_"
+    },
+    "mc_task_2023_strange_injected": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2023_StrInj_PtMod_09settembre.root",
+        "output_prefix": "2023_StrInj_"
+    },
+    "mc_task_2023_strange_injected_wtrigger": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2023_StrInj_PtMod_WTrigger_09settembre.root",
+        "output_prefix": "2023_StrInj_WTrigger_"
+    },
+    "mc_task_2026_highIR": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_HighIRac_PtMod_18settembre.root",
+        "output_prefix": "2026_HighIR_"
+    },
+    "mc_task_2026_lowIR": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_LowIRall_PtMod_18settembre.root",
+        "output_prefix": "2026_LowIR_"
+    },
+    "mc_task_2026_lowIRad": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_LowIRad_PtMod_18settembre.root",
+        "output_prefix": "2026_LowIRad_"
+    },
+    "mc_task_2026_lowIRae": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_LowIRae_PtMod_18settembre.root",
+        "output_prefix": "2026_LowIRae_"
+    },
+    "mc_task_2026_lowIRaf": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_LowIRaf_PtMod_18settembre.root",
+        "output_prefix": "2026_LowIRaf_"
+    },
+    "mc_task_2026_lowIRag": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_LowIRag_PtMod_18settembre.root",
+        "output_prefix": "2026_LowIRag_"
+    },
+    "mc_task_2026_lowIRai": {
+        "inherits": "mc_base_settings",
+        "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_2026_LowIRai_PtMod_18settembre.root",
+        "output_prefix": "2026_LowIRai_"
     }
 }

@@ -21,6 +21,11 @@
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
   output_name: "AnalysisResults_136_2026_PtMod_6agosto.root"
 
+# LHC23_pass4_Thin_medium (pp w/ & w/o strangeness injection) Data
+- train_id: 761382
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2023_PtMod_16settembre.root"
+
 
 
 

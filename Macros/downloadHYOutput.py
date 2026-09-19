@@ -57,6 +57,10 @@ def parse_arguments():
                         help="Custom name for the downloaded file (only applied in --unified mode).")
     parser.add_argument("--per-run", action="store_true",
                     help="Disable unified download and download files for each individual run.")
+    parser.add_argument("--run-list", default=None,
+                        help="Optional: Comma-separated list of specific run numbers to download (only in --per-run mode).")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="Force download and merge even if the output file already exists.")
     return parser.parse_args()
 
 def run_cmd(cmd):
@@ -104,9 +108,18 @@ def get_alien_file_paths(alien_dir, target_file):
     
     return []
 
-def download_per_run_files(train_id, target_file, output_base_dir):
+def download_and_merge_per_run_files(train_id, target_file, output_base_dir, custom_name=None, run_list=None, overwrite=False):
     """Reads the JSON and downloads the files PER RUN for successfully merged runs."""
     os.makedirs(output_base_dir, exist_ok=True)
+
+    final_filename = custom_name if custom_name else f"Train_{train_id}_{target_file}"
+
+    merged_file_path = os.path.join(output_base_dir, final_filename)
+
+    if not overwrite and os.path.isfile(merged_file_path) and os.path.getsize(merged_file_path) > 0:
+        print(f"-> The merged file '{merged_file_path}' already exists. Skipping download.")
+        return
+    
     json_path = download_train_json(train_id, output_base_dir)
     if not json_path:
         return
@@ -118,56 +131,79 @@ def download_per_run_files(train_id, target_file, output_base_dir):
     if not jobs:
         print(f"Error: No runs found. Kept {json_path} for debugging.")
         return
-        
-    print(f"Found {len(jobs)} runs in the JSON.")
+
     has_errors = False
+
+    run_set = {int(run) for run in run_list.split(",")} if run_list else None
+    files_to_merge = []
 
     for job in jobs:
         run_number = job.get("run")
-        merge_state = job.get("merge_state")
-        alien_dir = job.get("outputdir")
+        if run_set is not None and run_number not in run_set:
+            print(f"Skipping Run {run_number}: not in the specified run list.")
+            continue
 
+        merge_state = job.get("merge_state")
         if merge_state != "done":
             print(f"Skipping Run {run_number}: merge_state is '{merge_state}'")
             continue
 
-        local_run_dir = os.path.join(output_base_dir, str(run_number))
-        os.makedirs(local_run_dir, exist_ok=True)
-
-        print(f"\n[Run {run_number}] Processing...")
+        alien_dir = job.get("outputdir")
         alien_paths = get_alien_file_paths(alien_dir, target_file)
-        
         if not alien_paths:
             print(f"  -> No '{target_file}' file found on the Grid for this run.")
             has_errors = True
             continue
 
+        print(f"\n[Run {run_number}] Processing...")
+
         for i, alien_file_path in enumerate(alien_paths):
-            file_name = target_file if len(alien_paths) == 1 else f"{target_file.replace('.root', '')}_{i+1}.root"
-            local_file_path = os.path.join(local_run_dir, file_name)
+            suffix = f"_{i+1}" if len(alien_paths) > 1 else ""
+            unique_filename = f"run_{run_number}{suffix}_{target_file}"
+            local_file_path = os.path.join(output_base_dir, unique_filename)
 
-            if os.path.isfile(local_file_path) and os.path.getsize(local_file_path) > 0:
-                print(f"  -> File '{file_name}' already exists locally, skipping.")
-                continue
-
-            print(f"  -> Downloading: {alien_file_path} \n     to {local_file_path}")
-            cmd = f"alien.py cp {alien_file_path} file:{local_file_path}"
-            res = run_cmd(cmd)
+            if not (os.path.isfile(local_file_path) and os.path.getsize(local_file_path) > 0):
+                print(f"  -> Downloading {unique_filename}...")
+                cmd = f"alien.py cp {alien_file_path} file:{local_file_path}"
+                res = run_cmd(cmd)
             
-            if res.returncode == 0:
-                print(f"  -> Completed: {file_name}")
-            else:
-                print(f"  -> Error downloading {file_name}")
-                has_errors = True
+                if res.returncode != 0:
+                    print(f"  -> Error downloading {unique_filename}")
+                    has_errors = True
+                    continue
+
+            files_to_merge.append(local_file_path)
+
+    if files_to_merge and not has_errors:
+        print(f"\n-> Starting the merge of {len(files_to_merge)} files into {merged_file_path}...")
+
+        files_string = " ".join(files_to_merge)
+        hadd_cmd_string = f"hadd -f {merged_file_path} {files_string}"
+        
+        merge_res = run_cmd(hadd_cmd_string)
+
+        if merge_res.returncode == 0:
+            print("-> Merge completed successfully!")
+            print("-> Cleanup: removing intermediate root files...")
+            for f in files_to_merge:
+                if os.path.exists(f):
+                    os.remove(f)
+        else:
+            print("-> Error during hadd merge!")
+            print(merge_res.stderr)
+            has_errors = True
+    elif not files_to_merge:
+        print("\n-> No files downloaded for merging.")
 
     if not has_errors:
-        print("\n-> All downloads finished successfully. Cleaning up temporary JSON file...")
-        os.remove(json_path)
+        print("\n-> Process completed without errors. Removing JSON...")
+        if os.path.exists(json_path):
+            os.remove(json_path)
     else:
-        print(f"\n-> Some errors occurred during the process.")
-        print(f"-> The JSON file has been kept for debugging: {json_path}")
+        print(f"\n-> Errors occurred (download or merge). JSON kept at: {json_path}")
+        print("-> The downloaded files have not been removed to allow retrying.")
 
-def download_unified_file(train_id, target_file, output_base_dir, custom_name=None):
+def download_unified_file(train_id, target_file, output_base_dir, custom_name=None, overwrite=False):
     """Reads the JSON 'mergeResults' and downloads the SINGLE UNIFIED global file."""
     os.makedirs(output_base_dir, exist_ok=True)
     json_path = download_train_json(train_id, output_base_dir)
@@ -203,7 +239,7 @@ def download_unified_file(train_id, target_file, output_base_dir, custom_name=No
 
     print(f"\nTargeting UNIFIED file at: {alien_file_path}")
 
-    if os.path.isfile(local_file_path) and os.path.getsize(local_file_path) > 0:
+    if not overwrite and os.path.isfile(local_file_path) and os.path.getsize(local_file_path) > 0:
         print(f"File '{final_filename}' already exists locally, skipping.")
         os.remove(json_path)
         return
@@ -220,14 +256,35 @@ def download_unified_file(train_id, target_file, output_base_dir, custom_name=No
         print(f"-> Error: Could not download the unified file from {alien_file_path}")
         print(f"-> The JSON file has been kept for debugging: {json_path}")
 
-def process_single_train(train_id, target_file, output_dir, output_name, per_run):
+def process_single_train(train_id, target_file, output_dir, output_name, per_run=False, run_list=None, overwrite=False):
     """Dispatches the execution to either unified or per-run mode."""
     if not per_run:
         print(f"\n--- MODE: UNIFIED DOWNLOAD [Train ID: {train_id}] ---")
-        download_unified_file(train_id, target_file, output_dir, output_name)
+        download_unified_file(train_id, target_file, output_dir, output_name, overwrite)
     else:
         print(f"\n--- MODE: PER-RUN DOWNLOAD [Train ID: {train_id}] ---")
-        download_per_run_files(train_id, target_file, output_dir)
+        download_and_merge_per_run_files(train_id, target_file, output_dir, output_name, run_list, overwrite)
+
+def validate_run_list(run_list_input):
+    """
+    Validates and cleans the run_list input.
+    Returns a clean comma-separated string, or None if invalid.
+    """
+    if not run_list_input:
+        return None
+        
+    try:
+        # str() prevents crashes if YAML parses a single run as an int
+        # strip() removes accidental spaces like "123, 456"
+        runs = [run.strip() for run in str(run_list_input).split(",") if run.strip()]
+        
+        # Check if every element is a valid number
+        if not all(run.isdigit() for run in runs):
+            return None
+            
+        return ",".join(runs) # Returns a perfectly formatted string: "123,456"
+    except Exception:
+        return None
 
 if __name__ == "__main__":
     args = parse_arguments()
@@ -255,22 +312,53 @@ if __name__ == "__main__":
             
         for index, item in enumerate(trains_list):
             t_id = item.get("train_id")
-            t_file = item.get("target_file", "AnalysisResults.root")
             o_dir = item.get("output_dir", DEFAULT_OUTPUT_DIR)
-            o_name = item.get("output_name", None)
-            is_per_run = item.get("per_run", False)
-            
+
             if not t_id:
                 print(f"Warning: Missing 'train_id' in batch entry #{index+1}. Skipping.")
                 continue
-                
-            print(f"\nProcessing batch item {index+1}/{len(trains_list)}")
-            process_single_train(t_id, t_file, o_dir, o_name, is_per_run)
+
+            extractions = item.get("extractions", [item])
+            print(f"\n=== Processing Batch Item {index+1}/{len(trains_list)} [Train: {t_id} | {len(extractions)} tasks] ===")
+
+            for task_idx, task in enumerate(extractions):
+                t_file = task.get("target_file", item.get("target_file", "AnalysisResults.root"))
+                o_name = task.get("output_name", item.get("output_name", None))
+                is_per_run = task.get("per_run", item.get("per_run", False))
+                run_list = task.get("run_list", item.get("run_list", None))
+                overwrite = task.get("overwrite", item.get("overwrite", False))
+
+                if run_list:
+                    run_list = validate_run_list(run_list)
+                    if not run_list:
+                        print(f"Error: Invalid 'run_list' in batch entry #{index+1}. Must be comma-separated integers. Skipping.")
+                        continue
+
+                    if not is_per_run:
+                        print(f"Warning: 'run_list' found in batch entry #{index+1} but 'per_run' is missing or false.")
+                        print("Auto-enabling 'per_run' mode...")
+                        is_per_run = True
+
+                print(f"\n--- Task {task_idx+1}/{len(extractions)}: Train {t_id} | Target File: {t_file} | Output Name: {o_name} | Per-Run: {is_per_run} | Run List: {run_list} ---")
+                process_single_train(t_id, t_file, o_dir, o_name, is_per_run, run_list, overwrite)
         print("\n=== BATCH PROCESSING COMPLETED ===")
 
     # Standard Mode (Single Train via CLI parameters)
     else:
         if not args.train_id:
-            print("Error: You must provide either --train-id or --batch-json to run the script.")
+            print("Error: You must provide either --train-id or --batch-file to run the script.")
             exit(1)
-        process_single_train(args.train_id, args.target_file, args.output_dir, args.output_name, args.per_run)
+
+        if args.run_list:
+            args.run_list = validate_run_list(args.run_list)
+            if not args.run_list:
+                print("Error: Invalid '--run-list' format. Must be comma-separated integers (e.g. '123,456').")
+                exit(1)
+                
+            if not args.per_run:
+                print("Warning: '--run-list' was provided, but '--per-run' is missing.")
+                print("Auto-enabling '--per-run' mode to process specific runs...")
+                args.per_run = True
+
+        print(f"\n--- Single Task: Train {args.train_id} | Target File: {args.target_file} | Output Name: {args.output_name} | Per-Run: {args.per_run} | Run List: {args.run_list} ---")
+        process_single_train(args.train_id, args.target_file, args.output_dir, args.output_name, args.per_run, args.run_list, args.overwrite)

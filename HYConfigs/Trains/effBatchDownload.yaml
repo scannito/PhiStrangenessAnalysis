@@ -6,7 +6,7 @@
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
   output_name: "AnalysisResultsMC_536_StrInj_PtMod_20luglio.root"
 
-# LHC26b1 (strangeness-injected pp reference) with phi trigger MC
+# LHC26b1 (strangeness-injected pp reference) MC with phi trigger
 - train_id: 721758
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
   output_name: "AnalysisResultsMC_536_StrInj_PtMod_WTrigger_20luglio.root"
@@ -16,7 +16,7 @@
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
   output_name: "AnalysisResultsMC_136_2024_PtMod_20luglio.root"
 
-# LHC24f4d (pp) with phi trigger MC
+# LHC24f4d (pp) MC with phi trigger
 - train_id: 721839
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
   output_name: "AnalysisResultsMC_136_2024_PtMod_WTrigger_20luglio.root"
@@ -26,7 +26,7 @@
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
   output_name: "AnalysisResultsMC_136_2026_PtMod_20luglio.root"
 
-# LHC26e9 (pp) with phi trigger MC
+# LHC26e9 (pp) MC with phi trigger
 - train_id: 721869
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
   output_name: "AnalysisResultsMC_136_2026_PtMod_WTrigger_20luglio.root"
@@ -36,7 +36,7 @@
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
   output_name: "AnalysisResultsMC_536_PtMod_Bneg_20luglio.root"
 
-# LHC25b4b6 (pp reference in B-- config) with phi trigger MC
+# LHC25b4b6 (pp reference in B-- config) MC with phi trigger
 - train_id: 721897
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
   output_name: "AnalysisResultsMC_536_PtMod_WTrigger_Bneg_20luglio.root"
@@ -46,7 +46,44 @@
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
   output_name: "AnalysisResultsMC_536_PtMod_Bpos_20luglio.root"
 
-# LHC25b4a6 (pp reference in B++ config) with phi trigger MC
+# LHC25b4a6 (pp reference in B++ config) MC with phi trigger
 - train_id: 721912
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC"
   output_name: "AnalysisResultsMC_536_PtMod_WTrigger_Bpos_20luglio.root"
+
+# LHC25b7 (strangeness-injected pp) MC
+- train_id: 756651
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
+  output_name: "AnalysisResultsMC_136_2023_StrInj_PtMod_09settembre.root"
+
+# LHC25b7 (strangeness-injected pp) MC with phi trigger
+- train_id: 756652
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
+  output_name: "AnalysisResultsMC_136_2023_StrInj_PtMod_WTrigger_09settembre.root"
+
+# LHC23k4i (pp) MC
+- train_id: 758235
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
+  output_name: "AnalysisResultsMC_136_2023_PtMod_11settembre.root"
+
+# LHC23k4i (pp) MC with phi trigger
+- train_id: 758236
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
+  output_name: "AnalysisResultsMC_136_2023_PtMod_WTrigger_11settembre.root"
+
+# LHC26e9 (pp) MC
+- train_id: 763391
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/MC"
+  extractions:
+    - output_name: "AnalysisResultsMC_136_2026_HighIRac_PtMod_18settembre.root"
+      run_list: 569945, 569947, 569978, 569980, 569981, 569982, 570011, 570012, 570025, 570036, 570049, 570050, 570051, 570054, 570064, 570065, 570066, 570077, 570079, 570091, 570102, 570128, 570143, 570158, 570159, 570160, 570162, 570163, 570165, 570166, 570191, 570205, 570243, 570279, 570292, 570316, 570327, 570341, 570342, 570353, 570355, 570373, 570440, 570442, 570462, 570474, 570491, 570504, 570515, 570526, 570537, 570551, 570564, 570587, 570588, 570590, 570606, 570607, 570608, 570143, 570158, 570159, 570160, 570279, 570462, 570474, 570491, 570504, 570515, 570355, 570128, 570162, 570163, 570165, 570166, 570243, 570551, 570564, 570587
+    - output_name: "AnalysisResultsMC_136_2026_LowIRad_PtMod_18settembre.root"
+      run_list: 570609, 570622, 570639, 570689, 570655, 570658, 570703, 570641, 570644, 570645, 570688, 570690
+    - output_name: "AnalysisResultsMC_136_2026_LowIRae_PtMod_18settembre.root"
+      run_list: 570733, 570734, 570739, 570760, 570794, 570805, 570822, 570826, 570851, 570863, 570867, 570870, 570866, 570869, 570872
+    - output_name: "AnalysisResultsMC_136_2026_LowIRaf_PtMod_18settembre.root"
+      run_list: 571002, 571014, 571019, 571021, 571023, 571043, 571146, 571169, 571170, 571183, 571184, 571192, 571193, 571208, 571209, 571210, 571211
+    - output_name: "AnalysisResultsMC_136_2026_LowIRag_PtMod_18settembre.root"
+      run_list: 571234, 571236, 571237, 571238, 571240, 571252, 571253, 571254, 571268, 571269, 571287, 571288, 571290
+    - output_name: "AnalysisResultsMC_136_2026_LowIRai_PtMod_18settembre.root"
+      run_list: 571424, 571438, 571449, 571462, 571473, 571534, 571556, 571568, 571571, 571572, 571584, 571585, 571587, 571602, 571613, 571632, 571633, 571635, 571636, 571638, 571640, 571656, 571660, 571661, 571675, 571704, 571705, 571707, 571709, 571716, 571751, 571752, 571755, 571771, 571781, 571785, 571787
