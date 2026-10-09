@@ -4,6 +4,7 @@
 #include "AnalysisDataStructures.h"
 #include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
+#include "CanvasManager.h"
 #include "EfficiencyCalculator.h"
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
@@ -437,12 +438,7 @@ class MCTask : public IAnalysisTask
     // Same rule as the histograms: the directory is created by the write, so a run
     // with no merging leaves no empty folders behind.
     auto writeCanvas = [&](const std::vector<std::string>& path, TCanvas* canvas) {
-      if (!canvas)
-        return;
-      if (TDirectory* dir = RootIO::GetOrCreatePath(fileMCOutput.get(), path, false)) {
-        dir->cd();
-        canvas->Write(nullptr, TObject::kOverwrite);
-      }
+      CanvasManager::WriteCanvas(canvas, fileMCOutput.get(), path);
     };
 
     // Save all diagnostic canvases and free the memory for the loaded objects

@@ -119,16 +119,18 @@ know it".
   constructor or an accessor should produce it (`AssocParticleConfig::mass`,
   `ParticleTask::AnalysisBinning`, `LoadedMC::CreateCanvases`).
 - One namespace per helper header: `BinningUtils`, `RootIO`, `JsonConfig`,
-  `AnalysisUtils`, `RunEnvironment`, `PhiFitModels`.
+  `AnalysisUtils`, `RunEnvironment`, `PhiFitModels`. Dedicated managers: `WorkflowManager`,
+  `CanvasManager`, `BaseConfigManager`, `FitConfigManager`, `ExtrapConfigManager`.
 - Tasks communicate through ROOT files, never in memory. `WorkflowManager` destroys
   each task right after `Terminate()`.
 - **ROOT's global lists know nothing about `TDirectory`.** `TCanvas` registers in
   one: two canvases with the same name alive at once collide even in different
-  directories, which caused a segfault, so keep canvas names unique. `TF1`
-  registers in `gROOT->GetListOfFunctions()` the same way — an undeleted fit model
-  created once per spectrum piles up objects under one name, which was half of the
-  `SpectrumExtrapolator` clone bug. The rule generalises: when a ROOT class keeps
-  itself in a global list, a unique name and a clear owner are not style.
+  directories, which caused a segfault, so keep canvas names unique. `CanvasManager`
+  centralizes canvas lifecycle, unique naming, layout factories (ratio pads, grids),
+  and safe IO/export. `TF1` registers in `gROOT->GetListOfFunctions()` the same way —
+  an undeleted fit model created once per spectrum piles up objects under one name,
+  which was half of the `SpectrumExtrapolator` clone bug. The rule generalises: when
+  a ROOT class keeps itself in a global list, a unique name and a clear owner are not style.
 
 ## How a task opens the file it writes
 

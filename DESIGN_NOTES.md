@@ -742,6 +742,19 @@ accepting both), or split the struct into `ExpectedBinning` + `AnalysisSettings`
 Best done together with the decision above, so the naming falls out instead of
 being chosen.
 
+**Centralized Canvas Management (`CanvasManager`).** Replaces the proliferation of
+hardcoded `unique_ptr<TCanvas>` members across data structures (`LoadedMC`, `LoadedPurity`),
+and standardizes figure generation and output across the framework:
+- **Registry & Collision Defense**: Manages canvas ownership in a dictionary, preventing
+  collisions in ROOT's global list (`gROOT->GetListOfCanvases()`) when tasks or loops re-run.
+- **Layout Factory**: HEP/ALICE standard ratio pads (70% top, 30% bottom with seamless zero-margin
+  junction, automatic font scaling for smaller pads, unity lines), and N×M grid pads.
+- **Visual Standards**: ALICE watermark headers (`#bf{ALICE} <status>`, collision system/energy)
+  and transparent legends.
+- **IO & Export**: Static and instance methods for writing into `TDirectory` trees via `RootIO`,
+  individual image/PDF export with auto-created directories, and multi-page PDF generation
+  (subsuming standalone macros like `esporta_fit.C`).
+
 ---
 
 ## 11. Cling constraints learned the hard way

@@ -4,6 +4,7 @@
 #include "AnalysisDataStructures.h"
 #include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
+#include "CanvasManager.h"
 #include "DynamicRooFitter.h"
 #include "FitConfigManager.h"
 #include "IAnalysisTask.h"
@@ -212,21 +213,12 @@ class PurityTask : public IAnalysisTask
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
 
     // 1. Save each particle's summary canvas into its own output file
-    auto writeCanvas = [](TFile* file, const std::vector<std::string>& path, TCanvas* canvas) {
-      if (!canvas)
-        return;
-      if (TDirectory* dir = RootIO::GetOrCreatePath(file, path, false)) {
-        dir->cd();
-        canvas->Write(nullptr, TObject::kOverwrite);
-      }
-    };
-
     for (auto& task : particleTasks) {
-      writeCanvas(task.outputFile, summaryPath, task.canvas.get());
+      CanvasManager::WriteCanvas(task.canvas.get(), task.outputFile, summaryPath);
 
       std::vector<std::string> sourceSummaryPath = summaryPath;
       sourceSummaryPath.push_back("SourceBinning");
-      writeCanvas(task.outputFile, sourceSummaryPath, task.canvasSourceBinning.get());
+      CanvasManager::WriteCanvas(task.canvasSourceBinning.get(), task.outputFile, sourceSummaryPath);
 
       // The pT binning is the axis of each purity spectrum, so the consumer can
       // read it. The multiplicity binning is only an index in the names
