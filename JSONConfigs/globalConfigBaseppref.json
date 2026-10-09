@@ -147,6 +147,82 @@
         ],
         "particle_correction_mode": "efficiency_only"
     },
+    "mc_base_settings_updated": {
+        "inherits": "mc_base_settings",
+        "mc_particles": [
+            {
+                "name": "Phi",
+                "rebinning_pt": [
+                    "0.4",
+                    "0.8",
+                    "1.4",
+                    "2.0",
+                    "2.8",
+                    "4.0",
+                    "6.0",
+                    "10.0"
+                ]
+            },
+            {
+                "name": "K0S",
+                "rebinning_pt": [
+                    "0.0",
+                    "0.3",
+                    "0.5",
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2.0",
+                    "2.4",
+                    "3.0",
+                    "4.2",
+                    "6.4"
+                ]
+            },
+            {
+                "name": "Xi",
+                "rebinning_pt": [
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2.0",
+                    "2.4",
+                    "3.0",
+                    "4.2",
+                    "6.5"
+                ]
+            },
+            {
+                "name": "Omega",
+                "rebinning_pt": [
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2.0",
+                    "2.4",
+                    "3.0",
+                    "4.2",
+                    "6.5"
+                ]
+            },
+            {
+                "name": "Pi",
+                "rebinning_pt": [
+                    "0.2",
+                    "0.3",
+                    "0.4",
+                    "0.5",
+                    "0.6",
+                    "0.8",
+                    "1.0",
+                    "1.2",
+                    "1.5",
+                    "2.0",
+                    "3.0"
+                ]
+            }
+        ]
+    },
     "phi_fit_base_settings": {
         "input_data_file": "../DataFile/pp_ref/DeltaY/Data/AnalysisResults_536_2026_PtMod_23luglio.root",
         "base_path_data": "phi-strange-correlation/phiStrangenessCorrelation/",

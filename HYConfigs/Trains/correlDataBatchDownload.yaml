@@ -16,7 +16,7 @@
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/Data"
   output_name: "AnalysisResults_536_PtMod_Bpos_5agosto.root"
 
-# LHC26ac_pass1_Thin_medium (pp) Data
+# LHC26ac_pass1_Thin_medium (pp) Data w/ eff from full MC
 - train_id: 732309
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
   output_name: "AnalysisResults_136_2026_PtMod_6agosto.root"
@@ -26,6 +26,35 @@
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
   output_name: "AnalysisResults_136_2023_PtMod_16settembre.root"
 
+# LHC26ae_pass1_Thin_medium (pp) Data 
+- train_id: 765238
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_LowIRae_PtMod_21settembre.root"
+
+# LHC26ai_pass1_Thin_medium (pp) Data 
+- train_id: 765422
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_LowIRai_PtMod_22settembre.root"
+
+# LHC26af_pass1_Thin_medium (pp) Data 
+- train_id: 765510
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_LowIRaf_PtMod_21settembre.root"
+
+# LHC26ag_pass1_Thin_small (pp) Data 
+- train_id: 765639
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_LowIRag_PtMod_22settembre.root"
+
+# LHC26ad_pass1_Thin_medium (pp) Data 
+- train_id: 765938
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_LowIRad_PtMod_22settembre.root"
+
+# LHC26ac_pass1_Thin_medium (pp) Data
+- train_id: 766092
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_HighIRac_PtMod_22settembre.root"
 
 
 
