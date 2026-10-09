@@ -3,7 +3,7 @@
 #include "AnalysisConstants.h"
 #include "BinningUtils.h"
 
-#include "TCanvas.h"
+#include "TFile.h"
 #include "TH1.h"
 #include "TH1F.h"
 #include "TH2F.h"
@@ -67,20 +67,15 @@ struct ParticleTask {
                                                         // analysis edge is not an edge of the source - a
                                                         // diagnostic that belongs to construction, before
                                                         // any fit has run
-  TFile* outputFile;                                    // Output file for this particle
-  std::unique_ptr<TCanvas> canvas;                      // Summary canvas: one pad, all multiplicity bins
-  std::unique_ptr<TCanvas> canvasSourceBinning;         // Same overlay at the source binning, non-null only
-                                                        // when a merge was requested. Its own pad, because
-                                                        // two binnings together would ruin the comparison
-                                                        // between multiplicity bins it is drawn for
+  TFile* outputFile{nullptr};                           // Output file for this particle
   std::unique_ptr<TH2F> h2PurityCCDB;                   // (multiplicity, pT) purity at the source binning,
                                                         // written on its own as "ccdb_object" so O2 can
                                                         // apply it candidate by candidate
 
-  // mappedSourceBins and the two canvases are NOT parameters: they follow from the
-  // binnings and from the name, so the caller cannot get them wrong or forget them,
-  // and the object is never half-built. Note that member initialisers run in
-  // declaration order, which is why they are declared after what they read.
+  // mappedSourceBins is NOT a parameter: it follows from the binnings and from the
+  // name, so the caller cannot get it wrong or forget it, and the object is never
+  // half-built. Note that member initialisers run in declaration order, which is why
+  // it is declared after what it reads.
   ParticleTask(std::string name_, std::unique_ptr<TH3F> h3Source_, std::vector<double> sourceBinning_,
                std::optional<std::vector<double>> rebinningPt_, TFile* outputFile_,
                std::unique_ptr<TH2F> h2PurityCCDB_)
@@ -90,12 +85,9 @@ struct ParticleTask {
       rebinningPt(std::move(rebinningPt_)),
       mappedSourceBins(BinningUtils::MapToSourceBins(sourceBinning, AnalysisBinning())),
       outputFile(outputFile_),
-      canvas(std::make_unique<TCanvas>(("canvas" + name + "Purity").c_str(), (name + " Purity").c_str(), 800, 600)),
-      canvasSourceBinning(rebinningPt
-                            ? std::make_unique<TCanvas>(("canvas" + name + "Purity_sourceBinning").c_str(),
-                                                        (name + " Purity (source binning)").c_str(), 800, 600)
-                            : nullptr),
-      h2PurityCCDB(std::move(h2PurityCCDB_)) {}
+      h2PurityCCDB(std::move(h2PurityCCDB_))
+  {
+  }
 
   // The binning the analysis works at: the merged one when one was asked for, the
   // source one otherwise. Derived rather than stored, so it cannot fall out of
@@ -117,44 +109,13 @@ struct LoadedAssocData {
   std::unique_ptr<THnSparseF> h5DataMESideband;
 };
 
-// Structure to hold the loaded MC data and canvases in RAM
+// Structure to hold the loaded MC data in RAM
 struct LoadedMC {
   std::string name;
   std::unique_ptr<TH3F> h3MCGen;
   std::unique_ptr<THnSparseF> h4MCGenAssocReco;
   std::unique_ptr<THnSparseF> h4MCReco;
   std::optional<std::vector<double>> rebinningPt;
-  std::unique_ptr<TCanvas> canvasEfficiency;
-  std::unique_ptr<TCanvas> canvasSignalLoss;
-  // Signal loss divided, multiplicity bin by multiplicity bin, by the global event
-  // loss of that same bin
-  std::unique_ptr<TCanvas> canvasSignalLossOverEventLoss;
-  // Same three overlays at the source binning, non-null only when 'rebinning_pt' asks
-  // for a merge: on their own pads, because a single one mixing the two binnings
-  // would ruin the multiplicity-to-multiplicity comparison they are drawn for
-  std::unique_ptr<TCanvas> canvasEfficiencySourceBinning;
-  std::unique_ptr<TCanvas> canvasSignalLossSourceBinning;
-  std::unique_ptr<TCanvas> canvasSignalLossOverEventLossSourceBinning;
-
-  // All six follow from 'name' and 'rebinningPt', so the caller neither names them
-  // nor decides which ones exist. Not a constructor because the histograms above
-  // are loaded one at a time, with the axis checks in between: call this once name
-  // and rebinningPt are set.
-  void CreateCanvases()
-  {
-    auto make = [](const std::string& canvasName) {
-      return std::make_unique<TCanvas>(canvasName.c_str(), canvasName.c_str(), 800, 600);
-    };
-
-    canvasEfficiency = make("c_" + name + "_Efficiency");
-    canvasSignalLoss = make("c_" + name + "_SignalLoss");
-    canvasSignalLossOverEventLoss = make("c_" + name + "_SignalLossOverEventLoss");
-    if (rebinningPt) {
-      canvasEfficiencySourceBinning = make("c_" + name + "_Efficiency_sourceBinning");
-      canvasSignalLossSourceBinning = make("c_" + name + "_SignalLoss_sourceBinning");
-      canvasSignalLossOverEventLossSourceBinning = make("c_" + name + "_SignalLossOverEventLoss_sourceBinning");
-    }
-  }
 };
 
 // ============================================================================

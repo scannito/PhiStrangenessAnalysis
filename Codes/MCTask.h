@@ -169,8 +169,17 @@ class MCTask : public IAnalysisTask
         data.rebinningPt = std::move(bins);
       }
 
-      // Names and which ones exist both follow from what was just filled in.
-      data.CreateCanvases();
+      // Register particle summary canvases with their target ROOT subdirectories
+      canvasManager.CreateCanvas("c_" + name + "_Efficiency", name + " Acceptance x Efficiency",
+                                 {globalCfgs.binningName, "AccEff", "Summary"});
+      canvasManager.CreateCanvas("c_" + name + "_SignalLoss", name + " Signal Loss",
+                                 {globalCfgs.binningName, "SigLoss", "Summary"});
+      if (data.rebinningPt) {
+        canvasManager.CreateCanvas("c_" + name + "_Efficiency_sourceBinning", name + " Efficiency (Source Binning)",
+                                   {globalCfgs.binningName, "AccEff", "Summary", "SourceBinning"});
+        canvasManager.CreateCanvas("c_" + name + "_SignalLoss_sourceBinning", name + " Signal Loss (Source Binning)",
+                                   {globalCfgs.binningName, "SigLoss", "Summary", "SourceBinning"});
+      }
 
       dataCollection.push_back(std::move(data));
     }
@@ -193,6 +202,18 @@ class MCTask : public IAnalysisTask
                                       genEventPath + " multiplicity", "h3MCGen multiplicity");
         BinningUtils::RequireSameAxis(hEventMultGenAssocReco->GetXaxis(), hEventMultGen->GetXaxis(),
                                       genAssocRecoEventPath + " multiplicity", genEventPath + " multiplicity");
+      }
+
+      // OverEventLoss canvases are registered only when event histograms exist
+      for (const auto& data : dataCollection) {
+        canvasManager.CreateCanvas("c_" + data.name + "_SignalLossOverEventLoss",
+                                   data.name + " Signal Loss / Event Loss",
+                                   {globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"});
+        if (data.rebinningPt) {
+          canvasManager.CreateCanvas("c_" + data.name + "_SignalLossOverEventLoss_sourceBinning",
+                                     data.name + " Signal Loss / Event Loss (Source Binning)",
+                                     {globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss", "SourceBinning"});
+        }
       }
     } else {
       std::cerr << "[WARNING] MCTask: No input files were opened. Event Loss will not be computed!" << std::endl;
@@ -292,19 +313,27 @@ class MCTask : public IAnalysisTask
       // multiplicity bins against each other, so mixing two binnings on one pad
       // would make exactly the comparison it is drawn for unreadable.
       auto drawMaps = [&](const EfficiencyCalculator::Maps1D& maps, const char* drawOption) {
-        data.canvasEfficiency->cd();
-        maps.efficiency->DrawCopy(drawOption);
-
-        data.canvasSignalLoss->cd();
-        maps.signalLoss->DrawCopy(drawOption);
-
-        if (maps.efficiencySourceBinning && data.canvasEfficiencySourceBinning) {
-          data.canvasEfficiencySourceBinning->cd();
-          maps.efficiencySourceBinning->DrawCopy(drawOption);
+        if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_Efficiency")) {
+          c->cd();
+          maps.efficiency->DrawCopy(drawOption);
         }
-        if (maps.signalLossSourceBinning && data.canvasSignalLossSourceBinning) {
-          data.canvasSignalLossSourceBinning->cd();
-          maps.signalLossSourceBinning->DrawCopy(drawOption);
+
+        if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_SignalLoss")) {
+          c->cd();
+          maps.signalLoss->DrawCopy(drawOption);
+        }
+
+        if (maps.efficiencySourceBinning) {
+          if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_Efficiency_sourceBinning")) {
+            c->cd();
+            maps.efficiencySourceBinning->DrawCopy(drawOption);
+          }
+        }
+        if (maps.signalLossSourceBinning) {
+          if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_SignalLoss_sourceBinning")) {
+            c->cd();
+            maps.signalLossSourceBinning->DrawCopy(drawOption);
+          }
         }
       };
 
@@ -377,8 +406,8 @@ class MCTask : public IAnalysisTask
           ratio->DrawCopy(drawOption);
         };
 
-        divideAndDraw(maps.signalLoss.get(), data.canvasSignalLossOverEventLoss.get());
-        divideAndDraw(maps.signalLossSourceBinning.get(), data.canvasSignalLossOverEventLossSourceBinning.get());
+        divideAndDraw(maps.signalLoss.get(), canvasManager.GetCanvas("c_" + data.name + "_SignalLossOverEventLoss"));
+        divideAndDraw(maps.signalLossSourceBinning.get(), canvasManager.GetCanvas("c_" + data.name + "_SignalLossOverEventLoss_sourceBinning"));
       };
 
       // The source-binning maps get a subdirectory of their own rather than
@@ -435,26 +464,8 @@ class MCTask : public IAnalysisTask
 
     RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "Provenance"}, false), provenance);
 
-    // Same rule as the histograms: the directory is created by the write, so a run
-    // with no merging leaves no empty folders behind.
-    auto writeCanvas = [&](const std::vector<std::string>& path, TCanvas* canvas) {
-      CanvasManager::WriteCanvas(canvas, fileMCOutput.get(), path);
-    };
-
-    // Save all diagnostic canvases and free the memory for the loaded objects
-    for (auto& data : dataCollection) {
-      writeCanvas({globalCfgs.binningName, "AccEff", "Summary"}, data.canvasEfficiency.get());
-      writeCanvas({globalCfgs.binningName, "SigLoss", "Summary"}, data.canvasSignalLoss.get());
-      writeCanvas({globalCfgs.binningName, "AccEff", "Summary", "SourceBinning"}, data.canvasEfficiencySourceBinning.get());
-      writeCanvas({globalCfgs.binningName, "SigLoss", "Summary", "SourceBinning"}, data.canvasSignalLossSourceBinning.get());
-
-      // Drawn only when the event histograms exist: otherwise drawOverEvLoss
-      // returns immediately and the canvases would be written empty.
-      if (hEventMultGen && hEventMultGenAssocReco) {
-        writeCanvas({globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"}, data.canvasSignalLossOverEventLoss.get());
-        writeCanvas({globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss", "SourceBinning"}, data.canvasSignalLossOverEventLossSourceBinning.get());
-      }
-    }
+    // Save all diagnostic canvases into their registered subdirectories
+    canvasManager.WriteAll(fileMCOutput.get());
 
     if (fileMCOutput)
       fileMCOutput->Close();
@@ -464,6 +475,8 @@ class MCTask : public IAnalysisTask
 
  private:
   AnalysisSettings globalCfgs;
+
+  CanvasManager canvasManager;
 
   std::vector<LoadedMC> dataCollection;
 

@@ -742,11 +742,18 @@ accepting both), or split the struct into `ExpectedBinning` + `AnalysisSettings`
 Best done together with the decision above, so the naming falls out instead of
 being chosen.
 
-**Centralized Canvas Management (`CanvasManager`).** Replaces the proliferation of
-hardcoded `unique_ptr<TCanvas>` members across data structures (`LoadedMC`, `LoadedPurity`),
+**Centralized Canvas Management (`CanvasManager`) & Data Decoupling.** Replaces the proliferation of
+hardcoded `unique_ptr<TCanvas>` members across data structures (`LoadedMC`, `ParticleTask`),
 and standardizes figure generation and output across the framework:
-- **Registry & Collision Defense**: Manages canvas ownership in a dictionary, preventing
-  collisions in ROOT's global list (`gROOT->GetListOfCanvases()`) when tasks or loops re-run.
+- **Separation of Concerns**: Data structures (`LoadedMC`, `ParticleTask`) are pure physics containers
+  holding only histograms, binnings, and maps. Canvases are completely decoupled from them and owned
+  exclusively by the tasks (`MCTask`, `PurityTask`) that coordinate execution and output.
+- **Registry & Collision Defense**: Manages canvas ownership in a dictionary, preventing collisions in
+  ROOT's global list (`gROOT->GetListOfCanvases()`) when tasks or loops re-run. Throws on foreign colliding
+  canvases to prevent memory corruption.
+- **Path-Aware Hierarchical IO**: Each canvas can register its target directory path inside ROOT output files
+  (e.g., `{binningName, "AccEff", "Summary"}`). Tasks can flush all diagnostics to their proper subtrees with
+  a single `canvasManager.WriteAll(file)` call.
 - **Layout Factory**: HEP/ALICE standard ratio pads (70% top, 30% bottom with seamless zero-margin
   junction, automatic font scaling for smaller pads, unity lines), and N×M grid pads.
 - **Visual Standards**: ALICE watermark headers (`#bf{ALICE} <status>`, collision system/energy)

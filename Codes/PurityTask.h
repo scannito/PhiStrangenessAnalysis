@@ -123,6 +123,14 @@ class PurityTask : public IAnalysisTask
       // makes this line throw, before any fit has run.
       particleTasks.emplace_back(purityKey, std::move(h3Source), std::move(sourceBinning),
                                  std::move(rebinningPt), outputFilePtr, std::move(h2CCDB));
+
+      canvasManager.CreateCanvas("canvas" + purityKey + "Purity", purityKey + " Purity",
+                                 {globalCfgs.binningName, "Summary"}, 800, 600);
+      if (particleTasks.back().rebinningPt) {
+        canvasManager.CreateCanvas("canvas" + purityKey + "Purity_sourceBinning",
+                                   purityKey + " Purity (source binning)",
+                                   {globalCfgs.binningName, "Summary", "SourceBinning"}, 800, 600);
+      }
     }
 
     // 3. Read task-specific settings from the JSON node (DOM)
@@ -156,7 +164,7 @@ class PurityTask : public IAnalysisTask
 
         // Style and draw on the summary canvas
         AnalysisUtils::SetHistogramStyle(h1PurityAnalysis.get(), globalCfgs.GetSpectraColor(i));
-        task.canvas->cd();
+        canvasManager.RequireCanvas("canvas" + task.name + "Purity")->cd();
         h1PurityAnalysis->DrawCopy(i == 0 ? "" : "SAME");
 
         if (summaryDir) {
@@ -181,7 +189,7 @@ class PurityTask : public IAnalysisTask
           h1PuritySeparateSource = FitPuritySpectrum(task, i, SpectrumBinning::Source, fitDirSource);
 
           AnalysisUtils::SetHistogramStyle(h1PuritySeparateSource.get(), globalCfgs.GetSpectraColor(i));
-          task.canvasSourceBinning->cd();
+          canvasManager.RequireCanvas("canvas" + task.name + "Purity_sourceBinning")->cd();
           h1PuritySeparateSource->DrawCopy(i == 0 ? "" : "SAME");
 
           // Own subdirectory rather than sitting next to the analysis spectra.
@@ -210,15 +218,12 @@ class PurityTask : public IAnalysisTask
   {
     std::cout << "[INFO] PurityTask: TERMINATING AND SAVING..." << std::endl;
 
-    std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
-
     // 1. Save each particle's summary canvas into its own output file
     for (auto& task : particleTasks) {
-      CanvasManager::WriteCanvas(task.canvas.get(), task.outputFile, summaryPath);
-
-      std::vector<std::string> sourceSummaryPath = summaryPath;
-      sourceSummaryPath.push_back("SourceBinning");
-      CanvasManager::WriteCanvas(task.canvasSourceBinning.get(), task.outputFile, sourceSummaryPath);
+      canvasManager.WriteCanvas("canvas" + task.name + "Purity", task.outputFile);
+      if (task.rebinningPt) {
+        canvasManager.WriteCanvas("canvas" + task.name + "Purity_sourceBinning", task.outputFile);
+      }
 
       // The pT binning is the axis of each purity spectrum, so the consumer can
       // read it. The multiplicity binning is only an index in the names
@@ -255,6 +260,8 @@ class PurityTask : public IAnalysisTask
 
  private:
   AnalysisSettings globalCfgs;
+
+  CanvasManager canvasManager;
 
   std::string ccdbOutputDir;
   std::string outputPrefix;

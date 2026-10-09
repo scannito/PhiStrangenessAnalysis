@@ -117,20 +117,24 @@ know it".
   through — read it before changing the line under it.
 - Prefer deriving over storing: if a member follows from other members, a
   constructor or an accessor should produce it (`AssocParticleConfig::mass`,
-  `ParticleTask::AnalysisBinning`, `LoadedMC::CreateCanvases`).
+  `ParticleTask::AnalysisBinning`).
 - One namespace per helper header: `BinningUtils`, `RootIO`, `JsonConfig`,
   `AnalysisUtils`, `RunEnvironment`, `PhiFitModels`. Dedicated managers: `WorkflowManager`,
   `CanvasManager`, `BaseConfigManager`, `FitConfigManager`, `ExtrapConfigManager`.
 - Tasks communicate through ROOT files, never in memory. `WorkflowManager` destroys
   each task right after `Terminate()`.
+- **Decouple data from presentation**: Data structures (`LoadedMC`, `ParticleTask`)
+  hold strictly physics inputs and binnings, never graphics or canvases. Tasks
+  (`MCTask`, `PurityTask`) own the presentation lifecycle via `CanvasManager`.
 - **ROOT's global lists know nothing about `TDirectory`.** `TCanvas` registers in
   one: two canvases with the same name alive at once collide even in different
   directories, which caused a segfault, so keep canvas names unique. `CanvasManager`
   centralizes canvas lifecycle, unique naming, layout factories (ratio pads, grids),
-  and safe IO/export. `TF1` registers in `gROOT->GetListOfFunctions()` the same way —
-  an undeleted fit model created once per spectrum piles up objects under one name,
-  which was half of the `SpectrumExtrapolator` clone bug. The rule generalises: when
-  a ROOT class keeps itself in a global list, a unique name and a clear owner are not style.
+  path-aware hierarchical IO (`WriteAll(file)`), and safe IO/export. `TF1` registers in
+  `gROOT->GetListOfFunctions()` the same way — an undeleted fit model created once per
+  spectrum piles up objects under one name, which was half of the `SpectrumExtrapolator`
+  clone bug. The rule generalises: when a ROOT class keeps itself in a global list, a
+  unique name and a clear owner are not style.
 
 ## How a task opens the file it writes
 

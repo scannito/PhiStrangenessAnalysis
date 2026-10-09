@@ -81,17 +81,46 @@ class CanvasManager
                         int width = 800, int height = 600,
                         const PadMargins& margins = PadMargins{})
   {
+    return CreateCanvas(name, title, std::vector<std::string>{}, width, height, margins);
+  }
+
+  // Creates a standard single-pad canvas with an associated target directory path in ROOT files.
+  TCanvas* CreateCanvas(const std::string& name, const std::string& title,
+                        const std::vector<std::string>& targetPath,
+                        int width = 800, int height = 600,
+                        const PadMargins& margins = PadMargins{})
+  {
     CleanGlobalCollision(name);
     const std::string cTitle = title.empty() ? name : title;
     auto c = std::make_unique<TCanvas>(name.c_str(), cTitle.c_str(), width, height);
     SetPadMargins(c.get(), margins);
+    if (!targetPath.empty()) {
+      canvasPaths[name] = targetPath;
+    }
     return RecordCanvas(std::move(c));
   }
 
   // Registers an existing unique_ptr<TCanvas>, taking ownership.
-  TCanvas* RegisterCanvas(std::unique_ptr<TCanvas> canvas)
+  TCanvas* RegisterCanvas(std::unique_ptr<TCanvas> canvas, const std::vector<std::string>& targetPath = {})
   {
+    if (!canvas)
+      return nullptr;
+    if (!targetPath.empty()) {
+      canvasPaths[canvas->GetName()] = targetPath;
+    }
     return RecordCanvas(std::move(canvas));
+  }
+
+  // Sets or updates the target directory path in ROOT files for a managed canvas.
+  void SetCanvasPath(const std::string& name, const std::vector<std::string>& targetPath)
+  {
+    canvasPaths[name] = targetPath;
+  }
+
+  std::vector<std::string> GetCanvasPath(const std::string& name) const
+  {
+    auto it = canvasPaths.find(name);
+    return it != canvasPaths.end() ? it->second : std::vector<std::string>{};
   }
 
   // Lookups
@@ -118,6 +147,7 @@ class CanvasManager
   // Releases ownership to caller, removing from manager
   std::unique_ptr<TCanvas> ReleaseCanvas(const std::string& name)
   {
+    canvasPaths.erase(name);
     auto it = canvases.find(name);
     if (it == canvases.end())
       return nullptr;
@@ -134,6 +164,7 @@ class CanvasManager
   {
     canvases.clear();
     canvasOrder.clear();
+    canvasPaths.clear();
   }
 
   // ---------------------------------------------------------------------------
@@ -143,6 +174,15 @@ class CanvasManager
   // Creates a HEP-standard 2-pad ratio canvas (top: spectrum/fit, bottom: ratio/pull).
   // Pads are joined without gap (top bottom-margin = bottom top-margin = 0.02).
   RatioCanvas CreateRatioCanvas(const std::string& name, const std::string& title = "",
+                                int width = 800, int height = 800,
+                                double splitRatio = 0.30)
+  {
+    return CreateRatioCanvas(name, title, std::vector<std::string>{}, width, height, splitRatio);
+  }
+
+  // Creates a HEP-standard 2-pad ratio canvas with an associated target directory path.
+  RatioCanvas CreateRatioCanvas(const std::string& name, const std::string& title,
+                                const std::vector<std::string>& targetPath,
                                 int width = 800, int height = 800,
                                 double splitRatio = 0.30)
   {
@@ -175,12 +215,25 @@ class CanvasManager
     // shrunken unless multiplied by the height ratio:
     double fontScale = (1.0 - splitRatio) / splitRatio;
 
+    if (!targetPath.empty()) {
+      canvasPaths[name] = targetPath;
+    }
     TCanvas* raw = RecordCanvas(std::move(c));
     return RatioCanvas{raw, topPad, bottomPad, fontScale};
   }
 
   // Creates a canvas divided into nCols x nRows subpads with uniform margins
   TCanvas* CreateGridCanvas(const std::string& name, const std::string& title,
+                            int nCols, int nRows,
+                            int width = 1200, int height = 900,
+                            const PadMargins& margins = PadMargins{0.12, 0.04, 0.06, 0.10})
+  {
+    return CreateGridCanvas(name, title, std::vector<std::string>{}, nCols, nRows, width, height, margins);
+  }
+
+  // Creates a grid canvas with an associated target directory path.
+  TCanvas* CreateGridCanvas(const std::string& name, const std::string& title,
+                            const std::vector<std::string>& targetPath,
                             int nCols, int nRows,
                             int width = 1200, int height = 900,
                             const PadMargins& margins = PadMargins{0.12, 0.04, 0.06, 0.10})
@@ -199,6 +252,9 @@ class CanvasManager
       }
     }
 
+    if (!targetPath.empty()) {
+      canvasPaths[name] = targetPath;
+    }
     return RecordCanvas(std::move(c));
   }
 
@@ -322,6 +378,10 @@ class CanvasManager
   {
     if (!canvas || !baseDir)
       return;
+    if (pathNodes.empty()) {
+      WriteCanvas(canvas, baseDir);
+      return;
+    }
     if (TDirectory* dir = RootIO::GetOrCreatePath(baseDir, pathNodes, false)) {
       dir->cd();
       canvas->Write(nullptr, TObject::kOverwrite);
@@ -337,10 +397,39 @@ class CanvasManager
     canvas->Write(nullptr, TObject::kOverwrite);
   }
 
-  // Writes a managed canvas by name
+  // Writes a managed canvas by name using its registered targetPath (or baseDir if none)
+  void WriteCanvas(const std::string& name, TDirectory* baseDir) const
+  {
+    TCanvas* c = RequireCanvas(name);
+    auto it = canvasPaths.find(name);
+    if (it != canvasPaths.end() && !it->second.empty()) {
+      WriteCanvas(c, baseDir, it->second);
+    } else {
+      WriteCanvas(c, baseDir);
+    }
+  }
+
+  // Writes a managed canvas by name into an explicit path, overriding any registered path
   void WriteCanvas(const std::string& name, TDirectory* baseDir, const std::vector<std::string>& pathNodes) const
   {
     WriteCanvas(RequireCanvas(name), baseDir, pathNodes);
+  }
+
+  // Writes all managed canvases, using each canvas's registered targetPath (or baseDir if none)
+  void WriteAll(TDirectory* baseDir) const
+  {
+    if (!baseDir)
+      return;
+    for (const auto& name : canvasOrder) {
+      if (auto it = canvases.find(name); it != canvases.end() && it->second) {
+        auto pit = canvasPaths.find(name);
+        if (pit != canvasPaths.end() && !pit->second.empty()) {
+          WriteCanvas(it->second.get(), baseDir, pit->second);
+        } else {
+          WriteCanvas(it->second.get(), baseDir);
+        }
+      }
+    }
   }
 
   // Writes all managed canvases into the specified directory path
@@ -490,6 +579,7 @@ class CanvasManager
  private:
   std::map<std::string, std::unique_ptr<TCanvas>> canvases;
   std::vector<std::string> canvasOrder;
+  std::map<std::string, std::vector<std::string>> canvasPaths;
 
   // Protects against ROOT's global canvas list collisions (see CLAUDE.md).
   // If the canvas is already owned by this manager, it is safely destroyed and replaced.
