@@ -126,13 +126,17 @@ struct LoadedMC {
   std::optional<std::vector<double>> rebinningPt;
   std::unique_ptr<TCanvas> canvasEfficiency;
   std::unique_ptr<TCanvas> canvasSignalLoss;
-  // Same two overlays at the source binning, non-null only when 'rebinning_pt' asks
+  // Signal loss divided, multiplicity bin by multiplicity bin, by the global event
+  // loss of that same bin
+  std::unique_ptr<TCanvas> canvasSignalLossOverEventLoss;
+  // Same three overlays at the source binning, non-null only when 'rebinning_pt' asks
   // for a merge: on their own pads, because a single one mixing the two binnings
   // would ruin the multiplicity-to-multiplicity comparison they are drawn for
   std::unique_ptr<TCanvas> canvasEfficiencySourceBinning;
   std::unique_ptr<TCanvas> canvasSignalLossSourceBinning;
+  std::unique_ptr<TCanvas> canvasSignalLossOverEventLossSourceBinning;
 
-  // All four follow from 'name' and 'rebinningPt', so the caller neither names them
+  // All six follow from 'name' and 'rebinningPt', so the caller neither names them
   // nor decides which ones exist. Not a constructor because the histograms above
   // are loaded one at a time, with the axis checks in between: call this once name
   // and rebinningPt are set.
@@ -144,10 +148,11 @@ struct LoadedMC {
 
     canvasEfficiency = make("c_" + name + "_Efficiency");
     canvasSignalLoss = make("c_" + name + "_SignalLoss");
-
+    canvasSignalLossOverEventLoss = make("c_" + name + "_SignalLossOverEventLoss");
     if (rebinningPt) {
       canvasEfficiencySourceBinning = make("c_" + name + "_Efficiency_sourceBinning");
       canvasSignalLossSourceBinning = make("c_" + name + "_SignalLoss_sourceBinning");
+      canvasSignalLossOverEventLossSourceBinning = make("c_" + name + "_SignalLossOverEventLoss_sourceBinning");
     }
   }
 };

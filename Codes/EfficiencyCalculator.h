@@ -211,8 +211,8 @@ class EfficiencyCalculator
   //     efficiencySourceBinning ? efficiencySourceBinning : efficiency
   // and never just the first of the two.
   struct Maps1D {
-    std::unique_ptr<TH1> efficiency; // analysis binning: merged when requested,
-    std::unique_ptr<TH1> signalLoss; // otherwise the source binning itself
+    std::unique_ptr<TH1> efficiency;              // analysis binning: merged when requested,
+    std::unique_ptr<TH1> signalLoss;              // otherwise the source binning itself
     std::unique_ptr<TH1> efficiencySourceBinning; // null unless 'rebinning_pt' is set
     std::unique_ptr<TH1> signalLossSourceBinning;
   };

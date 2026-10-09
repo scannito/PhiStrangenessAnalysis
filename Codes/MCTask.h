@@ -184,6 +184,15 @@ class MCTask : public IAnalysisTask
 
       hEventMultGenAssocReco = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genAssocRecoEventPath, "MCTask");
       hEventMultGen = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genEventPath, "MCTask");
+
+      // The event loss is addressed below with the multiplicity bin index of the
+      // particle maps, so the two must share their axis.
+      if (!dataCollection.empty()) {
+        BinningUtils::RequireSameAxis(hEventMultGen->GetXaxis(), dataCollection.front().h3MCGen->GetXaxis(),
+                                      genEventPath + " multiplicity", "h3MCGen multiplicity");
+        BinningUtils::RequireSameAxis(hEventMultGenAssocReco->GetXaxis(), hEventMultGen->GetXaxis(),
+                                      genAssocRecoEventPath + " multiplicity", genEventPath + " multiplicity");
+      }
     } else {
       std::cerr << "[WARNING] MCTask: No input files were opened. Event Loss will not be computed!" << std::endl;
     }
@@ -215,11 +224,13 @@ class MCTask : public IAnalysisTask
   {
     std::cout << "[INFO] MCTask: RUNNING EFFICIENCY COMPUTATIONS..." << std::endl;
 
+    std::unique_ptr<TH1> hEventLoss;
+
     if (hEventMultGenAssocReco && hEventMultGen) {
       std::cout << " ---> Computing Global Event Efficiency (Event Loss)..." << std::endl;
 
       // Delegate the math to the static calculator
-      std::unique_ptr<TH1> hEventLoss = EfficiencyCalculator::ComputeEventEfficiency(hEventMultGenAssocReco.get(), hEventMultGen.get());
+      hEventLoss = EfficiencyCalculator::ComputeEventEfficiency(hEventMultGenAssocReco.get(), hEventMultGen.get());
 
       if (hEventLoss) {
         TDirectory* evLossDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "EvLoss"}, false);
@@ -296,6 +307,79 @@ class MCTask : public IAnalysisTask
         }
       };
 
+      // Signal loss over event loss, in the multiplicity bin the map belongs to
+      // (-1: the multiplicity-integrated one). The event loss is a constant in pT,
+      // so it is put in a histogram on the binning of the signal loss and divided
+      // with the default option: errors are propagated as if the two were
+      // independent. Not "B": that one assumes the numerator is a subset of the
+      // denominator, which is not the case for a ratio of two efficiencies. The
+      // division is done on a clone, so the maps written to file are untouched.
+      // The independence is still an approximation: both come from the same sample.
+      auto drawOverEvLoss = [&](const EfficiencyCalculator::Maps1D& maps, const char* drawOption, int multBin) {
+        if (!hEventLoss || !maps.signalLoss)
+          return;
+
+        double evLoss, evLossErr;
+        if (multBin >= 0) {
+          evLoss = hEventLoss->GetBinContent(multBin + 1);
+          evLossErr = hEventLoss->GetBinError(multBin + 1);
+        } else {
+          // Same convention as the per-bin event loss: collapse the two event
+          // histograms into one bin spanning the multiplicity range of the analysis
+          // and hand them to the same calculator.
+          auto collapse = [&](TH1* h) {
+            const auto [integral, error] = AnalysisUtils::IntegralAndErrorPair(h, multBinning.front(), multBinning.back());
+            auto c = std::make_unique<TH1D>("", "", 1, 0., 1.);
+            c->SetDirectory(0);
+            c->Sumw2();
+            c->SetBinContent(1, integral);
+            c->SetBinError(1, error);
+            return c;
+          };
+
+          auto gen = collapse(hEventMultGen.get());
+          auto reco = collapse(hEventMultGenAssocReco.get());
+          auto integrated = EfficiencyCalculator::ComputeEventEfficiency(reco.get(), gen.get());
+          if (!integrated)
+            return;
+          evLoss = integrated->GetBinContent(1);
+          evLossErr = integrated->GetBinError(1);
+        }
+        if (evLoss <= 0.) {
+          std::cerr << "[WARNING] MCTask: event loss is zero for " << data.name
+                    << ", signal loss over event loss skipped." << std::endl;
+          return;
+        }
+
+        // The event loss does not depend on pT, so the same value divides the
+        // signal loss at both binnings.
+        auto divideAndDraw = [&](const TH1* signalLoss, TCanvas* canvas) {
+          if (!signalLoss || !canvas)
+            return;
+
+          const std::string baseName = signalLoss->GetName();
+
+          std::unique_ptr<TH1> hEvLossConst{static_cast<TH1*>(signalLoss->Clone((baseName + "_evLossConst").c_str()))};
+          hEvLossConst->SetDirectory(0);
+          hEvLossConst->Reset();
+          for (int b = 1; b <= hEvLossConst->GetNbinsX(); b++) {
+            hEvLossConst->SetBinContent(b, evLoss);
+            hEvLossConst->SetBinError(b, evLossErr);
+          }
+
+          std::unique_ptr<TH1> ratio{static_cast<TH1*>(signalLoss->Clone((baseName + "_overEvLoss").c_str()))};
+          ratio->GetYaxis()->SetTitle("Signal Loss / Event Loss");
+          ratio->SetDirectory(0);
+          ratio->Divide(hEvLossConst.get());
+
+          canvas->cd();
+          ratio->DrawCopy(drawOption);
+        };
+
+        divideAndDraw(maps.signalLoss.get(), data.canvasSignalLossOverEventLoss.get());
+        divideAndDraw(maps.signalLossSourceBinning.get(), data.canvasSignalLossOverEventLossSourceBinning.get());
+      };
+
       // The source-binning maps get a subdirectory of their own rather than
       // sitting next to the analysis ones, and it is created by the write itself:
       // the directory then exists if and only if something was put in it, with no
@@ -324,12 +408,14 @@ class MCTask : public IAnalysisTask
         EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, i, globalCfgs.GetSpectraColor(i));
 
         drawMaps(maps, i == 0 ? "" : "SAME");
+        drawOverEvLoss(maps, i == 0 ? "" : "SAME", i);
         writeMaps(maps);
       }
 
       EfficiencyCalculator::Maps1D mapsInt = EfficiencyCalculator::Compute1DMapsMultIntegrated(data);
 
       drawMaps(mapsInt, "SAME");
+      drawOverEvLoss(mapsInt, "SAME", -1);
       writeMaps(mapsInt);
     }
   }
@@ -365,6 +451,13 @@ class MCTask : public IAnalysisTask
       writeCanvas({globalCfgs.binningName, "SigLoss", "Summary"}, data.canvasSignalLoss.get());
       writeCanvas({globalCfgs.binningName, "AccEff", "Summary", "SourceBinning"}, data.canvasEfficiencySourceBinning.get());
       writeCanvas({globalCfgs.binningName, "SigLoss", "Summary", "SourceBinning"}, data.canvasSignalLossSourceBinning.get());
+
+      // Drawn only when the event histograms exist: otherwise drawOverEvLoss
+      // returns immediately and the canvases would be written empty.
+      if (hEventMultGen && hEventMultGenAssocReco) {
+        writeCanvas({globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"}, data.canvasSignalLossOverEventLoss.get());
+        writeCanvas({globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss", "SourceBinning"}, data.canvasSignalLossOverEventLossSourceBinning.get());
+      }
     }
 
     if (fileMCOutput)
