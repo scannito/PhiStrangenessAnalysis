@@ -125,7 +125,7 @@ know it".
   each task right after `Terminate()`.
 - **Decouple data from presentation**: Data structures (`LoadedMC`, `ParticleTask`)
   hold strictly physics inputs and binnings, never graphics or canvases. Tasks
-  (`MCTask`, `PurityTask`) own the presentation lifecycle via `CanvasManager`.
+  (`MCTask`, `PurityTask`, `CorrelationTaskBase`) own the presentation lifecycle via `CanvasManager`.
 - **ROOT's global lists know nothing about `TDirectory`.** `TCanvas` registers in
   one: two canvases with the same name alive at once collide even in different
   directories, which caused a segfault, so keep canvas names unique. `CanvasManager`

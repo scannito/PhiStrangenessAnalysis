@@ -4,6 +4,7 @@
 #include "AnalysisDataStructures.h"
 #include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
+#include "CanvasManager.h"
 #include "CorrelationCalculator.h"
 #include "ExtrapConfigManager.h"
 #include "ExtrapolationModelFactory.h"
@@ -92,7 +93,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
       // --- Save measured trends ---
       std::string cNameMeas = std::format("cTrend_Meas_{}", pName);
-      std::unique_ptr<TCanvas> cTrendMeas = std::make_unique<TCanvas>(cNameMeas.c_str(), "Measured Yield Trend", 800, 600);
+      TCanvas* cTrendMeas = canvasManager.CreateCanvas(cNameMeas, "Measured Yield Trend", trendsPath, 800, 600);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         trendsDir->cd();
@@ -102,14 +103,12 @@ class CorrelationTaskBase : public IAnalysisTask
         AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx].get(), globalCfgs.GetMultTrendColor(yIdx));
         h1MultTrends[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
       }
-      trendsDir->cd();
-      cTrendMeas->Write(nullptr, TObject::kOverwrite);
 
       // --- Save extrapolated trends ---
       bool hasExtrapTrend = !h1MultTrendsExtrap.empty() && !h1MultTrendsExtrap[pIdx].empty();
       if (hasExtrapTrend) {
         std::string cNameExtrap = std::format("cTrend_Extrap_{}", pName);
-        std::unique_ptr<TCanvas> cTrendExtrap = std::make_unique<TCanvas>(cNameExtrap.c_str(), "Extrapolated Yield Trend", 800, 600);
+        TCanvas* cTrendExtrap = canvasManager.CreateCanvas(cNameExtrap, "Extrapolated Yield Trend", trendsPath, 800, 600);
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           trendsDir->cd();
@@ -119,14 +118,12 @@ class CorrelationTaskBase : public IAnalysisTask
           AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx].get(), globalCfgs.GetMultTrendColor(yIdx));
           h1MultTrendsExtrap[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
         }
-        trendsDir->cd();
-        cTrendExtrap->Write(nullptr, TObject::kOverwrite);
       }
 
       // --- Save Extrapolated/Measured ratios for this species ---
       if (hasExtrapTrend) {
         std::string canvasName = std::format("cRatio_ExtrapVsMeas_{}", pName);
-        std::unique_ptr<TCanvas> cRatioExtrapMeas = std::make_unique<TCanvas>(canvasName.c_str(), "Extrap / Measured Ratio", 800, 600);
+        TCanvas* cRatioExtrapMeas = canvasManager.CreateCanvas(canvasName, "Extrap / Measured Ratio", trendsPath, 800, 600);
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
@@ -145,26 +142,6 @@ class CorrelationTaskBase : public IAnalysisTask
 
           cRatioExtrapMeas->cd();
           hRatioExtrapMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
-        }
-
-        trendsDir->cd();
-        cRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
-      }
-
-      // --- Save accumulated spectra Canvases for this species ---
-      for (auto& canvas : spectraCanvases[pIdx]) {
-        if (canvas) {
-          spectraDir->cd();
-          canvas->Write(nullptr, TObject::kOverwrite);
-        }
-      }
-
-      // The extrapolated view, beside the measured one. Null for a species that is
-      // not extrapolated, which is why this loop cannot be merged with the one above.
-      for (auto& canvas : spectraExtrapCanvases[pIdx]) {
-        if (canvas) {
-          spectraDir->cd();
-          canvas->Write(nullptr, TObject::kOverwrite);
         }
       }
     }
@@ -235,13 +212,10 @@ class CorrelationTaskBase : public IAnalysisTask
           bool doExtrapRatio = applyExtrapolation && (numHasExtrap || denHasExtrap);
 
           std::string canvasName = std::format("canvasRatio_{}_{}_MultTrend", num.name, den.name);
-          std::unique_ptr<TCanvas> canvasRatio = std::make_unique<TCanvas>(canvasName.c_str(), ("Ratio Mult Trend " + ratioCfg.label).c_str(), 800, 600);
+          TCanvas* canvasRatio = canvasManager.CreateCanvas(canvasName, "Ratio Mult Trend " + ratioCfg.label, ratioPath, 800, 600);
           canvasRatio->cd();
 
-          TLegend* legend = new TLegend(0.7, 0.7, 0.9, 0.9);
-          legend->SetBit(kCanDelete);
-          legend->SetNColumns(2);
-          legend->SetLineWidth(0);
+          TLegend* legend = CanvasManager::CreateLegend(0.7, 0.7, 0.9, 0.9, 2);
 
           for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
             double dyLimit = deltaYLimits[yIdx];
@@ -295,8 +269,6 @@ class CorrelationTaskBase : public IAnalysisTask
           }
 
           legend->Draw("SAME");
-          ratioDir->cd();
-          canvasRatio->Write(nullptr, TObject::kOverwrite);
         }
       }
     } else {
@@ -304,7 +276,12 @@ class CorrelationTaskBase : public IAnalysisTask
     }
 
     // =========================================================================
-    // 3. Close Files
+    // 3. Save all registered canvases into their respective subdirectories
+    // =========================================================================
+    canvasManager.WriteAll(fileOutputSpectra.get());
+
+    // =========================================================================
+    // 4. Close Files
     // =========================================================================
     if (fileOutputSpectra) {
       fileOutputSpectra->Close();
@@ -360,10 +337,7 @@ class CorrelationTaskBase : public IAnalysisTask
   std::unique_ptr<TFile> fileOutputSpectra;
   std::vector<std::unique_ptr<TFile>> filesPhiAssocDataOutput;
   std::vector<std::unique_ptr<TFile>> filesPhiAssocQAOutput;
-
-  std::vector<std::vector<std::unique_ptr<TCanvas>>> spectraCanvases;
-  // Same shape as spectraCanvases, null where the species is not extrapolated.
-  std::vector<std::vector<std::unique_ptr<TCanvas>>> spectraExtrapCanvases;
+  CanvasManager canvasManager;
 
   std::vector<YieldRatioConfig> requestedRatios;
 
@@ -903,12 +877,12 @@ class CorrelationTaskBase : public IAnalysisTask
       h1MultTrendsExtrap.resize(assocParticles.size());
     }
 
-    spectraCanvases.resize(assocParticles.size());
-    spectraExtrapCanvases.resize(assocParticles.size());
-
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& p = assocParticles[pIdx];
       bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.contains(p.name) && doExtrapolationPerParticle.at(p.name);
+
+      const std::string dirName = SchemeDirName();
+      std::vector<std::string> spectraPath = {globalCfgs.binningName, dirName, p.name, "Spectra"};
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
@@ -933,27 +907,19 @@ class CorrelationTaskBase : public IAnalysisTask
         std::string cSpecName = std::format("cSpectra_{}_dy{}", p.name, dyNameStr);
         std::string cSpecTitle = std::format("Spectra {} |#Delta y| < {}", p.name, dyTitleStr);
 
-        std::unique_ptr<TCanvas> cSpec = std::make_unique<TCanvas>(cSpecName.c_str(), cSpecTitle.c_str(), 800, 600);
+        TCanvas* cSpec = canvasManager.CreateCanvas(cSpecName, cSpecTitle, spectraPath, 800, 600);
         cSpec->SetLogy();
-        spectraCanvases[pIdx].push_back(std::move(cSpec));
 
         // The same spectra on an axis that reaches pT = 0, with the fitted model drawn
         // over each one. The measured canvas above starts at the first measured bin, so
         // the region the extrapolation is about - which is where a third of the yield
         // comes from - is precisely the part it cannot show.
-        //
-        // A null entry when this species is not extrapolated, rather than a shorter
-        // vector: the index has to keep meaning the same delta-y as everywhere else,
-        // and Terminate() already skips null canvases.
         if (doExtrapForThis) {
           std::string cExtName = std::format("cSpectraExtrap_{}_dy{}", p.name, dyNameStr);
           std::string cExtTitle = std::format("Spectra with extrapolation {} |#Delta y| < {}", p.name, dyTitleStr);
 
-          std::unique_ptr<TCanvas> cExt = std::make_unique<TCanvas>(cExtName.c_str(), cExtTitle.c_str(), 800, 600);
+          TCanvas* cExt = canvasManager.CreateCanvas(cExtName, cExtTitle, spectraPath, 800, 600);
           cExt->SetLogy();
-          spectraExtrapCanvases[pIdx].push_back(std::move(cExt));
-        } else {
-          spectraExtrapCanvases[pIdx].push_back(nullptr);
         }
       }
     }
@@ -1231,7 +1197,8 @@ class CorrelationTaskBase : public IAnalysisTask
         AnalysisUtils::SetHistogramStyle(h1Spectrum.get(), globalCfgs.GetSpectraColor(multBin));
 
         // Draw and Write (Only draw the nominal Delta Y limit on the summary canvas)
-        spectraCanvases[pIdx][yIdx]->cd();
+        std::string cSpecName = std::format("cSpectra_{}_dy{}", config.name, dyNameStr);
+        canvasManager.RequireCanvas(cSpecName)->cd();
         h1Spectrum->DrawCopy(multBin == 0 ? "" : "SAME");
 
         targetSpectraDir->cd();
@@ -1241,8 +1208,9 @@ class CorrelationTaskBase : public IAnalysisTask
 
         // Extrapolate and Fill Trend
         if (doExtrapForThis) {
-          ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir,
-                                                        spectraExtrapCanvases[pIdx][yIdx].get());
+          std::string cExtName = std::format("cSpectraExtrap_{}_dy{}", config.name, dyNameStr);
+          TCanvas* overlay = canvasManager.GetCanvas(cExtName);
+          ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir, overlay);
           AnalysisUtils::FillTrendFromExtrapolation(h1MultTrendsExtrap[pIdx][yIdx].get(), h1Spectrum.get(),
                                                     res, trendComposition, multBin);
         }
