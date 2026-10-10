@@ -87,7 +87,7 @@ responsibility to a class that already has too much.
 ## 3. Common interface for the two fitters
 
 `DynamicRooFitter` is constructor → `DoFit()` → `ExtractYieldsAndPurity()` →
-`SaveFitCanvas()`. `FitPhiSignalAndBkg` does everything in its constructor and
+`SaveFitToCanvas()`. `FitPhiSignalAndBkg` does everything in its constructor and
 exposes getters. The consequence is the fifty-line `if/else` in `PhiFitTask::Run`
 where the two branches share nothing, and every addition has to be written twice.
 
@@ -99,7 +99,7 @@ struct FitYields { signal, background, bkgInSideband, bkgRatio, purity; int stat
 class IPhiFitter {
   virtual int DoFit() = 0;
   virtual FitYields Extract() const = 0;
-  virtual void SaveFitCanvas(TDirectory*, const std::string&) = 0;
+  virtual void SaveFitToCanvas(TDirectory*, const std::string&, bool = false) = 0;
 };
 ```
 
@@ -763,6 +763,10 @@ and standardizes figure generation and output across the framework:
 - **IO & Export**: Static and instance methods for writing into `TDirectory` trees via `RootIO`,
   individual image/PDF export with auto-created directories, and multi-page PDF generation
   (subsuming standalone macros like `esporta_fit.C`).
+- **DynamicRooFitter Integration**: `DynamicRooFitter::SaveFitToCanvas` adopts `CanvasManager`
+  layout factories and ALICE styling. Supports an optional pull plot pad (`bool showRatioPlot = false`,
+  mapping `(Data - Model) / Error` on the bottom pad with $\pm 2\sigma$ reference lines,
+  font scale compensation, and `SetBit(kCanDelete)` pad primitive lifecycle).
 
 ---
 

@@ -319,7 +319,7 @@ class PurityTask : public IAnalysisTask
 
       // Save diagnostic plot directly to the task's output file
       std::string cName = "cFit_" + task.name + "_m" + std::to_string(multBin) + "_p" + std::to_string(k) + nameSuffix;
-      fitter.SaveFitCanvas(fitDir, cName);
+      fitter.SaveFitToCanvas(fitDir, cName);
     }
 
     return h1PuritySpectrum;

@@ -156,7 +156,8 @@ class DynamicRooFitter
     return results;
   }
 
-  void SaveFitCanvas(TDirectory* dirOutput, const std::string& canvasName)
+  void SaveFitToCanvas(TDirectory* dirOutput, const std::string& canvasName,
+                       bool showRatioPlot = false)
   {
     if (!fitResult) {
       throw std::runtime_error("[FATAL ERROR] You must call DoFit() before drawing the canvas!");

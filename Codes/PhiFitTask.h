@@ -169,7 +169,7 @@ class PhiFitTask : public IAnalysisTask
           triggerBkgRatioAndError = res.bkgRatioAndError;
 
           std::string canvasName = "cFit_Phi_mult" + std::to_string(i) + "_pt" + std::to_string(j);
-          fitter.SaveFitCanvas(fitDir, canvasName);
+          fitter.SaveFitToCanvas(fitDir, canvasName);
         }
 
         // Save the results for CorrelationTask
