@@ -172,13 +172,12 @@ settings.
 
 ### Values that are names, not numbers
 
-Six settings are enumerations and are written as strings. An unrecognised value is a
+Five settings are enumerations and are written as strings. An unrecognised value is a
 fatal error that lists the accepted ones — the message is built from the same table
 the value is matched against, so it cannot go stale.
 
 | Key | Task | Values | Default |
 |---|---|---|---|
-| `fitter_type` | `phi_fit_task` | `dynamicroofitter`, `fitphisignalandbkg` | `dynamicroofitter` |
 | `projection_axis` | correlation | `delta_y` / `DeltaY`, `delta_phi` / `DeltaPhi` | `delta_y` |
 | `particle_correction_mode` | `mc_task` | `efficiency_only`, `signal_loss_only`, `combined` | `efficiency_only` |
 | `run_mode` | `correlation_task` | `legacy`, `optimized` | `legacy` |
@@ -221,7 +220,7 @@ silently ignored.
 | `input_data_file`, `base_path_data` | required | |
 | `fit_config_file` | required | Per-cell fit model, see `JSONConfigs/fitConfig.json`. |
 | `output_dir_proj` | required | |
-| `fitter_type`, `output_prefix` | optional | |
+| `output_prefix` | optional | |
 
 **`correlation_task`** — the main chain: signal extraction, corrections, spectra, trends, ratios.
 

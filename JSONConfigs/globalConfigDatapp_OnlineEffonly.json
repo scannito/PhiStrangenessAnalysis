@@ -63,7 +63,6 @@
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_7maggio.root",
         "base_path_data": "phi-strangeness-correlation/phiStrangenessCorrelation/",
         "fit_config_file": "../JSONConfigs/fitConfig.json",
-        "fitter_type": "dynamicroofitter",
         "output_dir_proj": "../DataFile/pp/DeltaY/ProjData/",
         "output_prefix": "Data_"
     },

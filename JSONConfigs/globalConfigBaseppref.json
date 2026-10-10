@@ -227,7 +227,6 @@
         "input_data_file": "../DataFile/pp_ref/DeltaY/Data/AnalysisResults_536_2026_PtMod_23luglio.root",
         "base_path_data": "phi-strange-correlation/phiStrangenessCorrelation/",
         "fit_config_file": "../JSONConfigs/fitConfig.json",
-        "fitter_type": "dynamicroofitter",
         "output_dir_proj": "../DataFile/pp_ref/DeltaY/ProjData/",
         "output_prefix": "Data_"
     },

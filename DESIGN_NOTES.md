@@ -84,39 +84,20 @@ responsibility to a class that already has too much.
 
 ---
 
-## 3. Common interface for the two fitters
+## 3. Unification on DynamicRooFitter (supersedes "Common interface for the two fitters")
 
-`DynamicRooFitter` is constructor → `DoFit()` → `ExtractYieldsAndPurity()` →
-`SaveFitToCanvas()`. `FitPhiSignalAndBkg` does everything in its constructor and
-exposes getters. The consequence is the fifty-line `if/else` in `PhiFitTask::Run`
-where the two branches share nothing, and every addition has to be written twice.
+`FitPhiSignalAndBkg` was a legacy TF1-based implementation tightly coupled to a single
+model (`Voigt + BkgSourav`), hardcoded 7 parameters, magic index split `4`, hardcoded
+integration ranges `[1.0, 1.05]` and `[1.06, 1.08]`, and lacked modern RooFit covariance
+error propagation and pull/ratio diagnostic plots.
 
-Proposed shape:
+Rather than building an artificial `IPhiFitter` abstract interface to bridge two fundamentally
+different designs (violating YAGNI since only one fitter is needed), `FitPhiSignalAndBkg.h`
+was retired to `OldCodes/FitPhiSignalAndBkg.h`.
 
-```cpp
-struct FitYields { signal, background, bkgInSideband, bkgRatio, purity; int status; };
-
-class IPhiFitter {
-  virtual int DoFit() = 0;
-  virtual FitYields Extract() const = 0;
-  virtual void SaveFitToCanvas(TDirectory*, const std::string&, bool = false) = 0;
-};
-```
-
-plus a `MakePhiFitter(type, hist, cfg)` factory, in the style of the task registry
-in `WorkflowManager` and of `ExtrapolationModelFactory`.
-
-Internal clean-ups that come almost free once the constructor is split:
-
-- `FitPhiSignalAndBkg` hardcodes `Voigt` + `BkgSourav` for the decomposition while
-  pretending to be generic: passing `VoigtBkgMattia` would silently decompose with
-  the wrong background;
-- `indexFirstBkgParam` is a magic integer the caller must get right (4 today);
-  getting it wrong splits the covariance matrix at the wrong place, with no symptom;
-- two `new TF1` per call are never freed, i.e. `nBinMult × nBinPt` leaks per run;
-- `wSidebandFit` as a template parameter duplicates the class for a one-line
-  difference and forces a compile-time choice where everything else is JSON-driven;
-- three `std::cout` inside the constructor, i.e. ~720 lines of output per run.
+`DynamicRooFitter` is now the sole, unified fitting engine across both `PhiFitTask` and
+`PurityTask`. This eliminated the 50-line branching in `PhiFitTask::Execute`, removed manual
+TF1 allocations in the loop, and made `PhiFitTask` completely configuration-driven.
 
 ---
 
