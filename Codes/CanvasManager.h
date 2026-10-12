@@ -18,11 +18,14 @@
 #include <algorithm>
 #include <filesystem>
 #include <format>
+#include <initializer_list>
 #include <iostream>
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
 #include <ranges>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -63,7 +66,21 @@ class CanvasManager
     double fontScale{1.0}; // Compensates font sizes in bottom pad (pad height ratio)
   };
 
-  CanvasManager() = default;
+  // Options for multi-histogram automatic Y-range determination
+  struct YRangeOptions {
+    bool isLogY{false};
+    bool zeroBaseline{false};  // If true and min >= 0, sets Y min to 0.0 (e.g. counts/spectra)
+    bool includeErrors{true};  // Includes bin error bars in min/max evaluation
+    double topMargin{0.25};    // Headroom above maximum (leaves space for legend/watermark)
+    double bottomMargin{0.10}; // Footroom below minimum
+    double logHeadroom{5.0};   // Headroom multiplier in log scale (leaves space for legend)
+    double logFootroom{0.5};   // Footroom multiplier in log scale (>0)
+  };
+
+  CanvasManager(bool showStats = false)
+  {
+    SetOptStat(showStats);
+  }
   ~CanvasManager() = default;
 
   CanvasManager(const CanvasManager&) = delete;
@@ -328,6 +345,230 @@ class CanvasManager
     line->SetLineWidth(width);
     line->Draw("SAME");
     return line;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Statistics Box Management (TPaveStats)
+  // ---------------------------------------------------------------------------
+
+  // Sets ROOT's global histogram statistics display (TPaveStats).
+  // In CanvasManager, stats are disabled by default (optStat = 0).
+  static void SetOptStat(bool enable = false, int optStat = 1111)
+  {
+    if (gStyle) {
+      gStyle->SetOptStat(enable ? optStat : 0);
+    }
+  }
+
+  // Toggles the statistics box for a specific histogram
+  static void SetStats(TH1* h, bool enable = false)
+  {
+    if (h) {
+      h->SetStats(enable);
+    }
+  }
+
+  // Removes an already drawn stats box ("stats" primitive) from a pad
+  static void RemoveStats(TPad* pad)
+  {
+    if (!pad)
+      return;
+    if (TObject* stats = pad->FindObject("stats")) {
+      pad->GetListOfPrimitives()->Remove(stats);
+      delete stats;
+      pad->Modified();
+    }
+  }
+
+  // Instance method to enable/disable stats box
+  void EnableStats(bool enable = true, int optStat = 1111)
+  {
+    SetOptStat(enable, optStat);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Multi-Histogram Automatic Y-Axis Range Determination
+  // ---------------------------------------------------------------------------
+
+  // Computes the global minimum and maximum across a collection of 1D histograms,
+  // taking into account error bars, non-empty bins, linear vs log scale, and headroom.
+  // Multi-dimensional histograms (TH2, TH3) are skipped because their Y-axis represents
+  // a phase-space coordinate rather than bin content.
+  static std::pair<double, double> ComputeGlobalYRange(std::span<TH1* const> hists,
+                                                       const YRangeOptions& opts = YRangeOptions{})
+  {
+    double globalMin = std::numeric_limits<double>::infinity();
+    double globalMax = -std::numeric_limits<double>::infinity();
+    double posMin = std::numeric_limits<double>::infinity();
+    bool foundAny = false;
+
+    for (const auto* h : hists) {
+      if (!h || h->GetDimension() != 1)
+        continue;
+
+      const int nBins = h->GetNbinsX();
+      for (int b = 1; b <= nBins; ++b) {
+        const double c = h->GetBinContent(b);
+        const double e = opts.includeErrors ? h->GetBinError(b) : 0.0;
+
+        // Skip completely unpopulated bins
+        if (c == 0.0 && e == 0.0)
+          continue;
+
+        const double valLow = c - e;
+        const double valHigh = c + e;
+
+        if (valLow < globalMin)
+          globalMin = valLow;
+        if (valHigh > globalMax)
+          globalMax = valHigh;
+
+        if (c > 0.0 && c < posMin)
+          posMin = c;
+        if (valLow > 0.0 && valLow < posMin)
+          posMin = valLow;
+
+        foundAny = true;
+      }
+    }
+
+    if (!foundAny) {
+      return opts.isLogY ? std::pair<double, double>{0.1, 1.0} : std::pair<double, double>{0.0, 1.0};
+    }
+
+    if (opts.isLogY) {
+      if (posMin == std::numeric_limits<double>::infinity() || posMin <= 0.0) {
+        posMin = 1e-4;
+      }
+      if (globalMax <= 0.0) {
+        globalMax = 1.0;
+      }
+      double yMin = posMin * opts.logFootroom;
+      double yMax = globalMax * opts.logHeadroom;
+      if (yMin <= 0.0)
+        yMin = 1e-4;
+      if (yMax <= yMin)
+        yMax = yMin * 10.0;
+      return {yMin, yMax};
+    }
+
+    // Linear scale calculation
+    double yMin = globalMin;
+    double yMax = globalMax;
+
+    if (yMin == yMax) {
+      const double delta = (yMax != 0.0) ? std::abs(yMax) * 0.2 : 1.0;
+      yMin -= delta;
+      yMax += delta;
+    } else {
+      const double span = yMax - yMin;
+      yMax += opts.topMargin * span;
+      if (opts.zeroBaseline && yMin >= 0.0) {
+        yMin = 0.0;
+      } else {
+        yMin -= opts.bottomMargin * span;
+      }
+    }
+
+    return {yMin, yMax};
+  }
+
+  // Adjusts the Y-axis range for a collection of 1D histograms based on their global min and max.
+  // Accepts any contiguous container (std::vector, std::array, std::span) via std::span<TH1* const>.
+  static void AdjustYRange(std::span<TH1* const> hists,
+                           const YRangeOptions& opts = YRangeOptions{})
+  {
+    auto [yMin, yMax] = ComputeGlobalYRange(hists, opts);
+    for (auto* h : hists) {
+      if (h && h->GetDimension() == 1) {
+        h->GetYaxis()->SetRangeUser(yMin, yMax);
+      }
+    }
+  }
+
+  // Overload for initializer_list: CanvasManager::AdjustYRange({h1, h2, h3})
+  static void AdjustYRange(std::initializer_list<TH1*> hists,
+                           const YRangeOptions& opts = YRangeOptions{})
+  {
+    AdjustYRange(std::span<TH1* const>(hists.begin(), hists.size()), opts);
+  }
+
+  // Convenience overloads with simple boolean flags
+  static void AdjustYRange(std::span<TH1* const> hists,
+                           bool isLogY, bool zeroBaseline = false)
+  {
+    YRangeOptions opts;
+    opts.isLogY = isLogY;
+    opts.zeroBaseline = zeroBaseline;
+    AdjustYRange(hists, opts);
+  }
+
+  static void AdjustYRange(std::initializer_list<TH1*> hists,
+                           bool isLogY, bool zeroBaseline = false)
+  {
+    YRangeOptions opts;
+    opts.isLogY = isLogY;
+    opts.zeroBaseline = zeroBaseline;
+    AdjustYRange(std::span<TH1* const>(hists.begin(), hists.size()), opts);
+  }
+
+  // Inspects all 1D histograms currently drawn on pad, computes their global Y-range,
+  // and applies it to all of them. Automatically detects log scale from pad->GetLogy().
+  static void AdjustPadYRange(TPad* pad, const YRangeOptions& opts = YRangeOptions{})
+  {
+    if (!pad)
+      return;
+    std::vector<TH1*> hists;
+    TIter next(pad->GetListOfPrimitives());
+    TObject* obj = nullptr;
+    while ((obj = next())) {
+      if (obj->InheritsFrom(TH1::Class())) {
+        auto* h = static_cast<TH1*>(obj);
+        if (h->GetDimension() == 1) {
+          hists.push_back(h);
+        }
+      }
+    }
+    YRangeOptions effectiveOpts = opts;
+    if (pad->GetLogy() != 0) {
+      effectiveOpts.isLogY = true;
+    }
+    AdjustYRange(hists, effectiveOpts);
+    pad->Modified();
+    pad->Update();
+  }
+
+  static void AdjustPadYRange(TPad* pad, bool isLogY, bool zeroBaseline = false)
+  {
+    YRangeOptions opts;
+    opts.isLogY = isLogY;
+    opts.zeroBaseline = zeroBaseline;
+    AdjustPadYRange(pad, opts);
+  }
+
+  // Instance wrappers for managed canvases
+  void AdjustYRange(std::initializer_list<TH1*> hists,
+                    const YRangeOptions& opts = YRangeOptions{}) const
+  {
+    AdjustYRange(hists, opts);
+  }
+
+  void AdjustYRange(std::span<TH1* const> hists,
+                    const YRangeOptions& opts = YRangeOptions{}) const
+  {
+    AdjustYRange(hists, opts);
+  }
+
+  void AdjustPadYRange(TPad* pad, const YRangeOptions& opts = YRangeOptions{}) const
+  {
+    AdjustPadYRange(pad, opts);
+  }
+
+  void AdjustCanvasYRange(const std::string& canvasName,
+                         const YRangeOptions& opts = YRangeOptions{}) const
+  {
+    TCanvas* c = RequireCanvas(canvasName);
+    AdjustPadYRange(c, opts);
   }
 
   // ---------------------------------------------------------------------------

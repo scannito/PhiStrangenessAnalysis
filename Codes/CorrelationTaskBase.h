@@ -248,15 +248,7 @@ class CorrelationTaskBase : public IAnalysisTask
               hRatioExtrap->Write(nullptr, TObject::kOverwrite);
             }
 
-            double globalMax = hRatioMeas->GetMaximum();
-            double globalMin = hRatioMeas->GetMinimum();
-            if (hRatioExtrap) {
-              globalMax = std::max(globalMax, hRatioExtrap->GetMaximum());
-              globalMin = std::min(globalMin, hRatioExtrap->GetMinimum());
-            }
-            hRatioMeas->GetYaxis()->SetRangeUser(globalMin * 0.9, globalMax * 1.2);
-
-            // if (hRatioExtrap)
+            CanvasManager::AdjustYRange({hRatioMeas.get(), hRatioExtrap.get()});
 
             canvasRatio->cd();
 

@@ -748,6 +748,16 @@ and standardizes figure generation and output across the framework:
   layout factories and ALICE styling. Supports an optional pull plot pad (`bool showRatioPlot = false`,
   mapping `(Data - Model) / Error` on the bottom pad with $\pm 2\sigma$ reference lines,
   font scale compensation, and `SetBit(kCanDelete)` pad primitive lifecycle).
+- **Statistics Box (`TPaveStats`) Control**: The stats box is disabled by default (`optStat = 0`)
+  across `CanvasManager` to adhere to clean ALICE publication standards. Methods `SetOptStat`,
+  `SetStats`, `RemoveStats`, and `EnableStats` provide explicit opt-in control when diagnostic numbers
+  are desired.
+- **Multi-Histogram Automatic Y-Range Determination (`AdjustYRange`)**: Scans arbitrary collections of
+  1D histograms (via `std::span<TH1* const>`, initializer list, or pad primitives via `AdjustPadYRange`)
+  to find the global minimum and maximum, accounting for bin error bars, strictly positive bins in log scale,
+  and customizable headroom (`topMargin`, `logHeadroom`). Strictly filters 1D histograms (`GetDimension() == 1`),
+  ignoring 2D/3D objects to prevent corrupting physical phase-space Y-axes. Replaces manual boilerplate
+  like `std::max(h1->GetMaximum(), h2->GetMaximum())` across tasks.
 
 ---
 
