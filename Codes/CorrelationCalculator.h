@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AnalysisDataStructures.h"
-#include "AnalysisUtils.h"
+#include "HistogramUtils.h"
 #include "RootIOHelpers.h"
 
 #include "TDirectory.h"
@@ -32,7 +32,7 @@ class CorrelationCalculator
   // =========================================================================
 
   // Used to extract the signal for the final spectra (Projects onto Delta y)
-  std::unique_ptr<TH1> ExtractCorrectedSignal(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
+  std::unique_ptr<TH1> ExtractCorrectedSignal(const LoadedAssocData& data, const std::vector<HistogramUtils::AxisToCut>& axesToCut,
                                               double totalEff, double triggerBkgRatio, const std::string& histNameBase,
                                               TDirectory* ioDir = nullptr, TDirectory* qaDir = nullptr, AxisTarget targetAxis = AxisTarget::DeltaY_Y,
                                               std::optional<std::pair<double, double>> orthogonalCut = std::nullopt) const
@@ -104,7 +104,7 @@ class CorrelationCalculator
   // =========================================================================
   // UNIVERSAL 2D ENGINE
   // =========================================================================
-  std::unique_ptr<TH1> Extract2D(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
+  std::unique_ptr<TH1> Extract2D(const LoadedAssocData& data, const std::vector<HistogramUtils::AxisToCut>& axesToCut,
                                  double totalEff, double triggerBkgRatio, const std::string& histNameBase,
                                  TDirectory* ioDir, TDirectory* qaDir, AxisTarget targetAxis,
                                  std::optional<std::pair<double, double>> orthogonalCut = std::nullopt) const
@@ -136,16 +136,16 @@ class CorrelationCalculator
 
       if (!data.h5DataSignal)
         throw std::runtime_error("[FATAL] No signal data provided for correlation calculation!");
-      h2Signal = AnalysisUtils::ProjectTHnSparse<TH2>(data.h5DataSignal.get(), axesToCut, projAxes, nameSig2D);
+      h2Signal = HistogramUtils::ProjectTHnSparse<TH2>(data.h5DataSignal.get(), axesToCut, projAxes, nameSig2D);
       if (data.h5DataSideband)
-        h2Sideband = AnalysisUtils::ProjectTHnSparse<TH2>(data.h5DataSideband.get(), axesToCut, projAxes, nameSb2D);
+        h2Sideband = HistogramUtils::ProjectTHnSparse<TH2>(data.h5DataSideband.get(), axesToCut, projAxes, nameSb2D);
 
       if (applyME) {
         if (!data.h5DataMESignal)
           throw std::runtime_error("[FATAL] No ME signal data provided for correlation calculation!");
-        h2MESignal = AnalysisUtils::ProjectTHnSparse<TH2>(data.h5DataMESignal.get(), axesToCut, projAxes, nameMESig2D);
+        h2MESignal = HistogramUtils::ProjectTHnSparse<TH2>(data.h5DataMESignal.get(), axesToCut, projAxes, nameMESig2D);
         if (data.h5DataMESideband && h2Sideband) {
-          h2MESideband = AnalysisUtils::ProjectTHnSparse<TH2>(data.h5DataMESideband.get(), axesToCut, projAxes, nameMESb2D);
+          h2MESideband = HistogramUtils::ProjectTHnSparse<TH2>(data.h5DataMESideband.get(), axesToCut, projAxes, nameMESb2D);
         }
       }
 
@@ -308,7 +308,7 @@ class CorrelationCalculator
   // =========================================================================
   // ORIGINAL 1D ENGINE (Untouched, used if use2DME = false)
   // =========================================================================
-  std::unique_ptr<TH1> Extract1D(const LoadedAssocData& data, const std::vector<AnalysisUtils::AxisToCut>& axesToCut,
+  std::unique_ptr<TH1> Extract1D(const LoadedAssocData& data, const std::vector<HistogramUtils::AxisToCut>& axesToCut,
                                  double totalEff, double triggerBkgRatio, const std::string& histNameBase,
                                  TDirectory* ioDir) const
   {
@@ -332,16 +332,16 @@ class CorrelationCalculator
     } else {
       if (!data.h5DataSignal)
         throw std::runtime_error("[FATAL] Missing Signal THnSparse for " + data.name);
-      h1Signal = AnalysisUtils::ProjectTHnSparse<TH1>(data.h5DataSignal.get(), axesToCut, {3}, histNameBase + "Signal");
+      h1Signal = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataSignal.get(), axesToCut, {3}, histNameBase + "Signal");
       if (data.h5DataSideband)
-        h1Sideband = AnalysisUtils::ProjectTHnSparse<TH1>(data.h5DataSideband.get(), axesToCut, {3}, histNameBase + "Sideband");
+        h1Sideband = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataSideband.get(), axesToCut, {3}, histNameBase + "Sideband");
 
       if (applyME) {
         if (!data.h5DataMESignal)
           throw std::runtime_error("[FATAL] Missing ME Signal THnSparse for " + data.name);
-        h1MESignal = AnalysisUtils::ProjectTHnSparse<TH1>(data.h5DataMESignal.get(), axesToCut, {3}, histNameBase + "MESignal");
+        h1MESignal = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataMESignal.get(), axesToCut, {3}, histNameBase + "MESignal");
         if (data.h5DataMESideband && h1Sideband)
-          h1MESideband = AnalysisUtils::ProjectTHnSparse<TH1>(data.h5DataMESideband.get(), axesToCut, {3}, histNameBase + "MESideband");
+          h1MESideband = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataMESideband.get(), axesToCut, {3}, histNameBase + "MESideband");
       }
 
       if (ioDir) {
@@ -363,7 +363,7 @@ class CorrelationCalculator
     // 3. Mixed Event Correction
     if (applyME) {
       double width = h1MESignal->GetXaxis()->GetBinWidth(h1MESignal->GetXaxis()->FindBin(0.0));
-      auto [normMESignal, errSig] = AnalysisUtils::IntegralAndErrorPair(h1MESignal.get(), -width, width);
+      auto [normMESignal, errSig] = HistogramUtils::IntegralAndErrorPair(h1MESignal.get(), -width, width);
       if (normMESignal > 0)
         h1MESignal->Scale(2.0 / normMESignal);
       h1Signal->Divide(h1MESignal.get());
@@ -372,7 +372,7 @@ class CorrelationCalculator
     if (h1Sideband) {
       if (applyME && h1MESideband) {
         double width = h1MESideband->GetXaxis()->GetBinWidth(h1MESideband->GetXaxis()->FindBin(0.0));
-        auto [normMESideband, errSide] = AnalysisUtils::IntegralAndErrorPair(h1MESideband.get(), -width, width);
+        auto [normMESideband, errSide] = HistogramUtils::IntegralAndErrorPair(h1MESideband.get(), -width, width);
         if (normMESideband > 0)
           h1MESideband->Scale(2.0 / normMESideband);
         h1Sideband->Divide(h1MESideband.get());

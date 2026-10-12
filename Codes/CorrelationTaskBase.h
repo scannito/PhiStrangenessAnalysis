@@ -3,9 +3,10 @@
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
 #include "AnalysisSettings.h"
-#include "AnalysisUtils.h"
+#include "BinningUtils.h"
 #include "CanvasManager.h"
 #include "CorrelationCalculator.h"
+#include "HistogramUtils.h"
 #include "ExtrapConfigManager.h"
 #include "ExtrapolationModelFactory.h"
 #include "IAnalysisTask.h"
@@ -127,12 +128,12 @@ class CorrelationTaskBase : public IAnalysisTask
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
-          auto [dyTitleStr, dyNameStr] = AnalysisUtils::FormatDeltaY(dyLimit);
+          auto [dyTitleStr, dyNameStr] = BinningUtils::FormatDeltaY(dyLimit);
 
           std::string ratioName = std::format("Ratio_Extrap_Meas_{}_dy{}", pName, dyNameStr);
           std::string title = Form("Extrap/Measured Contribution %s |#Delta y| < %.2f; Multiplicity percentile (%%); Yield_{Extrap} / Yield_{Meas}", pName.c_str(), dyLimit);
 
-          std::unique_ptr<TH1> hRatioExtrapMeas = AnalysisUtils::MakeRatioHist(h1MultTrendsExtrap[pIdx][yIdx].get(), h1MultTrends[pIdx][yIdx].get(),
+          std::unique_ptr<TH1> hRatioExtrapMeas = HistogramUtils::MakeRatioHist(h1MultTrendsExtrap[pIdx][yIdx].get(), h1MultTrends[pIdx][yIdx].get(),
                                                                                ratioName, title, 1.0, 1.0);
 
           CanvasManager::SetHistogramStyle(hRatioExtrapMeas.get(), globalCfgs.GetMultTrendColor(yIdx));
@@ -219,11 +220,11 @@ class CorrelationTaskBase : public IAnalysisTask
 
           for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
             double dyLimit = deltaYLimits[yIdx];
-            auto [dyTitleStr, dyNameStr] = AnalysisUtils::FormatDeltaY(dyLimit);
+            auto [dyTitleStr, dyNameStr] = BinningUtils::FormatDeltaY(dyLimit);
 
             std::string ratioMeasName = std::format("Ratio_{}_{}_Meas_dy{}", num.name, den.name, dyNameStr);
             std::string ratioMeasTitle = "Measured Ratio; Multiplicity percentile (%);" + ratioCfg.label;
-            std::unique_ptr<TH1> hRatioMeas = AnalysisUtils::MakeRatioHist(h1MultTrends[idxNum][yIdx].get(), h1MultTrends[idxDen][yIdx].get(),
+            std::unique_ptr<TH1> hRatioMeas = HistogramUtils::MakeRatioHist(h1MultTrends[idxNum][yIdx].get(), h1MultTrends[idxDen][yIdx].get(),
                                                                            ratioMeasName, ratioMeasTitle, numScale, denScale);
 
             CanvasManager::SetHistogramStyle(hRatioMeas.get(), globalCfgs.GetMultTrendColor(yIdx), 24);
@@ -238,7 +239,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
               std::string ratioExtrapName = std::format("Ratio_{}_{}_Extrap_dy{}", num.name, den.name, dyNameStr);
               std::string ratioExtrapTitle = "Extrapolated Ratio; Multiplicity percentile (%);" + ratioCfg.label;
-              hRatioExtrap = AnalysisUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
+              hRatioExtrap = HistogramUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
 
               CanvasManager::SetHistogramStyle(hRatioExtrap.get(), globalCfgs.GetMultTrendColor(yIdx), 20);
 
@@ -295,7 +296,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
   bool applyME{false}, applyEfficiency{false}, applyExtrapolation{false};
   bool useIntegratedEfficiency{false}, useProjectionCache{false}, use2DMENormalization{false};
-  AnalysisUtils::TrendComposition trendComposition{AnalysisUtils::TrendComposition::TotalExtrapolated};
+  HistogramUtils::TrendComposition trendComposition{HistogramUtils::TrendComposition::TotalExtrapolated};
 
   std::unique_ptr<TH1> hEventLoss;
 
@@ -409,11 +410,11 @@ class CorrelationTaskBase : public IAnalysisTask
 
     // Defaulted to what the chain has always done, so a configuration that says nothing
     // reproduces the previous numbers. The alternative exists to be compared against
-    // it: see AnalysisUtils::TrendComposition.
-    trendComposition = JsonConfig::OptionalEnum<AnalysisUtils::TrendComposition>(
+    // it: see HistogramUtils::TrendComposition.
+    trendComposition = JsonConfig::OptionalEnum<HistogramUtils::TrendComposition>(
       taskConfig, "trend_composition", "total_extrapolated",
-      {{"total_extrapolated", AnalysisUtils::TrendComposition::TotalExtrapolated},
-       {"measured_plus_extrapolated", AnalysisUtils::TrendComposition::MeasuredPlusExtrapolated}},
+      {{"total_extrapolated", HistogramUtils::TrendComposition::TotalExtrapolated},
+       {"measured_plus_extrapolated", HistogramUtils::TrendComposition::MeasuredPlusExtrapolated}},
       GetName());
 
     // Both spellings of each axis are entries in the same table, so the accepted
@@ -876,7 +877,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
-        auto [dyTitleStr, dyNameStr] = AnalysisUtils::FormatDeltaY(dyLimit);
+        auto [dyTitleStr, dyNameStr] = BinningUtils::FormatDeltaY(dyLimit);
 
         std::string hName = std::format("h1MultTrend_{}_dy{}", p.name, dyNameStr);
         std::string hTitle = std::format("Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
@@ -1131,7 +1132,7 @@ class CorrelationTaskBase : public IAnalysisTask
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
 
-        auto [dyTitleStr, dyNameStr] = AnalysisUtils::FormatDeltaY(dyLimit);
+        auto [dyTitleStr, dyNameStr] = BinningUtils::FormatDeltaY(dyLimit);
 
         std::string spectraName = std::format("h1SpectrumPhi{}_dy{}_multBin{}", config.name, dyNameStr, multBin);
 
@@ -1141,7 +1142,7 @@ class CorrelationTaskBase : public IAnalysisTask
           views.push_back(h.get());
 
         // Construct the 1D spectrum from the accumulated Pt bins
-        std::unique_ptr<TH1> h1Spectrum = AnalysisUtils::ConstructSpectrum(views, config.binning, spectraName, dyLimit);
+        std::unique_ptr<TH1> h1Spectrum = HistogramUtils::ConstructSpectrum(views, config.binning, spectraName, dyLimit);
 
         double effectiveTriggers = totalTriggerSignalPerMult;
 
@@ -1194,14 +1195,14 @@ class CorrelationTaskBase : public IAnalysisTask
         targetSpectraDir->cd();
         h1Spectrum->Write(nullptr, TObject::kOverwrite);
 
-        AnalysisUtils::FillTrendFromSpectrum(h1MultTrends[pIdx][yIdx].get(), h1Spectrum.get(), multBin);
+        HistogramUtils::FillTrendFromSpectrum(h1MultTrends[pIdx][yIdx].get(), h1Spectrum.get(), multBin);
 
         // Extrapolate and Fill Trend
         if (doExtrapForThis) {
           std::string cExtName = std::format("cSpectraExtrap_{}_dy{}", config.name, dyNameStr);
           TCanvas* overlay = canvasManager.GetCanvas(cExtName);
           ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir, overlay);
-          AnalysisUtils::FillTrendFromExtrapolation(h1MultTrendsExtrap[pIdx][yIdx].get(), h1Spectrum.get(),
+          HistogramUtils::FillTrendFromExtrapolation(h1MultTrendsExtrap[pIdx][yIdx].get(), h1Spectrum.get(),
                                                     res, trendComposition, multBin);
         }
       }
@@ -1239,12 +1240,12 @@ class CorrelationTaskBase : public IAnalysisTask
     std::vector<std::string> logicalPath{globalCfgs.binningName, dirName};
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-      AnalysisUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {i + 1, i + 1}};
+      HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {i + 1, i + 1}};
       double totalTriggerSignalPerMult = 0.0;
       TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-        AnalysisUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {j + 1, j + 1}};
+        HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {j + 1, j + 1}};
 
         double triggerSignal = GetTriggerSignal(i, j);
         double triggerBkgRatio = GetTriggerBkgRatio(i, j);
@@ -1259,8 +1260,8 @@ class CorrelationTaskBase : public IAnalysisTask
           TDirectory* targetDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
 
           for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
-            AnalysisUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {k + 1, k + 1}};
-            std::vector<AnalysisUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
+            HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {k + 1, k + 1}};
+            std::vector<HistogramUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
             double assocEff = h1EffAssoc ? h1EffAssoc->GetBinContent(k + 1) : 1.0;
             double totalEff = phiEff * assocEff;

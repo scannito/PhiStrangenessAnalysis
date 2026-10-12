@@ -7,7 +7,6 @@
 #include "TH2.h"
 #include "TH3.h"
 #include "THnSparse.h"
-#include "TString.h"
 
 #include <algorithm>
 #include <cmath>
@@ -22,7 +21,7 @@
 #include <utility>
 #include <vector>
 
-namespace AnalysisUtils
+namespace HistogramUtils
 {
 // -----------------------------------------------------------------------------
 // Math & Projection Utilities
@@ -300,15 +299,4 @@ inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, s
   return std::unique_ptr<THType>(static_cast<THType*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBins.data())));
 }
 
-// -----------------------------------------------------------------------------
-// String formatting utility
-// -----------------------------------------------------------------------------
-
-inline std::pair<std::string, std::string> FormatDeltaY(double dyLimit)
-{
-  std::string title = Form("%.2f", dyLimit);
-  std::string name = title;
-  std::replace(name.begin(), name.end(), '.', '_');
-  return {title, name};
-}
-} // namespace AnalysisUtils
+} // namespace HistogramUtils

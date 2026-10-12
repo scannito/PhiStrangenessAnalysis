@@ -3,9 +3,9 @@
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
 #include "AnalysisSettings.h"
-#include "AnalysisUtils.h"
 #include "CanvasManager.h"
 #include "EfficiencyCalculator.h"
+#include "HistogramUtils.h"
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
 #include "RootIOHelpers.h"
@@ -358,7 +358,7 @@ class MCTask : public IAnalysisTask
           // histograms into one bin spanning the multiplicity range of the analysis
           // and hand them to the same calculator.
           auto collapse = [&](TH1* h) {
-            const auto [integral, error] = AnalysisUtils::IntegralAndErrorPair(h, multBinning.front(), multBinning.back());
+            const auto [integral, error] = HistogramUtils::IntegralAndErrorPair(h, multBinning.front(), multBinning.back());
             auto c = std::make_unique<TH1D>("", "", 1, 0., 1.);
             c->SetDirectory(0);
             c->Sumw2();

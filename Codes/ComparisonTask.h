@@ -1,8 +1,8 @@
 #pragma once
 
 #include "AnalysisSettings.h"
-#include "AnalysisUtils.h"
 #include "BinningUtils.h"
+#include "HistogramUtils.h"
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
 #include "RootIOHelpers.h"
@@ -489,7 +489,7 @@ class ComparisonTask : public IAnalysisTask
                                     "numerator " + obj.numeratorPath + " of " + comp.numeratorFile,
                                     "denominator " + obj.denominatorPath + " of " + comp.denominatorFile);
 
-      std::unique_ptr<TH1> ratio = AnalysisUtils::MakeRatioHist(
+      std::unique_ptr<TH1> ratio = HistogramUtils::MakeRatioHist(
         num.get(), den.get(), obj.outName,
         std::format("{};{};ratio", comp.label, num->GetXaxis()->GetTitle()),
         1.0, 1.0, comp.divideOption.c_str());
@@ -552,7 +552,7 @@ class ComparisonTask : public IAnalysisTask
       // It also keeps the names stable across a round trip: this output can itself be
       // the input of another comparison, and discovery matches by name. A suffix added
       // at every pass would make the second comparison find nothing.
-      std::unique_ptr<TH1> ratio = AnalysisUtils::MakeRatioHist(
+      std::unique_ptr<TH1> ratio = HistogramUtils::MakeRatioHist(
         num.get(), den.get(), name,
         std::format("{};{};ratio", comp.label, num->GetXaxis()->GetTitle()),
         1.0, 1.0, comp.divideOption.c_str());

@@ -119,7 +119,7 @@ know it".
   constructor or an accessor should produce it (`AssocParticleConfig::mass`,
   `ParticleTask::AnalysisBinning`).
 - One namespace per helper header: `BinningUtils`, `RootIO`, `JsonConfig`,
-  `AnalysisUtils`, `RunEnvironment`, `PhiFitModels`. Dedicated managers: `WorkflowManager`,
+  `HistogramUtils`, `RunEnvironment`, `PhiFitModels`. Dedicated managers: `WorkflowManager`,
   `CanvasManager`, `BaseConfigManager`, `FitConfigManager`, `ExtrapConfigManager`.
 - Tasks communicate through ROOT files, never in memory. `WorkflowManager` destroys
   each task right after `Terminate()`.
@@ -192,6 +192,6 @@ A new task that writes into a file somebody else also writes into belongs in row
 ## Verify, do not assume
 
 Where behaviour matters, it was measured and the measurement is in the comment —
-see `AnalysisUtils::RebinToTargetBinning`, which records what ROOT actually does
+see `HistogramUtils::RebinToTargetBinning`, which records what ROOT actually does
 with the bins outside the target range. Keep doing that: a number in a comment
 outlives an assertion in a chat.

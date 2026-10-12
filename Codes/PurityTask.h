@@ -3,7 +3,6 @@
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
 #include "AnalysisSettings.h"
-#include "AnalysisUtils.h"
 #include "CanvasManager.h"
 #include "DynamicRooFitter.h"
 #include "FitConfigManager.h"

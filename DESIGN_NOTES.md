@@ -741,7 +741,7 @@ and standardizes figure generation and output across the framework:
   junction, automatic font scaling for smaller pads, unity lines), and N×M grid pads.
 - **Visual Standards**: ALICE watermark headers (`#bf{ALICE} <status>`, collision system/energy),
   transparent legends (`CreateLegend`), and histogram visual styling (`SetHistogramStyle`, consolidated from
-  `AnalysisUtils` to centralize all presentation rules).
+  `HistogramUtils` to centralize all presentation rules).
 - **IO & Export**: Static and instance methods for writing into `TDirectory` trees via `RootIO`,
   individual image/PDF export with auto-created directories, and multi-page PDF generation
   (subsuming standalone macros like `esporta_fit.C`).

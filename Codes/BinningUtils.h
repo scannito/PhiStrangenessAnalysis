@@ -14,6 +14,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace BinningUtils
@@ -50,6 +51,17 @@ inline std::string FormatEdge(double value)
   char buffer[32];
   std::snprintf(buffer, sizeof(buffer), "%g", value);
   return buffer;
+}
+
+// Formats a delta-y limit into a human-readable title (e.g. "0.80") and an identifier-safe name (e.g. "0_80").
+inline std::pair<std::string, std::string> FormatDeltaY(double dyLimit)
+{
+  char buffer[32];
+  std::snprintf(buffer, sizeof(buffer), "%.2f", dyLimit);
+  std::string title = buffer;
+  std::string name = title;
+  std::replace(name.begin(), name.end(), '.', '_');
+  return {title, name};
 }
 
 // Number of bins described by a sequence of edges. Provided so that the count

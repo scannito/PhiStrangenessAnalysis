@@ -2,9 +2,9 @@
 
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
-#include "AnalysisUtils.h"
 #include "CanvasManager.h"
 #include "FitConfigManager.h"
+#include "HistogramUtils.h"
 
 #include "RooAbsPdf.h"
 #include "RooAddPdf.h"
@@ -140,7 +140,7 @@ class DynamicRooFitter
         results.bkgRatioAndError = {bkgRatio.getVal(), bkgRatio.getPropagatedError(*fitResult, RooArgSet(*obs))};
       } else {
         // Direct integration from histogram bins
-        results.bkgInSidebandAndError = AnalysisUtils::IntegralAndErrorPair(h1Data, sbMin, sbMax);
+        results.bkgInSidebandAndError = HistogramUtils::IntegralAndErrorPair(h1Data, sbMin, sbMax);
 
         const double num = results.backgroundAndError.first;
         const double den = results.bkgInSidebandAndError.first;

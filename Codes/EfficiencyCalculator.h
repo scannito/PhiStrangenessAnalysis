@@ -2,8 +2,8 @@
 
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
-#include "AnalysisUtils.h"
 #include "CanvasManager.h"
+#include "HistogramUtils.h"
 
 #include "TH1.h"
 #include "TH2.h"
@@ -51,11 +51,11 @@ class EfficiencyCalculator
   // Computes the 3D Total Efficiency map (Efficiency * Signal Loss)
   static std::unique_ptr<TH3> Compute3DTotalMap(const LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
   {
-    AnalysisUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
+    HistogramUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
 
     // Project 3D histograms safely from the THnSparse
-    std::unique_ptr<TH3> h3MCGenAssocReco = AnalysisUtils::ProjectTHnSparse<TH3>(data.h4MCGenAssocReco.get(), {axisToCutZVtx}, {1, 2, 3}, "h3" + data.name + "MCGenAssocRecoTemp");
-    std::unique_ptr<TH3> h3MCReco = AnalysisUtils::ProjectTHnSparse<TH3>(data.h4MCReco.get(), {axisToCutZVtx}, {1, 2, 3}, "h3" + data.name + "MCRecoTemp");
+    std::unique_ptr<TH3> h3MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH3>(data.h4MCGenAssocReco.get(), {axisToCutZVtx}, {1, 2, 3}, "h3" + data.name + "MCGenAssocRecoTemp");
+    std::unique_ptr<TH3> h3MCReco = HistogramUtils::ProjectTHnSparse<TH3>(data.h4MCReco.get(), {axisToCutZVtx}, {1, 2, 3}, "h3" + data.name + "MCRecoTemp");
 
     // Calculate 3D Efficiency (Reco / GenAssocReco)
     std::unique_ptr<TH3> h3Efficiency(static_cast<TH3*>(h3MCReco->Clone(("h3" + data.name + "EfficiencyTemp").c_str())));
@@ -91,10 +91,10 @@ class EfficiencyCalculator
   // Computes the 2D Total Efficiency map (Efficiency * Signal Loss) integrated over multiplicity
   static std::unique_ptr<TH2> Compute2DTotalMapMultIntegrated(const LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
   {
-    AnalysisUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
+    HistogramUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
     // "Integrated" means the whole axis: take its extent from the container
     // itself rather than from a configured bin count.
-    AnalysisUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {1, data.h4MCReco->GetAxis(1)->GetNbins()}};
+    HistogramUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {1, data.h4MCReco->GetAxis(1)->GetNbins()}};
 
     // Project Generator level 2D
     std::string h2GenName = "h2" + data.name + "MCGen_multInt_temp";
@@ -102,8 +102,8 @@ class EfficiencyCalculator
     h2MCGen->SetDirectory(0);
 
     // Project 2D histograms safely from the THnSparse
-    std::unique_ptr<TH2> h2MCGenAssocReco = AnalysisUtils::ProjectTHnSparse<TH2>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult}, {3, 2}, "h2" + data.name + "MCGenAssocRecoTemp");
-    std::unique_ptr<TH2> h2MCReco = AnalysisUtils::ProjectTHnSparse<TH2>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult}, {3, 2}, "h2" + data.name + "MCRecoTemp");
+    std::unique_ptr<TH2> h2MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH2>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult}, {3, 2}, "h2" + data.name + "MCGenAssocRecoTemp");
+    std::unique_ptr<TH2> h2MCReco = HistogramUtils::ProjectTHnSparse<TH2>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult}, {3, 2}, "h2" + data.name + "MCRecoTemp");
 
     // Calculate 2D Efficiency (Reco / GenAssocReco)
     std::unique_ptr<TH2> h2Efficiency(static_cast<TH2*>(h2MCReco->Clone(("h2" + data.name + "EfficiencyTemp").c_str())));
@@ -195,9 +195,9 @@ class EfficiencyCalculator
     const std::vector<double>& target = data.rebinningPt.value();
     const std::string ctx = "EfficiencyCalculator: '" + data.name + "' rebinning_pt";
 
-    h1MCGen = AnalysisUtils::RebinToTargetBinning(std::move(h1MCGen), target, ctx);
-    h1MCGenAssocReco = AnalysisUtils::RebinToTargetBinning(std::move(h1MCGenAssocReco), target, ctx);
-    h1MCReco = AnalysisUtils::RebinToTargetBinning(std::move(h1MCReco), target, ctx);
+    h1MCGen = HistogramUtils::RebinToTargetBinning(std::move(h1MCGen), target, ctx);
+    h1MCGenAssocReco = HistogramUtils::RebinToTargetBinning(std::move(h1MCGenAssocReco), target, ctx);
+    h1MCReco = HistogramUtils::RebinToTargetBinning(std::move(h1MCReco), target, ctx);
   }
 
   // The maps the analysis uses, plus - only when 'rebinning_pt' merged the counts
@@ -225,12 +225,12 @@ class EfficiencyCalculator
   {
     // "B" on both: the reconstructed are a subset of the generated-associated,
     // which are a subset of the generated, so the two ratios are binomial.
-    std::unique_ptr<TH1> efficiency = AnalysisUtils::MakeRatioHist(
+    std::unique_ptr<TH1> efficiency = HistogramUtils::MakeRatioHist(
       h1MCReco, h1MCGenAssocReco, "h1" + particle + "Efficiency" + suffix,
       ";p_{T} (GeV/#it{c});Acc #times #epsilon", 1.0, 1.0, "B");
     CanvasManager::SetHistogramStyle(efficiency.get(), color);
 
-    std::unique_ptr<TH1> signalLoss = AnalysisUtils::MakeRatioHist(
+    std::unique_ptr<TH1> signalLoss = HistogramUtils::MakeRatioHist(
       h1MCGenAssocReco, h1MCGen, "h1" + particle + "SigLoss" + suffix,
       ";p_{T} (GeV/#it{c});Signal loss", 1.0, 1.0, "B");
     CanvasManager::SetHistogramStyle(signalLoss.get(), color);
@@ -267,9 +267,9 @@ class EfficiencyCalculator
   // Returns the maps for one multiplicity bin.
   static Maps1D Compute1DMaps(const LoadedMC& data, int multBin, int color)
   {
-    AnalysisUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
-    AnalysisUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {multBin + 1, multBin + 1}};
-    AnalysisUtils::AxisToCut axisToCutY{.axis = 3, .bins = {1, data.h4MCReco->GetAxis(3)->GetNbins()}};
+    HistogramUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
+    HistogramUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {multBin + 1, multBin + 1}};
+    HistogramUtils::AxisToCut axisToCutY{.axis = 3, .bins = {1, data.h4MCReco->GetAxis(3)->GetNbins()}};
 
     // Project Generator level 1D
     std::string h1GenName = "h1" + data.name + "MCGen_multBin" + std::to_string(multBin) + "_temp";
@@ -277,8 +277,8 @@ class EfficiencyCalculator
     h1MCGen->SetDirectory(0);
 
     // Project Sparse levels 1D
-    std::unique_ptr<TH1> h1MCGenAssocReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp");
-    std::unique_ptr<TH1> h1MCReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp");
+    std::unique_ptr<TH1> h1MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp");
+    std::unique_ptr<TH1> h1MCReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp");
 
     return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, "_multBin" + std::to_string(multBin), color);
   }
@@ -286,11 +286,11 @@ class EfficiencyCalculator
   // Same, integrated over ALL multiplicity bins.
   static Maps1D Compute1DMapsMultIntegrated(const LoadedMC& data)
   {
-    AnalysisUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
+    HistogramUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
     // "Integrated" means the whole axis: take its extent from the containers
     // themselves rather than from a configured bin count.
-    AnalysisUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {1, data.h4MCReco->GetAxis(1)->GetNbins()}};
-    AnalysisUtils::AxisToCut axisToCutY{.axis = 3, .bins = {1, data.h4MCReco->GetAxis(3)->GetNbins()}};
+    HistogramUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {1, data.h4MCReco->GetAxis(1)->GetNbins()}};
+    HistogramUtils::AxisToCut axisToCutY{.axis = 3, .bins = {1, data.h4MCReco->GetAxis(3)->GetNbins()}};
 
     // Project Generator level 1D (Integrated)
     std::string h1GenName = "h1" + data.name + "MCGen_Integrated_temp";
@@ -299,8 +299,8 @@ class EfficiencyCalculator
     h1MCGen->SetDirectory(0);
 
     // Project Sparse levels 1D (Integrated)
-    std::unique_ptr<TH1> h1MCGenAssocReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp_Int");
-    std::unique_ptr<TH1> h1MCReco = AnalysisUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp_Int");
+    std::unique_ptr<TH1> h1MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp_Int");
+    std::unique_ptr<TH1> h1MCReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp_Int");
 
     return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, "_multIntegrated", kBlack);
   }
