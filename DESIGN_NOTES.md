@@ -99,6 +99,87 @@ was retired to `OldCodes/FitPhiSignalAndBkg.h`.
 `PurityTask`. This eliminated the 50-line branching in `PhiFitTask::Execute`, removed manual
 TF1 allocations in the loop, and made `PhiFitTask` completely configuration-driven.
 
+### Future direction: arbitrary N-component decomposition in DynamicRooFitter
+
+Currently, `DynamicRooFitter` supports composite models within `sig_model` or `bkg_model` via `+`
+(relative fractions `frac_sig_0`, etc.) and `*` (`RooProdPdf`). However, at the top level the
+architecture enforces a strict two-component macro-decomposition:
+$$\text{Model} = N_{\text{sig}} \cdot \text{sigPdf} + N_{\text{bkg}} \cdot \text{bkgPdf}$$
+
+**Current limitations:**
+- **Yield extraction**: `ExtractYieldsAndPurity` only returns aggregate integrals for `sigPdf`
+  and `bkgPdf`. Yields and propagated covariance uncertainties of individual sub-components
+  (e.g., secondary signal peaks, resonance impurities, or reflection backgrounds like $K^{*0}$
+  or $\rho$) cannot be extracted independently.
+- **Diagnostics and plotting**: `SaveFitToCanvas` only draws `Sig_Plot` (red) and `Bkg_Plot`
+  (green); sub-components are not individually plotted with distinct styles/colors or separate
+  legend entries.
+
+**Planned extension:**
+- Generalize `DynamicRooFitter` to accept an arbitrary list or map of $N$ top-level components
+  (each declaring its role: primary signal, secondary signal, combinatorial background, resonant
+  contamination), each with its own independent extended yield variable $N_i$.
+- Extend `ExtractYieldsAndPurity` and `FitResults` to return per-component yields and propagated
+  covariances.
+- Extend `SaveFitToCanvas` to plot each component individually with configurable visual styles and
+  legend entries.
+
+### Future direction: RooWorkspace persistence (Decoupling Fit from Extraction & Systematics)
+
+Currently, `PhiFitTask` and `PurityTask` execute the MINUIT fitting (`DoFit()`) and the yield/purity
+extraction (`ExtractYieldsAndPurity()`) in a single pass in memory. If an analyst wants to vary the
+integration window ($N\sigma$ vs fixed range, sideband boundaries) or perform systematic variation
+studies on the signal extraction, the entire compute-intensive fitting loop over hundreds of $(p_T, \text{mult})$
+bins must be re-executed from scratch.
+
+**Proposed architecture (inspired by `IntroRooFit.C`):**
+- **Fit phase (`SaveFitToWorkspace`)**:
+  `DynamicRooFitter` fits each bin once and imports the fitted composite model (`model`), the binned
+  data (`RooDataHist`), the observable (`obs`), and the covariance result (`RooFitResult`) into a
+  `RooWorkspace` within the task's output ROOT file.
+- **Extraction & Systematics phase (`LoadFromWorkspace`)**:
+  Downstream tasks can re-instantiate `DynamicRooFitter(ws, cfg, ...)` directly from the stored
+  workspace. They can evaluate multiple integration ranges, sideband subtractions, and yield integrals
+  instantaneously using the preserved covariance matrices without ever invoking MINUIT again.
+- **Portability & Inspection**:
+  The full analytical models and data distributions are preserved in the ROOT file, allowing
+  physicists to inspect fit quality interactively in ROOT or generate updated ALICE-styled diagnostic
+  canvases without rerunning the full data chain.
+
+### Future direction: Fit quality monitoring, convergence diagnostics, and evaluation error handling
+
+Currently, `DynamicRooFitter::DoFit()` returns `fitResult->status()`, but downstream tasks (`PhiFitTask`,
+`PurityTask`) do not systematically track convergence codes, covariance matrix quality, or parameter
+boundary behavior across batch fits.
+
+**1. Convergence and covariance matrix diagnostics:**
+- In RooFit/MINUIT, a converged fit with full covariance error propagation satisfies `status == 0`
+  and `covQual == 3` (accurate covariance matrix).
+- Lower values of `covQual` (e.g. `1`: forced positive-definite, `2`: full but made positive-definite,
+  `0`: approximate) mean that parameter errors and propagated yield uncertainties cannot be trusted.
+- **Planned mechanism**: Centralize fit quality auditing. When a bin fails `status == 0` or
+  `covQual >= 2`, log a concise warning or record a diagnostic quality flag alongside the output
+  matrices so that downstream correlation tasks can identify or exclude compromised bins.
+
+**2. Evaluation errors and parameter-at-limit detection:**
+- When MINUIT calculates numerical gradients via finite differences, it tests parameter variations
+  $\theta \pm \delta$. If a trial point produces negative PDF values ($f(x) \le 0$) or mathematical
+  domain errors, RooFit generates an *evaluation error* and assigns a large penalty to $-\ln L$.
+- **Benign vs. pathological errors**:
+  - *Benign*: Normal exploratory gradient steps in early iterations; MINUIT discards the step and
+    converges cleanly inside the physical region (`status == 0, covQual == 3`).
+  - *Pathological*: Range or model misspecification in the JSON configuration (e.g., background
+    polynomial permitted to dip below zero, width parameter allowed to reach $\le 0$, or a parameter
+    colliding with its hard boundary `min` or `max`).
+- **Log control strategy**:
+  - `PrintEvalErrors(-1)` completely suppresses all evaluation error output, eliminating log pollution
+    but also hiding symptoms of ill-bounded configurations.
+  - `PrintEvalErrors(0)` offers a clean middle ground: zero per-step spam during minimization, but a
+    single summary line at the end if evaluation errors occurred (`Notice: N evaluation errors...`).
+  - Programmatic tracking: inspect `fitResult->numInvalidNLL()` and check whether fitted parameters
+    are glued to their boundary limits (`|val - min| < \epsilon` or `|val - max| < \epsilon`). If so,
+    alert the analyst that the JSON parameter ranges require tuning.
+
 ---
 
 ## 4. Name objects by interval, not by index

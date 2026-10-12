@@ -16,6 +16,7 @@
 #include <optional>
 #include <string>
 #include <utility>
+#include <variant>
 #include <vector>
 
 struct AssocParticleConfig {
@@ -145,15 +146,25 @@ struct ModelConfig {
   std::map<std::string, MathParam> params; // Uses the unified MathParam
 };
 
-struct IntegrationConfig {
-  bool useFixedRange{true};
+struct FixedRange {
+  double min{0.0};
+  double max{0.0};
+};
+
+struct NSigma {
+  double n{3.0};
+};
+
+struct SidebandConfig {
   std::pair<double, double> range{0.0, 0.0};
-  double nSigma{3.0};
+  bool fromFit{true};
+};
+
+struct IntegrationConfig {
+  std::variant<FixedRange, NSigma> signalWindow{FixedRange{0.0, 0.0}};
   bool snapToBin{false};
   bool calculatePurity{false};
-  bool calculateSideband{false};
-  bool sidebandFromFit{true};
-  std::pair<double, double> sidebandRange{0.0, 0.0};
+  std::optional<SidebandConfig> sideband{std::nullopt};
 };
 
 struct FitConfig {

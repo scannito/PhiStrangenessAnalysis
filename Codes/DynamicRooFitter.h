@@ -19,6 +19,7 @@
 #include "RooGaussian.h"
 #include "RooGenericPdf.h"
 #include "RooHist.h"
+#include "RooMsgService.h"
 #include "RooPlot.h"
 #include "RooPolynomial.h"
 #include "RooProdPdf.h"
@@ -32,12 +33,15 @@
 #include <algorithm>
 #include <cmath>
 #include <format>
+#include <initializer_list>
 #include <iostream>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <variant>
 #include <vector>
 
 class DynamicRooFitter
@@ -45,6 +49,9 @@ class DynamicRooFitter
  public:
   DynamicRooFitter(TH1* h, const FitConfig& cfg) : h1Data(h), config(cfg)
   {
+    // Suppress verbose RooFit INFO/DEBUG messages during batch fitting
+    RooMsgService::instance().setGlobalKillBelow(RooFit::WARNING);
+
     obs = Own<RooRealVar>(cfg.obs.name.c_str(), cfg.obs.title.c_str(), cfg.obs.min, cfg.obs.max);
 
     // Dynamic model parsing for both signal and background
@@ -71,7 +78,6 @@ class DynamicRooFitter
 
   int DoFit()
   {
-
     RooDataHist dataHist("dataHist", "Data", *obs, RooFit::Import(*h1Data));
 
     // Save the result to the class member instead of a local variable
@@ -100,14 +106,14 @@ class DynamicRooFitter
     // Retrieve integration limits dynamically based on the configuration logic
     auto [minRange, maxRange] = CalculateIntegrationLimits();
 
-    std::string modeLog = config.integration.useFixedRange ? "FIXED" : "N-SIGMA";
+    std::string modeLog = std::holds_alternative<FixedRange>(config.integration.signalWindow) ? "FIXED" : "N-SIGMA";
     std::cout << "[INFO] Integrating in " << modeLog << " range: [" << minRange << " , " << maxRange << "]" << std::endl;
 
     obs->setRange("signalRegion", minRange, maxRange);
 
     std::unique_ptr<RooArgSet> modelVars(model->getVariables());
-    RooRealVar* nsigVar = static_cast<RooRealVar*>(modelVars->find("nsig"));
-    RooRealVar* nbkgVar = static_cast<RooRealVar*>(modelVars->find("nbkg"));
+    RooRealVar* nsigVar = FindVar(*modelVars, "nsig");
+    RooRealVar* nbkgVar = FindVar(*modelVars, "nbkg");
 
     // --- 1. SIGNAL YIELD & ERROR ---
     std::unique_ptr<RooAbsReal> sigInt(sigPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("signalRegion")));
@@ -126,12 +132,12 @@ class DynamicRooFitter
     }
 
     // --- 4. OPTIONAL BACKGROUND IN SIDEBAND YIELD & ERROR ---
-    if (config.integration.calculateSideband) {
-      double sbMin = config.integration.sidebandRange.first;
-      double sbMax = config.integration.sidebandRange.second;
+    if (config.integration.sideband) {
+      double sbMin = config.integration.sideband->range.first;
+      double sbMax = config.integration.sideband->range.second;
       obs->setRange("sidebandRegion", sbMin, sbMax);
 
-      if (config.integration.sidebandFromFit) {
+      if (config.integration.sideband->fromFit) {
         std::unique_ptr<RooAbsReal> bkgIntSB(bkgPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("sidebandRegion")));
         RooProduct bkgYieldSB("bkgYieldSB", "Bkg in Sideband", RooArgList(*nbkgVar, *bkgIntSB));
         results.bkgInSidebandAndError = {bkgYieldSB.getVal(), bkgYieldSB.getPropagatedError(*fitResult, RooArgSet(*obs))};
@@ -282,6 +288,26 @@ class DynamicRooFitter
     } else {
       return Own<RooRealVar>(name.c_str(), name.c_str(), p.val, p.min, p.max);
     }
+  }
+
+  // Finds a RooRealVar in a RooArgSet, checking the primary name and any optional fallback names.
+  RooRealVar* FindVar(const RooArgSet& vars, const std::string& name,
+                      std::initializer_list<std::string_view> fallbacks = {}) const
+  {
+    if (auto* v = static_cast<RooRealVar*>(vars.find(name.c_str())))
+      return v;
+
+    std::string tried = name;
+    for (const auto& alt : fallbacks) {
+      if (auto* v = static_cast<RooRealVar*>(vars.find(std::string(alt).c_str())))
+        return v;
+      tried += ", ";
+      tried += alt;
+    }
+
+    throw std::runtime_error(std::format(
+      "[FATAL ERROR] DynamicRooFitter: Variable '{}' not found in model{}",
+      name, fallbacks.size() ? " (tried: [" + tried + "])" : ""));
   }
 
   // The K+K- threshold, 2*m_K: the phase-space backgrounds are built on (M - 2*m_K)
@@ -459,24 +485,17 @@ class DynamicRooFitter
     double maxRange = 0.0;
 
     // 1. Determine base limits based on the configured mode
-    if (config.integration.useFixedRange) {
-      minRange = config.integration.range.first;
-      maxRange = config.integration.range.second;
+    if (const auto* fixed = std::get_if<FixedRange>(&config.integration.signalWindow)) {
+      minRange = fixed->min;
+      maxRange = fixed->max;
     } else {
+      const auto& nSigma = std::get<NSigma>(config.integration.signalWindow);
       std::unique_ptr<RooArgSet> vars(model->getVariables());
-      RooRealVar* meanVar = static_cast<RooRealVar*>(vars->find("mean"));
-      RooRealVar* sigmaVar = static_cast<RooRealVar*>(vars->find("sigma"));
+      double m = FindVar(*vars, "mean_sig", {"mean_sig_0", "mean"})->getVal();
+      double s = FindVar(*vars, "sigma_sig", {"sigma_sig_0", "sigma"})->getVal();
 
-      if (!meanVar || !sigmaVar) {
-        throw std::runtime_error("[FATAL ERROR] Dynamic N-Sigma requested, but 'mean' or 'sigma' missing in model!");
-      }
-
-      double m = meanVar->getVal();
-      double s = sigmaVar->getVal();
-      double n = config.integration.nSigma;
-
-      minRange = m - (n * s);
-      maxRange = m + (n * s);
+      minRange = m - (nSigma.n * s);
+      maxRange = m + (nSigma.n * s);
     }
 
     // 2. Adjust limits to align with histogram bin edges if requested

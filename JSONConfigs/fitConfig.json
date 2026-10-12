@@ -16,12 +16,13 @@
                     1.0,
                     1.05
                 ],
-                "calculate_sideband": true,
-                "sideband_from_fit": false,
-                "sideband_range": [
-                    1.06,
-                    1.08
-                ],
+                "sideband": {
+                    "range": [
+                        1.06,
+                        1.08
+                    ],
+                    "from_fit": false
+                },
                 "params": {
                     "mean_sig": [
                         1.019,

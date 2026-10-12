@@ -312,6 +312,16 @@ inline std::optional<std::pair<double, double>> TryRange(const rapidjson::Value&
   return std::pair{values[0], values[1]};
 }
 
+inline std::optional<double> TryDouble(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  const rapidjson::Value* val = OptionalMember(node, key);
+  if (!val)
+    return std::nullopt;
+  if (!val->IsNumber())
+    throw std::runtime_error(std::format("[FATAL] {}: key '{}' is present but is NOT a number, so it would be silently ignored.", errCtx, key));
+  return val->GetDouble();
+}
+
 inline std::optional<std::string> TryString(const rapidjson::Value& node, const char* key, std::string_view errCtx)
 {
   const rapidjson::Value* val = OptionalMember(node, key);

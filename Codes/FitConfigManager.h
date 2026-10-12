@@ -49,19 +49,20 @@ class FitConfigManager : public BaseConfigManager
         // The two are alternatives, and an explicit range wins: reaching the second
         // branch means no range was given, not that n_sigma has priority.
         if (auto range = JsonConfig::TryRange(node, "integration_range", managerName)) {
-          config.integration.range = *range;
-          config.integration.useFixedRange = true;
-        } else if (JsonConfig::OptionalMember(node, "n_sigma_integration")) {
-          config.integration.nSigma = JsonConfig::OptionalDouble(node, "n_sigma_integration", config.integration.nSigma, managerName);
-          config.integration.useFixedRange = false;
+          config.integration.signalWindow = FixedRange{range->first, range->second};
+        } else if (auto nSigma = JsonConfig::TryDouble(node, "n_sigma_integration", managerName)) {
+          config.integration.signalWindow = NSigma{*nSigma};
         }
 
         config.integration.calculatePurity = JsonConfig::OptionalBool(node, "calculate_purity", config.integration.calculatePurity, managerName);
-        config.integration.calculateSideband = JsonConfig::OptionalBool(node, "calculate_sideband", config.integration.calculateSideband, managerName);
-        config.integration.sidebandFromFit = JsonConfig::OptionalBool(node, "sideband_from_fit", config.integration.sidebandFromFit, managerName);
 
-        if (auto range = JsonConfig::TryRange(node, "sideband_range", managerName))
-          config.integration.sidebandRange = *range;
+        if (const rapidjson::Value* sbNode = JsonConfig::TryObject(node, "sideband", managerName)) {
+          SidebandConfig sb = config.integration.sideband.value_or(SidebandConfig{});
+          sb.fromFit = JsonConfig::OptionalBool(*sbNode, "from_fit", sb.fromFit, managerName);
+          if (auto r = JsonConfig::TryRange(*sbNode, "range", managerName))
+            sb.range = *r;
+          config.integration.sideband = sb;
+        }
 
         // DYNAMICALLY loop through all items inside the "params" object
         if (const rapidjson::Value* params = JsonConfig::TryObject(node, "params", managerName)) {
