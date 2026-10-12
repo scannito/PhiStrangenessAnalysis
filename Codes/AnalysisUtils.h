@@ -201,25 +201,6 @@ inline void FillTrendFromExtrapolation(TH1* hTrend, TH1* hSpectrum, const Extrap
 }
 
 // -----------------------------------------------------------------------------
-// Graphic Utilities
-// -----------------------------------------------------------------------------
-
-// Applies the standard visual style to 1D histograms
-inline void SetHistogramStyle(TH1* h1, int color)
-{
-  h1->SetMarkerStyle(20);
-  h1->SetMarkerColor(color);
-  h1->SetMarkerSize(1.5);
-  h1->SetLineColor(color);
-  h1->SetLineWidth(2);
-  h1->SetFillStyle(3001);
-  h1->SetFillColor(color);
-  h1->GetYaxis()->SetTitleSize(0.045);
-  h1->GetYaxis()->SetTitleOffset(1.0);
-  h1->GetYaxis()->SetLabelSize(0.045);
-}
-
-// -----------------------------------------------------------------------------
 // Histogram ratios utility
 // -----------------------------------------------------------------------------
 

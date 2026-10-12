@@ -303,37 +303,44 @@ class CanvasManager
   }
 
   // Hides X axis title and tick labels on the top pad so they do not collide with the ratio pad below
-  static void FormatTopHist(TH1* h)
+  template <typename T>
+  static void FormatTopPadAxes(T* plot, double titleSize = 0.045, double labelSize = 0.040, double titleOffset = 1.25)
   {
-    if (!h)
+    if (!plot)
       return;
-    h->GetXaxis()->SetLabelSize(0.0);
-    h->GetXaxis()->SetTitleSize(0.0);
+    plot->GetXaxis()->SetLabelSize(0.0);
+    plot->GetXaxis()->SetTitleSize(0.0);
+    plot->GetYaxis()->SetTitleSize(titleSize);
+    plot->GetYaxis()->SetLabelSize(labelSize);
+    plot->GetYaxis()->SetTitleOffset(titleOffset);
   }
 
-  // Formats ratio histogram in the bottom pad with adjusted font scaling and tick divisions
-  static void FormatRatioHist(TH1* h, const std::string& yTitle = "Ratio",
-                              double yMin = 0.5, double yMax = 1.5,
-                              double fontScale = 2.33, double baseTextSize = 0.045)
+  // Formats ratio histogram or frame in the bottom pad with adjusted font scaling and tick divisions
+  template <typename T>
+  static void FormatBottomPadAxes(T* plot, const std::string& yTitle = "Ratio",
+                                  double yMin = 0.5, double yMax = 1.5,
+                                  double fontScale = 2.33, double baseTextSize = 0.045,
+                                  int nDivisions = 505)
   {
-    if (!h)
+    if (!plot)
       return;
-    h->GetYaxis()->SetTitle(yTitle.c_str());
-    h->GetYaxis()->SetRangeUser(yMin, yMax);
-    h->GetYaxis()->SetNdivisions(505);
+    plot->SetMinimum(yMin);
+    plot->SetMaximum(yMax);
+    plot->GetYaxis()->SetTitle(yTitle.c_str());
+    plot->GetYaxis()->SetNdivisions(nDivisions);
 
-    h->GetXaxis()->SetTitleSize(baseTextSize * fontScale);
-    h->GetXaxis()->SetLabelSize(baseTextSize * fontScale);
-    h->GetXaxis()->SetTitleOffset(0.9);
+    plot->GetXaxis()->SetTitleSize(baseTextSize * fontScale);
+    plot->GetXaxis()->SetLabelSize(baseTextSize * fontScale);
+    plot->GetXaxis()->SetTitleOffset(0.9);
 
-    h->GetYaxis()->SetTitleSize(baseTextSize * fontScale);
-    h->GetYaxis()->SetLabelSize(baseTextSize * fontScale);
-    h->GetYaxis()->SetTitleOffset(1.0 / fontScale);
+    plot->GetYaxis()->SetTitleSize(baseTextSize * fontScale);
+    plot->GetYaxis()->SetLabelSize(baseTextSize * fontScale);
+    plot->GetYaxis()->SetTitleOffset(1.0 / fontScale);
   }
 
-  // Draws a horizontal reference line (e.g. unity line y = 1.0 or y = 0.0) on a pad
-  static TLine* DrawReferenceLine(TPad* pad, double xMin, double xMax, double yVal = 1.0,
-                                  int style = kDashed, int color = kGray + 2, int width = 2)
+  // Draws a horizontal line (e.g. unity line y = 1.0 or zero reference y = 0.0) on a pad
+  static TLine* DrawHorizontalLine(TPad* pad, double xMin, double xMax, double yVal = 1.0,
+                                   int style = kDashed, int color = kGray + 2, int width = 2)
   {
     if (!pad)
       return nullptr;
@@ -345,6 +352,38 @@ class CanvasManager
     line->SetLineWidth(width);
     line->Draw("SAME");
     return line;
+  }
+
+  // Draws a pair of horizontal boundary lines for a range [yLow, yHigh] (e.g. +/- 2 sigma bands)
+  static void DrawHorizontalRange(TPad* pad, double xMin, double xMax, double yLow, double yHigh,
+                                  int style = kDashed, int color = kBlack, int width = 2)
+  {
+    DrawHorizontalLine(pad, xMin, xMax, yLow, style, color, width);
+    DrawHorizontalLine(pad, xMin, xMax, yHigh, style, color, width);
+  }
+
+  // Draws a vertical reference line on a pad with managed primitive lifetime (SetBit(kCanDelete))
+  static TLine* DrawVerticalLine(TPad* pad, double xVal, double yMin, double yMax,
+                                 int style = kDashed, int color = kBlack, int width = 2)
+  {
+    if (!pad)
+      return nullptr;
+    pad->cd();
+    TLine* line = new TLine(xVal, yMin, xVal, yMax);
+    line->SetBit(kCanDelete);
+    line->SetLineStyle(style);
+    line->SetLineColor(color);
+    line->SetLineWidth(width);
+    line->Draw("SAME");
+    return line;
+  }
+
+  // Draws a pair of vertical boundary lines for a range [xLow, xHigh]
+  static void DrawVerticalRange(TPad* pad, double xLow, double xHigh, double yMin, double yMax,
+                                int style = kDashed, int color = kBlack, int width = 2)
+  {
+    DrawVerticalLine(pad, xLow, yMin, yMax, style, color, width);
+    DrawVerticalLine(pad, xHigh, yMin, yMax, style, color, width);
   }
 
   // ---------------------------------------------------------------------------
@@ -608,6 +647,25 @@ class CanvasManager
     leg->SetTextSize(textSize);
     leg->SetNColumns(nColumns);
     return leg;
+  }
+
+  // Applies HEP/ALICE standard visual styling to 1D histograms
+  static void SetHistogramStyle(TH1* h, int color, int markerStyle = 20,
+                                double markerSize = 1.5, int lineWidth = 2,
+                                int fillStyle = 3001)
+  {
+    if (!h)
+      return;
+    h->SetMarkerStyle(markerStyle);
+    h->SetMarkerColor(color);
+    h->SetMarkerSize(markerSize);
+    h->SetLineColor(color);
+    h->SetLineWidth(lineWidth);
+    h->SetFillStyle(fillStyle);
+    h->SetFillColor(color);
+    h->GetYaxis()->SetTitleSize(0.045);
+    h->GetYaxis()->SetTitleOffset(1.0);
+    h->GetYaxis()->SetLabelSize(0.045);
   }
 
   // ---------------------------------------------------------------------------

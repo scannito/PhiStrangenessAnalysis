@@ -100,7 +100,7 @@ class CorrelationTaskBase : public IAnalysisTask
         h1MultTrends[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
         cTrendMeas->cd();
-        AnalysisUtils::SetHistogramStyle(h1MultTrends[pIdx][yIdx].get(), globalCfgs.GetMultTrendColor(yIdx));
+        CanvasManager::SetHistogramStyle(h1MultTrends[pIdx][yIdx].get(), globalCfgs.GetMultTrendColor(yIdx));
         h1MultTrends[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
       }
 
@@ -115,7 +115,7 @@ class CorrelationTaskBase : public IAnalysisTask
           h1MultTrendsExtrap[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
           cTrendExtrap->cd();
-          AnalysisUtils::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx].get(), globalCfgs.GetMultTrendColor(yIdx));
+          CanvasManager::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx].get(), globalCfgs.GetMultTrendColor(yIdx));
           h1MultTrendsExtrap[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME");
         }
       }
@@ -135,7 +135,7 @@ class CorrelationTaskBase : public IAnalysisTask
           std::unique_ptr<TH1> hRatioExtrapMeas = AnalysisUtils::MakeRatioHist(h1MultTrendsExtrap[pIdx][yIdx].get(), h1MultTrends[pIdx][yIdx].get(),
                                                                                ratioName, title, 1.0, 1.0);
 
-          AnalysisUtils::SetHistogramStyle(hRatioExtrapMeas.get(), globalCfgs.GetMultTrendColor(yIdx));
+          CanvasManager::SetHistogramStyle(hRatioExtrapMeas.get(), globalCfgs.GetMultTrendColor(yIdx));
 
           trendsDir->cd();
           hRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
@@ -226,8 +226,7 @@ class CorrelationTaskBase : public IAnalysisTask
             std::unique_ptr<TH1> hRatioMeas = AnalysisUtils::MakeRatioHist(h1MultTrends[idxNum][yIdx].get(), h1MultTrends[idxDen][yIdx].get(),
                                                                            ratioMeasName, ratioMeasTitle, numScale, denScale);
 
-            AnalysisUtils::SetHistogramStyle(hRatioMeas.get(), globalCfgs.GetMultTrendColor(yIdx));
-            hRatioMeas->SetMarkerStyle(24);
+            CanvasManager::SetHistogramStyle(hRatioMeas.get(), globalCfgs.GetMultTrendColor(yIdx), 24);
 
             ratioDir->cd();
             hRatioMeas->Write(nullptr, TObject::kOverwrite);
@@ -241,8 +240,7 @@ class CorrelationTaskBase : public IAnalysisTask
               std::string ratioExtrapTitle = "Extrapolated Ratio; Multiplicity percentile (%);" + ratioCfg.label;
               hRatioExtrap = AnalysisUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
 
-              AnalysisUtils::SetHistogramStyle(hRatioExtrap.get(), globalCfgs.GetMultTrendColor(yIdx));
-              hRatioExtrap->SetMarkerStyle(20);
+              CanvasManager::SetHistogramStyle(hRatioExtrap.get(), globalCfgs.GetMultTrendColor(yIdx), 20);
 
               ratioDir->cd();
               hRatioExtrap->Write(nullptr, TObject::kOverwrite);
@@ -1025,7 +1023,7 @@ class CorrelationTaskBase : public IAnalysisTask
     hSpecExt->SetBinContent(1, 0.0);
     hSpecExt->SetBinError(1, 0.0);
 
-    AnalysisUtils::SetHistogramStyle(hSpecExt.get(), globalCfgs.GetSpectraColor(multBin));
+    CanvasManager::SetHistogramStyle(hSpecExt.get(), globalCfgs.GetSpectraColor(multBin));
     // The fitted curve, travelling with the spectrum it describes. Same colour as the
     // points, so that on the overlay below each curve is readable against its own
     // spectrum rather than against the one next to it.
@@ -1186,7 +1184,7 @@ class CorrelationTaskBase : public IAnalysisTask
           h1Spectrum->Multiply(hPurity);
         }
 
-        AnalysisUtils::SetHistogramStyle(h1Spectrum.get(), globalCfgs.GetSpectraColor(multBin));
+        CanvasManager::SetHistogramStyle(h1Spectrum.get(), globalCfgs.GetSpectraColor(multBin));
 
         // Draw and Write (Only draw the nominal Delta Y limit on the summary canvas)
         std::string cSpecName = std::format("cSpectra_{}_dy{}", config.name, dyNameStr);

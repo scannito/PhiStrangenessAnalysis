@@ -3,6 +3,7 @@
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
 #include "AnalysisUtils.h"
+#include "CanvasManager.h"
 
 #include "TH1.h"
 #include "TH2.h"
@@ -227,12 +228,12 @@ class EfficiencyCalculator
     std::unique_ptr<TH1> efficiency = AnalysisUtils::MakeRatioHist(
       h1MCReco, h1MCGenAssocReco, "h1" + particle + "Efficiency" + suffix,
       ";p_{T} (GeV/#it{c});Acc #times #epsilon", 1.0, 1.0, "B");
-    AnalysisUtils::SetHistogramStyle(efficiency.get(), color);
+    CanvasManager::SetHistogramStyle(efficiency.get(), color);
 
     std::unique_ptr<TH1> signalLoss = AnalysisUtils::MakeRatioHist(
       h1MCGenAssocReco, h1MCGen, "h1" + particle + "SigLoss" + suffix,
       ";p_{T} (GeV/#it{c});Signal loss", 1.0, 1.0, "B");
-    AnalysisUtils::SetHistogramStyle(signalLoss.get(), color);
+    CanvasManager::SetHistogramStyle(signalLoss.get(), color);
 
     return {std::move(efficiency), std::move(signalLoss)};
   }

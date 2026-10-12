@@ -3,6 +3,7 @@
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
 #include "AnalysisUtils.h"
+#include "CanvasManager.h"
 #include "FitConfigManager.h"
 
 #include "RooAbsPdf.h"
@@ -17,6 +18,7 @@
 #include "RooFormulaVar.h"
 #include "RooGaussian.h"
 #include "RooGenericPdf.h"
+#include "RooHist.h"
 #include "RooPlot.h"
 #include "RooPolynomial.h"
 #include "RooProdPdf.h"
@@ -156,8 +158,8 @@ class DynamicRooFitter
     return results;
   }
 
-  void SaveFitToCanvas(TDirectory* dirOutput, const std::string& canvasName,
-                       bool showRatioPlot = false)
+  void SaveFitToCanvas(CanvasManager& canvasManager, TDirectory* dirOutput,
+                       const std::string& canvasName, bool showRatioPlot = false)
   {
     if (!fitResult) {
       throw std::runtime_error("[FATAL ERROR] You must call DoFit() before drawing the canvas!");
@@ -174,12 +176,14 @@ class DynamicRooFitter
     RooDataHist dataHist("dataHist", "Data", *obs, RooFit::Import(*h1Data));
 
     // Create a RooPlot frame using the observable's range
-    std::unique_ptr<RooPlot> frame(obs->frame(RooFit::Title("")));
-    dataHist.plotOn(frame.get(), RooFit::Name("Data_Plot"), RooFit::MarkerStyle(20));
-    model->plotOn(frame.get(), RooFit::Name("Model_Plot"), RooFit::LineColor(kBlue), RooFit::LineWidth(2));
-    model->plotOn(frame.get(), RooFit::Components(*sigPdf), RooFit::Name("Sig_Plot"), RooFit::LineColor(kRed),
+    RooPlot* frame = obs->frame(RooFit::Title(""));
+    frame->SetBit(kCanDelete);
+
+    dataHist.plotOn(frame, RooFit::Name("Data_Plot"), RooFit::MarkerStyle(20));
+    model->plotOn(frame, RooFit::Name("Model_Plot"), RooFit::LineColor(kBlue), RooFit::LineWidth(2));
+    model->plotOn(frame, RooFit::Components(*sigPdf), RooFit::Name("Sig_Plot"), RooFit::LineColor(kRed),
                   RooFit::LineWidth(2), RooFit::Normalization(1.0, RooAbsReal::RelativeExpected));
-    model->plotOn(frame.get(), RooFit::Components(*bkgPdf), RooFit::Name("Bkg_Plot"), RooFit::LineColor(kGreen + 2),
+    model->plotOn(frame, RooFit::Components(*bkgPdf), RooFit::Name("Bkg_Plot"), RooFit::LineColor(kGreen + 2),
                   RooFit::LineWidth(2), RooFit::Normalization(1.0, RooAbsReal::RelativeExpected));
     frame->Draw();
 
@@ -187,32 +191,36 @@ class DynamicRooFitter
     double yMin = frame->GetMinimum();
     double yMax = frame->GetMaximum();
 
-    std::unique_ptr<TLine> line1 = std::make_unique<TLine>(minRange, yMin, minRange, yMax);
+    TLine* line1 = new TLine(minRange, yMin, minRange, yMax);
+    line1->SetBit(kCanDelete);
     line1->SetLineColor(kBlack);
     line1->SetLineStyle(kDashed);
     line1->SetLineWidth(2);
     line1->Draw("SAME");
 
-    std::unique_ptr<TLine> line2 = std::make_unique<TLine>(maxRange, yMin, maxRange, yMax);
+    TLine* line2 = new TLine(maxRange, yMin, maxRange, yMax);
+    line2->SetBit(kCanDelete);
     line2->SetLineColor(kBlack);
     line2->SetLineStyle(kDashed);
     line2->SetLineWidth(2);
     line2->Draw("SAME");
 
     // Optionally draw sideband lines if calculated
-    std::unique_ptr<TLine> line3, line4;
     if (config.integration.calculateSideband) {
       double sbMin = config.integration.sidebandRange.first;
       double sbMax = config.integration.sidebandRange.second;
-      line3 = std::make_unique<TLine>(sbMin, yMin, sbMin, yMax);
-      line4 = std::make_unique<TLine>(sbMax, yMin, sbMax, yMax);
+      TLine* line3 = new TLine(sbMin, yMin, sbMin, yMax);
+      line3->SetBit(kCanDelete);
       line3->SetLineColor(kBlack);
       line3->SetLineStyle(kDashed);
       line3->SetLineWidth(2);
+      line3->Draw("SAME");
+
+      TLine* line4 = new TLine(sbMax, yMin, sbMax, yMax);
+      line4->SetBit(kCanDelete);
       line4->SetLineColor(kBlack);
       line4->SetLineStyle(kDashed);
       line4->SetLineWidth(2);
-      line3->Draw("SAME");
       line4->Draw("SAME");
     }
 

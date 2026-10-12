@@ -739,12 +739,14 @@ and standardizes figure generation and output across the framework:
   all diagnostics to their proper subtrees with a single `canvasManager.WriteAll(file)` call.
 - **Layout Factory**: HEP/ALICE standard ratio pads (70% top, 30% bottom with seamless zero-margin
   junction, automatic font scaling for smaller pads, unity lines), and N×M grid pads.
-- **Visual Standards**: ALICE watermark headers (`#bf{ALICE} <status>`, collision system/energy)
-  and transparent legends (`CreateLegend`).
+- **Visual Standards**: ALICE watermark headers (`#bf{ALICE} <status>`, collision system/energy),
+  transparent legends (`CreateLegend`), and histogram visual styling (`SetHistogramStyle`, consolidated from
+  `AnalysisUtils` to centralize all presentation rules).
 - **IO & Export**: Static and instance methods for writing into `TDirectory` trees via `RootIO`,
   individual image/PDF export with auto-created directories, and multi-page PDF generation
   (subsuming standalone macros like `esporta_fit.C`).
-- **DynamicRooFitter Integration**: `DynamicRooFitter::SaveFitToCanvas` adopts `CanvasManager`
+- **DynamicRooFitter Integration**: `DynamicRooFitter::SaveFitToCanvas(canvasManager, dir, name, ...)`
+  receives the task's `CanvasManager` reference (eliminating ephemeral local canvas managers) and adopts
   layout factories and ALICE styling. Supports an optional pull plot pad (`bool showRatioPlot = false`,
   mapping `(Data - Model) / Error` on the bottom pad with $\pm 2\sigma$ reference lines,
   font scale compensation, and `SetBit(kCanDelete)` pad primitive lifecycle).

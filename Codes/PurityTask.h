@@ -163,7 +163,7 @@ class PurityTask : public IAnalysisTask
         std::unique_ptr<TH1> h1PurityAnalysis = FitPuritySpectrum(task, i, SpectrumBinning::Analysis, fitDir);
 
         // Style and draw on the summary canvas
-        AnalysisUtils::SetHistogramStyle(h1PurityAnalysis.get(), globalCfgs.GetSpectraColor(i));
+        CanvasManager::SetHistogramStyle(h1PurityAnalysis.get(), globalCfgs.GetSpectraColor(i));
         canvasManager.RequireCanvas("canvas" + task.name + "Purity")->cd();
         h1PurityAnalysis->DrawCopy(i == 0 ? "" : "SAME");
 
@@ -188,7 +188,7 @@ class PurityTask : public IAnalysisTask
           TDirectory* fitDirSource = RootIO::GetOrCreatePath(task.outputFile, sourceFitPath, false);
           h1PuritySeparateSource = FitPuritySpectrum(task, i, SpectrumBinning::Source, fitDirSource);
 
-          AnalysisUtils::SetHistogramStyle(h1PuritySeparateSource.get(), globalCfgs.GetSpectraColor(i));
+          CanvasManager::SetHistogramStyle(h1PuritySeparateSource.get(), globalCfgs.GetSpectraColor(i));
           canvasManager.RequireCanvas("canvas" + task.name + "Purity_sourceBinning")->cd();
           h1PuritySeparateSource->DrawCopy(i == 0 ? "" : "SAME");
 
@@ -319,7 +319,7 @@ class PurityTask : public IAnalysisTask
 
       // Save diagnostic plot directly to the task's output file
       std::string cName = "cFit_" + task.name + "_m" + std::to_string(multBin) + "_p" + std::to_string(k) + nameSuffix;
-      fitter.SaveFitToCanvas(fitDir, cName);
+      fitter.SaveFitToCanvas(canvasManager, fitDir, cName);
     }
 
     return h1PuritySpectrum;

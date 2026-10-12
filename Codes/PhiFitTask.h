@@ -3,6 +3,7 @@
 #include "AnalysisConstants.h"
 #include "AnalysisSettings.h"
 #include "AnalysisUtils.h"
+#include "CanvasManager.h"
 #include "DynamicRooFitter.h"
 #include "FitConfigManager.h"
 #include "IAnalysisTask.h"
@@ -119,7 +120,7 @@ class PhiFitTask : public IAnalysisTask
         auto res = fitter.ExtractYieldsAndPurity();
 
         std::string canvasName = "cFit_Phi_mult" + std::to_string(i) + "_pt" + std::to_string(j);
-        fitter.SaveFitToCanvas(fitDir, canvasName);
+        fitter.SaveFitToCanvas(canvasManager, fitDir, canvasName);
 
         // Save the results for CorrelationTask
         auto fillTriggerMatrix = [&](TH2D* h, const std::pair<double, double>& valueAndError) {
@@ -164,6 +165,8 @@ class PhiFitTask : public IAnalysisTask
 
  private:
   AnalysisSettings globalCfgs;
+
+  CanvasManager canvasManager;
 
   std::string basePathData;
 
