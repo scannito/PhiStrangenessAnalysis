@@ -229,11 +229,13 @@ and standardizes figure generation and output across the framework:
 - **IO & Export**: Static and instance methods for writing into `TDirectory` trees via `RootIO`,
   individual image/PDF export with auto-created directories, and multi-page PDF generation
   (subsuming standalone macros like `esporta_fit.C`).
-- **DynamicRooFitter Integration**: `DynamicRooFitter::SaveFitToCanvas(canvasManager, dir, name, ...)`
-  receives the task's `CanvasManager` reference (eliminating ephemeral local canvas managers) and adopts
-  layout factories and ALICE styling. Supports an optional pull plot pad (`bool showRatioPlot = false`,
-  mapping `(Data - Model) / Error` on the bottom pad with $\pm 2\sigma$ reference lines,
-  font scale compensation, and `SetBit(kCanDelete)` pad primitive lifecycle).
+- **DynamicRooFitter Integration**: `DynamicRooFitter::DrawFit(pad)` and `DrawFit(ratioCanvas)` draw the
+  fit into pads the task owns: data, model, components, integration and sideband windows, legend, and
+  optionally the pulls (`(Data - Model) / Error` on the bottom pad of a ratio canvas, with $\pm 2\sigma$
+  reference lines and font scale compensation). The fitter creates no canvas and writes nothing: the task
+  creates the canvas through its `CanvasManager`, adds the ALICE label, and calls `WriteAndDestroy`, so
+  each fit canvas is destroyed as soon as it is written. (It used to be `SaveFitToCanvas`, which did all
+  of that itself and left every fit canvas registered in the task's manager until the task ended.)
 - **Statistics Box (`TPaveStats`) Control**: The stats box is disabled by default (`optStat = 0`)
   across `CanvasManager` to adhere to clean ALICE publication standards. Methods `SetOptStat`,
   `SetStats`, `RemoveStats`, and `EnableStats` provide explicit opt-in control when diagnostic numbers

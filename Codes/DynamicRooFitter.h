@@ -26,9 +26,10 @@
 #include "RooProduct.h"
 #include "RooRealVar.h"
 #include "RooVoigtian.h"
-#include "TCanvas.h"
 #include "TH1.h"
+#include "TLegend.h"
 #include "TObject.h"
+#include "TPad.h"
 
 #include <algorithm>
 #include <cmath>
@@ -40,6 +41,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <variant>
 #include <vector>
@@ -164,20 +166,30 @@ class DynamicRooFitter
     return results;
   }
 
-  void SaveFitToCanvas(CanvasManager& canvasManager, TDirectory* dirOutput,
-                       const std::string& canvasName, bool showRatioPlot = false)
+  // Draws the fit into pads the caller owns. The fitter knows what to draw - the
+  // components, the integration and sideband windows, the names inside the RooPlot -
+  // and nothing about where it ends up: creating the canvas, choosing whether it has
+  // a pull pad, labelling it, writing it and deciding how long it lives belong to the
+  // task, which owns the output file.
+  void DrawFit(TPad* pad) { DrawFitOnPads(pad, nullptr, 1.0); }
+
+  // Same, with the pulls on the bottom pad of a ratio canvas.
+  void DrawFit(const CanvasManager::RatioCanvas& ratio) { DrawFitOnPads(ratio.topPad, ratio.bottomPad, ratio.fontScale); }
+
+ private:
+  void DrawFitOnPads(TPad* mainPad, TPad* pullPad, double fontScale)
   {
     if (!fitResult) {
-      throw std::runtime_error("[FATAL ERROR] You must call DoFit() before drawing the canvas!");
+      throw std::runtime_error("[FATAL ERROR] You must call DoFit() before drawing the fit!");
+    }
+    if (!mainPad) {
+      throw std::runtime_error("[FATAL ERROR] DynamicRooFitter::DrawFit: no pad to draw on.");
     }
 
     auto [minRange, maxRange] = CalculateIntegrationLimits();
 
-    if (dirOutput)
-      dirOutput->cd();
-
-    std::unique_ptr<TCanvas> cFit = std::make_unique<TCanvas>(canvasName.c_str(), "Fit Canvas", 800, 800);
-    cFit->SetLogy();
+    mainPad->cd();
+    mainPad->SetLogy();
 
     RooDataHist dataHist("dataHist", "Data", *obs, RooFit::Import(*h1Data));
 
@@ -191,52 +203,53 @@ class DynamicRooFitter
                   RooFit::LineWidth(2), RooFit::Normalization(1.0, RooAbsReal::RelativeExpected));
     model->plotOn(frame, RooFit::Components(*bkgPdf), RooFit::Name("Bkg_Plot"), RooFit::LineColor(kGreen + 2),
                   RooFit::LineWidth(2), RooFit::Normalization(1.0, RooAbsReal::RelativeExpected));
-    frame->Draw();
 
-    // Retrieve the Y-axis limits directly from the RooPlot frame
-    double yMin = frame->GetMinimum();
-    double yMax = frame->GetMaximum();
-
-    TLine* line1 = new TLine(minRange, yMin, minRange, yMax);
-    line1->SetBit(kCanDelete);
-    line1->SetLineColor(kBlack);
-    line1->SetLineStyle(kDashed);
-    line1->SetLineWidth(2);
-    line1->Draw("SAME");
-
-    TLine* line2 = new TLine(maxRange, yMin, maxRange, yMax);
-    line2->SetBit(kCanDelete);
-    line2->SetLineColor(kBlack);
-    line2->SetLineStyle(kDashed);
-    line2->SetLineWidth(2);
-    line2->Draw("SAME");
-
-    // Optionally draw sideband lines if calculated
-    if (config.integration.calculateSideband) {
-      double sbMin = config.integration.sidebandRange.first;
-      double sbMax = config.integration.sidebandRange.second;
-      TLine* line3 = new TLine(sbMin, yMin, sbMin, yMax);
-      line3->SetBit(kCanDelete);
-      line3->SetLineColor(kBlack);
-      line3->SetLineStyle(kDashed);
-      line3->SetLineWidth(2);
-      line3->Draw("SAME");
-
-      TLine* line4 = new TLine(sbMax, yMin, sbMax, yMax);
-      line4->SetBit(kCanDelete);
-      line4->SetLineColor(kBlack);
-      line4->SetLineStyle(kDashed);
-      line4->SetLineWidth(2);
-      line4->Draw("SAME");
+    if (pullPad) {
+      CanvasManager::FormatTopPadAxes(frame);
     }
 
-    if (dirOutput) {
-      dirOutput->cd();
-      cFit->Write(nullptr, TObject::kOverwrite);
+    frame->Draw();
+
+    // Integration and Sideband boundary lines
+    const double yMin = frame->GetMinimum();
+    const double yMax = frame->GetMaximum();
+    CanvasManager::DrawVerticalRange(mainPad, minRange, maxRange, yMin, yMax);
+    if (config.integration.sideband) {
+      CanvasManager::DrawVerticalRange(mainPad, config.integration.sideband->range.first,
+                                       config.integration.sideband->range.second, yMin, yMax);
+    }
+
+    // The legend stays here, unlike the ALICE label: its entries are looked up by the
+    // names given to the RooPlot objects above, which only this class knows.
+    TLegend* leg = CanvasManager::CreateLegend(0.65, 0.65, 0.88, 0.88);
+    for (const auto& [name, label, opt] : {std::tuple{"Data_Plot", "Data", "pe"},
+                                           {"Model_Plot", "Total Fit", "l"},
+                                           {"Sig_Plot", "Signal", "l"},
+                                           {"Bkg_Plot", "Background", "l"}}) {
+      if (auto* obj = frame->findObject(name))
+        leg->AddEntry(obj, label, opt);
+    }
+    leg->Draw("SAME");
+
+    // Pull plot on bottom pad
+    if (pullPad) {
+      pullPad->cd();
+      pullPad->SetGridy(1);
+
+      if (RooHist* hpull = frame->pullHist("Data_Plot", "Model_Plot")) {
+        RooPlot* pullFrame = obs->frame(RooFit::Title(""));
+        pullFrame->SetBit(kCanDelete);
+        pullFrame->addPlotable(hpull, "P");
+
+        CanvasManager::FormatBottomPadAxes(pullFrame, "Pull (#sigma)", -5.0, 5.0, fontScale);
+        pullFrame->Draw();
+
+        CanvasManager::DrawHorizontalLine(pullPad, obs->getMin(), obs->getMax(), 0.0, kDashed, kGray + 2, 2);
+        CanvasManager::DrawHorizontalRange(pullPad, obs->getMin(), obs->getMax(), -2.0, 2.0, kDotted, kRed - 7, 1);
+      }
     }
   }
 
- private:
   TH1* h1Data;
   FitConfig config;
 

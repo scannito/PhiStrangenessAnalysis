@@ -118,8 +118,15 @@ class PhiFitTask : public IAnalysisTask
 
         auto res = fitter.ExtractYieldsAndPurity();
 
-        std::string canvasName = "cFit_Phi_mult" + std::to_string(i) + "_pt" + std::to_string(j);
-        fitter.SaveFitToCanvas(canvasManager, fitDir, canvasName);
+        // The fitter draws; the canvas, the label, the file and the lifetime are the
+        // task's. Written and destroyed here, per cell, and not left to a WriteAll in
+        // Terminate: nothing reads a fit canvas back, and holding all of them until
+        // the end would only cost memory.
+        const std::string canvasName = "cFit_Phi_mult" + std::to_string(i) + "_pt" + std::to_string(j);
+        TCanvas* cFit = canvasManager.CreateCanvas(canvasName, "Fit Canvas", 800, 800);
+        fitter.DrawFit(cFit);
+        CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
+        canvasManager.WriteAndDestroy(canvasName, fitDir);
 
         // Save the results for CorrelationTask
         auto fillTriggerMatrix = [&](TH2D* h, const std::pair<double, double>& valueAndError) {

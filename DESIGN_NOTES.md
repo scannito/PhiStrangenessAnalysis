@@ -106,7 +106,7 @@ $$\text{Model} = N_{\text{sig}} \cdot \text{sigPdf} + N_{\text{bkg}} \cdot \text
   and `bkgPdf`. Yields and propagated covariance uncertainties of individual sub-components
   (e.g., secondary signal peaks, resonance impurities, or reflection backgrounds like $K^{*0}$
   or $\rho$) cannot be extracted independently.
-- **Diagnostics and plotting**: `SaveFitToCanvas` only draws `Sig_Plot` (red) and `Bkg_Plot`
+- **Diagnostics and plotting**: `DrawFit` only draws `Sig_Plot` (red) and `Bkg_Plot`
   (green); sub-components are not individually plotted with distinct styles/colors or separate
   legend entries.
 
@@ -116,7 +116,7 @@ $$\text{Model} = N_{\text{sig}} \cdot \text{sigPdf} + N_{\text{bkg}} \cdot \text
   contamination), each with its own independent extended yield variable $N_i$.
 - Extend `ExtractYieldsAndPurity` and `FitResults` to return per-component yields and propagated
   covariances.
-- Extend `SaveFitToCanvas` to plot each component individually with configurable visual styles and
+- Extend `DrawFit` to plot each component individually with configurable visual styles and
   legend entries.
 
 ### Future direction: RooWorkspace persistence (Decoupling Fit from Extraction & Systematics)

@@ -161,8 +161,10 @@ class CanvasManager
     return canvases.contains(name);
   }
 
-  // Releases ownership to caller, removing from manager
-  std::unique_ptr<TCanvas> ReleaseCanvas(const std::string& name)
+  // Releases ownership to caller, removing from manager. [[nodiscard]] because
+  // discarding the result destroys the canvas, which is a different intention:
+  // that one is DestroyCanvas, and should be said by name.
+  [[nodiscard]] std::unique_ptr<TCanvas> ReleaseCanvas(const std::string& name)
   {
     canvasPaths.erase(name);
     auto it = canvases.find(name);
@@ -172,6 +174,15 @@ class CanvasManager
     canvases.erase(it);
     std::erase(canvasOrder, name);
     return c;
+  }
+
+  // Removes a canvas from the registry and destroys it, together with every
+  // primitive drawn on it with kCanDelete. Unknown names are a no-op.
+  void DestroyCanvas(const std::string& name)
+  {
+    canvasPaths.erase(name);
+    canvases.erase(name);
+    std::erase(canvasOrder, name);
   }
 
   const std::map<std::string, std::unique_ptr<TCanvas>>& GetAllCanvases() const { return canvases; }
@@ -617,11 +628,18 @@ class CanvasManager
   // Draws standard ALICE text header:
   //   ALICE <status>
   //   <collisionSystem>
-  static void DrawAliceLabel(double x = 0.18, double y = 0.84,
+  //
+  // On the pad passed, like the other Draw* helpers here, and not on gPad: which
+  // pad is current after a drawing call is an accident of that call, and on a
+  // ratio canvas the wrong guess puts the label on the pulls.
+  static void DrawAliceLabel(TPad* pad, double x = 0.18, double y = 0.84,
                              const std::string& status = "Work in progress",
                              const std::string& collisionSystem = "pp, #sqrt{#it{s}} = 13.6 TeV",
                              double textSize = 0.045)
   {
+    if (!pad)
+      return;
+    pad->cd();
     TLatex latex;
     latex.SetNDC();
     latex.SetTextFont(42);
@@ -712,6 +730,17 @@ class CanvasManager
   void WriteCanvas(const std::string& name, TDirectory* baseDir, const std::vector<std::string>& pathNodes) const
   {
     WriteCanvas(RequireCanvas(name), baseDir, pathNodes);
+  }
+
+  // Writes a managed canvas (to its registered path, or to baseDir), then destroys it.
+  // For canvases drawn once per cell and never read back, such as the fits: kept
+  // registered until a WriteAll, every one of them would stay in memory - and in
+  // gROOT's global canvas list - for the whole task. WriteAll is for the other kind,
+  // the summary canvases that accumulate over a loop and are complete only at the end.
+  void WriteAndDestroy(const std::string& name, TDirectory* baseDir)
+  {
+    WriteCanvas(name, baseDir);
+    DestroyCanvas(name);
   }
 
   // Writes all managed canvases, using each canvas's registered targetPath (or baseDir if none)

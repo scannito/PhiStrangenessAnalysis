@@ -316,9 +316,15 @@ class PurityTask : public IAnalysisTask
       h1PuritySpectrum->SetBinContent(k + 1, res.purityAndError.first);
       h1PuritySpectrum->SetBinError(k + 1, res.purityAndError.second);
 
-      // Save diagnostic plot directly to the task's output file
-      std::string cName = "cFit_" + task.name + "_m" + std::to_string(multBin) + "_p" + std::to_string(k) + nameSuffix;
-      fitter.SaveFitToCanvas(canvasManager, fitDir, cName);
+      // The fit's diagnostic canvas, written into this particle's output file and
+      // destroyed per fit, as in PhiFitTask. Not a WriteAll in Terminate
+      // here either - and that one could not work anyway: particles write into
+      // different files, while WriteAll sends every canvas to the one it is given.
+      const std::string cName = "cFit_" + task.name + "_m" + std::to_string(multBin) + "_p" + std::to_string(k) + nameSuffix;
+      TCanvas* cFit = canvasManager.CreateCanvas(cName, "Fit Canvas", 800, 800);
+      fitter.DrawFit(cFit);
+      CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
+      canvasManager.WriteAndDestroy(cName, fitDir);
     }
 
     return h1PuritySpectrum;
