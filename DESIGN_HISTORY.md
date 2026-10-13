@@ -245,4 +245,7 @@ and standardizes figure generation and output across the framework:
   to find the global minimum and maximum, accounting for bin error bars, strictly positive bins in log scale,
   and customizable headroom (`topMargin`, `logHeadroom`). Strictly filters 1D histograms (`GetDimension() == 1`),
   ignoring 2D/3D objects to prevent corrupting physical phase-space Y-axes. Replaces manual boilerplate
-  like `std::max(h1->GetMaximum(), h2->GetMaximum())` across tasks.
+  like `std::max(h1->GetMaximum(), h2->GetMaximum())` across tasks. Summary canvases declare their
+  adjustment once, at creation, with `SetAutoYRange(canvas, opts)`; the manager applies it whenever it
+  writes or exports them. It replaced adjustments made in `Terminate` on names rebuilt there, which a
+  `HasCanvas` guard skipped in silence whenever the rebuilt name drifted from the original.

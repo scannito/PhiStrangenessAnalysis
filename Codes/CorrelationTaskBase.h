@@ -95,6 +95,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // --- Save measured trends ---
       std::string cNameMeas = std::format("cTrend_Meas_{}", pName);
       TCanvas* cTrendMeas = canvasManager.CreateCanvas(cNameMeas, "Measured Yield Trend", trendsPath, 800, 600);
+      canvasManager.SetAutoYRange(cTrendMeas);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         trendsDir->cd();
@@ -110,6 +111,7 @@ class CorrelationTaskBase : public IAnalysisTask
       if (hasExtrapTrend) {
         std::string cNameExtrap = std::format("cTrend_Extrap_{}", pName);
         TCanvas* cTrendExtrap = canvasManager.CreateCanvas(cNameExtrap, "Extrapolated Yield Trend", trendsPath, 800, 600);
+        canvasManager.SetAutoYRange(cTrendExtrap);
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           trendsDir->cd();
@@ -125,6 +127,7 @@ class CorrelationTaskBase : public IAnalysisTask
       if (hasExtrapTrend) {
         std::string canvasName = std::format("cRatio_ExtrapVsMeas_{}", pName);
         TCanvas* cRatioExtrapMeas = canvasManager.CreateCanvas(canvasName, "Extrap / Measured Ratio", trendsPath, 800, 600);
+        canvasManager.SetAutoYRange(cRatioExtrapMeas);
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
@@ -900,6 +903,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
         TCanvas* cSpec = canvasManager.CreateCanvas(cSpecName, cSpecTitle, spectraPath, 800, 600);
         cSpec->SetLogy();
+        canvasManager.SetAutoYRange(cSpec);
 
         // The same spectra on an axis that reaches pT = 0, with the fitted model drawn
         // over each one. The measured canvas above starts at the first measured bin, so
@@ -911,6 +915,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
           TCanvas* cExt = canvasManager.CreateCanvas(cExtName, cExtTitle, spectraPath, 800, 600);
           cExt->SetLogy();
+          canvasManager.SetAutoYRange(cExt);
         }
       }
     }

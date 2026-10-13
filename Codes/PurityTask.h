@@ -123,12 +123,13 @@ class PurityTask : public IAnalysisTask
       particleTasks.emplace_back(purityKey, std::move(h3Source), std::move(sourceBinning),
                                  std::move(rebinningPt), outputFilePtr, std::move(h2CCDB));
 
-      canvasManager.CreateCanvas("canvas" + purityKey + "Purity", purityKey + " Purity",
-                                 {globalCfgs.binningName, "Summary"}, 800, 600);
+      // Each summary canvas declares its Y range here; the manager applies it when it writes.
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas("canvas" + purityKey + "Purity", purityKey + " Purity",
+                                                             {globalCfgs.binningName, "Summary"}, 800, 600));
       if (particleTasks.back().rebinningPt) {
-        canvasManager.CreateCanvas("canvas" + purityKey + "Purity_sourceBinning",
-                                   purityKey + " Purity (source binning)",
-                                   {globalCfgs.binningName, "Summary", "SourceBinning"}, 800, 600);
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("canvas" + purityKey + "Purity_sourceBinning",
+                                                               purityKey + " Purity (source binning)",
+                                                               {globalCfgs.binningName, "Summary", "SourceBinning"}, 800, 600));
       }
     }
 

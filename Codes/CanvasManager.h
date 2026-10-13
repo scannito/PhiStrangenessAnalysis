@@ -167,6 +167,7 @@ class CanvasManager
   [[nodiscard]] std::unique_ptr<TCanvas> ReleaseCanvas(const std::string& name)
   {
     canvasPaths.erase(name);
+    autoYRanges.erase(name);
     auto it = canvases.find(name);
     if (it == canvases.end())
       return nullptr;
@@ -181,6 +182,7 @@ class CanvasManager
   void DestroyCanvas(const std::string& name)
   {
     canvasPaths.erase(name);
+    autoYRanges.erase(name);
     canvases.erase(name);
     std::erase(canvasOrder, name);
   }
@@ -193,6 +195,27 @@ class CanvasManager
     canvases.clear();
     canvasOrder.clear();
     canvasPaths.clear();
+    autoYRanges.clear();
+  }
+
+  // Declares, next to the creation of a canvas, that its Y axis is to be fitted to
+  // the histograms drawn on it. The adjustment is applied by the manager itself,
+  // every time it writes or exports the canvas - so after the last histogram has
+  // been drawn, which for a summary canvas filled over a loop is the only moment
+  // the range is known.
+  //
+  // It takes the canvas and not a name on purpose: the name then appears once, where
+  // the canvas is created. Adjusting at write time by a name rebuilt elsewhere was
+  // the alternative, and a rebuilt name that drifts is skipped without a word.
+  // Log scale is read from the pad when the adjustment runs, so SetLogy may come
+  // before or after this call.
+  void SetAutoYRange(TCanvas* canvas, const YRangeOptions& opts = YRangeOptions{})
+  {
+    if (!canvas || GetCanvas(canvas->GetName()) != canvas) {
+      throw std::runtime_error(std::format("[FATAL] CanvasManager::SetAutoYRange: canvas '{}' is not managed by this manager",
+                                           canvas ? canvas->GetName() : "nullptr"));
+    }
+    autoYRanges[canvas->GetName()] = opts;
   }
 
   // ---------------------------------------------------------------------------
@@ -718,6 +741,7 @@ class CanvasManager
   void WriteCanvas(const std::string& name, TDirectory* baseDir) const
   {
     TCanvas* c = RequireCanvas(name);
+    ApplyAutoYRange(name);
     auto it = canvasPaths.find(name);
     if (it != canvasPaths.end() && !it->second.empty()) {
       WriteCanvas(c, baseDir, it->second);
@@ -729,7 +753,9 @@ class CanvasManager
   // Writes a managed canvas by name into an explicit path, overriding any registered path
   void WriteCanvas(const std::string& name, TDirectory* baseDir, const std::vector<std::string>& pathNodes) const
   {
-    WriteCanvas(RequireCanvas(name), baseDir, pathNodes);
+    TCanvas* c = RequireCanvas(name);
+    ApplyAutoYRange(name);
+    WriteCanvas(c, baseDir, pathNodes);
   }
 
   // Writes a managed canvas (to its registered path, or to baseDir), then destroys it.
@@ -750,6 +776,7 @@ class CanvasManager
       return;
     for (const auto& name : canvasOrder) {
       if (auto it = canvases.find(name); it != canvases.end() && it->second) {
+        ApplyAutoYRange(name);
         auto pit = canvasPaths.find(name);
         if (pit != canvasPaths.end() && !pit->second.empty()) {
           WriteCanvas(it->second.get(), baseDir, pit->second);
@@ -767,9 +794,11 @@ class CanvasManager
       return;
     if (TDirectory* dir = RootIO::GetOrCreatePath(baseDir, pathNodes, false)) {
       dir->cd();
-      for (const auto& [_, c] : canvases) {
-        if (c)
+      for (const auto& [name, c] : canvases) {
+        if (c) {
+          ApplyAutoYRange(name);
           c->Write(nullptr, TObject::kOverwrite);
+        }
       }
     }
   }
@@ -793,7 +822,9 @@ class CanvasManager
 
   void ExportCanvas(const std::string& name, const std::string& filePath) const
   {
-    ExportCanvas(RequireCanvas(name), filePath);
+    TCanvas* c = RequireCanvas(name);
+    ApplyAutoYRange(name);
+    ExportCanvas(c, filePath);
   }
 
   // Exports all managed canvases to individual image/PDF files in outputDir
@@ -807,6 +838,7 @@ class CanvasManager
     }
     for (const auto& [name, c] : canvases) {
       if (c) {
+        ApplyAutoYRange(name);
         std::string path = (std::filesystem::path(outputDir) / (name + "." + extension)).string();
         c->SaveAs(path.c_str());
       }
@@ -855,12 +887,14 @@ class CanvasManager
     if (canvasNames.empty()) {
       for (const auto& name : canvasOrder) {
         if (auto it = canvases.find(name); it != canvases.end() && it->second) {
+          ApplyAutoYRange(name);
           list.push_back(it->second.get());
         }
       }
     } else {
       for (const auto& name : canvasNames) {
         list.push_back(RequireCanvas(name));
+        ApplyAutoYRange(name);
       }
     }
     ExportMultiPagePdf(pdfPath, list);
@@ -908,6 +942,16 @@ class CanvasManager
   std::map<std::string, std::unique_ptr<TCanvas>> canvases;
   std::vector<std::string> canvasOrder;
   std::map<std::string, std::vector<std::string>> canvasPaths;
+  std::map<std::string, YRangeOptions> autoYRanges; // see SetAutoYRange
+
+  // Idempotent: the range is computed from the bin contents, never from a previous
+  // minimum or maximum, so a canvas written and then exported is adjusted to the same
+  // range twice.
+  void ApplyAutoYRange(const std::string& name) const
+  {
+    if (auto it = autoYRanges.find(name); it != autoYRanges.end())
+      AdjustCanvasYRange(name, it->second);
+  }
 
   // Protects against ROOT's global canvas list collisions (see CLAUDE.md).
   // If the canvas is already owned by this manager, it is safely destroyed and replaced.

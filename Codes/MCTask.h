@@ -169,16 +169,17 @@ class MCTask : public IAnalysisTask
         data.rebinningPt = std::move(bins);
       }
 
-      // Register particle summary canvases with their target ROOT subdirectories
-      canvasManager.CreateCanvas("c_" + name + "_Efficiency", name + " Acceptance x Efficiency",
-                                 {globalCfgs.binningName, "AccEff", "Summary"});
-      canvasManager.CreateCanvas("c_" + name + "_SignalLoss", name + " Signal Loss",
-                                 {globalCfgs.binningName, "SigLoss", "Summary"});
+      // Register particle summary canvases with their target ROOT subdirectories.
+      // Each one declares its Y range here; the manager applies it when it writes.
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_Efficiency", name + " Acceptance x Efficiency",
+                                                             {globalCfgs.binningName, "AccEff", "Summary"}));
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_SignalLoss", name + " Signal Loss",
+                                                             {globalCfgs.binningName, "SigLoss", "Summary"}));
       if (data.rebinningPt) {
-        canvasManager.CreateCanvas("c_" + name + "_Efficiency_sourceBinning", name + " Efficiency (Source Binning)",
-                                   {globalCfgs.binningName, "AccEff", "Summary", "SourceBinning"});
-        canvasManager.CreateCanvas("c_" + name + "_SignalLoss_sourceBinning", name + " Signal Loss (Source Binning)",
-                                   {globalCfgs.binningName, "SigLoss", "Summary", "SourceBinning"});
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_Efficiency_sourceBinning", name + " Efficiency (Source Binning)",
+                                                               {globalCfgs.binningName, "AccEff", "Summary", "SourceBinning"}));
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_SignalLoss_sourceBinning", name + " Signal Loss (Source Binning)",
+                                                               {globalCfgs.binningName, "SigLoss", "Summary", "SourceBinning"}));
       }
 
       dataCollection.push_back(std::move(data));
@@ -206,13 +207,13 @@ class MCTask : public IAnalysisTask
 
       // OverEventLoss canvases are registered only when event histograms exist
       for (const auto& data : dataCollection) {
-        canvasManager.CreateCanvas("c_" + data.name + "_SignalLossOverEventLoss",
-                                   data.name + " Signal Loss / Event Loss",
-                                   {globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"});
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + data.name + "_SignalLossOverEventLoss",
+                                                               data.name + " Signal Loss / Event Loss",
+                                                               {globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"}));
         if (data.rebinningPt) {
-          canvasManager.CreateCanvas("c_" + data.name + "_SignalLossOverEventLoss_sourceBinning",
-                                     data.name + " Signal Loss / Event Loss (Source Binning)",
-                                     {globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss", "SourceBinning"});
+          canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + data.name + "_SignalLossOverEventLoss_sourceBinning",
+                                                                 data.name + " Signal Loss / Event Loss (Source Binning)",
+                                                                 {globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss", "SourceBinning"}));
         }
       }
     } else {
@@ -464,7 +465,8 @@ class MCTask : public IAnalysisTask
 
     RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "Provenance"}, false), provenance);
 
-    // Save all diagnostic canvases into their registered subdirectories
+    // Save all diagnostic canvases into their registered subdirectories; the Y ranges
+    // declared at creation are applied on the way out.
     canvasManager.WriteAll(fileMCOutput.get());
 
     if (fileMCOutput)

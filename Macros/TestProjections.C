@@ -1,3 +1,4 @@
+#include "../Codes/CanvasManager.h"
 #include "TCanvas.h"
 #include "TFile.h"
 #include "TH1D.h"
@@ -52,7 +53,7 @@ void TestProjections(int mode)
   }
   TFile* fOut = new TFile(outputFileName, "RECREATE");
 
-  gStyle->SetOptStat(0); // Disabilita statistiche globali
+  CanvasManager::SetOptStat(false); // Disabilita statistiche globali
 
   // =========================================================================
   // 2. Core Processing Function (Lambda)
@@ -200,8 +201,7 @@ void TestProjections(int mode)
     // DPhi 1D Canvas
     TCanvas* cDPhi = new TCanvas("cDPhi_" + partName, "Delta Phi " + partName, 800, 600);
     cDPhi->cd();
-    double maxDPhi = std::max({h1DPhi_Sig->GetMaximum(), h1DPhi_MESig->GetMaximum()});
-    h1DPhi_Sig->SetMaximum(maxDPhi * 1.2);
+    CanvasManager::AdjustYRange({h1DPhi_Sig, h1DPhi_Side, h1DPhi_MESig, h1DPhi_MESide});
     h1DPhi_Sig->Draw("PE");
     h1DPhi_Side->Draw("PE SAME");
     h1DPhi_MESig->Draw("HIST SAME");
@@ -218,8 +218,7 @@ void TestProjections(int mode)
     // DY 1D Canvas
     TCanvas* cDY = new TCanvas("cDY_" + partName, "Delta y " + partName, 800, 600);
     cDY->cd();
-    double maxDY = std::max({h1DY_Sig->GetMaximum(), h1DY_MESig->GetMaximum()});
-    h1DY_Sig->SetMaximum(maxDY * 1.2);
+    CanvasManager::AdjustYRange({h1DY_Sig, h1DY_Side, h1DY_MESig, h1DY_MESide});
     h1DY_Sig->Draw("PE");
     h1DY_Side->Draw("PE SAME");
     h1DY_MESig->Draw("HIST SAME");
