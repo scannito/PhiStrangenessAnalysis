@@ -119,7 +119,7 @@ know it".
   constructor or an accessor should produce it (`AssocParticleConfig::mass`,
   `ParticleTask::AnalysisBinning`).
 - One namespace per helper header: `BinningUtils`, `RootIO`, `JsonConfig`,
-  `HistogramUtils`, `RunEnvironment`, `PhiFitModels`. Dedicated managers: `WorkflowManager`,
+  `HistogramUtils`, `RunEnvironment`. Dedicated managers: `WorkflowManager`,
   `CanvasManager`, `BaseConfigManager`, `FitConfigManager`, `ExtrapConfigManager`.
 - Tasks communicate through ROOT files, never in memory. `WorkflowManager` destroys
   each task right after `Terminate()`.
@@ -179,12 +179,14 @@ A new task that writes into a file somebody else also writes into belongs in row
 
 ## Do not touch without asking
 
-- `YieldMean.h` — ALICE-standard code kept as received. Its four known defects have
-  been fixed and `DESIGN_NOTES.md` records what they were, because syncing this file
-  from upstream would bring them all back. Anything else in it stays as received:
-  changing it changes published-style numbers.
-- `BkgMattia` / `VoigtBkgMattia` in `FitPhiSignalAndBkg.h` — an alternative
-  background model, not dead code.
+- `OldCodes/YieldMean.h` — ALICE-standard code kept as received, no longer in the
+  chain: `SpectrumExtrapolator` replaced it after reproducing it number for number.
+  It stays because it is the only reference to repeat that comparison against. Its
+  four known defects have been fixed and `DESIGN_HISTORY.md` records what they
+  were, because syncing this file from upstream would bring them all back. Anything
+  else in it stays as received.
+- `BkgMattia` in `DynamicRooFitter.h` — an alternative background model that the
+  current `fitConfig.json` does not select, not dead code.
 - The commented-out lines that survived the cleanup are parked switches, not
   leftovers: the CCDB object naming in `MCTask`, the debug canvas in
   `CorrelationTaskBase`, the old parameter limits in `ExtrapolationModelFactory`.

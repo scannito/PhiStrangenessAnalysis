@@ -48,8 +48,9 @@ consequences in particular:
 | `HYConfigs/` | HEPData / Yield configuration inputs. |
 | `DataFile/` | Input `AnalysisResults*.root` from O² and the produced outputs. |
 | `Logs/` | One log per run, named after the configuration. |
-| `OldCodes/`, `OldDataFile/` | Previous monolithic macros, kept for reference. |
+| `OldCodes/`, `OldDataFile/` | Previous monolithic macros and retired headers (`YieldMean.h`, `FitPhiSignalAndBkg.h`), kept for reference. |
 | `DESIGN_NOTES.md` | Open design questions and known issues. |
+| `DESIGN_HISTORY.md` | Resolved design items, with the reasoning behind them. |
 | `CLAUDE.md` | How to work in the repository without breaking things — the invariants, not the features. |
 
 ---
@@ -356,16 +357,15 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | `JsonConfigHelpers.h` | `namespace JsonConfig` — `Require*` and `Optional*` accessors, including `OptionalEnum`, whose table doubles as the error message. |
 | `HistogramUtils.h` | `namespace HistogramUtils` — integrals with errors, `THnSparse` projections, spectrum and trend construction, ratios, rebinning with compatibility checks. |
 | `Logger.h` | Thin spdlog wrapper. |
+| `CanvasManager.h` | Canvas ownership and unique naming, ratio and grid layouts, ALICE styling, path-aware writing into the output files. Owned by tasks, never by data structures. |
 
 ### Fitting and extrapolation
 
 | File | |
 |---|---|
-| `DynamicRooFitter.h` | RooFit engine driven entirely by JSON: builds signal and background PDFs from names, owns every `RooAbsArg` it creates. |
-| `FitPhiSignalAndBkg.h` | `namespace PhiFitModels` plus the older `TF1`-based fitter (Voigtian + phase-space background). |
-| `SpectrumExtrapolator.h` | Extrapolates the unmeasured low-pT part of a spectrum and propagates the uncertainty. |
+| `DynamicRooFitter.h` | The only fitter, used by `PhiFitTask` and `PurityTask`. RooFit engine driven entirely by JSON: builds signal and background PDFs from names (`BkgSourav1/2`, `BkgMattia`, Chebychev, …), owns every `RooAbsArg` it creates. |
+| `SpectrumExtrapolator.h` | Extrapolates the unmeasured low-pT part of a spectrum and propagates the uncertainty. Replaced the ALICE-standard `YieldMean` (now in `OldCodes/`) after reproducing it number for number. |
 | `ExtrapolationModelFactory.h` | Builds the `TF1` model (Lévy–Tsallis, …) with its initial parameters. |
-| `YieldMean.h` | ALICE-standard yield/mean integration, kept as received. |
 
 ### Configuration managers
 
