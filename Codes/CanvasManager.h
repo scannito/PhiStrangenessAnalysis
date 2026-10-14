@@ -48,15 +48,37 @@
 //    multi-page PDF reports or disk images.
 // =============================================================================
 
+// These two live outside the class on purpose: a nested struct with default member
+// initializers cannot be used as a default argument (`= PadMargins{}`) of a member
+// function of its enclosing class - a real compiler rejects it, Cling lets it pass.
+// CanvasManager re-exports them below, so CanvasManager::PadMargins and
+// CanvasManager::YRangeOptions keep working unchanged for every caller.
+namespace CanvasInfo
+{
+struct PadMargins {
+  double left{0.14};
+  double right{0.05};
+  double top{0.08};
+  double bottom{0.12};
+};
+
+// Options for multi-histogram automatic Y-range determination
+struct YRangeOptions {
+  bool isLogY{false};
+  bool zeroBaseline{false};  // If true and min >= 0, sets Y min to 0.0 (e.g. counts/spectra)
+  bool includeErrors{true};  // Includes bin error bars in min/max evaluation
+  double topMargin{0.25};    // Headroom above maximum (leaves space for legend/watermark)
+  double bottomMargin{0.10}; // Footroom below minimum
+  double logHeadroom{5.0};   // Headroom multiplier in log scale (leaves space for legend)
+  double logFootroom{0.5};   // Footroom multiplier in log scale (>0)
+};
+} // namespace CanvasInfo
+
 class CanvasManager
 {
  public:
-  struct PadMargins {
-    double left{0.14};
-    double right{0.05};
-    double top{0.08};
-    double bottom{0.12};
-  };
+  using PadMargins = CanvasInfo::PadMargins;
+  using YRangeOptions = CanvasInfo::YRangeOptions;
 
   // Holds the components of a dual-pad canvas (e.g. distribution on top, ratio on bottom)
   struct RatioCanvas {
@@ -64,17 +86,6 @@ class CanvasManager
     TPad* topPad{nullptr};
     TPad* bottomPad{nullptr};
     double fontScale{1.0}; // Compensates font sizes in bottom pad (pad height ratio)
-  };
-
-  // Options for multi-histogram automatic Y-range determination
-  struct YRangeOptions {
-    bool isLogY{false};
-    bool zeroBaseline{false};  // If true and min >= 0, sets Y min to 0.0 (e.g. counts/spectra)
-    bool includeErrors{true};  // Includes bin error bars in min/max evaluation
-    double topMargin{0.25};    // Headroom above maximum (leaves space for legend/watermark)
-    double bottomMargin{0.10}; // Footroom below minimum
-    double logHeadroom{5.0};   // Headroom multiplier in log scale (leaves space for legend)
-    double logFootroom{0.5};   // Footroom multiplier in log scale (>0)
   };
 
   CanvasManager(bool showStats = false)
@@ -619,24 +630,8 @@ class CanvasManager
     AdjustPadYRange(pad, opts);
   }
 
-  // Instance wrappers for managed canvases
-  void AdjustYRange(std::initializer_list<TH1*> hists,
-                    const YRangeOptions& opts = YRangeOptions{}) const
-  {
-    AdjustYRange(hists, opts);
-  }
-
-  void AdjustYRange(std::span<TH1* const> hists,
-                    const YRangeOptions& opts = YRangeOptions{}) const
-  {
-    AdjustYRange(hists, opts);
-  }
-
-  void AdjustPadYRange(TPad* pad, const YRangeOptions& opts = YRangeOptions{}) const
-  {
-    AdjustPadYRange(pad, opts);
-  }
-
+  // The static AdjustYRange / AdjustPadYRange above can also be called on an instance;
+  // an instance overload with the same signature is not allowed (and would recurse).
   void AdjustCanvasYRange(const std::string& canvasName,
                          const YRangeOptions& opts = YRangeOptions{}) const
   {
