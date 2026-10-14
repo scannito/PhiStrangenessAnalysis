@@ -10,16 +10,34 @@ set -o pipefail
 # depending on where it was typed.
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
-# 1. Check if at least one argument is provided
-if [ "$#" -eq 0 ]; then
+# 1. Parse execution flags and positional arguments
+MODE="interpret"
+POSITIONAL_ARGS=()
+
+for arg in "$@"; do
+    case "$arg" in
+        --compile|-c)
+            MODE="compile"
+            ;;
+        --interpret|-i)
+            MODE="interpret"
+            ;;
+        *)
+            POSITIONAL_ARGS+=("$arg")
+            ;;
+    esac
+done
+
+if [ "${#POSITIONAL_ARGS[@]}" -eq 0 ]; then
     echo "Error: No configuration keyword provided."
-    echo "Usage: $0 <keyword>"
+    echo "Usage: $0 <keyword> [coll_sys] [--compile | --interpret]"
     echo "Available keywords: data, purity, mc, mcclosure, mcclosurewpdg, mcclosuregen, comparison"
+    echo "Execution mode: --interpret / -i (default), --compile / -c"
     exit 1
 fi
 
-KEYWORD=$1
-COLL_SYS=$2
+KEYWORD="${POSITIONAL_ARGS[0]}"
+COLL_SYS="${POSITIONAL_ARGS[1]:-}"
 JSON_PATH=""
 
 # The base configuration is the same whatever is being run: every named mode
@@ -91,21 +109,60 @@ LOG_FILE="../Logs/log_output_${CONFIG_NAME}.log"
 mkdir -p "$(dirname "$LOG_FILE")"
 
 echo "=========================================================="
-echo "Starting ROOT analysis..."
+echo "Starting Phi-Strangeness analysis..."
 echo "Keyword mapped : $KEYWORD"
 echo "System         : $COLL_SYS"
+echo "Execution mode : $MODE"
 echo "Configuration  : $JSON_PATH"
 echo "Base config    : ${JSON_PATH_BASE:-<none, single-file mode>}"
 echo "Log file       : $LOG_FILE"
 echo "=========================================================="
 
-# Print the exact command that will be executed
-echo "Executing: root -l -b -q 'PhiStrangenessCorrelation.C(\"$JSON_PATH\", \"$JSON_PATH_BASE\")' 2>&1 | tee \"$LOG_FILE\""
-echo "=========================================================="
+# 5. Execute analysis (compiled binary or interpreted ROOT macro)
+if [ "$MODE" = "compile" ]; then
+    BINARY="../build/phistrangeanalysis"
+    BUILD_LOG="../Logs/build.log"
+    mkdir -p "$(dirname "$BUILD_LOG")"
+    : > "$BUILD_LOG"
 
-# 5. Execute the ROOT macro and pipe both stdout and stderr to tee
-root -l -b -q "PhiStrangenessCorrelation.C(\"$JSON_PATH\", \"$JSON_PATH_BASE\")" 2>&1 | tee "$LOG_FILE"
-STATUS=${PIPESTATUS[0]}
+    # cmake is the staleness detector: it knows the exact dependencies of every
+    # file, so the build is a no-op when nothing changed and recompiles when a header
+    # was edited. Running the binary only because it exists would silently execute a
+    # stale version of the code. The output goes to the log and not to the screen;
+    # it is shown only if the build fails, and the analysis is not launched then.
+    # cmake does not notice a different ROOT on its own: the one it found is kept in
+    # the cache and reused. If the environment now provides another, start from a
+    # clean build directory (a full rebuild is a few seconds).
+    if [ -f ../build/CMakeCache.txt ] && command -v root-config > /dev/null; then
+        CACHED_ROOT=$(sed -n 's/^ROOT_DIR:[A-Z]*=//p' ../build/CMakeCache.txt)
+        CURRENT_ROOT="$(root-config --prefix)/cmake"
+        if [ "$CACHED_ROOT" != "$CURRENT_ROOT" ]; then
+            echo "Build          : ROOT changed ($CACHED_ROOT -> $CURRENT_ROOT), recreating ../build"
+            rm -rf ../build
+        fi
+    fi
+
+    if [ ! -f ../build/CMakeCache.txt ]; then
+        cmake -B ../build -S .. >> "$BUILD_LOG" 2>&1 || { cat "$BUILD_LOG"; echo "[ERROR] cmake configuration failed (log: $BUILD_LOG)"; exit 1; }
+    fi
+    cmake --build ../build >> "$BUILD_LOG" 2>&1 || { cat "$BUILD_LOG"; echo "[ERROR] Build failed (log: $BUILD_LOG)"; exit 1; }
+
+    if grep -q "Building CXX" "$BUILD_LOG"; then
+        echo "Build          : sources changed, binary rebuilt ($(grep -c 'warning:' "$BUILD_LOG") warnings, log: $BUILD_LOG)"
+    else
+        echo "Build          : binary up to date"
+    fi
+
+    echo "Executing compiled binary: $BINARY \"$JSON_PATH\" \"$JSON_PATH_BASE\""
+    echo "=========================================================="
+    "$BINARY" "$JSON_PATH" "$JSON_PATH_BASE" 2>&1 | tee "$LOG_FILE"
+    STATUS=${PIPESTATUS[0]}
+else
+    echo "Executing interpreted ROOT macro: root -l -b -q 'PhiStrangenessCorrelation.C(\"$JSON_PATH\", \"$JSON_PATH_BASE\")'"
+    echo "=========================================================="
+    root -l -b -q "PhiStrangenessCorrelation.C(\"$JSON_PATH\", \"$JSON_PATH_BASE\")" 2>&1 | tee "$LOG_FILE"
+    STATUS=${PIPESTATUS[0]}
+fi
 
 echo "=========================================================="
 if [ "$STATUS" -ne 0 ]; then

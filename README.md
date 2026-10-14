@@ -10,8 +10,9 @@ extracts the correlated signal per multiplicity and pT interval, applies efficie
 signal-loss and purity corrections, extrapolates the unmeasured low-pT region, and
 writes spectra, multiplicity trends and yield ratios.
 
-Everything is written as ROOT/Cling headers (C++20) — no build step, no CMake. The
-whole chain is driven by JSON.
+Everything is written as C++20 headers. It runs interpreted by ROOT/Cling with no
+build step, or as a native binary built with CMake (`--compile`). The whole chain is
+driven by JSON.
 
 ## A note on how this was written
 
@@ -400,8 +401,10 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 
 | File | |
 |---|---|
-| `PhiStrangenessCorrelation.C` | The macro ROOT is given. Builds the workflow and returns a status. |
-| `runAnalysis.sh` | Maps a keyword to a configuration, runs ROOT, logs, propagates the exit code. |
+| `RunAnalysisChain.h` | Builds and runs the workflow and returns a status. Shared by both entry points; free of ROOT globals. |
+| `PhiStrangenessCorrelation.C` | Entry point for the ROOT interpreter. Translates the status into an exit code. |
+| `main.cpp` | Entry point of the compiled binary (`../CMakeLists.txt`). Sets ROOT to batch mode. |
+| `runAnalysis.sh` | Maps a keyword to a configuration, runs ROOT or the binary (`--compile`, rebuilding it if stale), logs, propagates the exit code. |
 
 ---
 

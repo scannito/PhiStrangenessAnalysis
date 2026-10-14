@@ -8,20 +8,36 @@ but not done. This file is only about how to work in it without breaking things.
 
 ```bash
 cd Codes
-./runAnalysis.sh mc pp        # or: purity, data, mcclosure, mcclosurewpdg, mcclosuregen
+./runAnalysis.sh mc pp               # default: interpreted, through ROOT/Cling
+./runAnalysis.sh mc pp --compile     # compiled: the native binary build/phistrangeanalysis
+./runAnalysis.sh mc pp --interpret   # the default, spelled out (-c and -i are the short forms)
 ```
 
-There is no build step: everything is ROOT/Cling headers, so a syntax error only
-appears when the macro runs. **Run the chain after changing headers** — that is the
-only compiler this project has. `Logs/log_output_<config>.log` keeps the output and
-the script propagates ROOT's exit code.
+Both modes run the same chain (`RunAnalysisChain.h`) and differ only in the entry
+point: `PhiStrangenessCorrelation.C` for Cling, `main.cpp` for the binary. Either
+needs ROOT in the environment (`enterO2P`); the compiled one needs it for CMake too.
 
-The one exception is `RunEnvironment.h`, which includes no ROOT and can be checked
-with a plain compiler:
+- **Interpreted** has no build step. Its drawback is the one this file used to state
+  as "the only compiler this project has": a header is checked only when a run loads
+  it, so one that nobody has run since it was edited can hide errors until then (see
+  *Cling constraints*).
+- **Compiled** is the real compiler. Use it after changing headers: it checks every
+  line, not just the ones a run happens to reach. The script asks CMake whether the
+  binary is stale and rebuilds only if it is, then runs it. If the ROOT in the
+  environment is not the one `build/` was configured with, it recreates `build/`
+  first, which CMake would not do on its own. The build output goes to
+  `Logs/build.log` and the screen gets one line; if the build fails it is shown and
+  the analysis is not launched. To build without running:
+  `cmake -B build -S . && cmake --build build`.
 
-```bash
-g++ -std=c++20 -Wall -Wextra -I Codes -fsyntax-only <file including it>
-```
+**The two modes write to the same files.** Output paths come from the JSON, not from
+the mode, and so does `Logs/log_output_<config>.log`. Running one after the other
+overwrites the first, and `mc` writes `Corrections/`, which the data runs read back.
+Copy the output directory before comparing the modes.
+
+Process-wide ROOT state (`gROOT->SetBatch`, `gSystem->Exit`) belongs to the two entry
+points, not to `RunAnalysisChain.h`, which stays free of ROOT globals. The compiled
+binary is not started with `-b` the way the macro is, so `main()` sets batch itself.
 
 ## The rule the whole framework is built on
 
@@ -168,14 +184,16 @@ A new task that writes into a file somebody else also writes into belongs in row
   Plain `{}` is fine. Hence `BinningUtils::FormatEdge` (`snprintf`) and
   `RunEnvironment::TimestampNow` (`strftime`).
 - C++20 is required beyond `std::format`: `emplace_back` on aggregates uses
-  parenthesised aggregate initialisation (P0960).
-- The filesystem on macOS is case-insensitive and hides include-name mismatches
-  that would break on Linux. `MCTask.h` was already renamed once by accident.
-- The same case-insensitivity reaches git, by a different route. With
-  `core.ignorecase` a file staged under the wrong case (`McTask.h` for `MCTask.h`)
-  is ambiguous to a path-targeted `git restore --staged`, which may resolve to the
-  entry you were not trying to touch. Unstage the whole index and re-add instead:
-  `git reset` costs nothing here, since nothing is committed by it.
+  parenthesised aggregate initialisation (P0960). CMake takes the standard from
+  ROOT (`ROOT_CXX_STANDARD`), so the binary and the headers agree with ROOT's.
+- **Cling is not more lenient than the compiler, here.** Do not assume it is. The
+  first compiled build found 14 errors in `CanvasManager.h`, and loading the previous
+  version of that header in Cling reports the same two kinds: a nested struct with
+  default member initialisers used as a default argument of a member of its
+  enclosing class (`= YRangeOptions{}`, now `CanvasInfo::PadMargins` and
+  `CanvasInfo::YRangeOptions`), and member overloads differing only in `static`. The
+  header had simply not been run since it was edited. What the compiled build adds is
+  that it checks everything, whether or not a run goes through it.
 
 ## Do not touch without asking
 

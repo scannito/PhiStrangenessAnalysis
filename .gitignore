@@ -9,3 +9,6 @@
 # Graphify's output: 16 MB of generated graph, rebuilt on demand from the sources.
 # The .graphifyignore that shapes it IS tracked - that one is configuration.
 graphify-out/
+
+# Build artifacts
+build/

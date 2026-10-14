@@ -249,3 +249,66 @@ and standardizes figure generation and output across the framework:
   adjustment once, at creation, with `SetAutoYRange(canvas, opts)`; the manager applies it whenever it
   writes or exports them. It replaced adjustments made in `Terminate` on names rebuilt there, which a
   `HasCanvas` guard skipped in silence whenever the rebuilt name drifted from the original.
+
+---
+
+## Compiled mode
+
+**A second way to run the same chain, and what building it found.** `runAnalysis.sh`
+takes `--compile` (`-c`) next to the default `--interpret` (`-i`). Both run
+`RunAnalysisChain`, which moved out of `PhiStrangenessCorrelation.C` into
+`RunAnalysisChain.h` so the two entry points cannot drift: the macro keeps `gSystem`
+because a macro cannot turn a return value into an exit status, `main.cpp` returns
+the status directly. `CMakeLists.txt` builds `build/phistrangeanalysis`.
+
+*Why.* A compiler reads every line; Cling reads the ones a run reaches. The missing
+includes, missing `inline` and duplicated default arguments that used to be found by
+hand were the case for it, and the first build confirmed it: 14 errors, all in
+`CanvasManager.h`. This is not Cling being lenient: loading the version before the
+fix (`8248114`) in Cling reports both kinds below as well. The header had not been
+run since it was last edited, and the compiled build checks every header whether or
+not a run goes through it.
+
+- **Nested struct as a default argument.** `PadMargins` and `YRangeOptions` were
+  nested in `CanvasManager` with default member initialisers and used as
+  `= YRangeOptions{}` in members of `CanvasManager` itself. Standard C++ rejects that
+  (the initialisers are needed before the enclosing class is complete), and so
+  does Cling. They now live in `namespace CanvasInfo` and `CanvasManager` re-exports them
+  with `using`, so `CanvasManager::PadMargins` and `CanvasManager::YRangeOptions`
+  still work for every caller. They stay in `CanvasManager.h` and not in
+  `AnalysisDataStructures.h`: they are the interface of the canvas manager, not
+  physics data, and `RatioCanvas` stays nested because nothing constructs it as a
+  default argument.
+- **Instance overloads that could not exist.** `AdjustYRange` (twice) and
+  `AdjustPadYRange` had a non-static "instance wrapper" with the same parameter
+  types as the static function, which C++ forbids - and each would have called
+  itself. Nobody used them: the one outside caller uses the static form, and a static
+  function can be called on an instance anyway. Removed.
+- **Batch mode.** `root -b` made the interpreted run headless; the binary is not
+  started that way and `CanvasManager` creates canvases, so `main()` calls
+  `gROOT->SetBatch(kTRUE)`. Process-wide ROOT state belongs to the entry points.
+
+*Decisions about the build.*
+
+- CMake takes the standard from `ROOT_CXX_STANDARD` and links only the imported
+  `ROOT::` targets, which also makes ROOT's headers system headers and keeps their
+  warnings out of the log. A missing ROOT stops with a message saying what to load.
+- The script rebuilds through CMake when the binary is stale, and does not decide
+  staleness itself. A `find -newer` check was considered and rejected: CMake already
+  holds the exact header dependencies, so a hand-written check could only be cruder.
+  Running the binary merely because it exists was rejected too - it executes an old
+  version of the code with no sign that it is old. Build output goes to
+  `Logs/build.log`; a failed build is shown and the analysis is not launched.
+- CMake keeps the ROOT it found in `CMakeCache.txt` and does not notice a different
+  one. The script compares the cached `ROOT_DIR` with `root-config --prefix` and
+  recreates `build/` when they differ (tried by switching between two installed
+  ROOT versions and back). A change of compiler is not checked.
+- Compile time is 4.5 s for the single translation unit, so nothing was split; see
+  `DESIGN_NOTES.md` for the options if that changes.
+
+*State when this was written (14 October 2026).* The build passes under
+`O2Physics/latest-master-o2` (ROOT 6.36.10, C++20, libc++), with two warnings left
+in `SpectrumExtrapolator.h` (`binlo`, `binhi` set but unused). The `mc pp` run was
+done in both modes after these changes, both completed successfully, and the
+results coincide. Only `mc pp` was compared: the other keywords (`data`, `purity`,
+the closure tests, `comparison`) have not been run in compiled mode.

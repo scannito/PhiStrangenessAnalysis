@@ -666,13 +666,6 @@ script that runs a known configuration and compares bin contents against a saved
 reference would catch exactly the class of regressions this codebase produces:
 silent ones.
 
-**Compile instead of interpret.** A small `main()` calling `RunAnalysisChain`
-would give real compiler diagnostics (all the missing includes, missing `inline`
-and duplicated default arguments found by hand today would have been caught in
-seconds), a natural exit code, spdlog at no runtime cost, and freedom to choose
-the language standard. `runAnalysis.sh` and the macro entry point are already
-structured so that the switch is deleting the wrapper.
-
 **Compiled build is one translation unit: fine today, with a known way out.** The
 whole framework is header-only and `main.cpp` is the only `.cpp`, so touching any
 header recompiles everything. Measured on 14 October 2026 (ROOT 6.36.10, Apple
@@ -733,5 +726,10 @@ being chosen.
 - **The code already requires C++20** beyond `std::format`: `emplace_back` on an
   aggregate uses parenthesised aggregate initialisation (P0960), which does not
   compile in C++17.
-- O2 is C++20 with `CMAKE_CXX_STANDARD_REQUIRED`, so that is the standard to
-  target if the framework is ever compiled.
+- O2 is C++20 with `CMAKE_CXX_STANDARD_REQUIRED`, and the framework is now compiled
+  as well (`--compile`, see `DESIGN_HISTORY.md`); `CMakeLists.txt` takes the
+  standard from ROOT.
+- **A header is only checked when something loads it.** The first compiled build found
+  errors in `CanvasManager.h` that Cling reports too (verified by loading the previous
+  version): it had not been run since it was edited. The compiled build checks every
+  header whether or not a run reaches it; see `DESIGN_HISTORY.md`.
