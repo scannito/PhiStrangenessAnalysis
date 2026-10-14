@@ -4,6 +4,7 @@
 #include "CorrelationTask.h"
 #include "CorrelationWPDGTask.h"
 #include "IAnalysisTask.h"
+#include "Logger.h"
 #include "MCTask.h"
 #include "PhiFitTask.h"
 #include "PurityTask.h"
@@ -37,10 +38,10 @@ class WorkflowManager
     if (!baseConfigFile.empty()) {
       LoadJsonFile(baseConfigFile, baseDocument, "BaseConfig");
       hasBaseFile = true;
-      std::cout << "[INFO] WorkflowManager: Dual-file configuration mode activated." << std::endl;
+      Logger::Info("WorkflowManager: Dual-file configuration mode activated.");
     } else {
       hasBaseFile = false;
-      std::cout << "[INFO] WorkflowManager: Single-file configuration mode activated." << std::endl;
+      Logger::Info("WorkflowManager: Single-file configuration mode activated.");
     }
 
     // Resolved once and handed to both: they read the same node.
@@ -51,7 +52,7 @@ class WorkflowManager
 
   void BuildWorkflow()
   {
-    std::cout << "[INFO] WorkflowManager: Building analysis workflow..." << std::endl;
+    Logger::Info("WorkflowManager: Building analysis workflow...");
 
     // Define our "Task Registry" (Factory Pattern)
     // It is a list of pairs: { "task_prefix_name", Lambda_function_to_create_the_task }
@@ -95,7 +96,7 @@ class WorkflowManager
       }
     }
 
-    std::cout << "[INFO] Workflow built successfully. Number of active tasks: " << activeTasks.size() << std::endl;
+    Logger::Info("Workflow built successfully. Number of active tasks: {}", activeTasks.size());
   }
 
   void RunWorkflow()
@@ -139,7 +140,7 @@ class WorkflowManager
     }
 
     std::cout << "==================================================" << std::endl;
-    std::cout << "[INFO] WorkflowManager: ALL TASKS COMPLETED SUCCESSFULLY!" << std::endl;
+    Logger::Info("WorkflowManager: ALL TASKS COMPLETED SUCCESSFULLY!");
     std::cout << "==================================================" << std::endl;
   }
 
@@ -201,9 +202,8 @@ class WorkflowManager
       // other family. Empty means VerifyPtBinning has nothing to compare against, so
       // the axes found in the input files are used unverified - which is the check
       // this framework is built on, switched off.
-      std::cout << "[INFO] WorkflowManager: no 'global_binning' in 'workflow'. The pT and multiplicity "
-                   "axes found in the input files will be used WITHOUT verification."
-                << std::endl;
+      Logger::Warn("WorkflowManager: no 'global_binning' in 'workflow'. The pT and multiplicity axes found in the "
+                   "input files will be used WITHOUT verification.");
       return;
     }
 
@@ -212,7 +212,7 @@ class WorkflowManager
     // Override multiplicity binning if specified in JSON
     if (auto multBins = JsonConfig::TryArray(*config, "multiplicity_binning", "global_binning")) {
       globalSettings.binsMult = JsonConfig::ReadNumberArray(*multBins, "multiplicity_binning", "global_binning");
-      std::cout << "  -> Overridden 'multiplicity' binning from JSON." << std::endl;
+      Logger::Info("  -> Overridden 'multiplicity' binning from JSON.");
     }
 
     // pT binning per species (e.g. Phi, K0S, Pi) can be overridden in the JSON as well
@@ -222,7 +222,7 @@ class WorkflowManager
         globalSettings.speciesPtBinning[species] =
           JsonConfig::ReadNumberArray(JsonConfig::ToArray(m.value, species, "global_binning.pt_binning"),
                                       species, "global_binning.pt_binning");
-        std::cout << "  -> Overridden pT binning for species '" << species << "' from JSON." << std::endl;
+        Logger::Info("  -> Overridden pT binning for species '{}' from JSON.", species);
       }
     }
   }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "ExtrapConfigManager.h"
+#include "Logger.h"
 
 #include "Math/Functor.h"
 #include "Math/Integrator.h"
@@ -158,8 +159,8 @@ class ExtrapolationModelFactory
           }
         }
       } else {
-        std::cerr << "[WARNING] ExtrapolationModelFactory: Parameter '" << name
-                  << "' missing in JSON config for model '" << config.model << "'!" << std::endl;
+        Logger::Warn("ExtrapolationModelFactory: Parameter '{}' missing in JSON config for model '{}'!",
+                     name, config.model);
       }
     }
   }

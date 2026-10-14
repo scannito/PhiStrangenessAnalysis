@@ -5,6 +5,7 @@
 #include "CanvasManager.h"
 #include "FitConfigManager.h"
 #include "HistogramUtils.h"
+#include "Logger.h"
 
 #include "RooAbsPdf.h"
 #include "RooAddPdf.h"
@@ -109,7 +110,7 @@ class DynamicRooFitter
     auto [minRange, maxRange] = CalculateIntegrationLimits();
 
     std::string modeLog = std::holds_alternative<FixedRange>(config.integration.signalWindow) ? "FIXED" : "N-SIGMA";
-    std::cout << "[INFO] Integrating in " << modeLog << " range: [" << minRange << " , " << maxRange << "]" << std::endl;
+    Logger::Debug("Integrating in {} range: [{:g} , {:g}]", modeLog, minRange, maxRange);
 
     obs->setRange("signalRegion", minRange, maxRange);
 

@@ -42,7 +42,9 @@ namespace Detail
 
 struct State {
   Level threshold{Level::Info};
-  bool timestamps{true};
+  // Off by default: with it on every line looks different from run to run, and two logs
+  // can no longer be compared as they are. Worth turning on for a long run.
+  bool timestamps{false};
   // Distinct warnings in the order first seen, with how often each occurred. The same
   // warning inside a loop over bins would otherwise fill the summary with copies.
   std::vector<std::pair<std::string, std::size_t>> warnings;

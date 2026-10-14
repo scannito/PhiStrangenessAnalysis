@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BinningUtils.h"
+#include "Logger.h"
 #include "RunEnvironment.h"
 
 #include "TDirectory.h"
@@ -75,8 +76,8 @@ inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& ob
   // dynamic_cast, for the reason spelled out in GetUniqueOrThrow above.
   T* obj = dynamic_cast<T*>(dir->Get(objPath.c_str()));
   if (!obj) {
-    std::cerr << "[WARNING] " << warnCtx << ": Missing object '" << objPath
-              << "' in '" << FileNameOf(dir) << "', or it is not a " << T::Class_Name() << std::endl;
+    Logger::Warn("{}: Missing object '{}' in '{}', or it is not a {}",
+                 warnCtx, objPath, FileNameOf(dir), T::Class_Name());
     return nullptr;
   }
 
@@ -115,7 +116,7 @@ inline TDirectory* GetOrCreatePath(TDirectory* baseDir, const std::vector<std::s
 
       // Safety check (e.g., disk full, file closed, permission denied)
       if (!nextDir) {
-        std::cerr << "[ERROR] RootIO::GetOrCreatePath - Failed to create TDirectory '" << node << "'." << std::endl;
+        Logger::Error("RootIO::GetOrCreatePath - Failed to create TDirectory '{}'.", node);
         return nullptr;
       }
     }
@@ -221,10 +222,9 @@ inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name
   const std::vector<double> cached = ReadBinningStamp(dir, name);
 
   if (cached.empty()) {
-    std::cerr << "[WARNING] " << errCtx << ": the cache carries no '" << name
-              << "' stamp, so the binning it was built with cannot be verified. Delete the cache "
-                 "files if the input production has changed since they were produced."
-              << std::endl;
+    Logger::Warn("{}: the cache carries no '{}' stamp, so the binning it was built with cannot be verified. Delete "
+                 "the cache files if the input production has changed since they were produced.",
+                 errCtx, name);
     return;
   }
 
@@ -287,18 +287,18 @@ inline void PrintProvenance(TDirectory* dir, std::string_view fileLabel)
 {
   const std::map<std::string, std::string> facts = ReadProvenance(dir);
   if (facts.empty()) {
-    std::cout << "[INFO] " << fileLabel << ": no provenance recorded (written before it existed)." << std::endl;
+    Logger::Info("{}: no provenance recorded (written before it existed).", fileLabel);
     return;
   }
 
-  std::cout << "[INFO] " << fileLabel << " was produced by:" << std::endl;
+  Logger::Info("{} was produced by:", fileLabel);
   for (const auto& [key, value] : facts) {
     // The serialised blocks are one long line each: announced, not printed. They
     // are there to be diffed against another file, not read in a log.
     if (value.size() > 120)
-      std::cout << "         " << key << " = <" << value.size() << " chars, read it from the file>" << std::endl;
+      Logger::Info("         {} = <{} chars, read it from the file>", key, value.size());
     else
-      std::cout << "         " << key << " = " << value << std::endl;
+      Logger::Info("         {} = {}", key, value);
   }
 }
 

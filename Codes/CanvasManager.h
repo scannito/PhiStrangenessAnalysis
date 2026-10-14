@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Logger.h"
 #include "RootIOHelpers.h"
 
 #include "TCanvas.h"
@@ -926,7 +927,7 @@ class CanvasManager
     }
 
     if (canvasPtrs.empty()) {
-      std::cerr << "[WARNING] CanvasManager: No canvases found in '" << targetDir->GetName() << "'" << std::endl;
+      Logger::Warn("CanvasManager: No canvases found in '{}'", targetDir->GetName());
       return;
     }
 

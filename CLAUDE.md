@@ -79,10 +79,20 @@ A third category sits between them: **diagnostics that must not stop the run but
 not be lost either**. `Logger::Warn` (`Logger.h`) prints the line and also counts it, and
 `RunAnalysisChain` prints every distinct warning once, with its count, just before
 the verdict. A warning that only scrolls past in a log of a million bytes is
-effectively silent, which is the failure this framework is built against. The tasks
-have not been moved to `Logger::` yet (see `DESIGN_NOTES.md`): until they are, the
-summary only covers what goes through it. Text that is not a literal goes in as an
-argument (`Logger::Warn("{}", msg)`), never as the format string.
+effectively silent, which is the failure this framework is built against. Every task
+and helper logs through it, so **new output goes through `Logger::`, not `std::cout` or
+`std::cerr`**; the banners of `WorkflowManager` and `RunAnalysisChain` are the only
+exception, being layout and not log lines. Choose the level by what the line means:
+`Info` for progress, `Warn` for something that did not stop the run but that someone
+should know (a default applied, a check weakened, an input missing), `Debug` for what only
+whoever is investigating wants, `Error` for a failure the run goes on after. A line that
+says the run is doing something other than what was asked is a `Warn` even when it is
+printed calmly: that is what the end-of-run summary is for. Text that is not a literal
+goes in as an argument (`Logger::Warn("{}", msg)`), never as the format string. The
+format string is read at run time (`std::vformat`), so a wrong placeholder is found when
+the line is reached and not when the code is compiled; a `{:g}` on an integer is an
+error at that point. Printing a `double` as `cout` did needs `{:g}`: plain `{}` gives the
+shortest round-trip form and the digits change.
 
 ## Configuration
 

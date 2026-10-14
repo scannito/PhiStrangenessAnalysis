@@ -2,6 +2,7 @@
 
 #include "CorrelationTaskBase.h"
 #include "JsonConfigHelpers.h"
+#include "Logger.h"
 #include "RootIOHelpers.h"
 
 #include <algorithm>
@@ -17,7 +18,7 @@ class CorrelationTask : public CorrelationTaskBase
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    std::cout << "[INFO] CorrelationTask: INITIALIZING..." << std::endl;
+    Logger::Info("CorrelationTask: INITIALIZING...");
 
     InitCommonFlags(taskConfig, globalSettings);
 
@@ -73,7 +74,7 @@ class CorrelationTask : public CorrelationTaskBase
     InitAssocParticles(taskConfig);
 
     if (!useProjectionCache) {
-      std::cout << "[INFO] CorrelationTask: Cache DISABLED. Loading heavy THnSparse data..." << std::endl;
+      Logger::Info("CorrelationTask: Cache DISABLED. Loading heavy THnSparse data...");
 
       std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
       std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", "CorrelationTask");
@@ -104,7 +105,7 @@ class CorrelationTask : public CorrelationTaskBase
         loadedDataCollection.push_back(std::move(data));
       }
     } else {
-      std::cout << "[INFO] CorrelationTask: Cache ENABLED. Skipping THnSparse loading." << std::endl;
+      Logger::Info("CorrelationTask: Cache ENABLED. Skipping THnSparse loading.");
       for (const auto& config : assocParticles) {
         LoadedAssocData data;
         data.name = config.name;
@@ -267,12 +268,12 @@ class CorrelationTask : public CorrelationTaskBase
 
       purityCollection[name] = std::move(purity);
     }
-    std::cout << "[INFO] CorrelationTask: Purities loaded successfully." << std::endl;
+    Logger::Info("CorrelationTask: Purities loaded successfully.");
   }
 
   void RunOptimized()
   {
-    std::cout << "[INFO] CorrelationTask: RUNNING OPTIMIZED CORRELATIONS AND QA..." << std::endl;
+    Logger::Info("CorrelationTask: RUNNING OPTIMIZED CORRELATIONS AND QA...");
 
     // =========================================================================
     // 0. EFFICIENCY POINTERS SETUP
@@ -302,7 +303,7 @@ class CorrelationTask : public CorrelationTaskBase
     // If active, completely bypasses the CorrelationCalculator and heavy loops.
     // =========================================================================
     if (useSignalCache) {
-      std::cout << "[INFO] CorrelationTask: Super Cache (Signal L2) is ON. Skipping Calculator." << std::endl;
+      Logger::Info("CorrelationTask: Super Cache (Signal L2) is ON. Skipping Calculator.");
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
         double totalTriggerSignalPerMult = 0.0;
@@ -392,7 +393,7 @@ class CorrelationTask : public CorrelationTaskBase
       // BATCH WRITE: SAVING AGGREGATED SIGNALS FOR L2 CACHE
       // Written only once per multiplicity bin after trigger aggregation
       // =======================================================================
-      std::cout << "[INFO] Multiplicity bin " << i << " completed. Committing results to Level 2 Cache..." << std::endl;
+      Logger::Info("Multiplicity bin {} completed. Committing results to Level 2 Cache...", i);
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
         TDirectory* targetDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, false);

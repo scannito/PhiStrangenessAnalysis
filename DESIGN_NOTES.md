@@ -660,22 +660,21 @@ interface they are, and `DynamicRooFitter` already depends on it. The signal to
 split the header by theme (fit and extrapolation / loaded data) is it growing well
 past today's 241 lines, or pulling ROOT includes that only one theme needs.
 
-**Moving the output onto `Logger::`.** `Logger.h` exists and `RunAnalysisChain` prints
-its summary, but the tasks still write about 100 lines with `std::cout`/`std::cerr`
-and hand-written `[INFO]`/`[WARNING]` prefixes, so the summary of warnings is empty
-for anything real. The order that makes it useful: the `[WARNING]` lines first
-(about twenty, in `MCTask`, `SpectrumExtrapolator`, `AnalysisSettings`,
-`CanvasManager`, `ExtrapolationModelFactory`, `JsonConfig`, `CorrelationTaskBase`),
-then `[INFO]`. Leave alone the banners and separators, and the numeric dumps such as
-`[DEBUG EXTRAP]`, which are tables and not log lines. Messages are the same text with
-a different call, so the risk is low, but note what is lost: `Logger::` reads its format
-string when the line is printed, not at compile time like `std::format`, so a
-migrated line with a wrong placeholder count compiles and is only found when it is
-reached. Migrated lines on rarely taken paths (the `[WARNING]`s especially) deserve a
-look at the arguments by eye.
+**What the logger still does not cover.** Every task and helper logs through `Logger::`
+(see `DESIGN_HISTORY.md`), but three things remain:
 
-Not unified by this: ROOT's own messages (`gErrorIgnoreLevel`) and RooFit's
-(`RooMsgService`) go through other channels and do not reach the summary.
+- **There is no way to switch `Debug` on from outside.** The threshold is `Info` and can
+  only be changed with `Logger::SetLevel` in code, so the twelve `Debug` lines (the
+  `[DEBUG EXTRAP]` block, the per-fit "Integrating in", the per-bin "Found custom
+  parameters") are unreachable without editing a header. An environment variable read by
+  the two entry points (`main.cpp` and the macro, which is where process-wide state
+  belongs) would do. The same goes for `SetTimestamps`.
+- **ROOT's and RooFit's own messages** go through other channels (`gErrorIgnoreLevel`, the
+  ROOT error handler, `RooMsgService`) and do not reach the summary. Installing a ROOT
+  error handler in the entry points that routes warnings to `Logger::Warn` would put them
+  there.
+- **The banners** of `WorkflowManager` (`>>> [STARTING TASK]`, the separators) and
+  `RunAnalysisChain` are direct `std::cout`, on purpose.
 
 `Codes/spdlog/` (1.1 MB, 102 tracked files) is no longer included by anything. It is
 kept until the decision to remove it is made; `DESIGN_HISTORY.md` records why it

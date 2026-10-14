@@ -11,6 +11,7 @@
 #include "ExtrapolationModelFactory.h"
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
+#include "Logger.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 #include "SpectrumExtrapolator.h"
@@ -54,7 +55,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
   void Terminate() override
   {
-    std::cout << "[INFO] " << GetName() << ": TERMINATING AND CLEANING UP..." << std::endl;
+    Logger::Info("{}: TERMINATING AND CLEANING UP...", GetName());
 
     const std::string dirName = SchemeDirName();
     std::vector<std::string> baseLogicalPath = {globalCfgs.binningName, dirName};
@@ -200,8 +201,8 @@ class CorrelationTaskBase : public IAnalysisTask
           int idxDen = getParticleIndex(ratioCfg.den);
 
           if (idxNum == -1 || idxDen == -1) {
-            std::cerr << "[WARNING] Cannot compute ratio " << ratioCfg.num << "/" << ratioCfg.den
-                      << " because one or both particles are not configured." << std::endl;
+            Logger::Warn("Cannot compute ratio {}/{} because one or both particles are not configured.",
+                         ratioCfg.num, ratioCfg.den);
             continue; // Skip this specific ratio and move to the next
           }
 
@@ -266,7 +267,7 @@ class CorrelationTaskBase : public IAnalysisTask
         }
       }
     } else {
-      std::cout << "[INFO] " << GetName() << ": No yield ratios requested. Skipping." << std::endl;
+      Logger::Info("{}: No yield ratios requested. Skipping.", GetName());
     }
 
     // =========================================================================
@@ -289,7 +290,7 @@ class CorrelationTaskBase : public IAnalysisTask
       file->Close();
     }
 
-    std::cout << "[INFO] " << GetName() << ": DONE." << std::endl;
+    Logger::Info("{}: DONE.", GetName());
   }
 
  protected:
@@ -427,8 +428,8 @@ class CorrelationTaskBase : public IAnalysisTask
                                                           {{"delta_phi", AxisTarget::DeltaPhi_X},
                                                            {"delta_y", AxisTarget::DeltaY_Y}},
                                                           GetName());
-    std::cout << "[INFO] " << GetName() << ": Physics projection axis set to "
-              << (projectionAxis == AxisTarget::DeltaPhi_X ? "Delta Phi (X)" : "Delta Y (Y)") << "." << std::endl;
+    Logger::Info("{}: Physics projection axis set to {}.",
+                 GetName(), (projectionAxis == AxisTarget::DeltaPhi_X ? "Delta Phi (X)" : "Delta Y (Y)"));
 
     if (auto yieldRatios = JsonConfig::TryArray(taskConfig, "yield_ratios", GetName())) {
       int idx = 0;
@@ -489,13 +490,13 @@ class CorrelationTaskBase : public IAnalysisTask
       // Recorded only when extrapolation is on: a file that was not used has no
       // business in the provenance of a result it did not shape.
       provenance["extrap_config"] = JsonConfig::ReadFileText(extrapFile);
-      std::cout << "[INFO] " << GetName() << ": Extrapolation configuration loaded successfully." << std::endl;
+      Logger::Info("{}: Extrapolation configuration loaded successfully.", GetName());
 
       for (const auto& p : assocParticles) {
         bool hasCfg = extrapConfigManager->HasConfig(p.name);
         doExtrapolationPerParticle[p.name] = hasCfg;
         if (!hasCfg)
-          std::cout << "[INFO] " << GetName() << ": No extrapolation config found for '" << p.name << "'. Skipping." << std::endl;
+          Logger::Info("{}: No extrapolation config found for '{}'. Skipping.", GetName(), p.name);
       }
     }
   }
@@ -531,7 +532,7 @@ class CorrelationTaskBase : public IAnalysisTask
         activeCorrections.push_back(val.GetString());
       }
     } else {
-      std::cout << "[INFO] 'active_corrections' missing or not an array. Applying NO corrections!" << std::endl;
+      Logger::Warn("'active_corrections' missing or not an array. Applying NO corrections!");
     }
 
     // Lambda to quickly check if a specific correction was requested in the JSON
@@ -552,7 +553,7 @@ class CorrelationTaskBase : public IAnalysisTask
       effParts.push_back("Phi");
       for (const auto& p : assocParticles)
         effParts.push_back(p.name);
-      std::cout << "[INFO] 'apply_efficiency_to' not found. Defaulting to all active particles." << std::endl;
+      Logger::Warn("'apply_efficiency_to' not found. Defaulting to all active particles.");
     }
 
     // Event Loss is loaded if requested
@@ -648,7 +649,7 @@ class CorrelationTaskBase : public IAnalysisTask
       correctionCollection[name] = std::move(corr);
     }
 
-    std::cout << "[INFO] CorrelationTask: Efficiencies loaded successfully." << std::endl;
+    Logger::Info("CorrelationTask: Efficiencies loaded successfully.");
   }
 
   // -------------------------------------------------------------------------
@@ -1065,11 +1066,11 @@ class CorrelationTaskBase : public IAnalysisTask
   {
     const double rawIntegral = hSpec->Integral(1, hSpec->GetNbinsX(), "width");
 
-    std::cout << "\n[DEBUG EXTRAP] " << hSpec->GetName() << std::endl;
-    std::cout << "  -> Raw data integral:            " << rawIntegral << std::endl;
-    std::cout << "  -> Yield after extrapolation:    " << res.yield << std::endl;
-    std::cout << "  -> Extrapolated part:            " << res.ExtrapolatedYield()
-              << " (" << 100. * res.ExtrapolatedFraction() << "% of the yield)" << std::endl;
+    Logger::Debug("extrapolation of {}", hSpec->GetName());
+    Logger::Debug("  -> Raw data integral:            {:g}", rawIntegral);
+    Logger::Debug("  -> Yield after extrapolation:    {:g}", res.yield);
+    Logger::Debug("  -> Extrapolated part:            {:g} ({:g}% of the yield)",
+                  res.ExtrapolatedYield(), 100. * res.ExtrapolatedFraction());
 
     // Split by side, and printed next to an independent computation of the low one.
     // The two low numbers come by completely different routes - a sum over a histogram
@@ -1082,37 +1083,35 @@ class CorrelationTaskBase : public IAnalysisTask
     // config.binning[0]. If they differ and the first bin is filled, something is wrong.
     const double fitLowPtIntegral = firstMeasuredPt > 0.0 ? model->Integral(0.0, firstMeasuredPt) : 0.0;
 
-    std::cout << "       low  " << res.extrapolatedYieldLow
-              << "   vs fitted function over [0, " << firstMeasuredPt << "]: " << fitLowPtIntegral << std::endl;
-    std::cout << "       high " << res.extrapolatedYieldHigh << std::endl;
+    Logger::Debug("       low  {:g}   vs fitted function over [0, {:g}]: {:g}",
+                  res.extrapolatedYieldLow, firstMeasuredPt, fitLowPtIntegral);
+    Logger::Debug("       high {:g}", res.extrapolatedYieldHigh);
 
     // The four numbers to check against the reference if this ever has to be verified
     // again. Yield and mean are deterministic and must agree exactly; the two errors
     // are the RMS of 1000 toys and agree only to a few percent, so comparing them for
     // equality is chasing noise.
-    std::cout << "  -> Yield:  " << res.yield << " +- " << res.yieldStatErr
-              << "   <pT>: " << res.meanPt << " +- " << res.meanPtStatErr << std::endl;
+    Logger::Debug("  -> Yield:  {:g} +- {:g}   <pT>: {:g} +- {:g}",
+                  res.yield, res.yieldStatErr, res.meanPt, res.meanPtStatErr);
 
     // A converged fit is not a good fit, and roughly a third of the yield above is an
     // integral of this function outside the measured range - so this line is not
     // decoration. It used to be printed only by YieldMean, which meant retiring that
     // path would have silently removed the only sign that the fit does not describe
     // the data. See DESIGN_NOTES.md, which still lists that as open.
-    std::cout << "  -> Fit " << eCfg.model << " over [" << eCfg.fitRange.first << ", "
-              << eCfg.fitRange.second << "]: chi2/ndf = " << res.chi2 << "/" << res.ndf
-              << " = " << res.ReducedChi2() << std::endl;
+    Logger::Debug("  -> Fit {} over [{:g}, {:g}]: chi2/ndf = {:g}/{} = {:g}",
+                  eCfg.model, eCfg.fitRange.first, eCfg.fitRange.second, res.chi2, res.ndf, res.ReducedChi2());
 
     if (res.hasSystematics)
-      std::cout << "  -> Systematics: yield +" << res.yieldSysHi << " -" << res.yieldSysLo
-                << "   <pT> +" << res.meanPtSysHi << " -" << res.meanPtSysLo << std::endl;
+      Logger::Debug("  -> Systematics: yield +{:g} -{:g}   <pT> +{:g} -{:g}",
+                    res.yieldSysHi, res.yieldSysLo, res.meanPtSysHi, res.meanPtSysLo);
 
     // The two being equal is not a coincidence worth leaving to the eye: it means
     // nothing was added, i.e. the extrapolation silently dropped out.
     if (res.yield == rawIntegral)
-      std::cerr << "[WARNING] " << hSpec->GetName()
-                << ": the extrapolated yield equals the raw integral exactly - nothing was "
-                   "extrapolated. Check the fit above."
-                << std::endl;
+      Logger::Warn("{}: the extrapolated yield equals the raw integral exactly - nothing was extrapolated. Check "
+                   "the fit above.",
+                   hSpec->GetName());
   }
 
   // -------------------------------------------------------------------------
@@ -1222,7 +1221,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   void RunLegacy()
   {
-    std::cout << "[INFO] " << GetName() << ": RUNNING CORRELATIONS (Legacy)..." << std::endl;
+    Logger::Info("{}: RUNNING CORRELATIONS (Legacy)...", GetName());
     CorrelationCalculator corrCalculator(applyME, useProjectionCache, false, false);
 
     const std::vector<std::unique_ptr<TH1F>>* phiCorrs{nullptr};
@@ -1295,9 +1294,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Two classes sharing a value is the signature of trigger cells being read by the
       // wrong index; a value that does not fall with the multiplicity percentile is the
       // signature of the wrong container.
-      std::cout << "[INFO] " << GetName() << ": mult "
-                << BinLabel(multBinning, i) << " -> triggers = "
-                << totalTriggerSignalPerMult << std::endl;
+      Logger::Info("{}: mult {} -> triggers = {:g}", GetName(), BinLabel(multBinning, i), totalTriggerSignalPerMult);
 
       GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
     }

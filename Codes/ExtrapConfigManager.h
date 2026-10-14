@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BaseConfigManager.h"
+#include "Logger.h"
 
 #include <format>
 
@@ -65,7 +66,7 @@ class ExtrapConfigManager : public BaseConfigManager
     // bin index, so its absence is the normal case and HasMember is the right tool.
     const rapidjson::Value* bins = JsonConfig::TryObject(partNode, "bins", managerName);
     if (bins && bins->HasMember(binKey.c_str())) {
-      std::cout << "   [INFO] " << managerName << ": Found custom parameters for bin: " << binKey << std::endl;
+      Logger::Debug("{}: Found custom parameters for bin: {}", managerName, binKey);
       loadNodeIntoConfig((*bins)[binKey.c_str()]);
     }
 

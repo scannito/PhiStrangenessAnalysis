@@ -432,3 +432,52 @@ in `GetConfig`. If purity runs become long enough for that to hurt, the way back
 Checked on a small program against the real file (all five sections load with the right
 observable) and against copies without a section, without the `observable` block,
 without `min`, and with an inverted range. No task was run against a broken file.
+
+---
+
+## Output moved onto Logger
+
+**Every `std::cout` / `std::cerr` log line of the tasks and helpers now goes through
+`Logger::`** (84 statements in 19 headers; the hand-written `[INFO]` / `[WARNING]` /
+`[ERROR]` prefixes are gone, the level carries them). With it the end-of-run summary
+reports real warnings, which was the point of the logger.
+
+*Levels were reviewed, not translated.* Three lines that were printed as `[INFO]` mean the
+run is doing something other than what was asked, and became `Warn`:
+
+- `WorkflowManager`: no `global_binning`, "the axes ... will be used WITHOUT
+  verification" (the check the framework is built on, switched off);
+- `CorrelationTaskBase`: `active_corrections` missing, "Applying NO corrections!";
+- `CorrelationTaskBase`: `apply_efficiency_to` missing, "Defaulting to all active particles".
+
+Three lines that repeat per bin or per fit became `Debug` ("Found custom parameters for
+bin" in both config managers, "Integrating in ... range"), and so did the whole
+`[DEBUG EXTRAP]` block. That block's comment says the `chi2/ndf` line is "not decoration":
+the only visible sign that a converged fit does not describe the data. It was moved to
+`Debug` as decided, so it no longer shows by default; the `Warn` for an extrapolation
+that added nothing, printed by the same function, still does.
+
+*What was kept as it was:* the banners and separators (`>>> [STARTING TASK]`, the `====`
+lines) stay direct output, being layout.
+
+*Format.* Numbers that `cout` printed as `double` use `{:g}` (6 significant digits, as
+`cout` did); `{}` would print the shortest round-trip form and change the digits. A
+`{:g}` on an integer would be an error at run time with `vformat`, so the types were
+checked.
+
+*How it was checked.* A converter did the mechanical part and compared, for every
+statement, the text and the arguments before and after (84 of 84 agree). The whole
+project was then compiled against a variant of `Logger.h` whose functions take
+`std::format_string`, which validates every format string and argument type at compile
+time; it compiled without errors, and the same variant rejects an integer with `{:g}` and a
+missing argument, so the check is not vacuous. The real `Logger.h` (run-time format) is
+what the project uses. The compiled build and the interpreted macro both start and report
+`[SUMMARY]`. **No analysis was run end to end** after this change.
+
+*Visible differences in the output:*
+
+- Lines that were continuations without a prefix (`  -> Overridden ...`, ` ---> Processing
+  particle: ...`) now carry `[INFO]`.
+- The three lines that became `Warn` go to stderr instead of stdout; `runAnalysis.sh`
+  merges the two, so the log file keeps them in order.
+- Timestamps are off by default, so a line looks as it did.

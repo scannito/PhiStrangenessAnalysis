@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BinningUtils.h"
+#include "Logger.h"
 
 #include "Rtypes.h"
 
@@ -113,9 +114,9 @@ struct AnalysisSettings {
       // Announced once per species: silence here would be indistinguishable
       // from a check that passed.
       if (undeclaredPtWarned.insert(species).second) {
-        std::cerr << "[WARNING] AnalysisSettings: no expected pT binning declared for '" << species
-                  << "'. The binning found in the file is used without verification (" << context << ")."
-                  << std::endl;
+        Logger::Warn("AnalysisSettings: no expected pT binning declared for '{}'. The binning found in the file is "
+                     "used without verification ({}).",
+                     species, context);
       }
       return;
     }
@@ -135,9 +136,9 @@ struct AnalysisSettings {
     if (binsMult.empty()) {
       if (!undeclaredMultWarned) {
         undeclaredMultWarned = true;
-        std::cerr << "[WARNING] AnalysisSettings: no expected multiplicity binning declared. The binning "
-                     "found in the file is used without verification ("
-                  << context << ")." << std::endl;
+        Logger::Warn("AnalysisSettings: no expected multiplicity binning declared. The binning found in the file is "
+                     "used without verification ({}).",
+                     context);
       }
       return;
     }

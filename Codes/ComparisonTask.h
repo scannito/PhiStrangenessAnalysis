@@ -5,6 +5,7 @@
 #include "HistogramUtils.h"
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
+#include "Logger.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 
@@ -66,7 +67,7 @@ class ComparisonTask : public IAnalysisTask
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    std::cout << "[INFO] ComparisonTask: INITIALIZING..." << std::endl;
+    Logger::Info("ComparisonTask: INITIALIZING...");
 
     globalCfgs = globalSettings;
 
@@ -213,7 +214,7 @@ class ComparisonTask : public IAnalysisTask
     const auto& runEnv = RunEnvironment::Facts();
     provenance.insert(runEnv.begin(), runEnv.end());
 
-    std::cout << "[INFO] ComparisonTask: " << comparisons.size() << " comparison(s) configured." << std::endl;
+    Logger::Info("ComparisonTask: {} comparison(s) configured.", comparisons.size());
   }
 
   void Run() override
@@ -235,7 +236,7 @@ class ComparisonTask : public IAnalysisTask
 
   void Terminate() override
   {
-    std::cout << "[INFO] ComparisonTask: TERMINATING AND CLEANING UP..." << std::endl;
+    Logger::Info("ComparisonTask: TERMINATING AND CLEANING UP...");
 
     RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileOutput.get(), {"Provenance"}, false), provenance);
 
@@ -243,7 +244,7 @@ class ComparisonTask : public IAnalysisTask
       fileOutput->Close();
     }
 
-    std::cout << "[INFO] ComparisonTask: DONE." << std::endl;
+    Logger::Info("ComparisonTask: DONE.");
   }
 
  private:
@@ -332,9 +333,8 @@ class ComparisonTask : public IAnalysisTask
     // RequireSameAxis on each divided pair, and the caller's word that the two objects
     // mean the same thing.
     if (!comp.objects.empty()) {
-      std::cout << "  -> declared comparison: the denominator is not a product of this chain, "
-                   "so no binning is verified beyond the axes of the objects themselves."
-                << std::endl;
+      Logger::Info("  -> declared comparison: the denominator is not a product of this chain, so no binning is "
+                   "verified beyond the axes of the objects themselves.");
       return pair;
     }
 
@@ -441,21 +441,20 @@ class ComparisonTask : public IAnalysisTask
       const bool declared = !comp.objects.empty();
       const char* divided = declared ? "declared pairs" : what;
 
-      std::cout << "[INFO] " << GetName() << ": '" << comp.label << "' (" << divided << ")" << std::endl;
+      Logger::Info("{}: '{}' ({})", GetName(), comp.label, divided);
       OpenPair pair = OpenAndVerify(comp);
       const int done = declared ? DivideDeclared(pair, comp) : body(pair, comp);
 
       // Counted in terms of what was DIVIDED, not of what came out: with the
       // 'ratios' target the inputs are themselves ratios, so "N ratios written"
       // would leave a reader guessing which of the two it meant.
-      std::cout << "  -> " << done << " " << divided << " divided." << std::endl;
+      Logger::Info("  -> {} {} divided.", done, divided);
 
       // Unreachable for a declared comparison - a missing object is fatal there and an
       // empty list is refused in Init - which is why the message may speak of discovery.
       if (done == 0)
-        std::cerr << "[WARNING] " << GetName() << ": '" << comp.label << "' divided no " << what
-                  << ". The two files share no object under '" << inputScheme << "/" << inputDirName
-                  << "' for this target." << std::endl;
+        Logger::Warn("{}: '{}' divided no {}. The two files share no object under '{}/{}' for this target.",
+                     GetName(), comp.label, what, inputScheme, inputDirName);
     }
   }
 

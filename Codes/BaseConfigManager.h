@@ -2,6 +2,7 @@
 
 #include "AnalysisDataStructures.h"
 #include "JsonConfigHelpers.h"
+#include "Logger.h"
 
 #include "rapidjson/document.h"
 #include "rapidjson/filereadstream.h"
@@ -48,7 +49,7 @@ class BaseConfigManager
     }
 
     isLoaded = true;
-    std::cout << "[INFO] " << managerName << ": JSON successfully loaded into RAM." << std::endl;
+    Logger::Info("{}: JSON successfully loaded into RAM.", managerName);
   }
 
   // Universal parameter parser: [value, min, max] to let it float, a single value

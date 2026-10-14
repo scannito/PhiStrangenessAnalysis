@@ -1,6 +1,7 @@
 #pragma once
 
 #include "AnalysisDataStructures.h"
+#include "Logger.h"
 
 #include "TF1.h"
 #include "TH1.h"
@@ -178,11 +179,10 @@ class SpectrumExtrapolator
     // hide behind the other.
     const auto warnIfEmpty = [this](const char* side, const TH1* region, double contribution) {
       if (region && contribution == 0.0)
-        std::cerr << "[WARNING] SpectrumExtrapolator: the " << side << " extrapolation region of '"
-                  << fMeasuredSpectrum->GetName()
-                  << "' was built but contributed exactly zero, so every one of its bins was skipped "
-                     "for having a non-positive error. This is what a failed fit looks like downstream."
-                  << std::endl;
+        Logger::Warn("SpectrumExtrapolator: the {} extrapolation region of '{}' was built but contributed exactly "
+                     "zero, so every one of its bins was skipped for having a non-positive error. This is what a "
+                     "failed fit looks like downstream.",
+                     side, fMeasuredSpectrum->GetName());
     };
     warnIfEmpty("low", hlo.get(), extraLow);
     warnIfEmpty("high", hhi.get(), extraHigh);
@@ -436,12 +436,10 @@ class SpectrumExtrapolator
         // the 'error <= 0' guard in Integrate - which exists to skip empty bins -
         // then drops the whole extrapolation. The yield that comes out is the raw
         // data integral, looks perfectly plausible, and is not extrapolated.
-        std::cerr << "[WARNING] SpectrumExtrapolator: the fit of '" << h->GetName()
-                  << "' with '" << fFitModel->GetName() << "' did not converge in 10 trials over ["
-                  << fMinFit << ", " << fMaxFit << "]. The covariance matrix is unusable, so the "
-                                                   "extrapolation will contribute nothing and the yield below is the raw integral, "
-                                                   "NOT an extrapolated one. Do not use it."
-                  << std::endl;
+        Logger::Warn("SpectrumExtrapolator: the fit of '{}' with '{}' did not converge in 10 trials over [{:g}, {:g}"
+                     "]. The covariance matrix is unusable, so the extrapolation will contribute nothing and the "
+                     "yield below is the raw integral, NOT an extrapolated one. Do not use it.",
+                     h->GetName(), fFitModel->GetName(), fMinFit, fMaxFit);
         return false;
       }
     } while (fitres != 0);
@@ -547,7 +545,7 @@ class SpectrumExtrapolator
     }
 
     if (fMaxPt < hi) {
-      std::cerr << "[WARNING] Extrapolation max < highest non-empty bin." << std::endl;
+      Logger::Warn("Extrapolation max < highest non-empty bin.");
       return nullptr;
     }
 

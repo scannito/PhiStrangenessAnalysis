@@ -2,6 +2,7 @@
 
 #include "CorrelationTaskBase.h"
 #include "JsonConfigHelpers.h"
+#include "Logger.h"
 #include "RootIOHelpers.h"
 
 #include "TFile.h"
@@ -20,7 +21,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    std::cout << "[INFO] CorrelationWPDGTask: INITIALIZING..." << std::endl;
+    Logger::Info("CorrelationWPDGTask: INITIALIZING...");
 
     InitCommonFlags(taskConfig, globalSettings);
 
@@ -56,7 +57,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     InitAssocParticles(taskConfig);
 
     if (!useProjectionCache) {
-      std::cout << "[INFO] CorrelationWPDGTask: Cache DISABLED. Loading heavy THnSparse data..." << std::endl;
+      Logger::Info("CorrelationWPDGTask: Cache DISABLED. Loading heavy THnSparse data...");
 
       std::unique_ptr<TFile> fileDataMEInput{nullptr};
       if (applyME) {
@@ -79,7 +80,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
         loadedDataCollection.push_back(std::move(data));
       }
     } else {
-      std::cout << "[INFO] CorrelationWPDGTask: Cache ENABLED. Skipping THnSparse loading." << std::endl;
+      Logger::Info("CorrelationWPDGTask: Cache ENABLED. Skipping THnSparse loading.");
       for (const auto& config : assocParticles) {
         LoadedAssocData data;
         data.name = config.name;

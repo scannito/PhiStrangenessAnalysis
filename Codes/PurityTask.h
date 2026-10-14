@@ -8,6 +8,7 @@
 #include "FitConfigManager.h"
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
+#include "Logger.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 
@@ -33,7 +34,7 @@ class PurityTask : public IAnalysisTask
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    std::cout << "[INFO] PurityTask: INITIALIZING..." << std::endl;
+    Logger::Info("PurityTask: INITIALIZING...");
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
@@ -147,7 +148,7 @@ class PurityTask : public IAnalysisTask
 
   void Run() override
   {
-    std::cout << "[INFO] PurityTask: RUNNING FITS..." << std::endl;
+    Logger::Info("PurityTask: RUNNING FITS...");
 
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
 
@@ -216,7 +217,7 @@ class PurityTask : public IAnalysisTask
 
   void Terminate() override
   {
-    std::cout << "[INFO] PurityTask: TERMINATING AND SAVING..." << std::endl;
+    Logger::Info("PurityTask: TERMINATING AND SAVING...");
 
     // 1. Save each particle's summary canvas into its own output file
     for (auto& task : particleTasks) {
@@ -255,7 +256,7 @@ class PurityTask : public IAnalysisTask
       }
     }
 
-    std::cout << "[INFO] PurityTask: DONE." << std::endl;
+    Logger::Info("PurityTask: DONE.");
   }
 
  private:

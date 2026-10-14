@@ -7,6 +7,7 @@
 #include "FitConfigManager.h"
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
+#include "Logger.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 
@@ -33,7 +34,7 @@ class PhiFitTask : public IAnalysisTask
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    std::cout << "[INFO] PhiFitTask: INITIALIZING..." << std::endl;
+    Logger::Info("PhiFitTask: INITIALIZING...");
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
@@ -96,7 +97,7 @@ class PhiFitTask : public IAnalysisTask
 
   void Run() override
   {
-    std::cout << "[INFO] PhiFitTask: RUNNING TRIGGER SIGNAL EXTRACTION..." << std::endl;
+    Logger::Info("PhiFitTask: RUNNING TRIGGER SIGNAL EXTRACTION...");
 
     TDirectory* fitDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Fits"}, false);
     if (!fitDir) {
@@ -145,7 +146,7 @@ class PhiFitTask : public IAnalysisTask
 
   void Terminate() override
   {
-    std::cout << "[INFO] PhiFitTask: TERMINATING..." << std::endl;
+    Logger::Info("PhiFitTask: TERMINATING...");
 
     TDirectory* summaryDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Summary"}, false);
     if (!summaryDir) {
@@ -168,7 +169,7 @@ class PhiFitTask : public IAnalysisTask
     if (filePhiDataOutput)
       filePhiDataOutput->Close();
 
-    std::cout << "[INFO] PhiFitTask: DONE." << std::endl;
+    Logger::Info("PhiFitTask: DONE.");
   }
 
  private:

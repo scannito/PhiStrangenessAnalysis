@@ -8,6 +8,7 @@
 #include "HistogramUtils.h"
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
+#include "Logger.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 
@@ -41,7 +42,7 @@ class MCTask : public IAnalysisTask
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    std::cout << "[INFO] MCTask: INITIALIZING..." << std::endl;
+    Logger::Info("MCTask: INITIALIZING...");
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
@@ -218,7 +219,7 @@ class MCTask : public IAnalysisTask
         }
       }
     } else {
-      std::cerr << "[WARNING] MCTask: No input files were opened. Event Loss will not be computed!" << std::endl;
+      Logger::Warn("MCTask: No input files were opened. Event Loss will not be computed!");
     }
 
     for (auto& [name, file] : openInputFiles) {
@@ -241,17 +242,17 @@ class MCTask : public IAnalysisTask
     // different 'binning_name' writing to the same file keeps its own.
     RootIO::ClearPath(fileMCOutput.get(), {globalCfgs.binningName});
 
-    std::cout << "[INFO] MCTask: Initialization complete." << std::endl;
+    Logger::Info("MCTask: Initialization complete.");
   }
 
   void Run() override
   {
-    std::cout << "[INFO] MCTask: RUNNING EFFICIENCY COMPUTATIONS..." << std::endl;
+    Logger::Info("MCTask: RUNNING EFFICIENCY COMPUTATIONS...");
 
     std::unique_ptr<TH1> hEventLoss;
 
     if (hEventMultGenAssocReco && hEventMultGen) {
-      std::cout << " ---> Computing Global Event Efficiency (Event Loss)..." << std::endl;
+      Logger::Info(" ---> Computing Global Event Efficiency (Event Loss)...");
 
       // Delegate the math to the static calculator
       hEventLoss = EfficiencyCalculator::ComputeEventEfficiency(hEventMultGenAssocReco.get(), hEventMultGen.get());
@@ -265,7 +266,7 @@ class MCTask : public IAnalysisTask
     }
 
     for (auto& data : dataCollection) {
-      std::cout << " ---> Processing particle: " << data.name << std::endl;
+      Logger::Info(" ---> Processing particle: {}", data.name);
 
       // Prepare the 3D generator-level histogram
       data.h3MCGen->SetName(("h3" + data.name + "MCGen").c_str());
@@ -378,8 +379,7 @@ class MCTask : public IAnalysisTask
           evLossErr = integrated->GetBinError(1);
         }
         if (evLoss <= 0.) {
-          std::cerr << "[WARNING] MCTask: event loss is zero for " << data.name
-                    << ", signal loss over event loss skipped." << std::endl;
+          Logger::Warn("MCTask: event loss is zero for {}, signal loss over event loss skipped.", data.name);
           return;
         }
 
@@ -454,7 +454,7 @@ class MCTask : public IAnalysisTask
 
   void Terminate() override
   {
-    std::cout << "[INFO] MCTask: TERMINATING AND CLEANING UP..." << std::endl;
+    Logger::Info("MCTask: TERMINATING AND CLEANING UP...");
 
     // The pT binning of every correction is carried by its own axis, so the
     // consumer can verify it by reading it. The multiplicity binning is not: it
@@ -473,7 +473,7 @@ class MCTask : public IAnalysisTask
     if (fileMCOutput)
       fileMCOutput->Close();
 
-    std::cout << "[INFO] MCTask: DONE." << std::endl;
+    Logger::Info("MCTask: DONE.");
   }
 
  private:
