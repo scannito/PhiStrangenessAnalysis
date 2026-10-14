@@ -681,6 +681,50 @@ Not unified by this: ROOT's own messages (`gErrorIgnoreLevel`) and RooFit's
 kept until the decision to remove it is made; `DESIGN_HISTORY.md` records why it
 was not adopted.
 
+**Which particles are extrapolated is decided in a different place from which are fitted
+or corrected. To decide.** Two models coexist:
+
+| | who decides | a missing section |
+|---|---|---|
+| purity and trigger fits | the task configuration declares them (`purity_particles` with their `purity_key`, the fixed `"phi"`); `fitConfig.json` has to follow | error (`FitConfigManager::GetConfig` throws) |
+| efficiency | the task configuration (`apply_efficiency_to`) | falls back to "all particles", with an `[INFO]` |
+| extrapolation | **`extrapConfig.json`**: the task configuration has only the switch `apply_extrapolation`, and a section's presence decides per particle | the particle is skipped, with an `[INFO]` |
+
+No rationale is written down. The behaviour comes from `87e5c89` (7 July, "Make extrapolation
+configurable per particle", empty message body); the diff shows what it allows: a species
+without extrapolation next to one with it, including a ratio of an extrapolated numerator over
+a plain denominator (`numHasExtrap` / `denHasExtrap`). That is a real feature and should
+survive. Today it is not exercised: `associated_particles` is `[K0S, Xi, Pi]` and
+`extrapConfig.json` has exactly those three sections, so nothing is skipped.
+
+The cost of the implicit model is the case this framework is built against: a typo in
+`extrapConfig.json` (`K0s` for `K0S`) switches extrapolation off for that particle with one
+`[INFO]` line, and the numbers change with no error. The fit side stops at the start for the
+same mistake.
+
+Options, in the order I would take them:
+
+1. **A declared list**, symmetric to `apply_efficiency_to`: `"apply_extrapolation_to":
+   ["K0S", "Xi", "Pi"]`, required when `apply_extrapolation` is true. A listed particle must
+   have its section (error at `Init`); one not listed is not extrapolated, by declaration and
+   not by absence. Results do not change with the current lists. `HasConfig` and the
+   `Skipping` message go away. Cost: one key in the correlation blocks of the JSONs
+   (`correlation_base_settings`, `correlation_wpdg_base_settings` and their `ref` variants) and
+   about ten lines in `CorrelationTaskBase`. Required and not defaulted, because it changes a
+   number (`CLAUDE.md`, "A key that changes a number is declared").
+2. **A key in each `associated_particles` entry** (`"extrapolate": true`), in the spirit of
+   the per-entry choice proposed in item 2 above for PDG matching. Same guarantee as 1, and
+   the two per-particle choices would then sit in the same place; more restructuring of the
+   entries.
+3. **Keep the model and raise the `[INFO]` to a warning** (`Logger::Warn`), so the case shows
+   in the end-of-run summary. Cheapest; it makes the silent case visible but leaves two ways of
+   deciding in one framework.
+
+Already done around it: `ExtrapConfigManager::GetConfig` throws for a particle with no section
+(its only caller asks `HasConfig` first, so that branch is reachable only by misuse). Related
+and also open: `apply_efficiency_to` missing falls back to "all active particles" with an
+`[INFO]`, which for the same reason should at least be a warning.
+
 **Purely static classes that would read better as namespaces.** `EfficiencyCalculator`
 is ten `static` functions, no data member, nothing private, and a deleted constructor
 (commented "Purely static class"); only `MCTask` uses it. A class used that way is a

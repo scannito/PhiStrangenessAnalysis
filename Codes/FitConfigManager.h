@@ -15,23 +15,35 @@ class FitConfigManager : public BaseConfigManager
   {
     FitConfig config;
 
-    // If JSON is not loaded or the particle section (e.g., "k0s") is missing, return an empty config
-    if (!isLoaded || !document.HasMember(particle.c_str())) {
-      std::cerr << "[ERROR] " << managerName << ": Particle section not found in JSON: " << particle << std::endl;
-      return config;
-    }
+    // The sections of this file are asked for by name, by tasks whose own configuration
+    // decides which ones: the purity task by each particle's 'purity_key', the trigger
+    // fit by "phi". A section cannot be defaulted - there is no sensible model,
+    // observable or range to invent - so its absence is always an error, unlike for
+    // ExtrapConfigManager, where it means "skip this particle". Checked before the
+    // lookup below: rapidjson's operator[] on a missing key asserts, and in a Release
+    // build (where asserts are compiled out) returns a null value in silence.
+    if (!isLoaded || !document.HasMember(particle.c_str()))
+      throw std::runtime_error(std::format("[FATAL] {}: no section '{}' in the fit configuration.",
+                                           managerName, particle));
 
     const rapidjson::Value& partNode = document[particle.c_str()];
 
     // LOAD GLOBAL OBSERVABLE PROPERTIES
     // This is done ONLY ONCE for the particle, completely outside the override logic.
     // It prevents accidental bin-by-bin modifications of the physical X-axis.
-    if (const rapidjson::Value* obs = JsonConfig::TryObject(partNode, "observable", managerName)) {
-      config.obs.name = JsonConfig::OptionalString(*obs, "name", config.obs.name, managerName);
-      config.obs.title = JsonConfig::OptionalString(*obs, "title", config.obs.title, managerName);
-      config.obs.min = JsonConfig::OptionalDouble(*obs, "min", config.obs.min, managerName);
-      config.obs.max = JsonConfig::OptionalDouble(*obs, "max", config.obs.max, managerName);
-    }
+    // The block, the name and the range are required: nothing sensible can stand in for
+    // what is fitted or over which interval. The title only labels the axis.
+    const std::string obsCtx = std::format("{}: section '{}'", managerName, particle);
+    const rapidjson::Value* obs = JsonConfig::TryObject(partNode, "observable", obsCtx);
+    if (!obs)
+      throw std::runtime_error(std::format("[FATAL] {}: 'observable' missing in JSON!", obsCtx));
+    config.obs.name = JsonConfig::RequireString(*obs, "name", obsCtx);
+    config.obs.title = JsonConfig::OptionalString(*obs, "title", config.obs.title, obsCtx);
+    config.obs.min = JsonConfig::RequireDouble(*obs, "min", obsCtx);
+    config.obs.max = JsonConfig::RequireDouble(*obs, "max", obsCtx);
+    if (!(config.obs.min < config.obs.max))
+      throw std::runtime_error(std::format("[FATAL] {}: observable range is empty or inverted: min = {}, max = {}.",
+                                           obsCtx, config.obs.min, config.obs.max));
 
     // LOAD FIT PARAMETERS (WITH OVERRIDE LOGIC)
     //  We now look strictly inside the "fit_setup" block for mathematical models.

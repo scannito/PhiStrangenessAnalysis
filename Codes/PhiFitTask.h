@@ -111,7 +111,7 @@ class PhiFitTask : public IAnalysisTask
         h1PhiData->SetDirectory(0);
 
         // Fetch configuration dynamically from JSON
-        FitConfig cfg = fitConfigManager->GetConfig("phi", i, j);
+        FitConfig cfg = fitConfigManager->GetConfig(kFitSection, i, j);
 
         // Initialize RooFit Engine
         DynamicRooFitter fitter(h1PhiData.get(), cfg);
@@ -192,6 +192,10 @@ class PhiFitTask : public IAnalysisTask
   std::unique_ptr<TH2D> h2TriggerBkgSigRegion;
   std::unique_ptr<TH2D> h2TriggerBkgSideRegion;
   std::unique_ptr<TH2D> h2TriggerBkgRatio;
+
+  // The section of the fit configuration this task fits with. A name fixed by what the
+  // task is, unlike PurityTask's, which comes from each particle's 'purity_key'.
+  static constexpr const char* kFitSection = "phi";
 
   std::unique_ptr<FitConfigManager> fitConfigManager;
 };

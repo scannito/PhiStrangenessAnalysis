@@ -20,9 +20,14 @@ class ExtrapConfigManager : public BaseConfigManager
   {
     ExtrapConfig config;
 
+    // A missing section is a legitimate state, and HasConfig is how a caller asks: it
+    // skips the particle. GetConfig is for particles that passed that test, so arriving
+    // here means a caller skipped it - and an empty ExtrapConfig would only fail later,
+    // with a message about a model that was never the problem.
     if (!isLoaded || !document.HasMember(particle.c_str())) {
-      std::cerr << "[ERROR] " << managerName << ": Particle section not found in JSON: " << particle << std::endl;
-      return config;
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: GetConfig('{}') called for a particle with no section in the JSON: check HasConfig first.",
+        managerName, particle));
     }
 
     const rapidjson::Value& partNode = document[particle.c_str()];

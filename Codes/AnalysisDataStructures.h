@@ -136,8 +136,10 @@ struct MathParam {
 struct ObservableConfig {
   std::string name;
   std::string title;
-  double min;
-  double max;
+  // Initialised so that a default-constructed FitConfig holds no indeterminate value.
+  // No sensible default exists for the range, and FitConfigManager requires both keys.
+  double min{0.0};
+  double max{0.0};
 };
 
 struct ModelConfig {

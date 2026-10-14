@@ -147,6 +147,19 @@ inline bool RequireBool(const rapidjson::Value& node, const char* key, std::stri
   return val.GetBool();
 }
 
+// The counterpart of OptionalDouble for a key that has to be there, with the same rule for
+// what counts as a number: IsNumber, not IsDouble (rapidjson stores "2" as an int), and
+// not a string - the JSON number accepted by the Optional form and nothing looser, so that
+// a key does not change meaning when it moves from one form to the other. ToNumber, which
+// also reads "6.4", is for a value already in hand.
+inline double RequireDouble(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  const auto& val = RequireMember(node, key, errCtx);
+  if (!val.IsNumber())
+    throw std::runtime_error(std::format("[FATAL] {}: key '{}' exists but is NOT a number!", errCtx, key));
+  return val.GetDouble();
+}
+
 inline auto RequireArray(const rapidjson::Value& node, const char* key, std::string_view errCtx)
 {
   return ToArray(RequireMember(node, key, errCtx), key, errCtx);

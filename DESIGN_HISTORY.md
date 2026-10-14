@@ -391,3 +391,44 @@ that includes the project headers.
 *Status.* `RunAnalysisChain` prints the summary on success and on a fatal error. The
 tasks have not been migrated, so the summary is still empty in practice; see
 `DESIGN_NOTES.md`.
+
+---
+
+## The fit configuration: required sections and observable
+
+**A missing section of `fitConfig.json` throws, naming the section.**
+`FitConfigManager::GetConfig` used to print `[ERROR] Particle section not found` and
+return a half-built `FitConfig`: names empty, models empty, and `obs.min` / `obs.max`
+never set (no initial value, so `OptionalDouble(..., config.obs.min)` could read an
+uninitialised `double`). The fit then failed on RooFit's own message ("Each RooFit
+object needs a name"), which names neither the section nor the file. Reproduced with a
+copy of the file without `k0s` before the change.
+
+- `GetConfig` throws before the lookup `document[particle]`: rapidjson's `operator[]` on
+  a missing key asserts, and in a Release build (asserts compiled out) returns a null
+  value in silence. The check is the first of the function's own, not an extra: it has to
+  verify what it reads, the `observable` block and its keys included, and none of that can
+  be verified without calling it.
+- A section is required and not defaulted: unlike `ExtrapConfigManager`, where a missing
+  section means "skip this particle", here there is no sensible model, observable or
+  range to invent. The task configuration decides which sections are needed (the purity
+  task by each particle's `purity_key`, the trigger fit by `"phi"`), `fitConfig.json` has
+  to follow, and a mismatch between the two is what this catches.
+- The `observable` block, its `name`, `min` and `max` are required, and an empty or
+  inverted range is rejected; `title` stays optional. `ObservableConfig::min` and `max`
+  now also have an initial value, so no default-constructed `FitConfig` holds an
+  indeterminate number.
+- `ExtrapConfigManager::GetConfig` throws as well for a particle without a section: its
+  only caller already skips such particles through `HasConfig`, so the branch is
+  reachable only by misuse and used to return an empty config that failed later.
+
+*Considered and dropped:* a check in each task's `Init` (`PurityTask`, `PhiFitTask`) that
+asks for every section before the first fit. It does not change the outcome, since the
+run stops either way, only when: a missing section that is not the first particle's would
+show up after the earlier particles have been fitted. Dropped as redundant with the throw
+in `GetConfig`. If purity runs become long enough for that to hurt, the way back is a
+`FitConfigManager` method that throws, called from the two `Init`s.
+
+Checked on a small program against the real file (all five sections load with the right
+observable) and against copies without a section, without the `observable` block,
+without `min`, and with an inverted range. No task was run against a broken file.
