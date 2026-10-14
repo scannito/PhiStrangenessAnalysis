@@ -510,14 +510,14 @@ class CorrelationTaskBase : public IAnalysisTask
     std::unique_ptr<TFile> fileEffInput = RootIO::OpenOrThrow(inputEffFile, "READ", "CorrelationTaskBase::LoadCorrections");
 
     RootIO::PrintProvenance(RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "Provenance"}, true),
-                            "corrections file '" + inputEffFile + "'");
+                            std::format("corrections file '{}'", inputEffFile));
 
     // The corrections are addressed by multiplicity INDEX ("..._multBin3"), with
     // indices that come from the data. The stamp MCTask leaves behind is the only
     // way to know the intervals those indices meant in the MC production.
     RootIO::RequireMatchingBinningStamp(
       RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName}, true),
-      "binning_mult", multBinning, "efficiency map '" + inputEffFile + "'");
+      "binning_mult", multBinning, std::format("efficiency map '{}'", inputEffFile));
 
     // Mirror the exact layout MCTask writes: {binningName}/AccEff/MultBin,
     // {binningName}/SigLoss/MultBin, {binningName}/EvLoss
@@ -558,7 +558,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // Event Loss is loaded if requested
     if (isActive("event_loss")) {
       if (!evLossDir)
-        throw std::runtime_error("[FATAL] 'event_loss' requested but directory '" + globalCfgs.binningName + "/EvLoss' not found!");
+        throw std::runtime_error(std::format("[FATAL] 'event_loss' requested but directory '{}/EvLoss' not found!", globalCfgs.binningName));
 
       if (auto hTemp = static_cast<TH1*>(evLossDir->Get("hEventLoss"))) {
         hEventLoss.reset(static_cast<TH1*>(hTemp->Clone("hEventLoss")));
@@ -572,7 +572,7 @@ class CorrelationTaskBase : public IAnalysisTask
       if (!apply)
         return nullptr;
       if (!dir)
-        throw std::runtime_error("[FATAL] Missing directory containing: " + name);
+        throw std::runtime_error(std::format("[FATAL] Missing directory containing: {}", name));
 
       std::unique_ptr<TH1F> h = RootIO::GetUniqueOrThrow<TH1F>(dir, name, "CorrelationTaskBase::LoadCorrections");
 
@@ -584,11 +584,12 @@ class CorrelationTaskBase : public IAnalysisTask
                                                      "analysis binning (data production)",
                                                      "efficiency map (MC production)");
       if (!diff.empty()) {
-        throw std::runtime_error(
-          "[FATAL] CorrelationTaskBase::LoadCorrections: '" + name + "' in '" + inputEffFile +
-          "' is not binned like the data being corrected:\n" + diff +
+        throw std::runtime_error(std::format(
+          "[FATAL] CorrelationTaskBase::LoadCorrections: '{}' in '{}' "
+          "is not binned like the data being corrected:\n{}"
           "Set 'rebinning_pt' in the MC configuration so the efficiency is produced at this binning, "
-          "or re-run the production whose axis does not match.");
+          "or re-run the production whose axis does not match.",
+          name, inputEffFile, diff));
       }
 
       return h;
@@ -621,29 +622,27 @@ class CorrelationTaskBase : public IAnalysisTask
       } else {
         auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == name; });
         if (it == assocParticles.end())
-          throw std::runtime_error("[FATAL] Unknown particle name in 'apply_efficiency_to': " + name);
+          throw std::runtime_error(std::format("[FATAL] Unknown particle name in 'apply_efficiency_to': {}", name));
         targetBinning = it->binning;
       }
 
       // Naming convention for histograms based on particle name
-      std::string effHistBase = "h1" + name + "Efficiency";
-      std::string sigLossHistBase = "h1" + name + "SigLoss";
+      std::string effHistBase = std::format("h1{}Efficiency", name);
+      std::string sigLossHistBase = std::format("h1{}SigLoss", name);
 
       // Fetch integrated histograms ONLY if useIntegratedEfficiency is true
-      std::unique_ptr<TH1F> hEffInt = fetchHist(accEffDir, effHistBase + "_multIntegrated", doAccEfficiency && useIntegratedEfficiency, targetBinning);
+      std::unique_ptr<TH1F> hEffInt = fetchHist(accEffDir, std::format("{}_multIntegrated", effHistBase), doAccEfficiency && useIntegratedEfficiency, targetBinning);
       // Note: Signal loss is typically not integrated, but we fetch it if requested for consistency
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-        std::string iStr = std::to_string(i);
-
         // Fetch binned histograms ONLY if useIntegratedEfficiency is false
-        std::unique_ptr<TH1F> hEffBin = fetchHist(accEffDir, effHistBase + "_multBin" + iStr, doAccEfficiency && !useIntegratedEfficiency, targetBinning);
+        std::unique_ptr<TH1F> hEffBin = fetchHist(accEffDir, std::format("{}_multBin{}", effHistBase, i), doAccEfficiency && !useIntegratedEfficiency, targetBinning);
         // Note: Signal loss is typically not integrated, so we fetch the binned version if signal loss correction is requested,
         // regardless of the useIntegratedEfficiency flag
-        std::unique_ptr<TH1F> hLossBin = fetchHist(sigLossDir, sigLossHistBase + "_multBin" + iStr, doSigLoss, targetBinning);
+        std::unique_ptr<TH1F> hLossBin = fetchHist(sigLossDir, std::format("{}_multBin{}", sigLossHistBase, i), doSigLoss, targetBinning);
 
-        corr.h1Corrections[i] = combineHists(hEffBin.get(), hLossBin.get(), "h1Corrected_" + name + "_multBin" + iStr);
-        corr.h1CorrectionsEffMultInt[i] = combineHists(hEffInt.get(), hLossBin.get(), "h1Corrected_" + name + "_multInt" + iStr);
+        corr.h1Corrections[i] = combineHists(hEffBin.get(), hLossBin.get(), std::format("h1Corrected_{}_multBin{}", name, i));
+        corr.h1CorrectionsEffMultInt[i] = combineHists(hEffInt.get(), hLossBin.get(), std::format("h1Corrected_{}_multInt{}", name, i));
       }
 
       correctionCollection[name] = std::move(corr);
@@ -732,7 +731,7 @@ class CorrelationTaskBase : public IAnalysisTask
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       auto& particle = assocParticles[pIdx];
       TFile* cacheFile = filesPhiAssocDataOutput[pIdx].get();
-      const std::string ctx = "Phi" + particle.name + "DataHistograms.root, scheme '" + globalCfgs.binningName + "'";
+      const std::string ctx = std::format("Phi{}DataHistograms.root, scheme '{}'", particle.name, globalCfgs.binningName);
 
       // Resolved for THIS particle, then merged into the common ones below.
       std::vector<double> mult;
@@ -741,7 +740,7 @@ class CorrelationTaskBase : public IAnalysisTask
       if (!useProjectionCache) {
         // h5Phi{X}Data* axes: (mult, pT(phi), pT(assoc), dy, dphi)
         const THnSparse* source = loadedDataCollection[pIdx].h5DataSignal.get();
-        const std::string origin = "h5Phi" + particle.name + "DataSignal";
+        const std::string origin = std::format("h5Phi{}DataSignal", particle.name);
 
         mult = globalCfgs.ResolveMultBinning(source->GetAxis(0), origin);
         ptPhi = globalCfgs.ResolvePtBinning("Phi", source->GetAxis(1), origin);
@@ -756,11 +755,11 @@ class CorrelationTaskBase : public IAnalysisTask
         if (!previous.empty()) {
           const std::string diff = BinningUtils::Compare(previous, particle.binning, "existing file", "current run");
           if (!diff.empty()) {
-            throw std::runtime_error(
-              "[FATAL] " + GetName() + ": " + ctx + " already holds projections built with a different pT binning:\n" +
-              diff +
+            throw std::runtime_error(std::format(
+              "[FATAL] {}: {} already holds projections built with a different pT binning:\n{}"
               "Overwriting would leave projections of both binnings under the same scheme. Either give this "
-              "binning a distinct 'binning_name', so the two live in separate directories, or delete the file.");
+              "binning a distinct 'binning_name', so the two live in separate directories, or delete the file.",
+              GetName(), ctx, diff));
           }
         }
 
@@ -784,9 +783,9 @@ class CorrelationTaskBase : public IAnalysisTask
       } else {
         TDirectory* schemeDir = RootIO::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, true);
         if (!schemeDir) {
-          throw std::runtime_error("[FATAL] " + GetName() + ": cache requested but scheme '" + globalCfgs.binningName +
-                                   "' does not exist in Phi" + particle.name +
-                                   "DataHistograms.root. Run once with 'use_projection_cache': false.");
+          throw std::runtime_error(std::format("[FATAL] {}: cache requested but scheme '{}' does not exist in Phi{}"
+                                               "DataHistograms.root. Run once with 'use_projection_cache': false.",
+                                               GetName(), globalCfgs.binningName, particle.name));
         }
 
         particle.binning = RootIO::ReadBinningStamp(schemeDir, "binning_ptAssoc");
@@ -794,9 +793,9 @@ class CorrelationTaskBase : public IAnalysisTask
         mult = RootIO::ReadBinningStamp(schemeDir, "binning_mult");
 
         if (particle.binning.empty() || ptPhi.empty() || mult.empty()) {
-          throw std::runtime_error("[FATAL] " + GetName() + ": " + ctx +
-                                   " carries no binning stamps, so the binning its projections were built "
-                                   "with is unknown. Rebuild it with 'use_projection_cache': false.");
+          throw std::runtime_error(std::format("[FATAL] {}: {} carries no binning stamps, so the binning its projections "
+                                               "were built with is unknown. Rebuild it with 'use_projection_cache': false.",
+                                               GetName(), ctx));
         }
 
         // The cache is the source of truth here, but it still has to be the
@@ -1277,7 +1276,7 @@ class CorrelationTaskBase : public IAnalysisTask
             std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, axesToCut, totalEff, triggerBkgRatio, histNameBase + suffix, targetDir, nullptr, projectionAxis);
 
             if (j == 0) {
-              std::string accumName = "h1Phi" + config.name + "DataSignal" + CellSuffix(config, i, k);
+              std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, i, k));
               h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
               h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
             } else {

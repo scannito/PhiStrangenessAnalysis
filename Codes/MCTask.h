@@ -21,6 +21,7 @@
 #include <algorithm>
 #include <cctype>
 #include <filesystem>
+#include <format>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -75,7 +76,7 @@ class MCTask : public IAnalysisTask
     std::error_code ec;
     std::filesystem::create_directories(ccdbOutputDir, ec);
     if (ec) {
-      throw std::runtime_error("[FATAL] MCTask: Cannot create output directory '" + ccdbOutputDir + "': " + ec.message());
+      throw std::runtime_error(std::format("[FATAL] MCTask: Cannot create output directory '{}': {}", ccdbOutputDir, ec.message()));
     }
 
     particleCorrectionMode = JsonConfig::OptionalEnum<CorrectionMode>(taskConfig, "particle_correction_mode", "efficiency_only",
@@ -120,7 +121,7 @@ class MCTask : public IAnalysisTask
       // The task-level key is required, so this only fires on an explicitly
       // empty string, in the JSON or in the per-particle override.
       if (particleInputFile.empty()) {
-        throw std::runtime_error("[FATAL ERROR] MCTask: empty 'input_mc_file' for particle '" + name + "'!");
+        throw std::runtime_error(std::format("[FATAL ERROR] MCTask: empty 'input_mc_file' for particle '{}'!", name));
       }
 
       LoadedMC data;
@@ -162,9 +163,9 @@ class MCTask : public IAnalysisTask
       globalCfgs.ResolvePtBinning(name, data.h3MCGen->GetYaxis(), h3MCGenName + " in " + origin);
 
       if (auto rebin = JsonConfig::TryArray(p, "rebinning_pt", GetName())) {
-        std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, "rebinning_pt for '" + name + "'", GetName());
+        std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, std::format("rebinning_pt for '{}'", name), GetName());
         if (bins.size() < 2) {
-          throw std::runtime_error("[FATAL ERROR] MCTask: 'rebinning_pt' for particle '" + name + "' must have at least 2 edges!");
+          throw std::runtime_error(std::format("[FATAL ERROR] MCTask: 'rebinning_pt' for particle '{}' must have at least 2 edges!", name));
         }
         data.rebinningPt = std::move(bins);
       }

@@ -2,6 +2,8 @@
 
 #include "BaseConfigManager.h"
 
+#include <format>
+
 class FitConfigManager : public BaseConfigManager
 {
  public:
@@ -79,7 +81,7 @@ class FitConfigManager : public BaseConfigManager
         loadNodeIntoModel(*defaults);
 
       // 2. Override with specific bin settings if they exist
-      std::string binKey = "mult" + std::to_string(multBin) + "_pt" + std::to_string(ptBin);
+      std::string binKey = std::format("mult{}_pt{}", multBin, ptBin);
       // The outer key is fixed and must be an object; the inner one is built from
       // the bin indices, so its absence is normal and HasMember is the right tool.
       const rapidjson::Value* bins = JsonConfig::TryObject(fitNode, "bins", managerName);

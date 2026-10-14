@@ -98,7 +98,7 @@ class ComparisonTask : public IAnalysisTask
       Comparison comp;
       comp.numeratorFile = JsonConfig::RequireString(c, "numerator", ctx);
       comp.denominatorFile = JsonConfig::RequireString(c, "denominator", ctx);
-      comp.label = JsonConfig::OptionalString(c, "label", "comparison" + std::to_string(idx - 1), ctx);
+      comp.label = JsonConfig::OptionalString(c, "label", std::format("comparison{}", idx - 1), ctx);
 
       // Declared, never guessed. Plain division is right when the two inputs are
       // independent samples - an old production against a new one - and wrong for a
@@ -295,7 +295,7 @@ class ComparisonTask : public IAnalysisTask
   OpenPair OpenAndVerify(const Comparison& comp)
   {
     OpenPair pair;
-    const std::string ctx = GetName() + " '" + comp.label + "'";
+    const std::string ctx = std::format("{} '{}'", GetName(), comp.label);
 
     pair.num = RootIO::OpenOrThrow(comp.numeratorFile, "READ", ctx);
     pair.den = RootIO::OpenOrThrow(comp.denominatorFile, "READ", ctx);
@@ -317,9 +317,9 @@ class ComparisonTask : public IAnalysisTask
     const auto copyProvenance = [&](TFile* src, const char* dirName, const std::string& fileName) {
       auto facts = RootIO::ReadProvenance(RootIO::GetOrCreatePath(src, {inputScheme, "Provenance"}, true));
       if (facts.empty())
-        facts["no_provenance"] = "'" + fileName + "' carries nothing under '" + inputScheme +
-                                 "/Provenance': either it was not produced by this framework, "
-                                 "or it predates the provenance records.";
+        facts["no_provenance"] = std::format("'{}' carries nothing under '{}/Provenance': either it was not "
+                                             "produced by this framework, or it predates the provenance records.",
+                                             fileName, inputScheme);
       RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileOutput.get(), {comp.label, dirName}, false), facts);
     };
 
@@ -360,7 +360,7 @@ class ComparisonTask : public IAnalysisTask
         ctx, comp.numeratorFile));
 
     RootIO::RequireMatchingBinningStamp(denScheme, "binning_mult", pair.multBinning,
-                                        ctx + ", denominator '" + comp.denominatorFile + "'");
+                                        std::format("{}, denominator '{}'", ctx, comp.denominatorFile));
 
     // Trigger pT is integrated away in everything this task divides - spectra and
     // trends alike - so it is an axis of nothing, and two productions summing over
@@ -369,7 +369,7 @@ class ComparisonTask : public IAnalysisTask
     const std::vector<double> ptPhi = RootIO::ReadBinningStamp(numScheme, "binning_ptPhi");
     if (!ptPhi.empty())
       RootIO::RequireMatchingBinningStamp(denScheme, "binning_ptPhi", ptPhi,
-                                          ctx + ", denominator '" + comp.denominatorFile + "'");
+                                          std::format("{}, denominator '{}'", ctx, comp.denominatorFile));
 
     pair.numDir = RootIO::GetOrCreatePath(pair.num.get(), {inputScheme, inputDirName}, true);
     pair.denDir = RootIO::GetOrCreatePath(pair.den.get(), {inputScheme, inputDirName}, true);
@@ -466,7 +466,7 @@ class ComparisonTask : public IAnalysisTask
   {
     int done = 0;
     for (const ObjectPair& obj : comp.objects) {
-      const std::string ctx = GetName() + " '" + comp.label + "'";
+      const std::string ctx = std::format("{} '{}'", GetName(), comp.label);
 
       // Both fatal, unlike the discovered mode where a missing object means the two
       // productions legitimately differ: here every pair was written out by hand, so
@@ -486,8 +486,8 @@ class ComparisonTask : public IAnalysisTask
       // task holds two paths and two TH1, and guessing the kind from an axis title
       // would be a check that fails quietly the first time a title changes.
       BinningUtils::RequireSameAxis(num->GetXaxis(), den->GetXaxis(),
-                                    "numerator " + obj.numeratorPath + " of " + comp.numeratorFile,
-                                    "denominator " + obj.denominatorPath + " of " + comp.denominatorFile);
+                                    std::format("numerator {} of {}", obj.numeratorPath, comp.numeratorFile),
+                                    std::format("denominator {} of {}", obj.denominatorPath, comp.denominatorFile));
 
       std::unique_ptr<TH1> ratio = HistogramUtils::MakeRatioHist(
         num.get(), den.get(), obj.outName,
@@ -531,7 +531,7 @@ class ComparisonTask : public IAnalysisTask
 
     int done = 0;
     for (const std::string& name : ListHistograms(numSub)) {
-      const std::string ctx = GetName() + " '" + comp.label + "' " + RootIO::MakeDirPath(subPath);
+      const std::string ctx = std::format("{} '{}' {}", GetName(), comp.label, RootIO::MakeDirPath(subPath));
 
       std::unique_ptr<TH1> num = RootIO::GetUniqueOrThrow<TH1>(numSub, name, ctx);
       std::unique_ptr<TH1> den = RootIO::GetUniqueOrWarn<TH1>(denSub, name, ctx);
@@ -541,8 +541,8 @@ class ComparisonTask : public IAnalysisTask
       // The pT or multiplicity axis of the objects themselves. The stamps checked in
       // OpenAndVerify cover what is in the NAME; this covers what is in the object.
       BinningUtils::RequireSameAxis(num->GetXaxis(), den->GetXaxis(),
-                                    "numerator " + name + " of " + comp.numeratorFile,
-                                    "denominator " + name + " of " + comp.denominatorFile);
+                                    std::format("numerator {} of {}", name, comp.numeratorFile),
+                                    std::format("denominator {} of {}", name, comp.denominatorFile));
 
       // The name is carried over unchanged, not suffixed. Nothing here needs
       // disambiguating - the numerator lives in another file, this whole file holds
@@ -573,8 +573,8 @@ class ComparisonTask : public IAnalysisTask
       return; // produced before the stamp existed: warned about, not fatal
 
     RootIO::RequireMatchingBinningStamp(RootIO::GetOrCreatePath(pair.denDir, {particle}, true), "binning_ptAssoc", stamped,
-                                        GetName() + " '" + comp.label + "', " + particle + ", denominator '" +
-                                          comp.denominatorFile + "'");
+                                        std::format("{} '{}', {}, denominator '{}'", GetName(), comp.label, particle,
+                                                    comp.denominatorFile));
   }
 
   // ---------------------------------------------------------------------------

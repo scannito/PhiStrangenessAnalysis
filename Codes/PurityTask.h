@@ -64,7 +64,7 @@ class PurityTask : public IAnalysisTask
     std::error_code ec;
     std::filesystem::create_directories(ccdbOutputDir, ec);
     if (ec)
-      throw std::runtime_error("[FATAL] PurityTask: Cannot create output directory '" + ccdbOutputDir + "': " + ec.message());
+      throw std::runtime_error(std::format("[FATAL] PurityTask: Cannot create output directory '{}': {}", ccdbOutputDir, ec.message()));
 
     auto particles = JsonConfig::RequireArray(taskConfig, "purity_particles", "PurityTask");
 
@@ -79,7 +79,7 @@ class PurityTask : public IAnalysisTask
       // The binning comes from the file, never from the configuration: the loops
       // below address these very bins, and the purity spectrum is built on these
       // very edges. h3 axes: (mult, pT, invariant mass).
-      const std::string origin = histName + " in '" + inputFile + "'";
+      const std::string origin = std::format("{} in '{}'", histName, inputFile);
       multBinning = globalCfgs.ResolveMultBinning(h3Source->GetXaxis(), origin);
       std::vector<double> sourceBinning = globalCfgs.ResolvePtBinning(name, h3Source->GetYaxis(), origin);
 
@@ -88,9 +88,9 @@ class PurityTask : public IAnalysisTask
       // afterwards: a purity is a ratio, and ratios do not add up.
       std::optional<std::vector<double>> rebinningPt;
       if (auto rebin = JsonConfig::TryArray(particle, "rebinning_pt", GetName())) {
-        std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, "rebinning_pt for '" + name + "'", GetName());
+        std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, std::format("rebinning_pt for '{}'", name), GetName());
         if (bins.size() < 2) {
-          throw std::runtime_error("[FATAL] PurityTask: 'rebinning_pt' for '" + name + "' needs at least 2 edges!");
+          throw std::runtime_error(std::format("[FATAL] PurityTask: 'rebinning_pt' for '{}' needs at least 2 edges!", name));
         }
         rebinningPt = std::move(bins);
       }
@@ -294,13 +294,13 @@ class PurityTask : public IAnalysisTask
     const std::vector<double>& binning = atSource ? task.sourceBinning : task.AnalysisBinning();
     const std::string nameSuffix = atSource ? "_sourceBinning" : "";
 
-    std::string hName = "h1" + task.name + "Purity_multBin" + std::to_string(multBin) + nameSuffix;
+    std::string hName = std::format("h1{}Purity_multBin{}{}", task.name, multBin, nameSuffix);
     std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
                                                                    BinningUtils::NBins(binning), binning.data());
     h1PuritySpectrum->SetDirectory(0);
 
     for (int k{0}; k < BinningUtils::NBins(binning); k++) {
-      std::string histName = "h1" + task.name + "_multBin" + std::to_string(multBin) + "_ptBin" + std::to_string(k) + nameSuffix;
+      std::string histName = std::format("h1{}_multBin{}_ptBin{}{}", task.name, multBin, k, nameSuffix);
 
       const BinningUtils::BinRange range = atSource ? BinningUtils::BinRange{k + 1, k + 1} : task.mappedSourceBins[k];
       std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), multBin + 1, multBin + 1,
@@ -321,7 +321,7 @@ class PurityTask : public IAnalysisTask
       // destroyed per fit, as in PhiFitTask. Not a WriteAll in Terminate
       // here either - and that one could not work anyway: particles write into
       // different files, while WriteAll sends every canvas to the one it is given.
-      const std::string cName = "cFit_" + task.name + "_m" + std::to_string(multBin) + "_p" + std::to_string(k) + nameSuffix;
+      const std::string cName = std::format("cFit_{}_m{}_p{}{}", task.name, multBin, k, nameSuffix);
       TCanvas* cFit = canvasManager.CreateCanvas(cName, "Fit Canvas", 800, 800);
       fitter.DrawFit(cFit);
       CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
@@ -339,7 +339,7 @@ class PurityTask : public IAnalysisTask
   static void FillCCDBColumn(ParticleTask& task, int multBin, const TH1* h1Purity)
   {
     BinningUtils::RequireSameAxis(h1Purity->GetXaxis(), task.h2PurityCCDB->GetYaxis(),
-                                  "spectrum given to the '" + task.name + "' CCDB map",
+                                  std::format("spectrum given to the '{}' CCDB map", task.name),
                                   "that map's pT axis (the source binning)");
 
     for (int k{0}; k < h1Purity->GetNbinsX(); k++) {

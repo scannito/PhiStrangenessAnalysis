@@ -284,7 +284,7 @@ class DynamicRooFitter
     // Safety check: if you request a parameter that you forgot to include in the JSON,
     // the program stops immediately with a clear error, preventing a cryptic ROOT crash later.
     if (config.model.params.count(name) == 0) {
-      throw std::runtime_error("[FATAL ERROR] Missing parameter in JSON: " + name);
+      throw std::runtime_error(std::format("[FATAL ERROR] Missing parameter in JSON: {}", name));
     }
 
     // Extract the [val, min, max, isConstant] struct from the map
@@ -433,7 +433,7 @@ class DynamicRooFitter
     }
 
     else {
-      throw std::runtime_error("[FATAL ERROR] Unknown model type: " + modelType);
+      throw std::runtime_error(std::format("[FATAL ERROR] Unknown model type: {}", modelType));
     }
 
     return pdf;
@@ -455,14 +455,14 @@ class DynamicRooFitter
 
       // Add each component pdf to the list
       while (std::getline(ss, token, '+')) {
-        std::string suffix = "_" + roleName + "_" + std::to_string(i);
+        std::string suffix = std::format("_{}_{}", roleName, i);
         pdfList.add(*CreatePdfComponent(token, suffix));
         i++;
       }
 
       // Create fraction parameters: for N pdfs, we need N-1 fractions (the last one is 1 - sum of others)
       for (int j = 0; j < i - 1; ++j) {
-        std::string fracName = "frac_" + roleName + "_" + std::to_string(j);
+        std::string fracName = std::format("frac_{}_{}", roleName, j);
         fracList.add(*CreateVar(fracName));
       }
 
@@ -477,7 +477,7 @@ class DynamicRooFitter
       int i = 0;
 
       while (std::getline(ss, token, '*')) {
-        std::string suffix = "_" + roleName + "_" + std::to_string(i++);
+        std::string suffix = std::format("_{}_{}", roleName, i++);
         pdfList.add(*CreatePdfComponent(token, suffix));
       }
 

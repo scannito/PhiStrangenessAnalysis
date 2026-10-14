@@ -8,6 +8,7 @@
 #include "TMath.h"
 
 #include <cmath>
+#include <format>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -43,7 +44,7 @@ class ExtrapolationModelFactory
       f1 = std::make_unique<TF1>("fPtExp", PtExponentialFunc, dMin, dMax, 2);
       ConfigureTF1(f1.get(), config, histMaxVal, {"T", "norm"}); // No mass parameter required for PtExponential
     } else {
-      throw std::runtime_error("[FATAL] ExtrapolationModelFactory: Unknown model requested -> " + config.model);
+      throw std::runtime_error(std::format("[FATAL] ExtrapolationModelFactory: Unknown model requested -> {}", config.model));
     }
 
     return f1;

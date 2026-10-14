@@ -312,3 +312,39 @@ in `SpectrumExtrapolator.h` (`binlo`, `binhi` set but unused). The `mc pp` run w
 done in both modes after these changes, both completed successfully, and the
 results coincide. Only `mc pp` was compared: the other keywords (`data`, `purity`,
 the closure tests, `comparison`) have not been run in compiled mode.
+
+---
+
+## String construction with std::format
+
+**Error messages and index-built names moved from `+` to `std::format`.** About 80
+sites in 18 headers: every `throw std::runtime_error("..." + x + "...")`, and the
+object, canvas, key and RooFit-variable names built from bin indices
+(`"h1" + name + "_multBin" + std::to_string(i)` and its siblings). Plain `{}`
+placeholders only, which Cling accepts (see *Cling constraints* in `CLAUDE.md`); no
+format specs, so nothing here needs the `snprintf` workaround.
+
+*What was left alone on purpose:* paths (`dir + "/" + file`), suffix appends
+(`histNameBase + "Signal2D"`), canvas names and titles without an index, and
+`strftime`/`FormatEdge`. There `+` reads as well as `format` does and rewriting it
+would only add risk. The names built from indices are the same ones DESIGN_NOTES
+item 4 proposes to change, so a later change to interval-based naming starts from
+the `std::format` form.
+
+*Two things that differ from a literal translation:*
+
+- `HistogramUtils::RebinToTargetBinning` reported bin edges with `std::to_string`,
+  which prints `0.100000`. They now go through `BinningUtils::FormatEdge`, like
+  every other message that prints an edge. Plain `{}` was rejected for these: it
+  prints the shortest round-trip form, which for an edge computed by arithmetic can
+  be `0.30000000000000004`.
+- `rapidjson`'s `GetParseError()` is an enum, which `std::to_string` takes and
+  `std::format` does not, so it is cast to `int`.
+
+*How it was checked.* The compiled build passes and all headers load in Cling.
+Every replacement was then compared with the code it replaced by reducing both to
+the string they build (literals and argument expressions, in order): of 84, the only
+differences are the two intended ones above and the removal of the `iStr` local in
+`CorrelationTaskBase::LoadCorrections`. The check is static. The analysis itself was
+**not** re-run end to end after this change, and `mc pp` exercises only part of the
+sites: `purity`, `data`, and the closure keywords reach the others.

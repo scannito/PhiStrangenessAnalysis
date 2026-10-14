@@ -5,6 +5,7 @@
 #include "RootIOHelpers.h"
 
 #include <algorithm>
+#include <format>
 
 class CorrelationTask : public CorrelationTaskBase
 {
@@ -51,7 +52,7 @@ class CorrelationTask : public CorrelationTaskBase
     std::unique_ptr<TFile> filePhiDataInput = RootIO::OpenOrThrow(phiDataName, "READ", "CorrelationTask");
 
     RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePhiDataInput.get(), {globalCfgs.binningName, "Provenance"}, true),
-                            "trigger file '" + phiDataName + "'");
+                            std::format("trigger file '{}'", phiDataName));
 
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
     std::string folderPath = RootIO::MakeDirPath(summaryPath);
@@ -64,7 +65,7 @@ class CorrelationTask : public CorrelationTaskBase
     // correctly binned and entirely zero. From there the normalisation is skipped and
     // the spectra come out as raw counts, which is exactly the failure that went
     // unnoticed in the closure - the object is not missing, it is empty.
-    RequireNonEmptyTrigger(h2TriggerSignal.get(), "'" + folderPath + "h2TriggerSignal'", phiDataName,
+    RequireNonEmptyTrigger(h2TriggerSignal.get(), std::format("'{}h2TriggerSignal'", folderPath), phiDataName,
                            "It is written by phi_fit_task: check its log for fits that did not "
                            "converge, and that it ran on the production this task is reading.");
 
@@ -170,7 +171,7 @@ class CorrelationTask : public CorrelationTaskBase
       return nullptr;
     auto it = purityCollection.find(particleName);
     if (it == purityCollection.end())
-      throw std::runtime_error("[FATAL] CorrelationTask: Missing purity data for particle '" + particleName + "'");
+      throw std::runtime_error(std::format("[FATAL] CorrelationTask: Missing purity data for particle '{}'", particleName));
     return it->second.h1Purity[multBin].get();
   }
 
@@ -229,23 +230,23 @@ class CorrelationTask : public CorrelationTaskBase
       } else {
         auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == name; });
         if (it == assocParticles.end())
-          throw std::runtime_error("[FATAL] CorrelationTask: Unknown particle name in 'purity_sources': " + name);
+          throw std::runtime_error(std::format("[FATAL] CorrelationTask: Unknown particle name in 'purity_sources': {}", name));
         targetBinning = it->binning;
       }
 
       std::unique_ptr<TFile> filePurity = RootIO::OpenOrThrow(purityFilePath, "READ", "CorrelationTask");
 
       RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName, "Provenance"}, true),
-                              "purity file '" + purityFilePath + "'");
+                              std::format("purity file '{}'", purityFilePath));
 
       // Same as for the corrections: the purities are addressed by multiplicity
       // index, and only the stamp says what those indices meant when they were fitted.
       RootIO::RequireMatchingBinningStamp(
         RootIO::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName}, true),
-        "binning_mult", multBinning, "purity file '" + purityFilePath + "'");
+        "binning_mult", multBinning, std::format("purity file '{}'", purityFilePath));
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-        std::string hName = folderPath + "h1" + purityKey + "Purity_multBin" + std::to_string(i);
+        std::string hName = std::format("{}h1{}Purity_multBin{}", folderPath, purityKey, i);
         std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(filePurity.get(), hName, "CorrelationTask");
 
         // Verified, NOT rebinned: a purity is a ratio, and merging its bins would
@@ -254,10 +255,11 @@ class CorrelationTask : public CorrelationTaskBase
         const std::string diff = BinningUtils::Compare(targetBinning, BinningUtils::AxisEdges(h1Pur->GetXaxis()),
                                                        "analysis binning (data production)", "purity spectrum");
         if (!diff.empty()) {
-          throw std::runtime_error("[FATAL] CorrelationTask::LoadPurities: '" + hName + "' in '" + purityFilePath +
-                                   "' is not binned like the data being corrected:\n" + diff +
-                                   "Set 'rebinning_pt' in the purity configuration so the fits are done at this "
-                                   "binning, or re-run the production whose axis does not match.");
+          throw std::runtime_error(std::format("[FATAL] CorrelationTask::LoadPurities: '{}' in '{}' "
+                                               "is not binned like the data being corrected:\n{}"
+                                               "Set 'rebinning_pt' in the purity configuration so the fits are done at this "
+                                               "binning, or re-run the production whose axis does not match.",
+                                               hName, purityFilePath, diff));
         }
 
         purity.h1Purity[i] = std::move(h1Pur);
@@ -316,13 +318,13 @@ class CorrelationTask : public CorrelationTaskBase
           const auto& config = assocParticles[pIdx];
           TDirectory* sourceDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, true);
           if (!sourceDir)
-            throw std::runtime_error("[FATAL] Cache L2 missing: Directory " + dirName + " not found!");
+            throw std::runtime_error(std::format("[FATAL] Cache L2 missing: Directory {} not found!", dirName));
 
           for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
-            std::string cacheName = "h1Phi" + config.name + "Final" + CellSuffix(config, i, k);
+            std::string cacheName = std::format("h1Phi{}Final{}", config.name, CellSuffix(config, i, k));
             h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(sourceDir->Get(cacheName.c_str())));
             if (!h1PhiAssocNoPtPhi[pIdx][i][k])
-              throw std::runtime_error("[FATAL] Cache L2 missing for: " + cacheName + ". Run with use_signal_cache: false first!");
+              throw std::runtime_error(std::format("[FATAL] Cache L2 missing for: {}. Run with use_signal_cache: false first!", cacheName));
             h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
           }
         }
@@ -376,7 +378,7 @@ class CorrelationTask : public CorrelationTaskBase
               data, axesToCut, totalEff, triggerBkgRatio, baseNameStd + suffix, targetDir, currentQADir, projectionAxis);
 
             if (j == 0) {
-              std::string accumName = "h1Phi" + config.name + "DataSignal" + CellSuffix(config, i, k);
+              std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, i, k));
               h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
               h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
             } else {
@@ -398,7 +400,7 @@ class CorrelationTask : public CorrelationTaskBase
           targetDir->cd();
         for (int k = 0; k < BinningUtils::NBins(assocParticles[pIdx].binning); k++) {
           if (h1PhiAssocNoPtPhi[pIdx][i][k]) {
-            std::string saveName = "h1Phi" + assocParticles[pIdx].name + "Final" + CellSuffix(assocParticles[pIdx], i, k);
+            std::string saveName = std::format("h1Phi{}Final{}", assocParticles[pIdx].name, CellSuffix(assocParticles[pIdx], i, k));
             h1PhiAssocNoPtPhi[pIdx][i][k]->SetName(saveName.c_str());
             h1PhiAssocNoPtPhi[pIdx][i][k]->Write(nullptr, TObject::kOverwrite);
           }

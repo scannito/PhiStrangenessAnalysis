@@ -12,6 +12,7 @@
 #include "THnSparse.h"
 
 #include <array>
+#include <format>
 #include <memory>
 #include <string>
 #include <utility>
@@ -193,7 +194,7 @@ class EfficiencyCalculator
       return;
 
     const std::vector<double>& target = data.rebinningPt.value();
-    const std::string ctx = "EfficiencyCalculator: '" + data.name + "' rebinning_pt";
+    const std::string ctx = std::format("EfficiencyCalculator: '{}' rebinning_pt", data.name);
 
     h1MCGen = HistogramUtils::RebinToTargetBinning(std::move(h1MCGen), target, ctx);
     h1MCGenAssocReco = HistogramUtils::RebinToTargetBinning(std::move(h1MCGenAssocReco), target, ctx);
@@ -272,7 +273,7 @@ class EfficiencyCalculator
     HistogramUtils::AxisToCut axisToCutY{.axis = 3, .bins = {1, data.h4MCReco->GetAxis(3)->GetNbins()}};
 
     // Project Generator level 1D
-    std::string h1GenName = "h1" + data.name + "MCGen_multBin" + std::to_string(multBin) + "_temp";
+    std::string h1GenName = std::format("h1{}MCGen_multBin{}_temp", data.name, multBin);
     std::unique_ptr<TH1> h1MCGen(data.h3MCGen->ProjectionY(h1GenName.c_str(), multBin + 1, multBin + 1, 1, data.h3MCGen->GetZaxis()->GetNbins()));
     h1MCGen->SetDirectory(0);
 
@@ -280,7 +281,7 @@ class EfficiencyCalculator
     std::unique_ptr<TH1> h1MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp");
     std::unique_ptr<TH1> h1MCReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp");
 
-    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, "_multBin" + std::to_string(multBin), color);
+    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, std::format("_multBin{}", multBin), color);
   }
 
   // Same, integrated over ALL multiplicity bins.

@@ -10,6 +10,7 @@
 #include "TH2.h"
 #include "THnSparse.h"
 
+#include <format>
 #include <iostream>
 #include <memory>
 #include <optional>
@@ -331,14 +332,14 @@ class CorrelationCalculator
       }
     } else {
       if (!data.h5DataSignal)
-        throw std::runtime_error("[FATAL] Missing Signal THnSparse for " + data.name);
+        throw std::runtime_error(std::format("[FATAL] Missing Signal THnSparse for {}", data.name));
       h1Signal = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataSignal.get(), axesToCut, {3}, histNameBase + "Signal");
       if (data.h5DataSideband)
         h1Sideband = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataSideband.get(), axesToCut, {3}, histNameBase + "Sideband");
 
       if (applyME) {
         if (!data.h5DataMESignal)
-          throw std::runtime_error("[FATAL] Missing ME Signal THnSparse for " + data.name);
+          throw std::runtime_error(std::format("[FATAL] Missing ME Signal THnSparse for {}", data.name));
         h1MESignal = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataMESignal.get(), axesToCut, {3}, histNameBase + "MESignal");
         if (data.h5DataMESideband && h1Sideband)
           h1MESideband = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataMESideband.get(), axesToCut, {3}, histNameBase + "MESideband");

@@ -45,7 +45,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     // cannot because by then the container is out of scope.
     RequireNonEmptyTrigger(
       h3PhiData.get(),
-      "'" + basePathData + "phi/" + (isPureGen ? "h3PhiMCClosureGen" : "h3PhiData") + "'",
+      std::format("'{}phi/{}'", basePathData, isPureGen ? "h3PhiMCClosureGen" : "h3PhiData"),
       inputFile,
       isPureGen
         ? "It is filled by the O2 process function 'processMCGenClosure' - check it was enabled "
@@ -158,7 +158,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
   // the consumer assumed, which is the one thing this framework exists to prevent.
   double GetTriggerSignal(int multBin, int ptPhiBin) override
   {
-    std::string phiHistName = "h1PhiTrigger_multBin" + std::to_string(multBin) + "_ptBin" + std::to_string(ptPhiBin);
+    std::string phiHistName = std::format("h1PhiTrigger_multBin{}_ptBin{}", multBin, ptPhiBin);
     std::unique_ptr<TH1D> h1PhiTrigger(static_cast<TH1D*>(h3PhiData->ProjectionZ(
       phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
     h1PhiTrigger->SetDirectory(0);

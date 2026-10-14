@@ -89,8 +89,9 @@ class WorkflowManager
         for (const auto& [baseName, factory] : taskRegistry) {
           knownPrefixes += (knownPrefixes.empty() ? "" : ", ") + baseName;
         }
-        throw std::runtime_error("[FATAL] WorkflowManager: Unknown task requested: '" + taskName +
-                                 "'. A task name must start with one of the registered prefixes: " + knownPrefixes);
+        throw std::runtime_error(std::format("[FATAL] WorkflowManager: Unknown task requested: '{}'. "
+                                             "A task name must start with one of the registered prefixes: {}",
+                                             taskName, knownPrefixes));
       }
     }
 
@@ -244,7 +245,7 @@ class WorkflowManager
     bool isInBase = hasBaseFile && baseDocument.HasMember(taskName.c_str());
 
     if (!isInMaster && !isInBase) {
-      throw std::runtime_error("[FATAL] JSON configuration block '" + taskName + "' not found in any file!");
+      throw std::runtime_error(std::format("[FATAL] JSON configuration block '{}' not found in any file!", taskName));
     }
 
     // Target the document where the block was found (Master takes precedence)

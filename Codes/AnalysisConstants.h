@@ -1,5 +1,6 @@
 #pragma once
 
+#include <format>
 #include <map>
 #include <stdexcept>
 #include <string>
@@ -22,7 +23,7 @@ inline double GetMass(const std::string& name)
 {
   auto it = particleMass.find(name);
   if (it == particleMass.end())
-    throw std::runtime_error("[FATAL] AnalysisConstants: Unknown particle '" + name + "'");
+    throw std::runtime_error(std::format("[FATAL] AnalysisConstants: Unknown particle '{}'", name));
   return it->second;
 }
 

@@ -18,6 +18,7 @@
 #include "TH3F.h"
 
 #include <cmath>
+#include <format>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -55,7 +56,7 @@ class PhiFitTask : public IAnalysisTask
 
     // The binning comes from the file, never from the configuration: the loops
     // below address these very bins. h3PhiData axes: (mult, pT, invariant mass).
-    const std::string origin = "h3PhiData in '" + inputFile + "'";
+    const std::string origin = std::format("h3PhiData in '{}'", inputFile);
     multBinning = globalCfgs.ResolveMultBinning(h3PhiData->GetXaxis(), origin);
     ptPhiBinning = globalCfgs.ResolvePtBinning("Phi", h3PhiData->GetYaxis(), origin);
 
@@ -99,13 +100,13 @@ class PhiFitTask : public IAnalysisTask
 
     TDirectory* fitDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Fits"}, false);
     if (!fitDir) {
-      throw std::runtime_error("[FATAL] PhiFitTask: Cannot create the '" + globalCfgs.binningName +
-                               "/Fits' directory in the output file.");
+      throw std::runtime_error(std::format("[FATAL] PhiFitTask: Cannot create the '{}/Fits' directory in the output file.",
+                                           globalCfgs.binningName));
     }
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-        std::string phiHistName = "h1PhiData_multBin" + std::to_string(i) + "_ptBin" + std::to_string(j);
+        std::string phiHistName = std::format("h1PhiData_multBin{}_ptBin{}", i, j);
         std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), i + 1, i + 1, j + 1, j + 1)));
         h1PhiData->SetDirectory(0);
 
@@ -122,7 +123,7 @@ class PhiFitTask : public IAnalysisTask
         // task's. Written and destroyed here, per cell, and not left to a WriteAll in
         // Terminate: nothing reads a fit canvas back, and holding all of them until
         // the end would only cost memory.
-        const std::string canvasName = "cFit_Phi_mult" + std::to_string(i) + "_pt" + std::to_string(j);
+        const std::string canvasName = std::format("cFit_Phi_mult{}_pt{}", i, j);
         TCanvas* cFit = canvasManager.CreateCanvas(canvasName, "Fit Canvas", 800, 800);
         fitter.DrawFit(cFit);
         CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
@@ -148,8 +149,9 @@ class PhiFitTask : public IAnalysisTask
 
     TDirectory* summaryDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Summary"}, false);
     if (!summaryDir) {
-      throw std::runtime_error("[FATAL] PhiFitTask: Cannot create the '" + globalCfgs.binningName +
-                               "/Summary' directory in the output file. Trigger yields would be lost!");
+      throw std::runtime_error(std::format("[FATAL] PhiFitTask: Cannot create the '{}/Summary' directory in the output "
+                                           "file. Trigger yields would be lost!",
+                                           globalCfgs.binningName));
     }
     summaryDir->cd();
 

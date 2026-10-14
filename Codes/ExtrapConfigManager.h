@@ -2,6 +2,8 @@
 
 #include "BaseConfigManager.h"
 
+#include <format>
+
 class ExtrapConfigManager : public BaseConfigManager
 {
  public:
@@ -53,7 +55,7 @@ class ExtrapConfigManager : public BaseConfigManager
     }
 
     // 2. Override with specific bin settings if they exist
-    std::string binKey = "multBin" + std::to_string(multBin);
+    std::string binKey = std::format("multBin{}", multBin);
     // The outer key is fixed and must be an object; the inner one is built from the
     // bin index, so its absence is the normal case and HasMember is the right tool.
     const rapidjson::Value* bins = JsonConfig::TryObject(partNode, "bins", managerName);

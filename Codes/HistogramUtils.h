@@ -282,14 +282,13 @@ inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, s
       errCtx, h->GetName(), mismatches.size());
     for (const auto& m : mismatches) {
       if (m.outOfSourceRange) {
-        msg += "  - target edge " + std::to_string(m.targetEdge) +
-               " is outside the source histogram's axis range [" +
-               std::to_string(m.sourceBinLowEdge) + ", " + std::to_string(m.sourceBinUpEdge) + "]\n";
+        msg += std::format("  - target edge {} is outside the source histogram's axis range [{}, {}]\n",
+                           BinningUtils::FormatEdge(m.targetEdge), BinningUtils::FormatEdge(m.sourceBinLowEdge),
+                           BinningUtils::FormatEdge(m.sourceBinUpEdge));
       } else {
-        msg += "  - target edge " + std::to_string(m.targetEdge) +
-               " falls inside source bin " + std::to_string(m.sourceBin) + " [" +
-               std::to_string(m.sourceBinLowEdge) + ", " + std::to_string(m.sourceBinUpEdge) +
-               "] instead of aligning with a bin boundary\n";
+        msg += std::format("  - target edge {} falls inside source bin {} [{}, {}] instead of aligning with a bin boundary\n",
+                           BinningUtils::FormatEdge(m.targetEdge), m.sourceBin,
+                           BinningUtils::FormatEdge(m.sourceBinLowEdge), BinningUtils::FormatEdge(m.sourceBinUpEdge));
       }
     }
     throw std::runtime_error(msg);

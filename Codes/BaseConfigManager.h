@@ -25,8 +25,8 @@ class BaseConfigManager
   {
     std::unique_ptr<FILE, int (*)(FILE*)> fp(fopen(jsonPath.c_str(), "rb"), &fclose);
     if (!fp) {
-      throw std::runtime_error("[FATAL ERROR] " + managerName +
-                               ": Cannot open configuration file at path: " + jsonPath);
+      throw std::runtime_error(std::format("[FATAL ERROR] {}: Cannot open configuration file at path: {}",
+                                           managerName, jsonPath));
     }
 
     // Create a memory buffer (64KB) to read the file in chunks.
@@ -38,13 +38,13 @@ class BaseConfigManager
 
     // Check for parsing errors and validate the JSON structure.
     if (document.HasParseError()) {
-      throw std::runtime_error("[FATAL ERROR] " + managerName +
-                               ": JSON Syntax Error! Code: " + std::to_string(document.GetParseError()));
+      throw std::runtime_error(std::format("[FATAL ERROR] {}: JSON Syntax Error! Code: {}",
+                                           managerName, static_cast<int>(document.GetParseError())));
     }
 
     if (!document.IsObject()) {
-      throw std::runtime_error("[FATAL ERROR] " + managerName +
-                               ": Invalid JSON structure. Root element must be a JSON Object!");
+      throw std::runtime_error(std::format("[FATAL ERROR] {}: Invalid JSON structure. Root element must be a JSON Object!",
+                                           managerName));
     }
 
     isLoaded = true;
@@ -56,7 +56,7 @@ class BaseConfigManager
   // number in these configurations.
   void LoadParam(const rapidjson::Value& node, const std::string& paramName, MathParam& param) const
   {
-    const std::string what = "parameter '" + paramName + "'";
+    const std::string what = std::format("parameter '{}'", paramName);
 
     if (node.IsArray()) {
       const std::vector<double> values = JsonConfig::ReadNumberArray(node.GetArray(), what, managerName);

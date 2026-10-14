@@ -125,8 +125,9 @@ inline std::vector<BinRange> MapToSourceBins(std::span<const double> source, std
       if (std::abs(source[i] - edge) <= epsilon)
         return static_cast<int>(i);
     }
-    throw std::runtime_error("[FATAL] BinningUtils::MapToSourceBins: target edge " + FormatEdge(edge) +
-                             " is not an edge of the source binning, so the merge is not defined.");
+    throw std::runtime_error(std::format("[FATAL] BinningUtils::MapToSourceBins: target edge {} "
+                                         "is not an edge of the source binning, so the merge is not defined.",
+                                         FormatEdge(edge)));
   };
 
   std::vector<BinRange> ranges;
