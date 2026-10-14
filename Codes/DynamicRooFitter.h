@@ -83,9 +83,17 @@ class DynamicRooFitter
   {
     RooDataHist dataHist("dataHist", "Data", *obs, RooFit::Import(*h1Data));
 
+    // No NumCPU here, on purpose. It was NumCPU(4), and it did nothing: with the default
+    // 'cpu' evaluation backend RooFit ignores it (RooAbsPdf.cxx says so), and the two ways
+    // to make a parallel setting count are worse - EvalBackend("legacy") made these fits
+    // 50 to 100 times slower and changed the result, RooFit::Parallelize throws in this
+    // ROOT build (no multiprocessing). Measured on all 960 cells of the real K0S, Xi and
+    // pion spectra: same time, same results to 12 digits, with and without it. The numbers
+    // are in DESIGN_HISTORY.md, "The fitter is built once per configuration".
+
     // Save the result to the class member instead of a local variable
     // reset() releases any previous fitResult and takes ownership of the new one
-    fitResult.reset(model->fitTo(dataHist, RooFit::Optimize(1), RooFit::Extended(1), RooFit::Save(1), RooFit::PrintLevel(-1), RooFit::NumCPU(4)));
+    fitResult.reset(model->fitTo(dataHist, RooFit::Optimize(1), RooFit::Extended(1), RooFit::Save(1), RooFit::PrintLevel(-1)));
 
     return fitResult->status();
   }

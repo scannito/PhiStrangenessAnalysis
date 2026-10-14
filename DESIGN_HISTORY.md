@@ -481,3 +481,104 @@ what the project uses. The compiled build and the interpreted macro both start a
 - The three lines that became `Warn` go to stderr instead of stdout; `runAnalysis.sh`
   merges the two, so the log file keeps them in order.
 - Timestamps are off by default, so a line looks as it did.
+
+---
+
+## The fitter is built once per configuration
+
+**`PurityTask` and `PhiFitTask` construct a `DynamicRooFitter` for every cell**
+(multiplicity bin by pT bin): `DynamicRooFitter fitter(h1, cfg); fitter.DoFit(); ...`.
+This was reviewed and kept; the reasons and the measurements are here so the question is
+not reopened on a hunch.
+
+*Why one per configuration is right.*
+
+- A cell has its own configuration: the sections of `fitConfig.json` carry per-bin overrides
+  (`mult0_pt4`, ..., 20 for `k0s` alone) that change parameters, limits and integration
+  windows, and may change the models. The fitter is built from that configuration.
+- Nothing is left over from the previous cell: the starting values come from the
+  configuration each time, so a fit cannot start where the last one ended.
+- The RooFit objects depend on one another and have to be torn down in reverse order of
+  creation (the destructor does it, see the comment there). A long-lived fitter would have
+  to redo that clean-up at every reconfiguration.
+- `DrawFit` needs the model and the data alive, so the object has to outlive the fit anyway.
+
+*What it costs.* Measured on 14 October 2026 with the real `k0s` configuration
+(`sig_model` DSCB, `bkg_model` Chebychev1, observable `mass` in [0.45, 0.55]), on a
+synthetic histogram of 100 bins (40 000 Gaussian entries at 0.4976, width 0.0045, plus
+60 000 flat), Apple M5 with 10 cores, ROOT 6.36.10 (ALICE build), `-O2`. The fit ends
+with status 3 on this data, which is not the real spectrum: the times are the point, not
+the yields.
+
+| | per fitter |
+|---|---|
+| construct and destroy, no fit | **0.008 ms** |
+| `DoFit`, steady state | **2.2 ms** |
+| share of construction in construct + `DoFit` | 0.35% |
+
+Memory: peak RSS 254.6 MB after a warm-up fit, still 254.6 MB after 20 000
+constructions, 254.66 MB after 600 constructions with a fit each. No leak shows.
+
+**A correction.** An earlier measurement gave `DoFit` at about 27 ms. That was the mean of
+the first five fits, and the first one carries a one-off initialisation of RooFit (about
+120 ms); with a warm-up fit before timing, the steady state is the 2.2 ms above. The
+conclusion did not change (construction is negligible either way), but the number did.
+
+*`NumCPU(4)` does nothing here.* `DoFit` passes `RooFit::NumCPU(4)`. Time per `DoFit` and the
+signal yield (`ExtractYieldsAndPurity`, 10 decimals) for the same fit, 20 repetitions after
+a warm-up:
+
+| `NumCPU` | compiled | interpreted (Cling) | signal |
+|---|---|---|---|
+| 1 | 2.16 ms | 2.20 ms | 39925.7197908157 |
+| 2 | 2.17 ms | | 39925.7197908157 |
+| 4 | 2.14 ms | 2.28 ms | 39925.7197908157 |
+| 8 | 2.18 ms | | 39925.7197908157 |
+
+The same time and, to the last digit, the same result, in both modes. RooFit's own
+documentation says why: *"`NumCPU(int num, int istrat)`: Parallelize NLL calculation on num
+CPUs. (Currently, this setting is ignored with the **cpu** Backend.)"*, and the `cpu` backend
+is the default since ROOT 6.23. `DoFit` names no backend. The two ways to make a parallel
+setting take effect, tried on the same fit:
+
+| | per `DoFit` | signal | |
+|---|---|---|---|
+| `EvalBackend("legacy")`, `NumCPU(1)` | 6.4 ms | 39925.94 | 3 times slower than `cpu` |
+| `EvalBackend("legacy")`, `NumCPU(2)` | **340 ms** | 39852.27 | 50 to 100 times slower, result differs |
+| `EvalBackend("legacy")`, `NumCPU(4)` | **615 ms** | 39833.08 | (same figures in Cling: 634 ms) |
+| `RooFit::Parallelize(2)` or `(4)` | throws | | *"Parallel minimization requested, but ROOT was not compiled with multiprocessing enabled"*, `std::logic_error` |
+
+*On real spectra, compiled.* The synthetic histogram is not the real data, so the same
+comparison was repeated on the mass histograms the purity task reads (the file
+`AnalysisResults_136_2026_PtMod_23luglio.root`: `K0S` 10 x 34 x 200 bins, `Xi` 10 x 26 x 200,
+`n#sigma` TPC of the pion 10 x 36 x 100), every cell with at least 1000 entries, with the
+real configuration of each cell, once with the code as it is (`NumCPU(4)`) and once with the
+option removed:
+
+| | cells | mean `DoFit` with `NumCPU(4)` | mean without it |
+|---|---|---|---|
+| `k0s` | 340 | 4.66 ms | 4.74 ms |
+| `xi` | 260 | 1.56 ms | 1.53 ms |
+| `pi_tpc` | 360 | 3.62 ms | 3.58 ms |
+
+960 fits, total 3292 ms against 3296 ms (ratio 0.999), and **every one of the 960 gives the
+same status, signal and error to 12 digits**. The tests above for the interpreted mode were
+on the synthetic histogram only; the real-data run was compiled only.
+
+So no setting of `NumCPU` helps: it is ignored with the default backend, and with the
+backend where it is not ignored it spawns processes whose start-up dwarfs a 6 ms fit and
+changes the result. The answer to "how would you set it" is to leave it out; see
+`DESIGN_NOTES.md`, section 3. It behaves the same compiled and interpreted, so the mode
+plays no part.
+
+*Method, to repeat it.* A small program including `FitConfigManager.h` and
+`DynamicRooFitter.h` builds the histogram above with `TRandom3(1)`, takes
+`FitConfigManager("fitConfig.json").GetConfig("k0s", 0, 0)`, does one warm-up
+`DynamicRooFitter(&h, cfg).DoFit()`, then times 20 repetitions of
+`DynamicRooFitter f(&h, cfg); f.DoFit();` with `std::chrono::steady_clock` around `DoFit`
+only. For the `NumCPU` rows a scratch copy of `DynamicRooFitter.h` reads the option from an
+environment variable instead of the literal 4. The interpreted rows run the same code as a
+macro (`#pragma cling add_include_path`). The real-data run projects each source cell
+(`ProjectionZ` on one multiplicity and one pT bin) with the configuration indexed by that
+source bin: it is not the fits `PurityTask` does, which merges source pT bins into the
+analysis bins before fitting. Not repeated on other machines or other ROOT builds.

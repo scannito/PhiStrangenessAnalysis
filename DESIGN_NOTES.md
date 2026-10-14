@@ -94,6 +94,22 @@ responsibility to a class that already has too much.
 how the TF1-based `FitPhiSignalAndBkg` came to be retired is in `DESIGN_HISTORY.md`.
 What follows is what the engine still lacks.
 
+### Small things found while measuring it (14 October 2026)
+
+The decision to build one fitter per configuration, and the numbers behind it, are in
+`DESIGN_HISTORY.md` (*The fitter is built once per configuration*). Two things came out of
+that review and are not done (a third, `RooFit::NumCPU(4)`, which did nothing, was removed;
+a comment in `DoFit` says why and points at the measurement):
+
+- **The constructor sets process-wide RooFit state** (`RooMsgService::instance()
+  .setGlobalKillBelow(RooFit::WARNING)` at `DynamicRooFitter.h:56`, on every construction).
+  Anything that builds a fitter silences RooFit's INFO messages for the whole program. It
+  belongs in the two entry points, with the other process-wide state.
+- **`DoFit()` must be called before `ExtractYieldsAndPurity()`**, enforced by a throw
+  ("Call DoFit() first!"). It works; the order is a coupling the interface does not express.
+  Not worth restructuring on its own, since the object has to stay alive for `DrawFit`
+  anyway.
+
 ### Future direction: arbitrary N-component decomposition in DynamicRooFitter
 
 Currently, `DynamicRooFitter` supports composite models within `sig_model` or `bkg_model` via `+`
@@ -146,6 +162,20 @@ bins must be re-executed from scratch.
 Currently, `DynamicRooFitter::DoFit()` returns `fitResult->status()`, but downstream tasks (`PhiFitTask`,
 `PurityTask`) do not systematically track convergence codes, covariance matrix quality, or parameter
 boundary behavior across batch fits.
+
+A baseline from the measurement in `DESIGN_HISTORY.md` (*The fitter is built once per
+configuration*), 14 October 2026, with the real mass histograms of
+`AnalysisResults_136_2026_PtMod_23luglio.root` and the real `fitConfig.json`: of the cells
+fitted, `status` is 0 for 28 of 340 (`k0s`), 126 of 260 (`xi`) and 16 of 360 (`pi_tpc`);
+it is **3** for 310, 134 and 338 of them, and 304, 303 or 1 for a handful (3 in total per
+cell would mean, in MINUIT's codes, an estimated distance to the minimum above the
+tolerance). Nothing reads these values today. **Caution before drawing a conclusion:**
+those fits are per *source* bin, not the merged analysis bins `PurityTask` fits, and the
+per-bin overrides in `fitConfig.json` are keyed by the analysis index, so some cells used a
+different override than the real run would; and it was not checked whether status 3 means a
+bad fit here or the usual outcome of this setup. The number says only that the status
+cannot be left unread: if it is the usual outcome, the audit described below has to be
+tuned so that it does not flag 90% of the fits.
 
 **1. Convergence and covariance matrix diagnostics:**
 - In RooFit/MINUIT, a converged fit with full covariance error propagation satisfies `status == 0`
