@@ -673,6 +673,36 @@ seconds), a natural exit code, spdlog at no runtime cost, and freedom to choose
 the language standard. `runAnalysis.sh` and the macro entry point are already
 structured so that the switch is deleting the wrapper.
 
+**Compiled build is one translation unit: fine today, with a known way out.** The
+whole framework is header-only and `main.cpp` is the only `.cpp`, so touching any
+header recompiles everything. Measured on 14 October 2026 (ROOT 6.36.10, Apple
+clang, `-O3`): touching `CanvasManager.h`, which everything includes, gives a
+rebuild plus link of **4.5 s**. That is shorter than the wait an interpreted run
+already pays, so there is nothing to fix. Re-measure before acting; the threshold
+worth reacting to is roughly ten seconds.
+
+Splitting into several `.cpp` is not free just because the code is header-only.
+That style does work across translation units as long as every definition is
+`inline`, in-class or a template - the same rule that found the missing `inline`s by
+hand - but each `.cpp` re-parses every header it includes, so the total grows with
+the number of files unless they share little. The 49 distinct ROOT/RooFit headers
+included are the likely bulk of the cost, not this code. In order of effort:
+
+- **Precompiled headers**, `target_precompile_headers` on the main ROOT/RooFit
+  headers. No code change, and it works with a single translation unit. First thing
+  to try.
+- **Split by how often a header changes, not by class.** Move only the heavy and
+  stable ones (`DynamicRooFitter`, `SpectrumExtrapolator`) into `.h`/`.cpp` as a
+  library; the tasks being edited stay header-only.
+- **One `.cpp` per task**, methods out of the headers. Most work, and the one that
+  pays most when a single task is edited.
+
+The cost shared by the last two: once a header no longer holds its definitions it
+stops being enough for the interpreted mode. The macro would have to load the
+compiled library (`R__LOAD_LIBRARY`) or include the `.cpp` files, which gives up the
+"edit a header and rerun" property that is most of the reason for keeping both
+modes.
+
 **`global_binning` is per workflow, but the expectation is per production.** A
 single JSON can only describe one family of tasks. If one ever mixes an MC task
 (fine binning) and a correlation task (coarse), one declaration cannot describe
