@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Logger.h"
 #include "WorkflowManager.h"
 
 #include <iostream>
@@ -30,6 +31,10 @@ inline int RunAnalysisChain(const std::string& configFile, const std::string& ba
     // one after the other.
     manager.RunWorkflow();
 
+    // What was warned about during the run, once, so it is the last thing in the log
+    // before the verdict and not somewhere in the middle of it.
+    Logger::PrintSummary();
+
     std::cout << "======================================================" << std::endl;
     std::cout << " [SUCCESS] Entire analysis chain completed!           " << std::endl;
     std::cout << "======================================================" << std::endl;
@@ -41,6 +46,7 @@ inline int RunAnalysisChain(const std::string& configFile, const std::string& ba
     std::cerr << "\n[FATAL ERROR] Analysis aborted due to an exception:" << std::endl;
     std::cerr << " -> " << e.what() << std::endl;
     std::cerr << "======================================================" << std::endl;
+    Logger::PrintSummary();
     return 1;
   }
 

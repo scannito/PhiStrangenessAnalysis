@@ -660,6 +660,53 @@ interface they are, and `DynamicRooFitter` already depends on it. The signal to
 split the header by theme (fit and extrapolation / loaded data) is it growing well
 past today's 241 lines, or pulling ROOT includes that only one theme needs.
 
+**Moving the output onto `Logger::`.** `Logger.h` exists and `RunAnalysisChain` prints
+its summary, but the tasks still write about 100 lines with `std::cout`/`std::cerr`
+and hand-written `[INFO]`/`[WARNING]` prefixes, so the summary of warnings is empty
+for anything real. The order that makes it useful: the `[WARNING]` lines first
+(about twenty, in `MCTask`, `SpectrumExtrapolator`, `AnalysisSettings`,
+`CanvasManager`, `ExtrapolationModelFactory`, `JsonConfig`, `CorrelationTaskBase`),
+then `[INFO]`. Leave alone the banners and separators, and the numeric dumps such as
+`[DEBUG EXTRAP]`, which are tables and not log lines. Messages are the same text with
+a different call, so the risk is low, but note what is lost: `Logger::` reads its format
+string when the line is printed, not at compile time like `std::format`, so a
+migrated line with a wrong placeholder count compiles and is only found when it is
+reached. Migrated lines on rarely taken paths (the `[WARNING]`s especially) deserve a
+look at the arguments by eye.
+
+Not unified by this: ROOT's own messages (`gErrorIgnoreLevel`) and RooFit's
+(`RooMsgService`) go through other channels and do not reach the summary.
+
+`Codes/spdlog/` (1.1 MB, 102 tracked files) is no longer included by anything. It is
+kept until the decision to remove it is made; `DESIGN_HISTORY.md` records why it
+was not adopted.
+
+**Purely static classes that would read better as namespaces.** `EfficiencyCalculator`
+is ten `static` functions, no data member, nothing private, and a deleted constructor
+(commented "Purely static class"); only `MCTask` uses it. A class used that way is a
+namespace in a more elaborate form: it gives no encapsulation because there is no state
+and no private part, and it is out of step with the other stateless utilities
+(`AnalysisConstants`, `BinningUtils`, `HistogramUtils`, `RootIO`, `RunEnvironment`,
+`JsonConfig`, and now `Logger`), which are namespaces. `ExtrapolationModelFactory` has the
+same shape (twelve `static` functions, deleted constructor) but also has a private
+section, so it is a separate decision. `CorrelationCalculator` is not a case of this: it is
+a real class, built with its configuration (`applyME`, `useCacheMode`, ...) and holding
+it as instance state.
+
+Converting is mechanical and callers do not change: `EfficiencyCalculator::Compute...`
+reads the same, and the nested `ParticleCorrectionMode` and `Maps1D` stay reachable under
+the same names. The one thing that must not be forgotten is `inline` on every function:
+inside a class a function defined in the body is implicitly `inline`, in a namespace it is
+not, and a definition in a header without it breaks as soon as a second `.cpp` includes
+the header. With the single translation unit of today it would still compile, so the
+omission would stay invisible (the same family as the missing `inline`s found by hand
+before the compiled mode existed).
+
+Low priority, a matter of consistency and not of behaviour. Not worth a change on its own;
+a good moment is the next time `EfficiencyCalculator.h` is edited for another reason. The
+compiled build catches a missing `inline` only once there is a second `.cpp`, so do it
+together with the check mentioned under the translation-unit note below.
+
 **Regression test.** A large amount changed on 31 July with the intention that the
 numbers stay identical except where deliberately changed. Nothing verifies this. A
 script that runs a known configuration and compares bin contents against a saved

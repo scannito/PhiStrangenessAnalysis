@@ -1,0 +1,95 @@
+Processing workaddr.C...
+[eh] __register_frame(0x100bd4154)  FDE
+[eh]    covers [0x100bd8290, 0x100bd82d0)
+[eh] __register_frame(0x100bd4178)  FDE
+[eh]    covers [0x100bd82d0, 0x100bd82e0)
+[eh] __register_frame(0x100bd41a0)  FDE
+[eh]    covers [0x100bd82e0, 0x100bd8340)
+[eh] __register_frame(0x100bd41c8)  FDE
+[eh]    covers [0x100bd8340, 0x100bd8360)
+[eh] __register_frame(0x100bd41f0)  FDE
+[eh]    covers [0x100bd8514, 0x100bd852c)
+[eh] __register_frame(0x100bd4218)  FDE
+[eh]    covers [0x100bd852c, 0x100bd8540)
+[eh] __register_frame(0x100bd4240)  FDE
+[eh]    covers [0x100bd86e4, 0x100bd86fc)
+[eh] __register_frame(0x100bd4268)  FDE
+[eh]    covers [0x100bd86fc, 0x100bd8710)
+[eh] __register_frame(0x100bd4290)  FDE
+[eh]    covers [0x100bd8710, 0x100bd8784)
+[eh] __register_frame(0x100bd42b8)  FDE
+[eh]    covers [0x100bd8784, 0x100bd87a0)
+[eh] __register_frame(0x100bd42e0)  FDE
+[eh]    covers [0x100bd87a0, 0x100bd87b8)
+[eh] __register_frame(0x100bd4308)  FDE
+[eh]    covers [0x100bd87b8, 0x100bd87cc)
+[eh] __register_frame(0x100bd4330)  FDE
+[eh]    covers [0x100bd87cc, 0x100bd87e4)
+[eh] __register_frame(0x100bd4358)  FDE
+[eh]    covers [0x100bd87e4, 0x100bd87fc)
+[eh] __register_frame(0x100bd4380)  FDE
+[eh]    covers [0x100bd87fc, 0x100bd8820)
+[eh] __register_frame(0x100bd43a8)  FDE
+[eh]    covers [0x100bd8820, 0x100bd883c)
+[eh] __register_frame(0x100bd43d0)  FDE
+[eh]    covers [0x100bd883c, 0x100bd8888)
+[eh] __register_frame(0x100bd43f8)  FDE
+[eh]    covers [0x100bd8888, 0x100bd88a0)
+[eh] __register_frame(0x100bd4420)  FDE
+[eh]    covers [0x100bd88a0, 0x100bd88b8)
+[eh] __register_frame(0x100bd4448)  FDE
+[eh]    covers [0x100bd88b8, 0x100bd88c8)
+[eh] __register_frame(0x100bd4470)  FDE
+[eh]    covers [0x100bd88c8, 0x100bd88e0)
+[eh] __register_frame(0x100bd4498)  FDE
+[eh]    covers [0x100bd88e0, 0x100bd88f0)
+[eh] __register_frame(0x100bd44c0)  FDE
+[eh]    covers [0x100bd88f0, 0x100bd8900)
+[eh] __register_frame(0x100bd44e8)  FDE
+[eh]    covers [0x100bd8900, 0x100bd8918)
+[eh] __register_frame(0x100bd4510)  FDE
+[eh]    covers [0x100bd8918, 0x100bd8960)
+[eh] __register_frame(0x100bd4538)  FDE
+[eh]    covers [0x100bd8960, 0x100bd8974)
+[eh] __register_frame(0x100bd4560)  FDE
+[eh]    covers [0x100bd89c0, 0x100bd89d8)
+[eh] __register_frame(0x100bd4588)  FDE
+[eh]    covers [0x100bd89d8, 0x100bd89ec)
+[eh] __register_frame(0x100bd45b0)  FDE
+[eh]    covers [0x100bd89ec, 0x100bd8a24)
+[eh] __register_frame(0x100bd45d8)  FDE
+[eh]    covers [0x100bd8ac0, 0x100bd8ad4)
+[eh] __register_frame(0x100bd4600)  FDE
+[eh]    covers [0x100bd8ad4, 0x100bd8ae8)
+[eh] __register_frame(0x100bd4628)  FDE
+[eh]    covers [0x100bd8ae8, 0x100bd8afc)
+[eh] __register_frame(0x100bd4650)  FDE
+[eh]    covers [0x100bd8afc, 0x100bd8b1c)
+[eh] __register_frame(0x100bd4678)  FDE
+[eh]    covers [0x100bd8b1c, 0x100bd8b34)
+[eh] __register_frame(0x100bd46a0)  FDE
+[eh]    covers [0x100bd8b34, 0x100bd8b54)
+[eh] __register_frame(0x100bd46c8)  FDE
+[eh]    covers [0x100bd8b54, 0x100bd8b6c)
+[eh] __register_frame(0x100bd46f0)  FDE
+[eh]    covers [0x100bd8b6c, 0x100bd8b84)
+[eh] __register_frame(0x100bd472c)  FDE
+[eh]    covers [0x100bd8000, 0x100bd80a4)
+[eh] __register_frame(0x100bd4758)  FDE
+[eh]    covers [0x100bd80a4, 0x100bd8128)
+[eh] __register_frame(0x100bd4788)  FDE
+[eh]    covers [0x100bd8128, 0x100bd8290)
+[eh] __register_frame(0x100bd47b8)  FDE
+[eh]    covers [0x100bd8360, 0x100bd8514)
+[eh] __register_frame(0x100bd47e8)  FDE
+[eh]    covers [0x100bd8540, 0x100bd86e4)
+[eh] __register_frame(0x100bd4818)  FDE
+[eh]    covers [0x100bd8974, 0x100bd89c0)
+[eh] __register_frame(0x100bd4848)  FDE
+[eh]    covers [0x100bd8a24, 0x100bd8ac0)
+[eh] __register_frame(0x100df4014)  FDE
+[eh]    covers [0x100df8000, 0x100df802c)
+[macro] address of workaddr  = 0x100bd8128
+[macro] address of thrower   = 0x100bd80a4
+[eh] __cxa_throw of St13runtime_error from pc=0x100bd8100 : 45 range(s) registered so far (45 calls), pc IS covered by a registered FDE
+caught: x

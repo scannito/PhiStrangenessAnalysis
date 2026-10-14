@@ -1,0 +1,7 @@
+Processing failaddr.C...
+[eh] __register_frame(0x100c64014)  FDE
+[eh]    covers [0x100c68000, 0x100c6802c)
+[macro] address of failaddr  = 0x1007f8084
+[macro] address of thrower   = 0x1007f8000
+[eh] __cxa_throw of St13runtime_error from pc=0x1007f805c : 1 range(s) registered so far (1 calls), pc is NOT covered by any registered FDE
+libc++abi: terminating due to uncaught exception of type std::runtime_error: x

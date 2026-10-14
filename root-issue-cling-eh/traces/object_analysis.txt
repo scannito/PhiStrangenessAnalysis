@@ -1,0 +1,15 @@
+== objects/fail_module.o
+sections: __text __gcc_except_tab __cstring __compact_unwind 
+FDEs in __eh_frame: 0
+objects/fail_module.o  rows=42  modes={'FRAME': 42}
+
+== objects/work_module.o
+sections: __text __gcc_except_tab __data __cstring __compact_unwind __eh_frame 
+FDEs in __eh_frame: 44
+objects/work_module.o  rows=44  modes={'FRAME': 43, 'DWARF': 1}
+
+== objects/asm_module.o
+sections: __text __gcc_except_tab __cstring __compact_unwind __eh_frame 
+FDEs in __eh_frame: 43
+objects/asm_module.o   rows=43  modes={'DWARF': 1, 'FRAME': 42}
+

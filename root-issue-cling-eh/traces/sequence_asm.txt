@@ -1,0 +1,12 @@
+[trace] 01 ObjectLinkingLayer::emit
+[trace] 02 ObjectLinkingLayer::emit
+[trace] 03 ObjectLinkingLayer::emit
+[trace] 04 EHFrameRegistrationPlugin::notifyEmitted
+[trace] 05 ObjectLinkingLayer::emit
+[trace] 06 EHFrameRegistrationPlugin::notifyEmitted
+[trace] 07 EHFrameRegistrationPlugin::notifyEmitted
+[trace] 08 InProcessEHFrameRegistrar::registerEHFrames range=[0x10b264000,0x10b264038) size=56 records: 1 CIE, 1 FDE
+[trace] 09 __register_frame fde=0x10b264014 (call #1)
+[trace] 10 EHFrameRegistrationPlugin::notifyEmitted
+[trace] 11 InProcessEHFrameRegistrar::registerEHFrames range=[0x10003c0d0,0x10003c7c0) size=1776 records: 1 CIE, 0 FDE
+libc++abi: terminating due to uncaught exception of type std::runtime_error: x

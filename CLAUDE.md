@@ -75,6 +75,15 @@ Two categories, deliberately different:
 
 Do not turn one into the other.
 
+A third category sits between them: **diagnostics that must not stop the run but must
+not be lost either**. `Logger::Warn` (`Logger.h`) prints the line and also counts it, and
+`RunAnalysisChain` prints every distinct warning once, with its count, just before
+the verdict. A warning that only scrolls past in a log of a million bytes is
+effectively silent, which is the failure this framework is built against. The tasks
+have not been moved to `Logger::` yet (see `DESIGN_NOTES.md`): until they are, the
+summary only covers what goes through it. Text that is not a literal goes in as an
+argument (`Logger::Warn("{}", msg)`), never as the format string.
+
 ## Configuration
 
 `JsonConfigHelpers.h` — never read a key with `HasMember` + `operator[]`. Three
@@ -134,8 +143,11 @@ know it".
 - Prefer deriving over storing: if a member follows from other members, a
   constructor or an accessor should produce it (`AssocParticleConfig::mass`,
   `ParticleTask::AnalysisBinning`).
-- One namespace per helper header: `BinningUtils`, `RootIO`, `JsonConfig`,
-  `HistogramUtils`, `RunEnvironment`. Dedicated managers: `WorkflowManager`,
+- One namespace per helper header, in `PascalCase` and named after the file, without
+  `Helpers` when the file has it: `BinningUtils`, `RootIO` (`RootIOHelpers.h`),
+  `JsonConfig` (`JsonConfigHelpers.h`), `HistogramUtils`, `RunEnvironment`, `Logger`.
+  What a namespace keeps to itself goes in a nested `Detail`, capitalised like the rest.
+  Dedicated managers: `WorkflowManager`,
   `CanvasManager`, `BaseConfigManager`, `FitConfigManager`, `ExtrapConfigManager`.
 - Tasks communicate through ROOT files, never in memory. `WorkflowManager` destroys
   each task right after `Terminate()`.
@@ -186,6 +198,26 @@ A new task that writes into a file somebody else also writes into belongs in row
 - C++20 is required beyond `std::format`: `emplace_back` on aggregates uses
   parenthesised aggregate initialisation (P0960). CMake takes the standard from
   ROOT (`ROOT_CXX_STANDARD`), so the binary and the headers agree with ROOT's.
+- **In the interpreted mode on macOS arm64 (ROOT 6.36), a `try`/`catch` works only by
+  accident.** A `throw` that Cling's JIT code has to unwind through ends in
+  `libc++abi: terminating due to uncaught exception`. This is a known upstream problem
+  ([ROOT #7541](https://github.com/root-project/root/issues/7541),
+  [LLVM #49036](https://github.com/llvm/llvm-project/issues/49036), reported fixed with
+  LLVM 20 / ROOT 6.38); the ALICE stack's 6.36 is affected. Code compiled ahead of time is
+  not: the binary from `--compile`, or a macro built with ACLiC (`.C+`).
+  What was measured: the JIT emits unwind info (`__eh_frame`) for a module only if one of
+  its functions needs DWARF-mode unwind info, which ordinary functions do not. A module
+  with a static initialiser gets ORC's `__orc_init_func`, which does, so every function of
+  that module gets an FDE and `catch` works. The project's macro has such initialisers
+  (e.g. the global `std::map` of `AnalysisConstants.h`, in the same unit as everything
+  included), which is the only reason `RunAnalysisChain`'s `catch` works; this was checked
+  with a missing configuration. A second hazard exists even when the unwind info is
+  emitted (an alignment hole that stops LLVM's registrar). Data and the full analysis, written
+  up for a ROOT issue, are in `root-issue-cling-eh/`.
+  Consequences: **`--compile` is the safe mode whenever the error path matters.** A small
+  standalone macro written to test exception behaviour proves nothing. Removing every
+  load-time initialiser from the interpreted unit could turn each `throw` into a
+  `terminate`; one global with an initialiser is not a guarantee either.
 - **Cling is not more lenient than the compiler, here.** Do not assume it is. The
   first compiled build found 14 errors in `CanvasManager.h`, and loading the previous
   version of that header in Cling reports the same two kinds: a nested struct with

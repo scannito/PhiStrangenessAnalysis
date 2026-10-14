@@ -1,0 +1,95 @@
+Processing workaddr.C...
+[eh] __register_frame(0x1031cc8d4)  FDE
+[eh]    covers [0x102ae4c18, 0x102ae4c58)
+[eh] __register_frame(0x1031cc8f8)  FDE
+[eh]    covers [0x102ae4c58, 0x102ae4c68)
+[eh] __register_frame(0x1031cc920)  FDE
+[eh]    covers [0x102ae4c68, 0x102ae4cc8)
+[eh] __register_frame(0x1031cc948)  FDE
+[eh]    covers [0x102ae4cc8, 0x102ae4ce8)
+[eh] __register_frame(0x1031cc970)  FDE
+[eh]    covers [0x102ae4e9c, 0x102ae4eb4)
+[eh] __register_frame(0x1031cc998)  FDE
+[eh]    covers [0x102ae4eb4, 0x102ae4ec8)
+[eh] __register_frame(0x1031cc9c0)  FDE
+[eh]    covers [0x102ae506c, 0x102ae5084)
+[eh] __register_frame(0x1031cc9e8)  FDE
+[eh]    covers [0x102ae5084, 0x102ae5098)
+[eh] __register_frame(0x1031cca10)  FDE
+[eh]    covers [0x102ae5098, 0x102ae510c)
+[eh] __register_frame(0x1031cca38)  FDE
+[eh]    covers [0x102ae510c, 0x102ae5128)
+[eh] __register_frame(0x1031cca60)  FDE
+[eh]    covers [0x102ae5128, 0x102ae5140)
+[eh] __register_frame(0x1031cca88)  FDE
+[eh]    covers [0x102ae5140, 0x102ae5154)
+[eh] __register_frame(0x1031ccab0)  FDE
+[eh]    covers [0x102ae5154, 0x102ae516c)
+[eh] __register_frame(0x1031ccad8)  FDE
+[eh]    covers [0x102ae516c, 0x102ae5184)
+[eh] __register_frame(0x1031ccb00)  FDE
+[eh]    covers [0x102ae5184, 0x102ae51a8)
+[eh] __register_frame(0x1031ccb28)  FDE
+[eh]    covers [0x102ae51a8, 0x102ae51c4)
+[eh] __register_frame(0x1031ccb50)  FDE
+[eh]    covers [0x102ae51c4, 0x102ae5210)
+[eh] __register_frame(0x1031ccb78)  FDE
+[eh]    covers [0x102ae5210, 0x102ae5228)
+[eh] __register_frame(0x1031ccba0)  FDE
+[eh]    covers [0x102ae5228, 0x102ae5240)
+[eh] __register_frame(0x1031ccbc8)  FDE
+[eh]    covers [0x102ae5240, 0x102ae5250)
+[eh] __register_frame(0x1031ccbf0)  FDE
+[eh]    covers [0x102ae5250, 0x102ae5268)
+[eh] __register_frame(0x1031ccc18)  FDE
+[eh]    covers [0x102ae5268, 0x102ae5278)
+[eh] __register_frame(0x1031ccc40)  FDE
+[eh]    covers [0x102ae5278, 0x102ae5288)
+[eh] __register_frame(0x1031ccc68)  FDE
+[eh]    covers [0x102ae5288, 0x102ae52a0)
+[eh] __register_frame(0x1031ccc90)  FDE
+[eh]    covers [0x102ae52a0, 0x102ae52e8)
+[eh] __register_frame(0x1031cccb8)  FDE
+[eh]    covers [0x102ae52e8, 0x102ae52fc)
+[eh] __register_frame(0x1031ccce0)  FDE
+[eh]    covers [0x102ae5348, 0x102ae5360)
+[eh] __register_frame(0x1031ccd08)  FDE
+[eh]    covers [0x102ae5360, 0x102ae5374)
+[eh] __register_frame(0x1031ccd30)  FDE
+[eh]    covers [0x102ae5374, 0x102ae53ac)
+[eh] __register_frame(0x1031ccd58)  FDE
+[eh]    covers [0x102ae5448, 0x102ae545c)
+[eh] __register_frame(0x1031ccd80)  FDE
+[eh]    covers [0x102ae545c, 0x102ae5470)
+[eh] __register_frame(0x1031ccda8)  FDE
+[eh]    covers [0x102ae5470, 0x102ae5484)
+[eh] __register_frame(0x1031ccdd0)  FDE
+[eh]    covers [0x102ae5484, 0x102ae54a4)
+[eh] __register_frame(0x1031ccdf8)  FDE
+[eh]    covers [0x102ae54a4, 0x102ae54bc)
+[eh] __register_frame(0x1031cce20)  FDE
+[eh]    covers [0x102ae54bc, 0x102ae54dc)
+[eh] __register_frame(0x1031cce48)  FDE
+[eh]    covers [0x102ae54dc, 0x102ae54f4)
+[eh] __register_frame(0x1031cce70)  FDE
+[eh]    covers [0x102ae54f4, 0x102ae550c)
+[eh] __register_frame(0x1031cceac)  FDE
+[eh]    covers [0x102ae4988, 0x102ae4a2c)
+[eh] __register_frame(0x1031cced8)  FDE
+[eh]    covers [0x102ae4a2c, 0x102ae4ab0)
+[eh] __register_frame(0x1031ccf08)  FDE
+[eh]    covers [0x102ae4ab0, 0x102ae4c18)
+[eh] __register_frame(0x1031ccf38)  FDE
+[eh]    covers [0x102ae4ce8, 0x102ae4e9c)
+[eh] __register_frame(0x1031ccf68)  FDE
+[eh]    covers [0x102ae4ec8, 0x102ae506c)
+[eh] __register_frame(0x1031ccf98)  FDE
+[eh]    covers [0x102ae52fc, 0x102ae5348)
+[eh] __register_frame(0x1031ccfc8)  FDE
+[eh]    covers [0x102ae53ac, 0x102ae5448)
+[eh] __register_frame(0x10831c044)  FDE
+[eh]    covers [0xfe6b4020, 0xfe6b404c)
+[macro] address of workaddr  = 0x102e58128
+[macro] address of thrower   = 0x102e580a4
+[eh] __cxa_throw of St13runtime_error from pc=0x102e58100 : 45 range(s) registered so far (45 calls), pc is NOT covered by any registered FDE
+libc++abi: terminating due to uncaught exception of type std::runtime_error: x

@@ -348,3 +348,46 @@ differences are the two intended ones above and the removal of the `iStr` local 
 `CorrelationTaskBase::LoadCorrections`. The check is static. The analysis itself was
 **not** re-run end to end after this change, and `mc pp` exercises only part of the
 sites: `purity`, `data`, and the closure keywords reach the others.
+
+---
+
+## Logger
+
+**A minimal `Logger::` instead of spdlog.** `Logger.h` had been an empty class wrapping
+an include of spdlog that nothing used. What the framework needs from a logger is
+small: levels, one line format, and a count of the warnings of the run that is printed
+at the end, because a warning buried in a log of a million bytes is as good as silent.
+Sinks, rotation and asynchronous output are not needed by an offline batch analysis.
+
+*Why not spdlog* (v1.17, tried on ROOT 6.36.10 with Cling):
+
+- With `SPDLOG_USE_STD_FORMAT`, the setting the old `Logger.h` asked for, it does not
+  load in Cling at all: its own `fmt_helper.h` formats with `{:02}`, which hits the
+  same `consteval` limit as any numeric spec (`CLAUDE.md`, *Cling constraints*).
+- With its bundled `fmt` it loads and even accepts `{:.2f}`, but costs **11 s on every
+  interpreted run** (11.4 s against 0.2 s without it); about 1 s more to compile.
+- The old header's premise, "spdlog at no runtime cost", held only for the compiled
+  mode.
+
+*Design.* `Logger::Info/Warn/Error/Debug(fmt, args...)` format with `std::vformat`, which
+reads the format string at run time and therefore accepts numeric specs under Cling
+(checked: `{:.2f}`, `{:g}`, `{:08.3f}`, `{:04d}`). The price is that a bad format
+string is found when the line is printed and not at compile time. If it throws, the
+logger catches it and prints the line with a note, so a diagnostic never becomes a
+failure. In the compiled mode that was checked; in Cling it depends on exception
+handling being available (see *Cling constraints*: on macOS arm64 with ROOT 6.36 a
+throw through JIT-compiled frames is a known upstream bug) and was checked in a context
+that includes the project headers.
+
+- INFO and DEBUG go to stdout, WARN and ERROR to stderr; `runAnalysis.sh` merges them
+  with `2>&1 | tee`.
+- A warning is counted even when the threshold hides it: silencing the output must not
+  hide from the summary that something was said.
+- The summary lists each distinct warning once with `(xN)`, up to 500 distinct
+  messages, and a run with no warnings prints `[SUMMARY] No warnings.` so that the
+  absence of a summary cannot be mistaken for a clean run.
+- Single-threaded by design, and says so.
+
+*Status.* `RunAnalysisChain` prints the summary on success and on a fatal error. The
+tasks have not been migrated, so the summary is still empty in practice; see
+`DESIGN_NOTES.md`.

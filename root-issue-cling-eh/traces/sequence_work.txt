@@ -1,0 +1,15 @@
+[trace] 01 ObjectLinkingLayer::emit
+[trace] 02 EHFrameRegistrationPlugin::notifyEmitted
+[trace] 03 InProcessEHFrameRegistrar::registerEHFrames range=[0x100038140,0x100038878) size=1848 records: 2 CIE, 44 FDE
+[trace] 04 __register_frame fde=0x100038154 (call #1)
+[trace] 05 __register_frame fde=0x100038178 (call #2)
+[trace] 06 __register_frame fde=0x1000381a0 (call #3)
+[trace] 48 ObjectLinkingLayer::emit
+[trace] 49 ObjectLinkingLayer::emit
+[trace] 50 EHFrameRegistrationPlugin::notifyEmitted
+[trace] 51 ObjectLinkingLayer::emit
+[trace] 52 EHFrameRegistrationPlugin::notifyEmitted
+[trace] 53 EHFrameRegistrationPlugin::notifyEmitted
+[trace] 54 InProcessEHFrameRegistrar::registerEHFrames range=[0x105468000,0x105468038) size=56 records: 1 CIE, 1 FDE
+[trace] 55 __register_frame fde=0x105468014 (call #45)
+caught: x
