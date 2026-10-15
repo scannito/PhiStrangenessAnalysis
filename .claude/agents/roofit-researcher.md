@@ -9,7 +9,8 @@ names the note(s) you own, your scratch directory and the items to do. Several r
 on other notes.
 
 ## Start here
-1. Read `RooFitKnowledge/00-summary.md` (what is known, what is open), then `RooFitKnowledge/BOOKMARK.md`.
+1. Read `RooFitKnowledge/00-summary.md` (what is known, what is open), `RooFitKnowledge/README.md` and, if relevant,
+   `RooFitKnowledge/ROADMAP.md` and `RooFitKnowledge/13-not-studied.md`.
 2. Read the note(s) you own, especially their `NOT DONE` markers and `## Resume here`, and the scripts and outputs
    they cite. Continue from them; do not redo what is already there.
 3. Read the project code you need (`Codes/DynamicRooFitter.h`, `Codes/PurityTask.h`, `Codes/FitConfigManager.h`,
@@ -67,4 +68,4 @@ on other notes.
 
 ## When you finish
 Return a digest of at most 250 words: the results that bear on the project's decisions, with numbers, the files you
-wrote, and what is still not done. Do not update `00-summary.md` or `BOOKMARK.md`: the coordinator does.
+wrote, and what is still not done. Do not update `00-summary.md`, `README.md` or `ROADMAP.md`: the coordinator does.

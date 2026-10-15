@@ -246,4 +246,5 @@ Results (merged analysis cells, 734 valid; project's call vs best of 11 determin
 ## Resume here
 
 Done: the real-cell analysis, the Optimize/Hesse/... bit identity, `Offset("initial")`/`Offset("bin")`, `IntegrateBins` on real cells, the `sum of coefficients is zero` cause, the Xi archive mismatch, the limit relaxation (all in 09 section 9). NOT DONE: `Offset("bin")` combined with the escalation and the multi-start; `IntegrateBins` on the source cells. Purity-bias toys: note 12; in-sequence escalation: note 11.
+Update 15 Oct (note 09 final pass, 9.9-9.10): both NOT DONE items above are DONE: `Offset("bin")` in the escalation/multi-start changes acceptance (3x fewer escalations) but not the minima or yields reached; IntegrateBins on source cells moves S by +0.01% median (Xi +0.04%, max 1.7%).
 Scratch: `scratch/study09/` (harness, TSVs, analysis scripts, `cells-master.tsv`); older material in `scratch/fitting-api/` (its partial TSVs are superseded).

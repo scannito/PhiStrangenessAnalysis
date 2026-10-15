@@ -1,10 +1,12 @@
-# 00 - Sintesi della ricerca RooFit (14 ottobre 2026)
+# 00 - Sintesi della ricerca RooFit (14-15 ottobre 2026)
 
 Per il responsabile del progetto. Riassume le note 01-10, scritte da quattro ricercatori (due passate). **Non ho rieseguito nulla io:** i numeri
 sono quelli riportati nelle note, che a loro volta citano script e output nella cartella `scratch/` (copiata dentro `RooFitKnowledge/`, vedi il suo README). Le etichette di provenienza
 (`[verified]`, `[source]`, `[doc]`, `[inferred]`) sono nelle note; qui le richiamo solo dove contano. Ambiente: ROOT 6.36.10 (build ALICE), macOS arm64.
 
-La ricerca è stata chiusa in anticipo per budget di token. Ogni nota ha una sezione `## Resume here` e i punti non raggiunti marcati `NOT DONE`.
+**Stato finale (15 ottobre 2026, sera): la ricerca è chiusa.** L'ultima passata (sezione 1.9) ha completato tutti i punti aperti; le note 01-12 sono
+finali e non hanno più `NOT DONE`, salvo voci impossibili qui (ognuna con la sua ragione). Cosa di RooFit non è stato studiato: nota 13.
+Cosa fare nel progetto: `ROADMAP.md`.
 
 ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -134,14 +136,50 @@ Chiusa per limite d'uso giornaliero. Numeri riportati dai ricercatori, non river
 
 ---------------------------------------------------------------------------------------------------------------------------------
 
+### 1.9 Passata finale (15 ottobre 2026, sera; note 01, 07, 08, 09, 11, 12, nuova 13)
+
+Numeri riportati dai ricercatori; il coordinatore ha controllato l'integrità delle note sul disco (titoli, coda, diff contro git per la 09).
+
+- **Partenze multiple (nota 12 sezione 7, 40 celle × 200 toy).** Con la procedura raccomandata i minimi sbagliati sono il 5.2% (K0S pT 3.0-4.2),
+  38.8% (K0S pT 4.2-6.4, fino all'84%), 25% (Xi pT 1.2-1.6), 78% (Xi pT 1.6-2.0), e il test di accettazione non li vede. Regola: partenza scalata
+  sulla resa più 2-4 partenze casuali per K0S e pioni; 4 partenze per Xi pT 1.2-1.6; per Xi pT 1.6-2.0 partenza dalla mediana dei fit delle altre
+  molteplicità dello stesso pT più 8 partenze (2 toy sbagliati su 4000). Per Xi la partenza scalata sulla resa peggiora (99.8%).
+- **Catena completa con le partenze (nota 11 sezione 8):** purezza di analisi spostata oltre 0.001 in 89 celle su 737, oltre 0.01 in 9, mai oltre
+  0.05, rispetto alla procedura senza partenze; minimi sbagliati da 180 a 55; tempo 2.5 volte. Anche Xi 2026 pT 2.0-3.0 è multimodale.
+  Celle segnalate da 38 a 80, quasi tutte pi_tpc con `nbkg`=0, che lì è il risultato atteso: va rivisto il criterio.
+- **Riferimento a 50 partenze su tutte le 2620 celle sorgente (nota 09, 9.11):** 20 partenze restano sopra il migliore in 17 celle (Xi 2026 pT 11-14
+  quasi tutte; S -1.1/-1.4%, P -0.011). Dispersione di S tra soluzioni con lo stesso NLL trascurabile (mediana 7e-6), tranne 3 celle Xi 2024 a pT alto (1.3-2.2%).
+- **`Offset("bin")` (nota 09, 9.9):** stesse rese di `Offset(true)` ma accettazione 96% contro 88%, escalation 3 volte meno. Diventa il primo passo.
+- **Limiti sulle celle sorgente (nota 09, 9.8):** nessuna cella sorgente è tagliata da `nsig`/`nbkg` (la mappa CCDB non cambia); `sigma_sig` di Xi
+  lega in 439 celle su 520 (S -0.49% mediana, fino a -3%); `n>=1` del K0S in 47 celle a pT alto (S +1.1%); `n>=1` di Xi va tenuto (+8.6%).
+- **`IntegrateBins`:** sui dati reali, con entrambi i fit al proprio minimo migliore, S si sposta di +0.012% di mediana (p90 0.43%; oltre l'1% solo in 2
+  celle Xi 2026 a pT alto su 60; gli spostamenti del 2% visti prima erano differenze di minimo, nota 09 9.11.4). Sui toy elimina il bias,
+  ma con il refit ad alta statistica non converge (77-88%); un fit IB singolo converge nel 91-92% con errori giusti, a 14-30 volte la CPU; la precisione
+  non conta. Uso: variazione sistematica, non nominale.
+- **Perché il K0S cade nel minimo sbagliato sui toy e non sui dati (nota 12):** sui dati reali quel bacino non è un minimo locale; esiste solo se il
+  modello descrive perfettamente i dati (i dati reali lo mancano con χ² 2884 su 200 bin). Le rese della config, 30 volte sotto N, spingono il fit lì.
+- **A valle con efficienza (nota 11 sezioni 7-9).** Il bug `TH1F`/`TH1D` è confermato (corretto solo in scratch). **L'"amplificazione" dei pioni era
+  soprattutto un errore NaN:** la procedura nuova scrive errori di purezza NaN in 11 celle (pi_tpc con P≈1 e `nbkg` al limite); finiscono in 63 dei 180
+  spettri dei pioni e né il fit di ROOT né `SpectrumExtrapolator` li scartano (testano `<= 0`, falso per NaN). Riparati: sensibilità da 3.35% a 0.62%
+  (efficienza accesa), da 9.4% a 2.4% (spenta). Range di fit [0.2,1.5] o [0.2,3.0] con errore minimo 2%: ≤0.9% e ≤0.5%. La scelta del range sposta la
+  resa dei pioni dell'1-6% (sistematica). Effetto finale con efficienza accesa e partenze: trend K0S misurato fino a 1.16%, rapporti fino a 1.13%.
+- **Note 01, 07, 08:** `$REMOVE(nome)` non funziona per un errore di nome in RooFit (`RooAbsArg.cxx:1052` legge `ORIGNAME`, `RooCustomizer` scrive
+  `origName`); helper HS3 provato su celle reali K0S e phi (NLL identico; HS3 non salva gli errori dei parametri); importare un istogramma allarga il
+  range dell'osservabile ai bordi delle bin (da qui [1.289, 1.361] di Xi); PR #21703 depreca i fit chi2 x-y, non `RooPlot::chiSquare` (correzione).
+- **Nota 13 (nuova):** tutto ciò che di RooFit non è stato studiato, con in rilievo gli approcci pertinenti (fit simultanei o vincoli tra molteplicità,
+  `RooBernstein` al posto del Chebychev, sPlot, fit 2D delle masse, fondo da template).
+
+---------------------------------------------------------------------------------------------------------------------------------
+
 ## 2. Cosa non è solido
 
 - **Xi non riproduceva i file di purezza archiviati** (660 celle, es. P 0.954 archiviata contro 0.877 ricalcolata nella cella (0,0) del 2024): **causa trovata**, il cambio del range dell'osservabile del 27 agosto (sezione 1.7). K0S, pi_tpc e pi_tof riproducevano già esattamente le 2720 celle archiviate: buona validazione dell'harness. I numeri di Xi nello studio 09 descrivono la configurazione attuale.
 - **`23luglio` non è un input della purezza.** Il suo asse di pT del K0S ha un bordo a 6.5 dove `rebinning_pt` ha 6.4, quindi `MapToSourceBins` lancerebbe. Le note 03-07 più vecchie usavano quel file; lo studio 09 usa i file 2024 (`5agosto`) e 2026 (`6agosto`).
-- Il miglior NLL trovato non è dimostrato globale. Nessuno ha propagato gli effetti fino alle correlazioni finali, e `PurityTask` non è stato eseguito end to end.
+- Il miglior NLL trovato non è dimostrato globale, ma con 50 partenze su tutte le 2620 celle sorgente il riferimento a 20 partenze cede solo in 17 celle (sezione 1.9). `PurityTask` è stato eseguito end to end su una copia, fino alle correlazioni con efficienza accesa (nota 11).
+- Toy: il modello genera dati che descrive perfettamente; i dati reali no (χ² 2884 su 200 bin nella cella K0S di prova). Tassi di minimi sbagliati e bias dei toy sono quindi un limite superiore per i minimi e non dicono nulla sull'errore di modello (nota 12).
 - I tempi sono misurati con altri job concorrenti: nessuna conclusione sulle prestazioni. I risultati di correttezza restano validi.
 - 6.38 e 6.40 sono verificati solo sulle release notes (controllate sui file primari), non eseguendo quelle versioni. La 6.36.04 non parte su questo sistema (errore modulemap), quindi niente test di caricamento tra versioni.
-- La nota 09 è stata troncata a metà di una modifica dall'agente e le sezioni 1-8 riscritte dal suo stesso testo precedente; ho controllato che i numeri chiave (734 celle, 29/12/4%, 523 celle con status 3, 2720 celle riprodotte) coincidano con la versione precedente, ma il resto non l'ho riletto.
+- La nota 09 è stata troncata a metà di una modifica dall'agente e le sezioni 1-8 riscritte dal suo stesso testo precedente; ho controllato che i numeri chiave (734 celle, 29/12/4%, 523 celle con status 3, 2720 celle riprodotte) coincidano con la versione precedente, ma il resto non l'ho riletto. Nella passata finale è stata troncata di nuovo e ricostruita da git più una copia; il diff contro git mostra solo le aggiunte volute.
 - La nota 01 è stata troncata da un heredoc mal quotato e ricostruita a memoria dall'agente: può mancare qualche dettaglio.
 - Lo studio 09 vale per la config corrente e per le celle fittate come oggi; sul rilassamento dei limiti vale solo per i tre punti marcati solidi (sezione 1.7).
 
@@ -157,29 +195,27 @@ In ordine di valore:
 6. **Chiarire se è voluto che gli override per bin del K0S (`mult*_pt4`, `mult*_pt5`, Chebychev2) colpiscano i bin di analisi 4 e 5 (1.2-2.0 GeV/c) ma i bin sorgente 4 e 5 (0.8-1.0 GeV/c)** nei fit sorgente (nota 09, sezione 1.1, trovato leggendo il codice).
 7. **Il validatore del modello** (controlli su limiti e finitezza prima di `fitTo`): piccolo, indipendente dal resto, nota 10 sezione 6 ha il codice.
 8. Per gli errori dell'efficienza online del phi: `SumW2Error(true)`.
-9. Decisioni rimandate: factory contro parser a mano; record di provenienza HS3; aggiungere xRooFit a CMake se si adotta la procedura di refit.
+9. **Limiti `n` delle code:** `n>=1` del K0S lega in 47 celle sorgente a pT alto (S +1.1%); `n>=1` di Xi va tenuto (rilassato S +8.6%) (nota 09 9.8).
+10. **Criterio di segnalazione per pi_tpc:** `nbkg`=0 è il risultato atteso, non un difetto; oggi fa salire le celle segnalate da 38 a 80 (nota 11).
+11. **Range del fit di estrapolazione dei pioni:** sposta la resa dell'1-6%; [0.2,1.5] o [0.2,3.0] GeV/c con errore minimo del 2% lo stabilizzano (nota 11 sezione 9).
+12. Decisioni rimandate: factory contro parser a mano; record di provenienza HS3; aggiungere xRooFit a CMake se si adotta la procedura di refit; gli approcci della nota 13.
 
-## 4. Cosa resta da fare (`NOT DONE`)
+## 4. Cosa resta da fare
 
-Elenco completo, raccolto dai `NOT DONE` e dai `## Resume here` di tutte le note (tra parentesi la nota dove sta il dettaglio).
-Ordine di valore per il progetto.
+**Nella ricerca: niente.** Tutti i punti delle passate precedenti sono chiusi (sezione 1.9). Restano solo:
 
-**Incidono sui risultati fisici** (aggiornato il 15 ottobre 2026)
-1. Note 09/03 (ricercatore in chiusura al momento dello stop): multi-start comune per base e limiti rilassati, multi-start più largo, parametri di forma fissati / Strategy 0, `Offset("initial"|"bin")`, `IntegrateBins` sulle celle reali, causa di `sum of coefficients is zero`. Controllare nella nota 09 cosa è stato scritto e cosa resta nel suo `## Resume here`.
-2. Procedura raccomandata con 2-4 partenze multiple nelle celle a rischio: non provata (12).
-3. `IntegrateBins` sui toy, non solo Asimov; convergenza e HESSE (status 304 su pi_tpc alta statistica) (12).
-4. Perché dalla partenza della config si cade nel bacino sbagliato del K0S sui toy ma non sui dati reali (12).
-5. Run a valle con efficienza (bloccato dal bug TH1F/TH1D) e perché l'estrapolazione dei pioni amplifica (11).
-6. Tempi a macchina libera (04, 06, 09, 11): li fa il coordinatore quando nessun job gira.
-Risolti in questa passata: escalation xRooFit; mappa CCDB (nessun consumatore); toy sul bias; GOF sotto 1e5; pesi online; `snap_to_bin` tollerante; profilo ad alta statistica.
+- **Impossibile qui:** test tra versioni di ROOT (la 6.36.04 non parte, errore modulemap; la 6.38 e la 6.40 non sono installate); errori sistematici
+  veri nel fit di estrapolazione (gli input non ne hanno).
+- **Opzionali, giudicati senza effetto sulle decisioni dai ricercatori:** `IntegrateBins` su tutta la catena (non è raccomandato come nominale);
+  come Minuit tratta un punto con errore NaN (la correzione è scartarlo comunque, roadmap 0.6).
+- **Non studiato:** nota 13.
+- **Tempi a macchina libera** (misurati dal coordinatore a fine ricerca, passo di purezza intero): `DoFit` attuale 11.7 s, procedura raccomandata
+  19.2 s, con partenze casuali 48.9 s (`ROADMAP.md` fase 3, `scratch/coord-timing/times.txt`).
 
-**Completano la conoscenza, nessun effetto sulle conclusioni**
-- Quasi tutti chiusi nella quinta passata (note 01, 02, 04, 05, 07, 08, 10). Restano: perché fallisce la forma `$REMOVE(nome)` (01); i residui elencati nel `## Resume here` di 07 e 08.
+**Nel progetto:** `ROADMAP.md`.
 
-**Impossibile qui**
-- Test di caricamento tra versioni ROOT: la 6.36.04 non parte (errore modulemap), la 6.38 e la 6.40 non sono installate.
-
-Per riprendere: leggere il `## Resume here` della nota interessata e rilanciare lì un ricercatore con la nota come punto di partenza. Gli script e i risultati sono in `RooFitKnowledge/scratch/` (git-ignorata); i percorsi nelle note puntano già lì.
+Gli script e i risultati sono in `RooFitKnowledge/scratch/` (git-ignorata); i percorsi nelle note puntano già lì. Per un'eventuale ripresa, ogni nota ha
+la sua sezione `## Resume here` con i comandi per rieseguire.
 
 ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -187,17 +223,19 @@ Per riprendere: leggere il `## Resume here` della nota interessata e rilanciare 
 
 | nota | contenuto | stato |
 |---|---|---|
-| 01 | costruzione dei modelli, `factory` | finita, ricostruita dopo un troncamento |
-| 02 | JSON e HS3 (con record di provenienza, sezione 10) | finita, terza passata |
-| 03 | API del fit, status, opzioni | finita |
-| 04 | integrali, errori, normalizzazione | finita |
-| 05 | dataset, grafici, bontà del fit | finita |
-| 06 | backend e prestazioni | finita |
-| 07 | workspace, HistFactory, RooStats, xRooFit | finita |
-| 08 | documentazione, release notes, tutorial, problemi noti | finita |
-| 09 | qualità dei fit e effetto sulle rese (con sezione 9: Xi, limiti, toy) | nuova, finita; sezione 9 parziale |
-| 10 | raccomandazione sul parsing dei modelli | nuova, finita, aggiornata con la terza passata |
-| 11 | `PurityTask` end to end su copia, procedura raccomandata contro baseline, effetto a valle | nuova, finita (a valle con efficienza non fatto) |
-| 12 | toy sul bias di S e della purezza | nuova, finita |
+| 01 | costruzione dei modelli, `factory` | finale |
+| 02 | JSON e HS3 (con record di provenienza, sezioni 10-11) | finale |
+| 03 | API del fit, status, opzioni | finale |
+| 04 | integrali, errori, normalizzazione | finale |
+| 05 | dataset, grafici, bontà del fit | finale |
+| 06 | backend e prestazioni | finale |
+| 07 | workspace, HistFactory, RooStats, xRooFit, helper HS3 | finale |
+| 08 | documentazione, manuale, release notes, tutorial, problemi noti | finale |
+| 09 | qualità dei fit e effetto sulle rese (sezione 9: Xi, limiti, 50 partenze, offset, IntegrateBins) | finale |
+| 10 | raccomandazione sul parsing dei modelli | finale |
+| 11 | `PurityTask` end to end su copia, procedura raccomandata e partenze multiple, effetto a valle con efficienza, estrapolazione dei pioni | finale |
+| 12 | toy: bias e copertura, minimi sbagliati per famiglia, regola delle partenze, `IntegrateBins` | finale |
+| 13 | cosa di RooFit non è stato studiato; approcci pertinenti in rilievo | finale |
+| `ROADMAP.md` | cosa fare nel progetto, in fasi | finale |
 
-Il materiale scratch (`study09/`, `study0102/`, `study0405/`, `study060708/`, `study11/` e le cartelle della prima passata) è in `RooFitKnowledge/scratch/`: senza eseguibili, `*.root`, `*.png` e log, che si ricostruiscono con i `build.sh`. Le build di `study11` sono state eliminate (cache CMake con i vecchi percorsi): rigenerarle.
+Il materiale scratch (`study09/`, `study0102/`, `study0405/`, `study060708/`, `study11/`, `study12/`, le cartelle `study-final-*`, `study09-final`, `study-last-*` e quelle della prima passata) è in `RooFitKnowledge/scratch/`: senza eseguibili, `*.root`, `*.png` e log, che si ricostruiscono con i `build.sh`. Le build di `study11` sono state eliminate (cache CMake con i vecchi percorsi): rigenerarle.
