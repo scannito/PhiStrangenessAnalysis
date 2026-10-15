@@ -925,6 +925,9 @@ configuration: online windows and PID cuts against `integration_range`, and the 
 data and MC inputs. A mismatch throws, as the binning checks do. No change to O2Physics and no question of
 merging. The open point is how a file is associated with its train configuration (a naming rule, or a key in
 the global configuration next to each input file).
+Part of it exists already: `HYConfigs/Trains/*.yaml` maps each `train_id` to the `output_name` of its
+`AnalysisResults`, so the download step could fetch the train's configuration too (whether Hyperloop allows
+it from there was not checked).
 
 **Idea 2: an `OutputObj` in the O2Physics task.** `OutputObj<T>` (`Framework/AnalysisHelpers.h`) writes any
 TObject into `AnalysisResults.root`; a `TNamed`/`TObjString` holding the relevant configurables as JSON would
