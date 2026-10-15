@@ -110,6 +110,41 @@ a comment in `DoFit` says why and points at the measurement):
   Not worth restructuring on its own, since the object has to stay alive for `DrawFit`
   anyway.
 
+### One range for everything: the observable's range is also the fit range and the plot range
+
+Today `observable.min`/`max` in `fitConfig.json` builds the `RooRealVar` (`DynamicRooFitter.h:62`), and that
+single range is used for everything: the `RooDataHist` imports only the bins inside it, the likelihood runs over
+it, the window and sideband fractions are normalised to it (`NormSet(*obs)`), and `DrawFit` builds its frame and
+pull axis on it. There is no way to show more of the spectrum than is fitted, or to fit less than is shown.
+
+That couples two decisions of different weight. The fit range changes the numbers; the plotted range should not.
+The Xi section shows the cost: commit 3e2878a (27 August) narrowed the Xi range from [1.2, 1.4] to [1.29, 1.36],
+and the Xi purity dropped by a median 0.074 (`RooFitKnowledge/09-fit-quality-and-yields.md`, section 9.1). Whether
+that was a fit decision or a display one, the configuration cannot say. Note also that RooFit silently widens the
+range to the histogram's bin edges, so the Xi fit actually runs on [1.289, 1.361] (`RooFitKnowledge/05-...`, 5.6).
+
+Two ways to separate them, in increasing order of risk:
+
+- **A plot range used only by the drawing.** Keep the observable's range as the fit range and add an optional
+  `plot_range` that only `DrawFit` reads: draw the data histogram over the wider range and the curves over the
+  fit range (mark where the fit stops). No number changes, so the key can stay optional (the rule in `CLAUDE.md`,
+  *Configuration*, asks to declare only keys that change a number). This is a drawing change only.
+- **A fit range narrower than the observable** (`obs->setRange("fit", a, b)` and `fitTo(..., Range("fit"))`). It
+  changes the physics and RooFit has measured traps here (`RooFitKnowledge/05-datasets-plotting-gof.md`, sections
+  1-2; `04-...`):
+  - in an extended fit restricted to a range, `nsig` and `nbkg` refer to the WHOLE observable range,
+    extrapolated (toy: ns + nb = 8430 for 5867 events in the fit range). The window yield `nsig * fraction` with
+    the fraction normalised to the whole range should stay consistent, but this was not tested on the project's
+    models;
+  - the plot normalises a fitted curve to the fit range automatically, and a component drawn with
+    `RelativeExpected`, as `DrawFit` does, comes out inflated by 1/(range fraction) (toy: 4351 for ns = 3026), so
+    `DrawFit` would need changing too;
+  - `IntegrateBins`, toys and `RooMCStudy` need `obs->setBins` equal to the histogram's bins inside the range
+    (`RooFitKnowledge/04-...`, `07-...`), and bins are selected by their centre.
+
+The first is cheap and probably what is wanted most of the time; the second needs a validation on real cells before
+it is used. Not started; which of the two (or both) is the owner's choice.
+
 ### Future direction: arbitrary N-component decomposition in DynamicRooFitter
 
 Currently, `DynamicRooFitter` supports composite models within `sig_model` or `bkg_model` via `+`
@@ -853,3 +888,51 @@ being chosen.
   errors in `CanvasManager.h` that Cling reports too (verified by loading the previous
   version): it had not been run since it was edited. The compiled build checks every
   header whether or not a run reaches it; see `DESIGN_HISTORY.md`.
+
+---
+
+## 12. The online configuration is not checked (ideas, nothing decided)
+
+Recorded on 15 October 2026 as possible directions, not as decisions.
+
+**What is covered today.** Everything the framework checks against its inputs is about binning and bin
+indices (*The rule the whole framework is built on* in `CLAUDE.md`): the binnings are read from the
+`AnalysisResults` files, whose axes the O2Physics tasks build from their configurables
+(`AxisSpec{(std::vector<double>)binsMult, ...}`), and compared with the JSON. That part already gets its
+information from the online run, through the axes.
+
+**What is not.** The framework knows nothing of the configuration the O2Physics train ran with: mass windows,
+PID cuts, selection flags, `eventSelectionType`, `analysisMode`, the cuts of the producers and of
+`track-selection`. Two productions with the same binning and different cuts pass every check, and so does a
+data file paired with an MC/efficiency file produced with different cuts.
+
+A concrete case. In the train configuration `configuration-8.json` the windows of `phi-strange-correlation`
+are `rangeMK0sSignal` = [0.475, 0.515], `rangeMXiSignal` = [1.305, 1.335], `pidTPCMax` = 3: the same windows
+as `integration_range` in `fitConfig.json`, so the purity is computed in the window used online to select the
+candidates. But they agree only because they were set by hand: the defaults in `phiStrangeCorrelation.cxx`
+are [0.47, 0.53] for the K0S and [1.31, 1.33] for the Xi. A train run with the defaults would give a purity
+for a different sample, and nothing would say so.
+
+Two smaller cases of the same kind are caught but not recognised: a directory renamed in O2Physics stops the
+run as "histogram not found" (`CLAUDE.md`, *Configuration*, now says to ask for the new path), and a change of
+histogram type (the `Corrections` files hold TH1D where `CorrelationTaskBase::LoadCorrections` asks for TH1F)
+stops it with a type error that does not name the cause.
+
+**Idea 1: read the train's `configuration.json`.** Hyperloop already writes it, with every task of the train,
+producers included. Keep it next to each `AnalysisResults` in `DataFile/`, have the framework read it, record
+it (or a fingerprint of the relevant blocks) in the provenance, and check a list of keys declared in the
+configuration: online windows and PID cuts against `integration_range`, and the keys that must agree between
+data and MC inputs. A mismatch throws, as the binning checks do. No change to O2Physics and no question of
+merging. The open point is how a file is associated with its train configuration (a naming rule, or a key in
+the global configuration next to each input file).
+
+**Idea 2: an `OutputObj` in the O2Physics task.** `OutputObj<T>` (`Framework/AnalysisHelpers.h`) writes any
+TObject into `AnalysisResults.root`; a `TNamed`/`TObjString` holding the relevant configurables as JSON would
+make each file describe itself. Two limits: it covers only the tasks that are modified (not the producers or
+`track-selection`), and Hyperloop merges the outputs of many jobs, so the object needs a sensible `Merge` —
+how the merger treats a `TObjString` is not known and must be tested by merging two outputs before relying on
+it. Writing the binnings this way as well is not worth it: they are already on the axes, and a second copy is
+one more thing to keep aligned.
+
+Suggested order: idea 1 first (complete, no O2Physics change), idea 2 only as a complement once the merge
+behaviour is verified.
