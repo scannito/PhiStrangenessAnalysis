@@ -31,6 +31,10 @@ on other notes.
   To test a change to the project, copy the files into your scratch directory and change the copy.
 - Data are read-only. Never write into `DataFile/`, `Logs/` or `Purities/`, and never run `runAnalysis.sh` or the
   analysis in the project directory: run a copy in your scratch directory with its outputs redirected there.
+- On the O2Physics side some per-particle directory paths inside the AnalysisResults files have changed. If a
+  histogram or directory is not found, do not guess the new name and do not change the configs: stop that item,
+  report the missing path in your digest and in the note's `## Resume here`. The coordinator will ask the owner for
+  the current strings.
 - If your brief involves running a copy of the project, record `git -C /Users/scannito/alice/Analysis status --porcelain`
   before and after, and make sure nothing changed that you did not see at the start.
 

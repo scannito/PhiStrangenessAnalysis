@@ -135,6 +135,14 @@ changes no number is better absent, because it is one more copy of a rule to kee
 aligned. The test is not "is it obvious" but "would a reader of the output need to
 know it".
 
+**The histogram paths follow O2Physics, and O2Physics has renamed some of them.**
+The directories of the single-particle producers inside `AnalysisResults_*.root`
+come from the online processing, and some of them have changed, so a path in a
+configuration can be right for older files and wrong for newer ones. When a run or
+a test stops because a histogram or directory is not found, do not guess the new
+name and do not edit the configuration to fit: ask the owner for the current
+strings.
+
 ## Physics that the code depends on
 
 - **Efficiency and purity are ratios.** A coarser binning is obtained by merging
