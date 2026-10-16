@@ -939,3 +939,93 @@ one more thing to keep aligned.
 
 Suggested order: idea 1 first (complete, no O2Physics change), idea 2 only as a complement once the merge
 behaviour is verified.
+
+## 13. Corrections across O2Physics and the framework: a plan in phases
+
+Recorded on 16 October 2026, after a review of `phiStrangeCorrelation.cxx`. Several changes on the
+O2Physics side have a counterpart here, and the order matters; this section is the plan, with the decisions it
+still needs marked as such.
+
+**What is already done.** On the O2Physics branch `phistrange-ccdb-ownership` (fork `scannito/O2Physics`, no PR
+yet): the efficiency maps are non-owning (`BasicCCDBManager` owns them: the `shared_ptr` deleted them twice, and
+at a run change with `perPeriodEfficiency` deleted a map the cache still served), they are fetched once as
+`TH1` and dispatched with `dynamic_cast` (the cache is keyed by path only, so asking a path as `TH3D` and then
+as `TH2D` returned a `TH2` as a non-null `TH3` on a cache hit), the code commented out in #18061 is removed,
+and `propagateEffError` is replaced by `effErrorOffline` (below).
+
+### Where the two sides touch
+
+1. **The efficiency maps.** `MCTask` produces them, `uploadToCCDB` puts them in CCDB, the O2Physics task reads
+   them. The axis order must agree: 3D = (multiplicity, pT, y), 2D = (pT, y), as `BoundEfficiencyMap` reads
+   them. Nothing checks it. The bin errors matter too: the online propagation uses them.
+2. **Where a correction is applied.** The efficiency of a particle is applied online (`applyEfficiency`,
+   `applyPhiEfficiency`) or here (`acceptance_efficiency` in `active_corrections`), never both. With
+   `applyEfficiency` on, the online task corrects **every** active associated species; only the φ can be left
+   out. Valid combinations: everything online and nothing here; associated online and `["Phi"]` here; nothing
+   online and everything here. Signal loss and event loss are always applied here, which is what the
+   `*_online_efficiency_no_phi` blocks do. A double correction passes today without an error, because the
+   framework does not know how the train ran (section 12).
+3. **The uncertainty of the maps.** It is the same for every entry that reads a map bin, so it is fully
+   correlated: summed in quadrature per entry it is underestimated by √N, and it is also correlated across the
+   Δφ/Δy bins it feeds.
+   - Online, the task adds `wErr²` per entry by default (the old `propagateEffError: true`, which is what the
+     productions use). `effErrorOffline: true` adds only `w²` and leaves the map uncertainty to be propagated
+     later. That later step cannot be done here from the output alone: the map is read at the y of each
+     particle, and the output keeps only Δy, so the map bins behind an output bin are unknown. It needs runs
+     with the map shifted by ±1σ.
+   - Here, it is not propagated at all: `totalEff` is read with `GetBinContent`
+     (`CorrelationTaskBase`, where `phiEff` and `assocEff` are built) and divides the spectrum with
+     `Scale(1.0 / totalEff)`, so its error is lost. It belongs at trend level, as the normalisation does.
+4. **The mass windows.** The defaults in the O2Physics task, the train configuration and `integration_range`
+   in `fitConfig.json` agree only because they were set by hand (section 12).
+5. **Candidates with zero efficiency.** The online task gives weight 1 to a pair whose efficiency product is
+   ≤ 0 (for instance a candidate outside the map), and loses the correction of the other particle too.
+   `hStrangeCorrelation` sets the efficiency of that particle alone to 1, silently. Either way the number is
+   wrong and nothing says so.
+
+### Phases
+
+**Phase 0 — close the current O2Physics branch.** No dependency on this side. A run on data with
+`perPeriodEfficiency` and more than one run, compared with an earlier output produced with
+`propagateEffError: true`: the numbers must agree. Then the PR to `AliceO2Group/O2Physics`, and
+`propagateEffError` removed from the wagon configurations.
+
+**Phase 1 — rename the correction keys here.** Independent of O2Physics. The names say "efficiency" but the
+keys cover every correction: `apply_efficiency` decides whether `LoadCorrections` runs at all (efficiency,
+signal loss, event loss), `apply_efficiency_to` lists the particles efficiency *and* signal loss go to,
+`input_efficiency_file` is the `Corrections` file. Proposed: `apply_corrections`, `apply_corrections_to`,
+`input_corrections_file`; `use_integrated_efficiency` stays, being about efficiency only. The old names must
+throw with "renamed to ...": unknown keys are not rejected (section 5), and a forgotten `apply_efficiency_to`
+would fall back to "all particles" with a warning, which in the `no_phi` blocks applies signal loss to the φ.
+`DESIGN_HISTORY.md` keeps the old names, being a record of what was.
+
+**Phase 2 — small O2Physics changes, with a reader here.** Defaults aligned with the train: not only the mass
+windows, several configurables have defaults that differ from what the trains use (deferred by the user, 16 October).
+Zero-efficiency candidates checked per particle, not on the product, and counted in a histogram per species;
+this side reads the counter and issues a `Logger::Warn` when it is not empty.
+
+**Phase 3 — let the framework know how the train ran.** Section 12, ideas 1 and 2. What is needed for the
+corrections: `applyEfficiency`, `applyPhiEfficiency`, `effErrorOffline`, the CCDB path of the maps, the mass
+windows. With that, the framework throws when `acceptance_efficiency` is applied to a particle already
+corrected online, compares the windows with `integration_range`, and records the online settings in the
+provenance. A file without the information (every production made so far) gets a `Warn`, not an error, or the
+existing productions become unusable.
+
+**Phase 4 — propagate the map uncertainty properly.** O2Physics: a way to shift the map by nσ, either a
+configurable used in separate wagons or extra histograms filled in the same pass with the shifted weights.
+Here: a systematic from those outputs, and, for the corrections applied here, the uncertainty of `totalEff`
+propagated at trend level. Only then `effErrorOffline` becomes the default online and the per-entry version
+goes, together with `customFillHist`/`customFillTHn`, which a plain `Fill` with `Sumw2` replaces.
+
+Order: phase 3 before phase 4, because without knowing how the train ran the framework cannot choose which
+propagation applies; and the default of `effErrorOffline` changes only when phase 4 is in place on both sides.
+
+### Decisions still open
+
+1. Zero efficiency: discard the candidate and count it, or efficiency 1 for that particle and count it. If
+   discarded, the φ must be removed consistently from the trigger count and from every pair it forms.
+2. Rename scope: the three keys, or `apply_efficiency_to` only.
+3. How the framework learns the train configuration: idea 1, idea 2, or both (section 12 suggests idea 1
+   first).
+4. Shifted maps: separate wagons with a configurable, or shifted histograms in the same pass (three times the
+   CPU against two or three times the memory of the THnSparse).
