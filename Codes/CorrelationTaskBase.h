@@ -298,8 +298,9 @@ class CorrelationTaskBase : public IAnalysisTask
 
   std::string basePathData, basePathDataME;
 
-  bool applyME{false}, applyEfficiency{false}, applyExtrapolation{false};
-  bool useIntegratedEfficiency{false}, useProjectionCache{false}, use2DMENormalization{false};
+  bool applyME{false}, applyExtrapolation{false};
+  bool useProjectionCache{false}, use2DMENormalization{false};
+  std::optional<CorrectionsConfig> corrections; // Empty: no correction is applied here
   HistogramUtils::TrendComposition trendComposition{HistogramUtils::TrendComposition::TotalExtrapolated};
 
   std::unique_ptr<TH1> hEventLoss;
@@ -396,9 +397,16 @@ class CorrelationTaskBase : public IAnalysisTask
     globalCfgs = globalSettings;
 
     applyME = JsonConfig::RequireBool(taskConfig, "apply_mixed_events", GetName());
-    applyEfficiency = JsonConfig::RequireBool(taskConfig, "apply_efficiency", GetName());
     applyExtrapolation = JsonConfig::RequireBool(taskConfig, "apply_extrapolation", GetName());
-    useIntegratedEfficiency = JsonConfig::RequireBool(taskConfig, "use_integrated_efficiency", GetName());
+
+    // Replaced by the "corrections" block (InitCorrections). Refused rather than ignored:
+    // a configuration that still carries them would otherwise look as if it applied them.
+    constexpr std::string_view seeCorrections = "Corrections are declared in the 'corrections' block, see DESIGN_NOTES.md section 13.";
+    JsonConfig::RejectReplacedKey(taskConfig, "apply_efficiency", "Use \"corrections\": null for none. " + std::string(seeCorrections), GetName());
+    JsonConfig::RejectReplacedKey(taskConfig, "active_corrections", seeCorrections, GetName());
+    JsonConfig::RejectReplacedKey(taskConfig, "apply_efficiency_to", seeCorrections, GetName());
+    JsonConfig::RejectReplacedKey(taskConfig, "use_integrated_efficiency", "Use \"mult\" in each \"acceptance_efficiency\". " + std::string(seeCorrections), GetName());
+    JsonConfig::RejectReplacedKey(taskConfig, "input_efficiency_file", "Renamed to 'corrections_file'.", GetName());
     // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
     // block, so a key added to the JSON tomorrow is recorded without touching this.
     provenance["produced_at"] = RunEnvironment::TimestampNow();
@@ -480,8 +488,9 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   void InitCorrectionsAndExtrapolation(const rapidjson::Value& taskConfig)
   {
-    if (applyEfficiency)
-      LoadCorrections(taskConfig);
+    InitCorrections(taskConfig);
+    if (corrections)
+      LoadCorrections();
 
     if (applyExtrapolation) {
       std::string extrapFile = JsonConfig::RequireString(taskConfig, "extrapolation_config_file", GetName());
@@ -502,12 +511,101 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
-  // Shared efficiency / signal-loss / event-loss loading.
+  // The "corrections" block: parsed once into CorrectionsConfig, after which the task
+  // reads the structure and never the JSON. Requires assocParticles already populated.
+  // See DESIGN_NOTES.md section 13 for the design and why every rule below exists.
   // -------------------------------------------------------------------------
-  void LoadCorrections(const rapidjson::Value& taskConfig)
+  void InitCorrections(const rapidjson::Value& taskConfig)
   {
+    corrections.reset();
 
-    std::string inputEffFile = JsonConfig::RequireString(taskConfig, "input_efficiency_file", GetName());
+    // Required, with null for none: see RequireObjectOrNull.
+    const rapidjson::Value* node = JsonConfig::RequireObjectOrNull(taskConfig, "corrections", GetName());
+    if (!node) {
+      Logger::Info("{}: No corrections applied here (\"corrections\": null).", GetName());
+      return;
+    }
+
+    const std::string ctx = std::format("{} corrections", GetName());
+    JsonConfig::RequireKnownKeys(*node, {"event_loss", "particles"}, ctx);
+
+    CorrectionsConfig cfg;
+    // Outside the block on purpose: the file changes per year and the corrections per
+    // mode, and with a top-level merge a year block can then set the file alone.
+    cfg.file = JsonConfig::RequireString(taskConfig, "corrections_file", GetName());
+    cfg.eventLoss = JsonConfig::RequireBool(*node, "event_loss", ctx);
+
+    const rapidjson::Value* particles = JsonConfig::TryObject(*node, "particles", ctx);
+    if (!particles)
+      throw std::runtime_error(std::format("[FATAL] {}: 'particles' missing (an empty object if only the event loss is applied).", ctx));
+
+    for (const auto& member : particles->GetObject()) {
+      const std::string name = member.name.GetString();
+      const std::string pctx = std::format("{}.particles.{}", ctx, name);
+
+      const bool isPhi = (name == "Phi");
+      const bool isAssoc = std::ranges::any_of(assocParticles, [&](const AssocParticleConfig& p) { return p.name == name; });
+      if (!isPhi && !isAssoc)
+        throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither Phi nor one of the associated_particles.", pctx, name));
+      if (!member.value.IsObject())
+        throw std::runtime_error(std::format("[FATAL] {}: must be an object.", pctx));
+
+      const rapidjson::Value& entry = member.value;
+      JsonConfig::RequireKnownKeys(entry, {"acceptance_efficiency", "signal_loss", "feed_down", "primary_fraction"}, pctx);
+
+      // Species-specific corrections that do not exist yet. Refused, not ignored: a
+      // configuration that asks for them must not produce numbers without them.
+      auto refuseNotImplemented = [&](const char* key, std::initializer_list<std::string_view> species) {
+        if (!JsonConfig::OptionalMember(entry, key))
+          return;
+        const bool applies = std::ranges::any_of(species, [&](std::string_view s) { return s == name; });
+        throw std::runtime_error(applies
+                                   ? std::format("[FATAL] {}: '{}' is not implemented yet (DESIGN_NOTES.md section 13).", pctx, key)
+                                   : std::format("[FATAL] {}: '{}' does not apply to {}.", pctx, key, name));
+      };
+      refuseNotImplemented("feed_down", {"Lambda", "AntiLambda"});
+      refuseNotImplemented("primary_fraction", {"Pi"});
+
+      ParticleCorrections pc;
+      if (const rapidjson::Value* accEff = JsonConfig::TryObject(entry, "acceptance_efficiency", pctx)) {
+        const std::string actx = pctx + ".acceptance_efficiency";
+        JsonConfig::RequireKnownKeys(*accEff, {"mult"}, actx);
+        pc.accEff = AccEffCorrection{JsonConfig::ResolveEnum<MultDependence>(
+          JsonConfig::RequireString(*accEff, "mult", actx),
+          {{"binned", MultDependence::Binned}, {"integrated", MultDependence::Integrated}}, "mult", actx)};
+      }
+      if (JsonConfig::OptionalBool(entry, "signal_loss", false, pctx))
+        pc.sigLoss = SignalLossCorrection{};
+
+      if (!pc.accEff && !pc.sigLoss)
+        throw std::runtime_error(std::format("[FATAL] {}: no correction is applied. To leave {} uncorrected, do not list it.", pctx, name));
+      if (!cfg.perParticle.emplace(name, pc).second)
+        throw std::runtime_error(std::format("[FATAL] {}: listed twice.", pctx));
+    }
+
+    if (cfg.perParticle.empty() && !cfg.eventLoss)
+      throw std::runtime_error(std::format("[FATAL] {}: applies no correction. For none, write \"corrections\": null.", ctx));
+
+    for (const auto& [name, pc] : cfg.perParticle) {
+      std::string what;
+      if (pc.accEff)
+        what = std::format("acceptance x efficiency ({})", pc.accEff->mult == MultDependence::Binned ? "per multiplicity class" : "multiplicity-integrated");
+      if (pc.sigLoss)
+        what += what.empty() ? "signal loss" : " + signal loss";
+      Logger::Info("{}: {} corrected for {}.", GetName(), name, what);
+    }
+    Logger::Info("{}: Event loss {}.", GetName(), cfg.eventLoss ? "applied" : "not applied");
+
+    corrections = std::move(cfg);
+  }
+
+  // -------------------------------------------------------------------------
+  // Loading of what InitCorrections asked for: efficiency, signal loss, event loss.
+  // -------------------------------------------------------------------------
+  void LoadCorrections()
+  {
+    const CorrectionsConfig& cfg = *corrections;
+    const std::string& inputEffFile = cfg.file;
     std::unique_ptr<TFile> fileEffInput = RootIO::OpenOrThrow(inputEffFile, "READ", "CorrelationTaskBase::LoadCorrections");
 
     RootIO::PrintProvenance(RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "Provenance"}, true),
@@ -526,38 +624,7 @@ class CorrelationTaskBase : public IAnalysisTask
     TDirectory* sigLossDir = RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "SigLoss", "MultBin"}, true);
     TDirectory* evLossDir = RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "EvLoss"}, true);
 
-    std::vector<std::string> activeCorrections;
-    if (auto corrections = JsonConfig::TryArray(taskConfig, "active_corrections", GetName())) {
-      for (const auto& val : *corrections) {
-        activeCorrections.push_back(val.GetString());
-      }
-    } else {
-      Logger::Warn("'active_corrections' missing or not an array. Applying NO corrections!");
-    }
-
-    // Lambda to quickly check if a specific correction was requested in the JSON
-    auto isActive = [&](const std::string& name) {
-      return std::find(activeCorrections.begin(), activeCorrections.end(), name) != activeCorrections.end();
-    };
-
-    bool doAccEfficiency = isActive("acceptance_efficiency");
-    bool doSigLoss = isActive("signal_loss");
-
-    // Read TO WHICH PARTICLES they should be applied
-    std::vector<std::string> effParts;
-    if (auto effTargets = JsonConfig::TryArray(taskConfig, "apply_efficiency_to", GetName())) {
-      for (const auto& val : *effTargets)
-        effParts.push_back(val.GetString());
-    } else {
-      // Secure fallback: if the user doesn't specify it in the JSON, apply to Phi + associated particles in the analysis
-      effParts.push_back("Phi");
-      for (const auto& p : assocParticles)
-        effParts.push_back(p.name);
-      Logger::Warn("'apply_efficiency_to' not found. Defaulting to all active particles.");
-    }
-
-    // Event Loss is loaded if requested
-    if (isActive("event_loss")) {
+    if (cfg.eventLoss) {
       if (!evLossDir)
         throw std::runtime_error(std::format("[FATAL] 'event_loss' requested but directory '{}/EvLoss' not found!", globalCfgs.binningName));
 
@@ -611,19 +678,17 @@ class CorrelationTaskBase : public IAnalysisTask
 
     correctionCollection.clear();
 
-    for (const std::string& name : effParts) {
+    for (const auto& [name, pc] : cfg.perParticle) {
       LoadedCorrections corr;
       corr.name = name;
       corr.h1Corrections.resize(BinningUtils::NBins(multBinning));
-      corr.h1CorrectionsEffMultInt.resize(BinningUtils::NBins(multBinning));
 
+      // InitCorrections already refused any other name.
       std::vector<double> targetBinning;
       if (name == "Phi") {
         targetBinning = ptPhiBinning;
       } else {
         auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == name; });
-        if (it == assocParticles.end())
-          throw std::runtime_error(std::format("[FATAL] Unknown particle name in 'apply_efficiency_to': {}", name));
         targetBinning = it->binning;
       }
 
@@ -631,19 +696,21 @@ class CorrelationTaskBase : public IAnalysisTask
       std::string effHistBase = std::format("h1{}Efficiency", name);
       std::string sigLossHistBase = std::format("h1{}SigLoss", name);
 
-      // Fetch integrated histograms ONLY if useIntegratedEfficiency is true
-      std::unique_ptr<TH1> hEffInt = fetchHist(accEffDir, std::format("{}_multIntegrated", effHistBase), doAccEfficiency && useIntegratedEfficiency, targetBinning);
-      // Note: Signal loss is typically not integrated, but we fetch it if requested for consistency
+      const bool effBinned = pc.accEff && pc.accEff->mult == MultDependence::Binned;
+      const bool effIntegrated = pc.accEff && pc.accEff->mult == MultDependence::Integrated;
+
+      std::unique_ptr<TH1> hEffInt = fetchHist(accEffDir, std::format("{}_multIntegrated", effHistBase), effIntegrated, targetBinning);
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-        // Fetch binned histograms ONLY if useIntegratedEfficiency is false
-        std::unique_ptr<TH1> hEffBin = fetchHist(accEffDir, std::format("{}_multBin{}", effHistBase, i), doAccEfficiency && !useIntegratedEfficiency, targetBinning);
-        // Note: Signal loss is typically not integrated, so we fetch the binned version if signal loss correction is requested,
-        // regardless of the useIntegratedEfficiency flag
-        std::unique_ptr<TH1> hLossBin = fetchHist(sigLossDir, std::format("{}_multBin{}", sigLossHistBase, i), doSigLoss, targetBinning);
+        std::unique_ptr<TH1> hEffBin = fetchHist(accEffDir, std::format("{}_multBin{}", effHistBase, i), effBinned, targetBinning);
+        // The signal loss is always per multiplicity class, whatever the efficiency uses.
+        std::unique_ptr<TH1> hLossBin = fetchHist(sigLossDir, std::format("{}_multBin{}", sigLossHistBase, i), pc.sigLoss.has_value(), targetBinning);
 
-        corr.h1Corrections[i] = combineHists(hEffBin.get(), hLossBin.get(), std::format("h1Corrected_{}_multBin{}", name, i));
-        corr.h1CorrectionsEffMultInt[i] = combineHists(hEffInt.get(), hLossBin.get(), std::format("h1Corrected_{}_multInt{}", name, i));
+        // The names are the ones the two former vectors used, "_multInt" for the
+        // integrated variant, so the in-memory objects are unchanged.
+        corr.h1Corrections[i] = effIntegrated
+                                  ? combineHists(hEffInt.get(), hLossBin.get(), std::format("h1Corrected_{}_multInt{}", name, i))
+                                  : combineHists(hEffBin.get(), hLossBin.get(), std::format("h1Corrected_{}_multBin{}", name, i));
       }
 
       correctionCollection[name] = std::move(corr);
@@ -1150,7 +1217,7 @@ class CorrelationTaskBase : public IAnalysisTask
         double effectiveTriggers = totalTriggerSignalPerMult;
 
         // Normalize by the event loss correction if it is required
-        if (applyEfficiency && hEventLoss) {
+        if (hEventLoss) {
           double eventLossCorr = hEventLoss->GetBinContent(multBin + 1);
           if (eventLossCorr > 0.0) {
             effectiveTriggers /= eventLossCorr;
@@ -1227,15 +1294,15 @@ class CorrelationTaskBase : public IAnalysisTask
     const std::vector<std::unique_ptr<TH1>>* phiCorrs{nullptr};
     std::vector<const std::vector<std::unique_ptr<TH1>>*> assocCorrs(assocParticles.size(), nullptr);
 
-    if (applyEfficiency && !correctionCollection.empty()) {
+    if (!correctionCollection.empty()) {
       auto itPhi = correctionCollection.find("Phi");
       if (itPhi != correctionCollection.end())
-        phiCorrs = useIntegratedEfficiency ? &itPhi->second.h1CorrectionsEffMultInt : &itPhi->second.h1Corrections;
+        phiCorrs = &itPhi->second.h1Corrections;
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
         auto it = correctionCollection.find(assocParticles[pIdx].name);
         if (it != correctionCollection.end())
-          assocCorrs[pIdx] = useIntegratedEfficiency ? &it->second.h1CorrectionsEffMultInt : &it->second.h1Corrections;
+          assocCorrs[pIdx] = &it->second.h1Corrections;
       }
     }
 

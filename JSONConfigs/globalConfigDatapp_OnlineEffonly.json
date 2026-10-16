@@ -71,7 +71,7 @@
         "base_path_data": "phi-strangeness-correlation/phiStrangenessCorrelation/",
         "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_7maggio.root",
         "base_path_me": "phi-strangeness-correlation/phiStrangenessCorrelation/",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/Corrections.root",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/Corrections.root",
         "input_dir_purity": "../DataFile/pp/DeltaY/Purities/",
         "input_dir_proj": "../DataFile/pp/DeltaY/ProjData/",
         "output_dir_final": "../DataFile/pp/DeltaY/FinalResults/",
@@ -88,20 +88,31 @@
             }
         ],
         "apply_mixed_events": true,
-        "apply_efficiency": true,
+        "corrections": {
+            "event_loss": true,
+            "particles": {
+                "Phi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    },
+                    "signal_loss": true
+                },
+                "K0S": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    },
+                    "signal_loss": true
+                },
+                "Pi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    },
+                    "signal_loss": true
+                }
+            }
+        },
         "apply_purity": true,
         "apply_extrapolation": true,
-        "use_integrated_efficiency": true,
-        "active_corrections": [
-            "acceptance_efficiency",
-            "signal_loss",
-            "event_loss"
-        ],
-        "apply_efficiency_to": [
-            "Phi",
-            "K0S",
-            "Pi"
-        ],
         "purity_sources": [
             {
                 "name": "K0S",
@@ -148,9 +159,26 @@
         "inherits": "correlation_base_settings",
         "trigger_prefix": "Data_OfflineEff_",
         "output_prefix": "Data_OfflineEff_",
-        "active_corrections": [
-            "acceptance_efficiency"
-        ],
+        "corrections": {
+            "event_loss": false,
+            "particles": {
+                "Phi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "K0S": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "Pi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                }
+            }
+        },
         "use_projection_cache": false,
         "use_2d_me_normalization": false
     },
@@ -160,7 +188,7 @@
         "base_path_me": "phi-strangeness-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "trigger_prefix": "Data_OnlineEff_",
         "output_prefix": "Data_OnlineEff_",
-        "apply_efficiency": false,
+        "corrections": null,
         "use_projection_cache": false,
         "use_2d_me_normalization": false,
         "do_more_qa": true
@@ -169,17 +197,20 @@
         "inherits": "correlation_base_settings",
         "base_path_data": "phi-strangeness-correlation_OnlineEfficiencyNoPhi/phiStrangenessCorrelation/",
         "base_path_me": "phi-strangeness-correlation_OnlineEfficiencyNoPhi/phiStrangenessCorrelation/",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/WTrigger_Corrections.root",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/WTrigger_Corrections.root",
         "trigger_prefix": "Data_OfflineEff_",
         "output_prefix": "Data_OnlineEff_NoPhi_",
-        "active_corrections": [
-            "signal_loss",
-            "event_loss"
-        ],
-        "apply_efficiency_to": [
-            "K0S",
-            "Pi"
-        ],
+        "corrections": {
+            "event_loss": true,
+            "particles": {
+                "K0S": {
+                    "signal_loss": true
+                },
+                "Pi": {
+                    "signal_loss": true
+                }
+            }
+        },
         "use_projection_cache": false,
         "use_2d_me_normalization": false
     }

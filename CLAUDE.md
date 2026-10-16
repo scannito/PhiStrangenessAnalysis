@@ -119,9 +119,37 @@ another must not change meaning; and `OptionalEnum`/`ResolveEnum` build the
 "Available: ..." message from the same table they match against, so it cannot go
 stale.
 
+Three for the cases the layers above do not cover, all added with the `corrections`
+block (`DESIGN_HISTORY.md`, *The corrections block*):
+
+| | |
+|---|---|
+| `RequireObjectOrNull` | a feature a child block must be able to switch off: the key is required, `null` means none (see `inherits` below for why absence cannot) |
+| `RejectReplacedKey` | a key that was renamed or replaced: present means the configuration still says the old thing, so it stops the run and names the replacement |
+| `RequireKnownKeys` | a block whose whole set of keys is known: a misspelled key stops the run instead of being skipped |
+
+Unknown keys are not rejected in general (`DESIGN_NOTES.md` section 5); the last two close
+that hole where a new structure is introduced. When you replace or rename a key, reject the
+old one: a configuration that keeps carrying it otherwise looks as if it applied it.
+
 Blocks resolve `inherits` recursively in `WorkflowManager::MergeTaskConfiguration`;
 a key that looks absent in a block may well be inherited, so read a configuration
 through the chain and not block by block.
+
+The merge works at the top level only, and that has two consequences to design around:
+
+- **A child can replace a key, never remove it.** The parent's keys are copied first and
+  the child's overwrite them by name; there is no way to say "this key of my parent does
+  not apply to me". So "off" must be a value, not an absence: `"corrections": null`
+  (`JsonConfig::RequireObjectOrNull`).
+  A design where switching something off means leaving a key out breaks the moment a
+  parent declares it, and the child then silently does what the parent does.
+- **A value is replaced whole.** An object or an array in the child replaces the
+  parent's entirely; nothing is merged inside it. Good for a set that must be declared as
+  a unit (a child that lists two particles gets two, not two plus the parent's), and the
+  reason to keep apart, as separate top-level keys, what changes on different axes: a
+  file that changes per year, next to settings that change per mode, lets the year block
+  set the file alone.
 
 **A key that changes a number is declared even when it equals the default.**
 Provenance records `JsonConfig::Serialize(taskConfig)` — the merged block, so only
@@ -153,6 +181,22 @@ strings.
   the denominator.
 - The normalisation uncertainty is 100% correlated across the bins of a spectrum,
   so it belongs at trend level, not per bin.
+- **The uncertainty of an efficiency map is correlated in the same way.** Every entry
+  that reads a map bin reads the same number, so the error of that bin moves all of them
+  together: it adds linearly, not in quadrature. Summed per entry it is underestimated by
+  √N (with ε = 0.50 ± 0.05 and 100 entries, 2 instead of 20 on a content of 200), and it
+  is correlated across the Δφ/Δy bins it feeds. The O2Physics task still sums it per
+  entry by default, as a temporary choice; see `DESIGN_NOTES.md` section 13.
+- **An efficiency is applied online or here, never both, for a given particle.** The
+  O2Physics task `phiStrangeCorrelation` can weight the pairs with the efficiency
+  (`applyEfficiency`, `applyPhiEfficiency`); the framework applies it per pT cell
+  (`acceptance_efficiency`). Different particles can be split between the two, because
+  the pair weight factorises into 1/(ε_φ · ε_assoc), but nothing checks it yet: the
+  framework does not know how the train ran. The two are not equivalent even for one
+  particle (online per candidate in multiplicity, pT and y; here an average per pT cell).
+- **A correction that cannot be computed is not a correction of 1.** A zero efficiency
+  or a zero event-loss bin replaced by 1, or skipped, gives a number that is wrong and
+  says nothing. At the very least it is counted and goes through `Logger::Warn`.
 
 ## Conventions
 
@@ -236,6 +280,14 @@ A new task that writes into a file somebody else also writes into belongs in row
   standalone macro written to test exception behaviour proves nothing. Removing every
   load-time initialiser from the interpreted unit could turn each `throw` into a
   `terminate`; one global with an initialiser is not a guarantee either.
+- **In this environment the interpreted mode does not start at all (16 October 2026).**
+  `root -l -b -q 'PhiStrangenessCorrelation.C(...)'` stops while loading, before any
+  configuration is read, with `[runStaticInitializersOnce]: Failed to materialize symbols`
+  and `cling JIT session error` on libc++ symbols (the `std::string` constructor, tagged
+  `B9nqe210106`), with ROOT 6.36.10 (`ROOT/latest-master-o2`). Identical with the code before
+  and after the corrections refactoring, so it is the environment (ROOT against the system
+  libc++), not the code. Until it is solved, `--compile` is the only mode that runs; check
+  again before relying on the interpreted one.
 - **Cling is not more lenient than the compiler, here.** Do not assume it is. The
   first compiled build found 14 errors in `CanvasManager.h`, and loading the previous
   version of that header in Cling reports the same two kinds: a nested struct with

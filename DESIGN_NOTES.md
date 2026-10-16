@@ -316,6 +316,34 @@ larger change than it looks.
 that failed is information that exists and is thrown away. A counter and one line
 at the end of `Run` would be enough.
 
+**`mcclosure pp` stops at its first task.** Since `65a2c76` ("Remove duplicates in json
+configs", 13 August) the blocks `phi_fit_task_{offline,online}_efficiency_{2024,2026}` in
+`globalConfigMCClosurepp.json` are empty (`{}`) and inherit nothing, so `PhiFitTask` stops
+with `'input_data_file' missing in JSON!`. Before that commit the generic blocks read
+`MCClosure/AnalysisResultsMCclosure_136_7maggio.root`; which files the 2024 and 2026 blocks
+should read is the user's to say. Found on 16 October 2026 while running the chain to check
+the corrections refactoring; left for later on the user's request, and that check was done
+without `mcclosure`. `globalConfigMCClosureppref.json` was changed by the same commit and was
+not looked at.
+
+**The extrapolated error of a species depends, in the last digits, on what was fitted before
+it.** Found on 16 October 2026 while checking the corrections block: with only the K0S efficiency
+changed (integrated to binned), the errors of the extrapolated trends of Pi and Xi
+(`h1MultTrendExtrap_*`, `Ratio_Extrap_Meas_*`, `Ratio_Xi_Pi_Extrap_*`) moved by 1e-14 to 6e-12
+relative, their contents and every measured quantity unchanged. No physical weight, but it means
+some state survives from one extrapolation fit to the next (a minimiser, a `TF1`, a cached integral:
+not looked into). With identical inputs the outputs are identical bit for bit, which is what the
+before/after check relies on; a check that changes one species must expect the others' extrapolated
+errors to move at that level.
+
+**A zero event-loss bin is skipped in silence.** In `CorrelationTaskBase`, where the
+number of triggers is corrected for the event loss, `if (eventLossCorr > 0.0)` divides
+only when the bin is positive: a multiplicity class whose event-loss bin is 0 keeps its
+uncorrected trigger count and nothing says so. Found on 16 October 2026 while reading the
+corrections; it is the same kind of problem as the zero-efficiency candidates of the
+O2Physics task (section 13). At least a `Logger::Warn` with the multiplicity class; whether
+the run should stop instead is a choice to make.
+
 **`h2TriggerSignal` axes are not cross-checked.** `PhiFitTask` resolves the φ pT
 binning from `h3PhiData`, `CorrelationTask` resolves it from axis 1 of the sparse.
 The two must agree because those matrices are read by index. Now that they carry
@@ -751,7 +779,7 @@ or corrected. To decide.** Two models coexist:
 | | who decides | a missing section |
 |---|---|---|
 | purity and trigger fits | the task configuration declares them (`purity_particles` with their `purity_key`, the fixed `"phi"`); `fitConfig.json` has to follow | error (`FitConfigManager::GetConfig` throws) |
-| efficiency | the task configuration (`apply_efficiency_to`) | falls back to "all particles", with an `[INFO]` |
+| efficiency | the task configuration, per particle (`corrections.particles`, since 16 October 2026) | a particle not listed is not corrected, by declaration; an unknown name or an empty entry stops the run |
 | extrapolation | **`extrapConfig.json`**: the task configuration has only the switch `apply_extrapolation`, and a section's presence decides per particle | the particle is skipped, with an `[INFO]` |
 
 No rationale is written down. The behaviour comes from `87e5c89` (7 July, "Make extrapolation
@@ -768,7 +796,8 @@ same mistake.
 
 Options, in the order I would take them:
 
-1. **A declared list**, symmetric to `apply_efficiency_to`: `"apply_extrapolation_to":
+1. **A declared list**, symmetric to the per-particle `corrections` block (it was `apply_efficiency_to`
+   when this was written): `"apply_extrapolation_to":
    ["K0S", "Xi", "Pi"]`, required when `apply_extrapolation` is true. A listed particle must
    have its section (error at `Init`); one not listed is not extrapolated, by declaration and
    not by absence. Results do not change with the current lists. `HasConfig` and the
@@ -785,9 +814,9 @@ Options, in the order I would take them:
    deciding in one framework.
 
 Already done around it: `ExtrapConfigManager::GetConfig` throws for a particle with no section
-(its only caller asks `HasConfig` first, so that branch is reachable only by misuse). Related
-and also open: `apply_efficiency_to` missing falls back to "all active particles" with an
-`[INFO]`, which for the same reason should at least be a warning.
+(its only caller asks `HasConfig` first, so that branch is reachable only by misuse). The
+efficiency side of the same problem (`apply_efficiency_to` missing fell back to "all active
+particles") is gone with the `corrections` block, where nothing is defaulted.
 
 **Purely static classes that would read better as namespaces.** `EfficiencyCalculator`
 is ten `static` functions, no data member, nothing private, and a deleted constructor
@@ -946,12 +975,24 @@ Recorded on 16 October 2026, after a review of `phiStrangeCorrelation.cxx`. Seve
 O2Physics side have a counterpart here, and the order matters; this section is the plan, with the decisions it
 still needs marked as such.
 
-**What is already done.** On the O2Physics branch `phistrange-ccdb-ownership` (fork `scannito/O2Physics`, no PR
-yet): the efficiency maps are non-owning (`BasicCCDBManager` owns them: the `shared_ptr` deleted them twice, and
-at a run change with `perPeriodEfficiency` deleted a map the cache still served), they are fetched once as
-`TH1` and dispatched with `dynamic_cast` (the cache is keyed by path only, so asking a path as `TH3D` and then
-as `TH2D` returned a `TH2` as a non-null `TH3` on a cache hit), the code commented out in #18061 is removed,
-and `propagateEffError` is replaced by `effErrorOffline` (below).
+**What is already done.** On the O2Physics branch `phistrange-ccdb-ownership` (fork `scannito/O2Physics`,
+pushed, no PR yet), three commits:
+
+- `4d3da8d48` — the efficiency maps are non-owning. With caching on, which is the default
+  (`mCachingEnabled = true` in `BasicCCDBManager.h`; `setCaching(true)` only states it), the manager owns
+  every object it returns and hands out a raw pointer: the task's `shared_ptr` deleted each map twice, and at
+  a run change with `perPeriodEfficiency` the reassignment deleted a map the cache was still serving
+  (use-after-free on the second run). They are also fetched once as `TH1` and dispatched with
+  `dynamic_cast`: the cache is keyed by path only and returns `reinterpret_cast<T*>` of what it holds, so
+  asking a path as `TH3D` and then as `TH2D` returned a `TH2` as a non-null `TH3` on a cache hit. `TH1` works
+  for both because the CCDB API reads with `TFile::GetObjectChecked`, which accepts the class or a derived one.
+- `61d1ea081` — the code commented out in #18061 is removed (the user's rule: commented code goes at the next
+  PR), with seven unused axes and the "TO BE REMOVED" tags on `cutZVertex`/`vertexZAxis`, which stay.
+- `1cef879bf` — `propagateEffError` is replaced by `effErrorOffline` (point 3 below).
+
+Checked: the file compiles (`-fsyntax-only` with the compile command of the local build; a planted error is
+caught), clang-format and the O2 linter pass, each commit applies alone on upstream `master`. Not yet done:
+rebase on upstream, a full build, a run on data, the PR description (phase 0).
 
 ### Where the two sides touch
 
@@ -959,29 +1000,53 @@ and `propagateEffError` is replaced by `effErrorOffline` (below).
    them. The axis order must agree: 3D = (multiplicity, pT, y), 2D = (pT, y), as `BoundEfficiencyMap` reads
    them. Nothing checks it. The bin errors matter too: the online propagation uses them.
 2. **Where a correction is applied.** The efficiency of a particle is applied online (`applyEfficiency`,
-   `applyPhiEfficiency`) or here (`acceptance_efficiency` in `active_corrections`), never both. With
+   `applyPhiEfficiency`) or here (`acceptance_efficiency` in the `corrections` block), never both. With
    `applyEfficiency` on, the online task corrects **every** active associated species; only the φ can be left
    out. Valid combinations: everything online and nothing here; associated online and `["Phi"]` here; nothing
    online and everything here. Signal loss and event loss are always applied here, which is what the
    `*_online_efficiency_no_phi` blocks do. A double correction passes today without an error, because the
    framework does not know how the train ran (section 12).
+   The split by particle works because the pair weight factorises, 1/(ε_φ · ε_assoc): one factor can come
+   from the task, the other from here (`totalEff = phiEff * assocEff` in `CorrelationTaskBase`). For the
+   *same* particle the two are not interchangeable even in principle: online, each candidate gets its own
+   efficiency in (multiplicity, pT, y); here, a pT cell is divided by one average efficiency, with the y
+   dependence already integrated out.
+   The `no_phi` blocks listed `["K0S", "Xi", "Pi"]` in `apply_efficiency_to` with `active_corrections:
+   ["signal_loss", "event_loss"]`: no double efficiency. The key name was what misled (it meant "corrections
+   to", not "efficiency to"), one of the reasons for the per-particle `corrections` block, where those blocks
+   now list the three particles with `signal_loss` only.
 3. **The uncertainty of the maps.** It is the same for every entry that reads a map bin, so it is fully
    correlated: summed in quadrature per entry it is underestimated by √N, and it is also correlated across the
-   Δφ/Δy bins it feeds.
-   - Online, the task adds `wErr²` per entry by default (the old `propagateEffError: true`, which is what the
-     productions use). `effErrorOffline: true` adds only `w²` and leaves the map uncertainty to be propagated
-     later. That later step cannot be done here from the output alone: the map is read at the y of each
-     particle, and the output keeps only Δy, so the map bins behind an output bin are unknown. It needs runs
-     with the map shifted by ±1σ.
+   Δφ/Δy bins it feeds. A worked case: ε = 0.50 ± 0.05 (10%), so w = 2 and wErr = 0.2; 100 pairs in one
+   (Δy, Δφ) bin, all from the same map bin; content 200. Per entry: statistical √(100·4) = 20, map
+   √(100·0.04) = 2, i.e. 1%. Correct: the map term is 100·0.2 = 20, i.e. the 10% of the map. The per-entry
+   sum makes a systematic shrink with statistics, which a systematic does not do.
+   - Online, the task adds `wErr²` per entry by default. This was `propagateEffError: true`, which the user
+     always set, so the default reproduces the productions; `propagateEffError: false` (the old default) gave
+     only `w²` because the map error was ignored, not by design. The default is the wrong version on purpose
+     and temporarily: there must be no case where the efficiency is applied online and its uncertainty goes
+     nowhere. `effErrorOffline: true` adds only `w²` and leaves the map uncertainty to be propagated
+     afterwards. `customFillHist`/`customFillTHn` are unchanged: they add whatever `wErr` they are given, and
+     with `effErrorOffline` it is 0.
+   - "Propagated afterwards" cannot mean here, from the output alone: the map is read at the y of each
+     particle, and the output keeps only Δy, so the map bins behind an output bin are unknown. It means runs
+     of the task with the map shifted by ±1σ, compared here as a systematic (phase 4).
    - Here, it is not propagated at all: `totalEff` is read with `GetBinContent`
      (`CorrelationTaskBase`, where `phiEff` and `assocEff` are built) and divides the spectrum with
-     `Scale(1.0 / totalEff)`, so its error is lost. It belongs at trend level, as the normalisation does.
+     `Scale(1.0 / totalEff)`, so its error is lost. Here it *can* be propagated from what is at hand,
+     because a whole pT cell is divided by one number: a shift of `totalEff` by ±1σ, fully correlated across
+     the Δφ bins of the cell. It belongs at trend level, as the normalisation does.
 4. **The mass windows.** The defaults in the O2Physics task, the train configuration and `integration_range`
    in `fitConfig.json` agree only because they were set by hand (section 12).
 5. **Candidates with zero efficiency.** The online task gives weight 1 to a pair whose efficiency product is
    ≤ 0 (for instance a candidate outside the map), and loses the correction of the other particle too.
    `hStrangeCorrelation` sets the efficiency of that particle alone to 1, silently. Either way the number is
-   wrong and nothing says so.
+   wrong and nothing says so. A zero efficiency comes from a candidate outside the range of the map, or from
+   a map bin without MC statistics; in both cases the right correction is not computable, and weight 1 mixes
+   corrected and uncorrected entries in the same bin. Recommended: check per particle, discard and count
+   (an acceptance cut that closure tests see); the fallback is efficiency 1 for that particle alone, as
+   `hStrangeCorrelation` does, plus the counter. `hStrangeCorrelation` also adds the efficiency error per
+   entry (`fillCorrelationHistogram`), so it is no reference for point 3 either.
 
 ### Phases
 
@@ -990,14 +1055,16 @@ and `propagateEffError` is replaced by `effErrorOffline` (below).
 `propagateEffError: true`: the numbers must agree. Then the PR to `AliceO2Group/O2Physics`, and
 `propagateEffError` removed from the wagon configurations.
 
-**Phase 1 — rename the correction keys here.** Independent of O2Physics. The names say "efficiency" but the
-keys cover every correction: `apply_efficiency` decides whether `LoadCorrections` runs at all (efficiency,
-signal loss, event loss), `apply_efficiency_to` lists the particles efficiency *and* signal loss go to,
-`input_efficiency_file` is the `Corrections` file. Proposed: `apply_corrections`, `apply_corrections_to`,
-`input_corrections_file`; `use_integrated_efficiency` stays, being about efficiency only. The old names must
-throw with "renamed to ...": unknown keys are not rejected (section 5), and a forgotten `apply_efficiency_to`
-would fall back to "all particles" with a warning, which in the `no_phi` blocks applies signal loss to the φ.
-`DESIGN_HISTORY.md` keeps the old names, being a record of what was.
+**Phase 1 — replace the correction keys here with a per-particle structure. Done on 16 October 2026** (see
+*The correction configuration: done* below). Independent of O2Physics. The
+names say "efficiency" but the keys cover every correction: `apply_efficiency` decides whether
+`LoadCorrections` runs at all (efficiency, signal loss, event loss), `apply_efficiency_to` lists the particles
+efficiency *and* signal loss go to, `input_efficiency_file` is the `Corrections` file. First proposed as a
+rename (`apply_corrections`, `apply_corrections_to`, `input_corrections_file`), then replaced by a structure:
+see *The correction configuration is per particle* below. The C++ side is designed first, the JSON after. The
+old keys must throw, naming what replaces them: unknown keys are not rejected (section 5), and a forgotten
+`apply_efficiency_to` would fall back to "all particles" with a warning, which in the `no_phi` blocks applies
+signal loss to the φ. `DESIGN_HISTORY.md` keeps the old names, being a record of what was.
 
 **Phase 2 — small O2Physics changes, with a reader here.** Defaults aligned with the train: not only the mass
 windows, several configurables have defaults that differ from what the trains use (deferred by the user, 16 October).
@@ -1020,11 +1087,67 @@ goes, together with `customFillHist`/`customFillTHn`, which a plain `Fill` with 
 Order: phase 3 before phase 4, because without knowing how the train ran the framework cannot choose which
 propagation applies; and the default of `effErrorOffline` changes only when phase 4 is in place on both sides.
 
+### The correction configuration: done
+
+Phase 1 is done (16 October 2026): the correction keys are replaced by a per-particle
+`corrections` block. The design, its reasons and how it was checked (identical numbers on every
+output object, 12 refusals tested) are in `DESIGN_HISTORY.md` (*The corrections block*, *How the
+corrections block was checked*); the keys are in `README.md`. What is left of it:
+
+- **The K0S to `"mult": "binned"`.** Every configuration still says `integrated` for every particle,
+  which reproduces the earlier numbers. Moving the K0S, as the user's efficiency studies suggest, is
+  a physics change of its own: one key per mode block, and a K0S whose trends move by up to 2.4% in
+  the one task where it was tried.
+- **The species-specific corrections**, below: their keys are reserved and refused.
+- **Phase 3** checks `perParticle[p].accEff` against the particles corrected online.
+
+### How the O2Physics side is delivered
+
+- **The current branch.** Its three commits are independent (each applies alone on upstream `master`, checked
+  with `git merge-tree`), so they can go as one PR or as three. As three: the ownership fix (a crash, small,
+  to go in fast), the clean-up (pure removal, 320 lines that would hide the fix), `effErrorOffline` (the only
+  one that changes numbers, for whoever did not set `propagateEffError`).
+- **The later phases form a stack.** A is the current branch; B (zero efficiency, phase 2) and C (`OutputObj`,
+  phase 3) both build on A and not on each other; D (shifted maps, phase 4) builds on A and C. The defaults
+  are independent and go straight to `master`.
+- **Stacking from a fork.** GitHub's native stacked PRs and ghstack need every branch in the target
+  repository, and the user has no push on `AliceO2Group/O2Physics`. Sapling (`sl pr submit`) works from a
+  fork: it pushes `prNNNNN` branches to the fork and opens overlapping PRs upstream, each containing the
+  commits below it, with the stack listed in a footer. Giulio Eulisse uses it in O2 and O2Physics (O2 #15443
+  and #15444: merging the top PR landed both commits; O2Physics #16158, #17725). Without Sapling the same
+  shape is kept by hand: PR n on `master` with "depends on #…", and `git rebase --update-refs` after each
+  squash-merge.
+- **Sapling and aliBuild**, measured on a scratch clone (Sapling 0.2.20260929, aliBuild 1.17.44). aliBuild
+  supports Sapling (`alibuild_helpers/sl.py`) and uses it for a development package whose source has `.sl` or
+  `.git/sl`, when `sl` is in `PATH`; any `sl` command in a git checkout creates `.git/sl`. With Sapling the
+  build is named `O2Physics-latest-none` unless a bookmark is active; commit and clean-tree hash are the same
+  as with git (whether the switch forces a rebuild was not checked). Git and Sapling must not both *write* in
+  one checkout: `sl commit` moved the checked-out git branch, `sl prev` detached HEAD, `sl hide` deleted a git
+  branch that pointed to hidden commits. Read-only git commands are harmless. A second checkout for Sapling
+  is costly with aliBuild (it needs `alidist` and `O2` next to it, and two copies on the same commit may share
+  a build directory configured for the other's sources, not checked), so the plan is one checkout, Sapling
+  only. `brew install sapling` upgrades `openssl@3` and `python@3.13`: not while a build runs.
+
+### Species-specific corrections not implemented: Λ feed-down, π primary fraction
+
+The Λ needs a feed-down correction that the framework does not have. The histograms it needs were added to
+the O2Physics task in #18061 ("Added necessary histograms for Lambda feeddown"); nothing reads them here yet.
+How it enters the correlation (a scale factor on the spectrum, or a feed-down correlation to subtract) is still
+to be decided. In the correction structure it is an optional per-particle correction, accepted only for the
+species that have it; until it is implemented, a configuration that asks for it must throw, not be ignored.
+
+The π needs the fraction of primaries (the pions from weak decays and from the material are not part of the
+measurement; the user, 16 October 2026). Nothing provides it today: the framework has no such correction, and
+the O2Physics task only selects `isPhysicalPrimary()` at generator level. Same treatment in the structure: an
+optional per-particle correction, accepted only for the π, throwing until it is implemented. Where the fraction
+comes from (MC, or a fit of the DCA distribution in data) is still to be decided.
+
 ### Decisions still open
 
 1. Zero efficiency: discard the candidate and count it, or efficiency 1 for that particle and count it. If
    discarded, the φ must be removed consistently from the trigger count and from every pair it forms.
-2. Rename scope: the three keys, or `apply_efficiency_to` only.
+2. ~~Where the per-particle corrections live~~ — decided on 16 October: a block of their own (see *JSON*
+   above).
 3. How the framework learns the train configuration: idea 1, idea 2, or both (section 12 suggests idea 1
    first).
 4. Shifted maps: separate wagons with a configurable, or shifted histograms in the same pass (three times the

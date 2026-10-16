@@ -91,7 +91,7 @@
     "correlation_task_offline_efficiency_2024": {
         "inherits": "correlation_task_offline_efficiency",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_5agosto.root",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2024_Corrections.root",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2024_Corrections.root",
         "purity_prefix": "Data_2024_",
         "trigger_prefix": "Data_OfflineEff_2024_",
         "output_prefix": "Data_OfflineEff_2024_"
@@ -106,7 +106,7 @@
     "correlation_task_online_efficiency_no_phi_2024": {
         "inherits": "correlation_task_online_efficiency_no_phi",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_5agosto.root",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2024_WTrigger_Corrections.root",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2024_WTrigger_Corrections.root",
         "purity_prefix": "Data_2024_",
         "trigger_prefix": "Data_OfflineEff_2024_",
         "output_prefix": "Data_OnlineEff_NoPhi_2024_"
@@ -125,7 +125,7 @@
     "correlation_task_offline_efficiency_2026": {
         "inherits": "correlation_task_offline_efficiency",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_6agosto.root",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2026_Corrections.root",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_Corrections.root",
         "purity_prefix": "Data_2026_",
         "trigger_prefix": "Data_OfflineEff_2026_",
         "output_prefix": "Data_OfflineEff_2026_"
@@ -140,7 +140,7 @@
     "correlation_task_online_efficiency_no_phi_2026": {
         "inherits": "correlation_task_online_efficiency_no_phi",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_6agosto.root",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2026_WTrigger_Corrections.root",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_WTrigger_Corrections.root",
         "purity_prefix": "Data_2026_",
         "trigger_prefix": "Data_OfflineEff_2026_",
         "output_prefix": "Data_OnlineEff_NoPhi_2026_"

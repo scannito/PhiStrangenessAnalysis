@@ -7,6 +7,247 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## The corrections block
+
+**The five correction keys of the correlation tasks are replaced by one `corrections` block,
+per particle** (16 October 2026). Designed in `DESIGN_NOTES.md` section 13 with the user, C++
+first and JSON after; the open parts of that plan (phases 0, 2-4, the species-specific
+corrections) stay there. Two commits: the `TH1` fix below, then the block.
+
+
+The keys were replaced by a structure, not only renamed: `apply_efficiency`,
+`active_corrections`, `apply_efficiency_to` and `use_integrated_efficiency` were independent, so they could say
+things that were not applied (`apply_efficiency: false` with an inherited `active_corrections`) and could not
+say things that are needed. The structure is per particle, not per correction, for two reasons from the physics:
+
+- **The multiplicity dependence differs between species.** From the user's efficiency × acceptance studies,
+  the K0S depends on the multiplicity class, in some classes markedly, and the other species show no such
+  dependence. Binned or multiplicity-integrated is therefore a choice per particle, not per correction. The
+  `Corrections` file already has both versions for every particle (`_multBin{i}` and `_multIntegrated`).
+- **Some corrections exist only for some species.** The Λ (and Λ̄) feed-down correction and the fraction of
+  primary pions, see below.
+
+The event loss stays outside the per-particle part: it corrects the number of events.
+
+What the old keys allowed, and the structure makes impossible to write:
+
+| Combination | What happens | Where |
+|---|---|---|
+| `apply_efficiency: false` with an inherited `active_corrections` | nothing applied, but the merged block (so the provenance) lists three corrections | `correlation_task_online_efficiency` |
+| `apply_efficiency: true` without `active_corrections` | the file is opened and nothing is applied, with one `Warn` | possible |
+| one `apply_efficiency_to` for efficiency *and* signal loss | "efficiency to the φ, signal loss to the associated" cannot be said | structural |
+| `apply_efficiency_to` and `event_loss` | meaningless: the event loss is per event | structural |
+| `use_integrated_efficiency` always required | used only with `acceptance_efficiency`, and for all particles at once | every block |
+| `apply_efficiency_to` absent | falls back to "all particles" with a `Warn` | possible |
+
+The idea is the one of `std::variant<FixedRange, NSigma>` in `IntegrationConfig`: a state that must not exist
+has no representation. `std::optional<T>` is a `variant<nothing, T>`.
+
+### C++
+
+In `AnalysisDataStructures.h`, next to `FitConfig`:
+
+```cpp
+enum class MultDependence { Binned, Integrated };
+
+struct AccEffCorrection     { MultDependence mult; };   // required: it changes a number
+struct SignalLossCorrection {};                         // always per multiplicity class (user): no option
+struct FeedDownCorrection   {};                         // Λ, Λ̄: not implemented, see below
+struct PrimaryFractionCorrection {};                    // π: not implemented, see below
+
+struct ParticleCorrections {
+  std::optional<AccEffCorrection> accEff;
+  std::optional<SignalLossCorrection> sigLoss;
+  std::optional<FeedDownCorrection> feedDown;
+  std::optional<PrimaryFractionCorrection> primaryFraction;
+};
+
+struct CorrectionsConfig {
+  std::string file;
+  std::map<std::string, ParticleCorrections> perParticle;  // "Phi", "K0S", ...; absent = not corrected here
+  bool eventLoss{false};                                   // per event, not per particle
+};
+```
+
+In `CorrelationTaskBase`, `applyEfficiency`, `useIntegratedEfficiency` and the two local lists of
+`LoadCorrections` (`activeCorrections`, `effParts`) become one member, `std::optional<CorrectionsConfig>
+corrections` (empty = no correction). One function, `ParseCorrections`, turns the JSON into it, as
+`FitConfigManager` does for the fits; after that the task reads the structure and never the JSON.
+
+What follows from it, deriving instead of storing:
+
+- `LoadedCorrections` holds one vector instead of two. Today `h1Corrections` and `h1CorrectionsEffMultInt`
+  are both built and the consumers pick one with `useIntegratedEfficiency` (`CorrelationTask.h` and
+  `CorrelationTaskBase.h`, where `phiCorrs`/`assocCorrs` are set). With the choice known per particle at load
+  time, the one vector already holds the right variant, and the choice leaves the consumers.
+- For each particle the efficiency is fetched only if `accEff` is set (with `_multBin{i}` or
+  `_multIntegrated` by `mult`), the signal loss only if `sigLoss` is set; `combineHists` already multiplies
+  what it gets.
+- The event loss is `corrections && corrections->eventLoss`.
+- Phase 3 checks `perParticle[p].accEff` against the particles corrected online.
+
+### JSON
+
+```jsonc
+// correlation_base_settings
+"corrections_file": "../DataFile/pp/DeltaY/Corrections/Corrections.root",
+"corrections": {
+  "event_loss": true,
+  "particles": {
+    "Phi": { "acceptance_efficiency": { "mult": "integrated" }, "signal_loss": true },
+    "K0S": { "acceptance_efficiency": { "mult": "integrated" }, "signal_loss": true },
+    "Xi":  { "acceptance_efficiency": { "mult": "integrated" }, "signal_loss": true },
+    "Pi":  { "acceptance_efficiency": { "mult": "integrated" }, "signal_loss": true }
+  }
+}
+
+// correlation_task_online_efficiency
+"corrections": null
+
+// correlation_task_online_efficiency_no_phi
+"corrections": {
+  "event_loss": true,
+  "particles": { "K0S": { "signal_loss": true }, "Xi": { "signal_loss": true }, "Pi": { "signal_loss": true } }
+}
+
+// correlation_task_offline_efficiency_2024
+"corrections_file": "../DataFile/pp/DeltaY/Corrections/2024_Corrections.root"
+```
+
+The shape follows how the blocks are organised today: a base block declares everything, the mode blocks
+(`offline_efficiency`, `online_efficiency`, `online_efficiency_no_phi`) change the corrections, the year
+blocks (`..._2024`, `..._2026`) change only the file. And it follows from how `inherits` merges (see
+`CLAUDE.md`, *Configuration*): at the top level only, a child replacing a key and never removing it.
+
+- **"No correction" is a value, `null`.** If it were the absence of `corrections`, a mode block could not
+  express it: the merged block would carry the parent's `corrections` and apply everything, without an error.
+  `null` replaces the parent's object, and the provenance records `null`, which is what was applied.
+- **A child's `corrections` replaces the parent's whole.** A mode block that lists only the K0S gets only the
+  K0S: the particles are not merged one by one. Every mode declares its whole set, and nothing is half
+  inherited, which is the defect of the first row of the table.
+- **The file is outside the block** (`corrections_file`), because it changes per year while the corrections
+  change per mode. Inside, a year block that only changes the file would have to repeat all the corrections
+  of its mode. `corrections_file` is read only when `corrections` is not `null`; `online_efficiency` inherits
+  it and cannot drop it, so there it is not an error.
+- **Per-particle corrections are a block of their own**, checked against `associated_particles`, not keys
+  inside each entry of `associated_particles` (where section 2 puts other per-particle settings): the
+  corrections change with the mode and the particle list rarely, and with a top-level merge every mode block
+  would have to repeat the whole list.
+
+Parsing rules. Each one throws, with the key and what to write instead:
+
+- `event_loss` is required inside `corrections`; `mult` is required inside `acceptance_efficiency`, read with
+  `ResolveEnum` so that "Available: binned, integrated" comes from the same table. Both change a number.
+- `signal_loss` is a `bool`, since it has no option; `true` reads better than `{}`.
+- Every entry of `particles` activates at least one correction (not correcting a particle is done by not
+  listing it), and the block as a whole activates at least one. A name must be `Phi` or one of the
+  `associated_particles`.
+- `feed_down` and `primary_fraction` are accepted only for the species that have them (a table: Λ and Λ̄ for
+  the first, π for the second), and until they are implemented they throw.
+- `null` is handled before the typed readers: in `JsonConfigHelpers` a key present with the wrong type is
+  fatal, so `TryObject` on `null` would stop the run. A small helper, or an explicit check.
+- The old keys (`apply_efficiency`, `active_corrections`, `apply_efficiency_to`, `input_efficiency_file`,
+  `use_integrated_efficiency`) throw, naming the key that replaces them.
+
+### Migration: numbers first, physics after
+
+The translation must leave every number unchanged. Today `use_integrated_efficiency: true` holds for every
+particle, so the first version writes `"mult": "integrated"` for all of them, the K0S included; moving the K0S
+to `binned` is a physics change of its own, made afterwards and visible as such. Check: run `mc pp` and
+`data pp` before and after, copying the output directory each time (the two modes and the two runs write the
+same files, see `CLAUDE.md`), and compare the objects: they must agree.
+
+### The file format: JSON stays
+
+Asked on 16 October: with a compiled mode, could the configurations be YAML? Possible, kept apart:
+
+- It does not solve this problem. The impossible states go with types and parse-time checks, in any format.
+- The interpreted mode is the default, so the YAML library would have to load in Cling too, and the ALICE
+  stack here has neither yaml-cpp nor rapidyaml (only Homebrew's `libyaml`, a low-level C library): a new
+  dependency, also on lxplus and other machines.
+- It would cost much: the format is tied to the three layers of `JsonConfigHelpers`, to the provenance
+  (`JsonConfig::Serialize`), to `inherits` and to 19 files. YAML's merge key `<<` is shallow as well, so the
+  `inherits` design questions would stay.
+- What YAML gives in practice, comments, rapidjson gives at almost no cost: `kParseCommentsFlag` (and
+  `kParseTrailingCommasFlag`) in `ParseStream`, which today is called without flags (`WorkflowManager.h`,
+  `BaseConfigManager.h`).
+
+The two point in the same direction, though: the more the parsing is concentrated in functions like
+`ParseCorrections` that turn the file into C++ structures, the less the format is spread across the tasks,
+and the easier a change of format becomes one day.
+
+### Implemented as designed, with three details
+
+- The parser is `CorrelationTaskBase::InitCorrections`, called from `InitCorrectionsAndExtrapolation`
+  (after `associated_particles`, which it checks names against); `LoadCorrections` takes no JSON.
+  The old keys are refused in `InitCommonFlags`, before anything is loaded.
+- The in-memory names of the combined histograms are those of the two former vectors
+  (`h1Corrected_<p>_multInt<i>` for the integrated variant, `..._multBin<i>` otherwise), so nothing
+  that could reach an output changed name.
+- The run log lists, per particle, what is corrected ("K0S corrected for acceptance x efficiency (per
+  multiplicity class)."), and whether the event loss is applied: the configuration in force is
+  readable from the log as well as from the provenance.
+
+## Corrections read as TH1, not TH1F
+
+`MCTask` writes the efficiency and signal-loss histograms as `TH1D`; `LoadCorrections` asked for
+`TH1F` (`GetUniqueOrThrow<TH1F>`), so every correlation task with corrections stopped on every
+`Corrections` file produced since. On 16 October 2026 `data pp` and `mcclosurewpdg pp` did, with the
+files of the 14 October `mc` run (all `TH1D`; the multiplicity-integrated ones are in
+`AccEff/MultBin`, where they are looked for). `LoadedCorrections` holds `TH1` and the files are read as
+`TH1`. The values are read with `GetBinContent`, so the class only decided the stored precision. A
+separate commit, before the corrections block, so that the block could be checked against a chain
+that runs at all.
+
+## How the corrections block was checked
+
+*Where.* Not in the working copy: in a scratch area holding two clones of the repository (one with
+the `TH1` fix only, one with the block) and, for each, a copy-on-write clone of `DataFile/pp` (`cp -c`,
+APFS: no extra space, and a write touches only the clone). Both runs therefore started from the same
+inputs, and the user's files were never written. ROOT 6.36.10 (`ROOT/latest-master-o2`), compiled
+mode: the interpreted one does not start in this environment (`CLAUDE.md`, *Cling constraints*).
+
+*The baseline.* The current code failed on three of the four configurations that read corrections:
+`data` and `mcclosurewpdg` on the `TH1F`/`TH1D` mismatch (hence the fix first), `mcclosure` on its
+own configuration (`DESIGN_NOTES.md` section 5; left out on the user's request). The baseline is the
+code with the `TH1` fix, on `data pp`, `mcclosurewpdg pp` and `mcclosuregen pp`; all three ran to the
+end (16, 115 and 212 s). `mc pp` was not run: `MCTask` is untouched, and the cloned `Corrections`
+files are the inputs of both sides.
+
+*Numbers: identical.* Every ROOT file the runs wrote (50: the spectra files in `FinalResults` and
+the projection caches in `ProjData`) compared object by object with `Macros/CompareRootFiles.cpp`:
+43,730 objects (histograms of every dimension, `THnSparse`, graphs, strings), contents, errors and bin
+edges equal, exactly. Canvases and the `Provenance` directories (timestamp, commit, merged block) are
+skipped. The warning summaries of the runs are identical too (`mcclosurewpdg`: 38 warnings, 7
+distinct, on both sides). The tool was checked both ways: a file against itself gives no difference,
+the 2024 against the 2026 corrections give 354.
+
+*Configurations: equivalent.* The JSON was migrated by a script (not kept: one-off) that rewrites only
+the correction keys of the blocks that declared them (`json.dumps(indent=4)` reproduces the seven files
+byte for byte, checked before writing) and then, for every block of every (master, base) pair the
+run script builds - 12 pairs, pp and pp_ref, `Datapp_OnlineEffonly` alone and with its base - resolves
+`inherits` as `MergeTaskConfiguration` does and compares what the old and the new merged block apply:
+143 correlation blocks, no difference, no old key left. This is also what covers the configurations
+that were not run.
+
+*Refusals: each one tested.* Twelve configurations, each a block inheriting from a working one and
+changing one thing, all stop at initialisation with their message: an old key (`apply_efficiency`,
+`input_efficiency_file`), `particles` or `event_loss` missing, `"corrections": "none"`, an unknown
+particle (`Lambda`, not among the associated), a misspelled key (`signal_los`), `"mult": "binnned"`,
+an empty particle entry, a block that applies nothing, `feed_down` on the K0S ("does not apply"),
+`primary_fraction` on the π ("not implemented yet").
+
+*The new path: run.* `"mult": "binned"` had never run, since every configuration uses `integrated`.
+The same task with the K0S switched to binned: the K0S spectra, trends and ratios change (trends by up
+to 2.4%), nothing else does, with one exception recorded in `DESIGN_NOTES.md` section 5: the errors of
+the extrapolated trends of Pi and Xi move at the 1e-12 relative level.
+
+*Not checked.* `mcclosure` (configuration broken), the pp_ref configurations and `Datapp_OnlineEffonly`
+by running (by the equivalence script only), the interpreted mode, and anything with
+`"mult": "binned"` beyond the one task above.
+
+---
+
 ## The TF1 fitter was retired in favour of DynamicRooFitter
 
 `FitPhiSignalAndBkg` was a legacy TF1-based implementation tightly coupled to a single

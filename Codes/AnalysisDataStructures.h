@@ -42,13 +42,48 @@ struct AssocParticleConfig {
   static std::string DefaultDirName(const std::string& particleName) { return "phi" + particleName; }
 };
 
+// One vector, already built with the multiplicity dependence the configuration chose for
+// this particle. There used to be two, binned and multiplicity-integrated, with every
+// consumer picking one through a flag that held for all particles at once.
+//
 // TH1 and not TH1F: MCTask writes TH1D, and asking for TH1F made LoadCorrections stop
 // on every Corrections file it produces. The values are read with GetBinContent, so the
 // class only decides the precision they are stored with.
 struct LoadedCorrections {
   std::string name;
   std::vector<std::unique_ptr<TH1>> h1Corrections;
-  std::vector<std::unique_ptr<TH1>> h1CorrectionsEffMultInt;
+};
+
+// ---------------------------------------------------------------------------
+// The "corrections" block of a correlation task. See DESIGN_NOTES.md section 13.
+// ---------------------------------------------------------------------------
+// Per particle and not per correction, because the physics is: the multiplicity
+// dependence of the efficiency differs between species (the K0S depends on the
+// multiplicity class, the others do not show it), and some corrections exist only for
+// some species. An optional is a variant of "absent" and the correction, so a
+// correction that is not applied has no settings to disagree with - which is what the
+// independent flags it replaces could not guarantee.
+
+enum class MultDependence { Binned, Integrated };
+
+struct AccEffCorrection {
+  MultDependence mult; // No default: it changes a number, so the JSON says it
+};
+
+// Always per multiplicity class, so there is nothing to choose.
+struct SignalLossCorrection {};
+
+struct ParticleCorrections {
+  std::optional<AccEffCorrection> accEff;
+  std::optional<SignalLossCorrection> sigLoss;
+  // Λ feed-down and π primary fraction belong here as well, once implemented. Until then
+  // the parser refuses them instead of carrying a field nobody reads.
+};
+
+struct CorrectionsConfig {
+  std::string file;
+  std::map<std::string, ParticleCorrections> perParticle; // "Phi" or an associated species; absent = not corrected here
+  bool eventLoss{false};                                  // Per event, not per particle
 };
 
 struct LoadedPurity {

@@ -80,7 +80,7 @@
         "inherits": "correlation_wpdg_task_offline_efficiency",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bneg_4agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bneg_4agosto.root",
-        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Bneg_Corrections.root",
+        "corrections_file": "../DataFile/pp_ref/DeltaY/Corrections/Bneg_Corrections.root",
         "input_output_prefix": "MCClosurewPDG_OfflineEff_Bneg_"
     },
     "correlation_wpdg_task_online_efficiency_Bneg": {
@@ -93,14 +93,14 @@
         "inherits": "correlation_wpdg_task_online_efficiency_no_phi",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bneg_4agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bneg_4agosto.root",
-        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Bneg_WTrigger_Corrections.root",
+        "corrections_file": "../DataFile/pp_ref/DeltaY/Corrections/Bneg_WTrigger_Corrections.root",
         "input_output_prefix": "MCClosurewPDG_OnlineEff_NoPhi_Bneg_"
     },
     "correlation_wpdg_task_offline_efficiency_Bpos": {
         "inherits": "correlation_wpdg_task_offline_efficiency",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bpos_4agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bpos_4agosto.root",
-        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Bpos_Corrections.root",
+        "corrections_file": "../DataFile/pp_ref/DeltaY/Corrections/Bpos_Corrections.root",
         "input_output_prefix": "MCClosurewPDG_OfflineEff_Bpos_"
     },
     "correlation_wpdg_task_online_efficiency_Bpos": {
@@ -113,14 +113,14 @@
         "inherits": "correlation_wpdg_task_online_efficiency_no_phi",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bpos_4agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_Bpos_4agosto.root",
-        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Bpos_WTrigger_Corrections.root",
+        "corrections_file": "../DataFile/pp_ref/DeltaY/Corrections/Bpos_WTrigger_Corrections.root",
         "input_output_prefix": "MCClosurewPDG_OnlineEff_NoPhi_Bpos_"
     },
     "correlation_wpdg_task_offline_efficiency_strinj": {
         "inherits": "correlation_wpdg_task_offline_efficiency",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_strinj_4agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_strinj_4agosto.root",
-        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Strinj_Corrections.root",
+        "corrections_file": "../DataFile/pp_ref/DeltaY/Corrections/Strinj_Corrections.root",
         "input_output_prefix": "MCClosurewPDG_OfflineEff_strinj_"
     },
     "correlation_wpdg_task_online_efficiency_strinj": {
@@ -133,7 +133,7 @@
         "inherits": "correlation_wpdg_task_online_efficiency_no_phi",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_strinj_4agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_536_PtMod_strinj_4agosto.root",
-        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Strinj_WTrigger_Corrections.root",
+        "corrections_file": "../DataFile/pp_ref/DeltaY/Corrections/Strinj_WTrigger_Corrections.root",
         "input_output_prefix": "MCClosurewPDG_OnlineEff_NoPhi_strinj_"
     }
 }

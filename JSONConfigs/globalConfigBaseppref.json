@@ -235,7 +235,7 @@
         "base_path_data": "phi-strange-correlation/phiStrangenessCorrelation/",
         "input_me_file": "../DataFile/pp_ref/DeltaY/Data/AnalysisResults_536_2026_PtMod_23luglio.root",
         "base_path_me": "phi-strange-correlation/phiStrangenessCorrelation/",
-        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Corrections.root",
+        "corrections_file": "../DataFile/pp_ref/DeltaY/Corrections/Corrections.root",
         "input_dir_purity": "../DataFile/pp_ref/DeltaY/Purities/",
         "input_dir_proj": "../DataFile/pp_ref/DeltaY/ProjData/",
         "output_dir_final": "../DataFile/pp_ref/DeltaY/FinalResults/",
@@ -255,22 +255,38 @@
             }
         ],
         "apply_mixed_events": true,
-        "apply_efficiency": true,
+        "corrections": {
+            "event_loss": true,
+            "particles": {
+                "Phi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    },
+                    "signal_loss": true
+                },
+                "K0S": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    },
+                    "signal_loss": true
+                },
+                "Xi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    },
+                    "signal_loss": true
+                },
+                "Pi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    },
+                    "signal_loss": true
+                }
+            }
+        },
         "apply_purity": false,
         "apply_extrapolation": true,
         "trend_composition": "total_extrapolated",
-        "use_integrated_efficiency": true,
-        "active_corrections": [
-            "acceptance_efficiency",
-            "signal_loss",
-            "event_loss"
-        ],
-        "apply_efficiency_to": [
-            "Phi",
-            "K0S",
-            "Xi",
-            "Pi"
-        ],
         "purity_sources": [
             {
                 "name": "K0S",
@@ -314,15 +330,37 @@
     },
     "correlation_task_offline_efficiency": {
         "inherits": "correlation_base_settings",
-        "active_corrections": [
-            "acceptance_efficiency"
-        ]
+        "corrections": {
+            "event_loss": false,
+            "particles": {
+                "Phi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "K0S": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "Xi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "Pi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                }
+            }
+        }
     },
     "correlation_task_online_efficiency": {
         "inherits": "correlation_base_settings",
         "base_path_data": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "base_path_me": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
-        "apply_efficiency": false,
+        "corrections": null,
         "use_2d_me_normalization": false,
         "do_more_qa": false
     },
@@ -330,22 +368,27 @@
         "inherits": "correlation_base_settings",
         "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi/phiStrangenessCorrelation/",
         "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi/phiStrangenessCorrelation/",
-        "active_corrections": [
-            "signal_loss",
-            "event_loss"
-        ],
-        "apply_efficiency_to": [
-            "K0S",
-            "Xi",
-            "Pi"
-        ]
+        "corrections": {
+            "event_loss": true,
+            "particles": {
+                "K0S": {
+                    "signal_loss": true
+                },
+                "Xi": {
+                    "signal_loss": true
+                },
+                "Pi": {
+                    "signal_loss": true
+                }
+            }
+        }
     },
     "correlation_wpdg_base_settings": {
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResults_536_wpdg_26marzo.root",
         "base_path_data": "phi-strange-correlation/phiStrangenessCorrelation/",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResults_536_wpdg_26marzo.root",
         "base_path_me": "phi-strange-correlation/phiStrangenessCorrelation/",
-        "input_efficiency_file": "../DataFile/pp_ref/DeltaY/Corrections/Corrections.root",
+        "corrections_file": "../DataFile/pp_ref/DeltaY/Corrections/Corrections.root",
         "output_dir_proj": "../DataFile/pp_ref/DeltaY/ProjData/",
         "output_dir_final": "../DataFile/pp_ref/DeltaY/FinalResults/",
         "input_output_prefix": "MCClosureWPDG_",
@@ -361,21 +404,37 @@
             }
         ],
         "apply_mixed_events": true,
-        "apply_efficiency": true,
+        "corrections": {
+            "event_loss": true,
+            "particles": {
+                "Phi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    },
+                    "signal_loss": true
+                },
+                "K0S": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    },
+                    "signal_loss": true
+                },
+                "Xi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    },
+                    "signal_loss": true
+                },
+                "Pi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    },
+                    "signal_loss": true
+                }
+            }
+        },
         "apply_extrapolation": true,
         "trend_composition": "total_extrapolated",
-        "use_integrated_efficiency": true,
-        "active_corrections": [
-            "acceptance_efficiency",
-            "signal_loss",
-            "event_loss"
-        ],
-        "apply_efficiency_to": [
-            "Phi",
-            "K0S",
-            "Xi",
-            "Pi"
-        ],
         "use_projection_cache": false,
         "use_2d_me_normalization": false,
         "is_pure_gen": false,
@@ -400,34 +459,61 @@
     },
     "correlation_wpdg_task_offline_efficiency": {
         "inherits": "correlation_wpdg_base_settings",
-        "active_corrections": [
-            "acceptance_efficiency"
-        ]
+        "corrections": {
+            "event_loss": false,
+            "particles": {
+                "Phi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "K0S": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "Xi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "Pi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                }
+            }
+        }
     },
     "correlation_wpdg_task_online_efficiency": {
         "inherits": "correlation_wpdg_base_settings",
         "base_path_data": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "base_path_me": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
-        "apply_efficiency": false,
+        "corrections": null,
         "use_2d_me_normalization": false
     },
     "correlation_wpdg_task_online_efficiency_no_phi": {
         "inherits": "correlation_wpdg_base_settings",
         "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi/phiStrangenessCorrelation/",
         "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi/phiStrangenessCorrelation/",
-        "active_corrections": [
-            "signal_loss",
-            "event_loss"
-        ],
-        "apply_efficiency_to": [
-            "K0S",
-            "Xi",
-            "Pi"
-        ]
+        "corrections": {
+            "event_loss": true,
+            "particles": {
+                "K0S": {
+                    "signal_loss": true
+                },
+                "Xi": {
+                    "signal_loss": true
+                },
+                "Pi": {
+                    "signal_loss": true
+                }
+            }
+        }
     },
     "correlation_wpdg_task_gen": {
         "inherits": "correlation_wpdg_base_settings",
-        "apply_efficiency": false,
+        "corrections": null,
         "is_pure_gen": true
     }
 }

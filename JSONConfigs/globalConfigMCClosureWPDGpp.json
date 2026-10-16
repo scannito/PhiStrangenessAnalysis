@@ -79,7 +79,7 @@
         "base_path_data": "phi-strange-correlation_id50589/phiStrangenessCorrelation/",
         "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_136_2024_PtMod_4agosto.root",
         "base_path_me": "phi-strange-correlation_id50589/phiStrangenessCorrelation/",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2024_Corrections.root",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2024_Corrections.root",
         "input_output_prefix": "MCClosurewPDG_OfflineEff_2024_"
     },
     "correlation_wpdg_task_online_efficiency_2024": {
@@ -92,7 +92,7 @@
         "inherits": "correlation_wpdg_task_online_efficiency_no_phi",
         "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_136_2024_PtMod_4agosto.root",
         "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_136_2024_PtMod_4agosto.root",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2024_WTrigger_Corrections.root",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2024_WTrigger_Corrections.root",
         "input_output_prefix": "MCClosurewPDG_OnlineEff_NoPhi_2024_"
     },
     "correlation_wpdg_task_offline_efficiency_2026": {
@@ -101,7 +101,7 @@
         "base_path_data": "phi-strange-correlation_id59580/phiStrangenessCorrelation/",
         "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_136_2026_PtMod_5agosto.root",
         "base_path_me": "phi-strange-correlation_id59580/phiStrangenessCorrelation/",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2026_Corrections.root",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_Corrections.root",
         "input_output_prefix": "MCClosurewPDG_OfflineEff_2026_"
     },
     "correlation_wpdg_task_online_efficiency_2026": {
@@ -114,7 +114,7 @@
         "inherits": "correlation_wpdg_task_online_efficiency_no_phi",
         "input_data_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_136_2026_PtMod_5agosto.root",
         "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_wpdg_136_2026_PtMod_5agosto.root",
-        "input_efficiency_file": "../DataFile/pp/DeltaY/Corrections/2026_WTrigger_Corrections.root",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_WTrigger_Corrections.root",
         "input_output_prefix": "MCClosurewPDG_OnlineEff_NoPhi_2026_"
     }
 }

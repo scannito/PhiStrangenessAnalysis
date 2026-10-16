@@ -283,15 +283,15 @@ class CorrelationTask : public CorrelationTaskBase
     const std::vector<std::unique_ptr<TH1>>* phiCorrs{nullptr};
     std::vector<const std::vector<std::unique_ptr<TH1>>*> assocCorrs(assocParticles.size(), nullptr);
 
-    if (applyEfficiency && !correctionCollection.empty()) {
+    if (!correctionCollection.empty()) {
       auto itPhi = correctionCollection.find("Phi");
       if (itPhi != correctionCollection.end())
-        phiCorrs = useIntegratedEfficiency ? &itPhi->second.h1CorrectionsEffMultInt : &itPhi->second.h1Corrections;
+        phiCorrs = &itPhi->second.h1Corrections;
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
         auto it = correctionCollection.find(assocParticles[pIdx].name);
         if (it != correctionCollection.end())
-          assocCorrs[pIdx] = useIntegratedEfficiency ? &it->second.h1CorrectionsEffMultInt : &it->second.h1Corrections;
+          assocCorrs[pIdx] = &it->second.h1Corrections;
       }
     }
 

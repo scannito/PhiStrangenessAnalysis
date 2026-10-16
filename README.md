@@ -228,23 +228,53 @@ silently ignored.
 
 | Key | | Notes |
 |---|---|---|
-| `apply_mixed_events`, `apply_efficiency`, `apply_extrapolation`, `apply_purity` | required | |
-| `use_integrated_efficiency`, `use_projection_cache`, `use_2d_me_normalization` | required | |
+| `apply_mixed_events`, `apply_extrapolation`, `apply_purity` | required | |
+| `use_projection_cache`, `use_2d_me_normalization` | required | |
 | `input_dir_proj`, `input_dir_purity`, `output_dir_final` | required | |
 | `input_data_file`, `base_path_data` | required | Unless the projection cache is enabled. |
 | `input_me_file`, `base_path_me` | required | Only when mixed events are on. |
-| `input_efficiency_file` | required | Only when efficiency is on. |
+| `corrections` | required | Object, or `null` for none. See below. |
+| `corrections_file` | required | Only when `corrections` is not `null`: the `Corrections` file, with all three corrections. |
 | `extrapolation_config_file` | required | Only when extrapolation is on. |
 | `associated_particles` | required | Array of `{name, dir_name}`. |
 | `purity_sources` | required | Array of `{name, purity_key, file_suffix}`. |
 | `delta_y_limits` | optional | Δy windows to integrate. |
 | `yield_ratios` | optional | Array of `{numerator, denominator, label?}`. |
-| `active_corrections` | optional | `acceptance_efficiency`, `signal_loss`. None if absent. |
-| `apply_efficiency_to` | optional | Defaults to φ plus every associated particle. |
 | `use_signal_cache`, `do_more_qa` | optional | |
 | `run_mode`, `projection_axis` | optional | See enumerations above. |
 | `trend_composition` | optional | How the extrapolated trend is built — see below. |
 | `*_prefix` | optional | `purity_prefix`, `trigger_prefix`, `output_prefix`, with `input_prefix` and `input_output_prefix` as fallbacks. |
+
+**The `corrections` block** says, per particle, which corrections are applied here, in this
+framework (the efficiency can instead be applied online by the O2Physics task, never both for
+one particle: see `DESIGN_NOTES.md` section 13). A particle that is not listed is not corrected.
+
+```jsonc
+"corrections_file": "../DataFile/pp/DeltaY/Corrections/2024_Corrections.root",
+"corrections": {
+  "event_loss": true,                                   // required; per event, not per particle
+  "particles": {                                        // "Phi" or one of associated_particles
+    "Phi": { "acceptance_efficiency": { "mult": "integrated" }, "signal_loss": true },
+    "K0S": { "acceptance_efficiency": { "mult": "binned" } }
+  }
+}
+// none at all:
+"corrections": null
+```
+
+| Key, per particle | | Notes |
+|---|---|---|
+| `acceptance_efficiency` | optional | Object with `mult`, required: `binned` (per multiplicity class) or `integrated`. |
+| `signal_loss` | optional | `true`; always per multiplicity class. |
+| `feed_down`, `primary_fraction` | — | Reserved for Λ/Λ̄ and π; not implemented, so they stop the run. |
+
+Every entry applies at least one correction, and the block as a whole at least one; unknown
+keys inside the block stop the run instead of being ignored. `"corrections": null` is how a
+block that inherits corrections switches them off, since `inherits` cannot remove a key
+(`CLAUDE.md`, *Configuration*). The file is a separate key so that a block for one year can
+change it without repeating the corrections of its mode. The keys this block replaced
+(`apply_efficiency`, `active_corrections`, `apply_efficiency_to`, `use_integrated_efficiency`,
+`input_efficiency_file`) stop the run with the name of what replaces them.
 
 **`correlation_wpdg_task`** — MC-closure variant reading PDG-matched pairs. Same keys,
 plus `is_pure_gen` (required) and `output_dir_proj`; it has no purity stage.
@@ -355,7 +385,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 |---|---|
 | `RootIOHelpers.h` | `namespace RootIO` — opening files, fetching objects as `unique_ptr`, navigating and clearing directories, reading and writing binning stamps and provenance. |
 | `RunEnvironment.h` | `namespace RunEnvironment` — timestamp, git commit, header fingerprint. Includes no ROOT, and is the one header a plain compiler can check. |
-| `JsonConfigHelpers.h` | `namespace JsonConfig` — `Require*` and `Optional*` accessors, including `OptionalEnum`, whose table doubles as the error message. |
+| `JsonConfigHelpers.h` | `namespace JsonConfig` — `Require*` and `Optional*` accessors, including `OptionalEnum`, whose table doubles as the error message; `RequireObjectOrNull` (null for "none"), `RejectReplacedKey` and `RequireKnownKeys`. |
 | `HistogramUtils.h` | `namespace HistogramUtils` — integrals with errors, `THnSparse` projections, spectrum and trend construction, ratios, rebinning with compatibility checks. |
 | `Logger.h` | `namespace Logger`: levels, one line format, and a summary of the run's warnings printed at the end. No dependencies. Every task and helper logs through it; the banners of `WorkflowManager` and `RunAnalysisChain` are the only direct output left. |
 | `CanvasManager.h` | Canvas ownership and unique naming, ratio and grid layouts, ALICE styling, path-aware writing into the output files. Owned by tasks, never by data structures. |
@@ -417,6 +447,7 @@ chain and no task depends on them.
 |---|---|
 | `CompareAxes.C` | Axis diagnostic: reports where two inputs disagree, edge by edge. |
 | `ShowProvenance.C` | What produced the files in a directory — reads back the provenance records. |
+| `CompareRootFiles.cpp` | Before/after check of a change that must not move any number: two ROOT files compared object by object, exactly. A compiled program, not a macro (build line in its header), so it does not need Cling. |
 | `convertGraphHist.C` | `TGraphErrors` ↔ `TH1`, in either direction. Feeds a pre-framework result into `comparison_task`. |
 | `copyTFileContent.C` | Recursive copy of a ROOT file, excluding chosen directories. |
 | `TestProjections.C`, `esporta_fit.C` | Ad-hoc checks. |
