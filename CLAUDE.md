@@ -38,6 +38,11 @@ Copy the output directory before comparing the modes.
 Process-wide ROOT state (`gROOT->SetBatch`, `gSystem->Exit`) belongs to the two entry
 points, not to `RunAnalysisChain.h`, which stays free of ROOT globals. The compiled
 binary is not started with `-b` the way the macro is, so `main()` sets batch itself.
+The rule has an edge, and it is this: what belongs to **the whole application** is set by
+the entry points; the state of a subsystem that **only one class uses** is that class's, set
+once on first use and idempotent, so that it cannot be forgotten and a workflow that never
+builds the class never pays for it. RooFit's messages are the example: `DynamicRooFitter`
+calls `RooFitMessages::Configure()` when it is built.
 
 ## The rule the whole framework is built on
 
@@ -92,7 +97,11 @@ goes in as an argument (`Logger::Warn("{}", msg)`), never as the format string. 
 format string is read at run time (`std::vformat`), so a wrong placeholder is found when
 the line is reached and not when the code is compiled; a `{:g}` on an integer is an
 error at that point. Printing a `double` as `cout` did needs `{:g}`: plain `{}` gives the
-shortest round-trip form and the digits change.
+shortest round-trip form and the digits change. RooFit's own warnings are counted too, in
+a section of the summary of their own (`RooFitMessages.h`, set up by `DynamicRooFitter`
+the first time one is built; a workflow without fits never touches RooFit's message service):
+they are thousands of lines a run, so they
+would bury the framework's if listed together, and their text stays in the log as it was.
 
 ## Configuration
 

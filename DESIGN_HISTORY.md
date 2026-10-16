@@ -582,3 +582,69 @@ macro (`#pragma cling add_include_path`). The real-data run projects each source
 (`ProjectionZ` on one multiplicity and one pT bin) with the configuration indexed by that
 source bin: it is not the fits `PurityTask` does, which merges source pT bins into the
 analysis bins before fitting. Not repeated on other machines or other ROOT builds.
+
+---
+
+## RooFit's messages are counted
+
+**`RooFitMessages::Configure()`, called by `DynamicRooFitter` the first time one is built, drops
+RooFit's messages below WARNING and counts the rest for the end-of-run summary.** Two open points
+came together: `setGlobalKillBelow(WARNING)` sat in the constructor of `DynamicRooFitter`
+(process-wide state set by whoever happens to build a fitter), and RooFit's warnings, which are
+plentiful, never reached the summary.
+
+*Where it lives, which took three tries.* First the two entry points, with the other
+process-wide state (`gROOT->SetBatch`); dropped, because RooFit is not the whole application's:
+a workflow of efficiency, correlation or comparison tasks builds no fitter and has no business
+touching RooFit's message service or carrying a RooFit section in its summary. Then the `Init`
+of the two tasks that fit; dropped, because it put the knowledge "a fitter needs RooFit set up"
+in every task that uses one, and a third such task, a test or a benchmark would forget it. Last,
+and kept: the fitter itself, which is the only code that uses RooFit. The standard practice is
+that what belongs to the whole application is set at the entry points, while the state of a
+subsystem with one owner is the owner's, set once on first use and idempotent (a rule written
+into `CLAUDE.md`). The objection to it, a side effect hidden in a constructor, is real and small:
+it reaches RooFit's message service and nothing else, `Configure` is safe to repeat (called three
+times it counts the same as once, 8 700 lines either way), and its absence would cost noise, not
+correctness. Checked: a program that builds fitters and never calls `Configure` gets the summary
+section and no INFO lines; one that builds none gets no section; the same interpreted.
+
+*What was there to see.* The August purity log (11.5 MB) has 35 341 RooFit `[#1] INFO` lines
+(what the kill below WARNING, added on 12 October, removes) and 10 003 `WARNING` lines. A run
+of the 340 K0S cells of `AnalysisResults_136_2026_PtMod_23luglio.root` with the current code
+gives **8 700 warning-level lines in 10 kinds**; the commonest are "getLogVal() top-level p.d.f
+evaluates to NaN" (3 661) and "p.d.f value is less than zero, trying to recover @
+numerator=Chebychev2_bkg=..." (3 466): a background polynomial dipping below zero during
+minimisation in some cells, and the p.d.f going NaN with it, which is what `DESIGN_NOTES.md`
+calls pathological evaluation errors. 319 of the fits (of 340) hit it.
+
+*Design.* `RooMsgService` has three streams, all writing to `std::cout`; `Configure` points
+them at a stream of ours that **passes every character on to `std::cout` untouched and counts
+a copy** (`TeeBuf`), so the log keeps the text whole, with its fit around it. The count goes to
+`Logger::Count(source, line, times)`, a tally kept apart from the warnings and printed in a
+section of its own, the five commonest kinds, because the number of lines would bury the
+framework's warnings if they were listed together:
+
+```
+[SUMMARY] RooFit: 8700 line(s) in 10 kind(s) (the text is in the log above); the 5 commonest:
+  (x3661) getLogVal() top-level p.d.f evaluates to NaN @ ...
+```
+
+A kind is the line with its leading blanks dropped and every number replaced by `N`. RooFit
+prints an error block as a header, the same message up to a dozen times and then
+"... (remaining 9 messages suppressed)"; that last line stands for nine more occurrences of the
+previous message and is added to its count, which is why 8 700 is larger than the 6 810 lines
+that are actually printed. The stream is never destroyed (RooMsgService keeps the pointer for
+the life of the process).
+
+*Checked.* On the 340 real fits, compiled: the text printed with the tee is the same set of
+lines as without it (compared sorted; nothing lost, nothing added). **The order of the blocks
+inside an error report differs between the two runs**, while two runs without the tee agree
+with each other: RooFit walks its error blocks in a map keyed by the objects' addresses, and
+the tee changes what is allocated. Interpreted (Cling): the same 8 700 lines in the same 10
+kinds with the same five commonest. Both entry points start and print `[SUMMARY]`. The tasks'
+`Init` were not run (they open output files).
+
+*What it does not do.* It says that RooFit warned and how often, not in which cell: for that
+the per-fit diagnostics in `DESIGN_NOTES.md` ("Fit quality monitoring") are the tool. And it
+does not touch ROOT's own messages (`Info in <...>`, `Warning in <...>`), which go through
+ROOT's error handler.

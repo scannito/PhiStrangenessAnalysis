@@ -6,6 +6,7 @@
 #include "FitConfigManager.h"
 #include "HistogramUtils.h"
 #include "Logger.h"
+#include "RooFitMessages.h"
 
 #include "RooAbsPdf.h"
 #include "RooAddPdf.h"
@@ -52,8 +53,11 @@ class DynamicRooFitter
  public:
   DynamicRooFitter(TH1* h, const FitConfig& cfg) : h1Data(h), config(cfg)
   {
-    // Suppress verbose RooFit INFO/DEBUG messages during batch fitting
-    RooMsgService::instance().setGlobalKillBelow(RooFit::WARNING);
+    // RooFit's message level and the counting of its warnings are process-wide, and the fitter
+    // is the only code that uses RooFit, so it is the one that makes sure they are set: on the
+    // first construction, never again (Configure is idempotent), and never in a workflow that
+    // builds no fitter. The effect reaches RooFit's message service and nothing else.
+    RooFitMessages::Configure();
 
     obs = Own<RooRealVar>(cfg.obs.name.c_str(), cfg.obs.title.c_str(), cfg.obs.min, cfg.obs.max);
 

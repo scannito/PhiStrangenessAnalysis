@@ -97,14 +97,12 @@ What follows is what the engine still lacks.
 ### Small things found while measuring it (14 October 2026)
 
 The decision to build one fitter per configuration, and the numbers behind it, are in
-`DESIGN_HISTORY.md` (*The fitter is built once per configuration*). Two things came out of
-that review and are not done (a third, `RooFit::NumCPU(4)`, which did nothing, was removed;
-a comment in `DoFit` says why and points at the measurement):
+`DESIGN_HISTORY.md` (*The fitter is built once per configuration*). One thing came out of
+that review and is not done. Three others were: `RooFit::NumCPU(4)`, which did nothing, was
+removed (a comment in `DoFit` says why); the process-wide RooFit state moved into
+`RooFitMessages::Configure`, which the fitter calls once on first use; and RooFit's warnings are now counted in the
+summary (both in `DESIGN_HISTORY.md`, *RooFit's messages are counted*):
 
-- **The constructor sets process-wide RooFit state** (`RooMsgService::instance()
-  .setGlobalKillBelow(RooFit::WARNING)` at `DynamicRooFitter.h:56`, on every construction).
-  Anything that builds a fitter silences RooFit's INFO messages for the whole program. It
-  belongs in the two entry points, with the other process-wide state.
 - **`DoFit()` must be called before `ExtractYieldsAndPurity()`**, enforced by a throw
   ("Call DoFit() first!"). It works; the order is a coupling the interface does not express.
   Not worth restructuring on its own, since the object has to stay alive for `DrawFit`
@@ -734,10 +732,10 @@ past today's 241 lines, or pulling ROOT includes that only one theme needs.
   parameters") are unreachable without editing a header. An environment variable read by
   the two entry points (`main.cpp` and the macro, which is where process-wide state
   belongs) would do. The same goes for `SetTimestamps`.
-- **ROOT's and RooFit's own messages** go through other channels (`gErrorIgnoreLevel`, the
-  ROOT error handler, `RooMsgService`) and do not reach the summary. Installing a ROOT
-  error handler in the entry points that routes warnings to `Logger::Warn` would put them
-  there.
+- **ROOT's own messages** (`Info in <TFile...>`, `Warning in <TH1::Sumw2>`, ...) still go
+  through ROOT's error handler (`gErrorIgnoreLevel`, `SetErrorHandler`) and do not reach the
+  summary. RooFit's now do (see `DESIGN_HISTORY.md`); the same approach, a handler installed
+  by the entry points that counts and passes on, would cover ROOT's.
 - **The banners** of `WorkflowManager` (`>>> [STARTING TASK]`, the separators) and
   `RunAnalysisChain` are direct `std::cout`, on purpose.
 

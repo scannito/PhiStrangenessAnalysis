@@ -357,6 +357,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | `RunEnvironment.h` | `namespace RunEnvironment` — timestamp, git commit, header fingerprint. Includes no ROOT, and is the one header a plain compiler can check. |
 | `JsonConfigHelpers.h` | `namespace JsonConfig` — `Require*` and `Optional*` accessors, including `OptionalEnum`, whose table doubles as the error message. |
 | `HistogramUtils.h` | `namespace HistogramUtils` — integrals with errors, `THnSparse` projections, spectrum and trend construction, ratios, rebinning with compatibility checks. |
+| `RooFitMessages.h` | `namespace RooFitMessages`: `Configure()`, called by `DynamicRooFitter` the first time one is built, drops RooFit's messages below WARNING and counts the rest by kind for the summary, leaving the text in the log as it was. |
 | `Logger.h` | `namespace Logger`: levels, one line format, and a summary of the run's warnings printed at the end. No dependencies. Every task and helper logs through it; the banners of `WorkflowManager` and `RunAnalysisChain` are the only direct output left. |
 | `CanvasManager.h` | Canvas ownership and unique naming, ratio and grid layouts, ALICE styling, path-aware writing into the output files. Owned by tasks, never by data structures. |
 
