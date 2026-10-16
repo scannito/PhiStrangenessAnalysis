@@ -569,13 +569,13 @@ class CorrelationTaskBase : public IAnalysisTask
     }
 
     // LAMBDA HELPER 1: Load the histogram and throw an error if missing
-    auto fetchHist = [&](TDirectory* dir, const std::string& name, bool apply, const std::vector<double>& targetBinning) -> std::unique_ptr<TH1F> {
+    auto fetchHist = [&](TDirectory* dir, const std::string& name, bool apply, const std::vector<double>& targetBinning) -> std::unique_ptr<TH1> {
       if (!apply)
         return nullptr;
       if (!dir)
         throw std::runtime_error(std::format("[FATAL] Missing directory containing: {}", name));
 
-      std::unique_ptr<TH1F> h = RootIO::GetUniqueOrThrow<TH1F>(dir, name, "CorrelationTaskBase::LoadCorrections");
+      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(dir, name, "CorrelationTaskBase::LoadCorrections");
 
       // Verified, NOT rebinned. An efficiency is a ratio, and merging bins of a
       // ratio sums them: two bins of 0.5 would give 1.0. A coarser efficiency can
@@ -597,11 +597,11 @@ class CorrelationTaskBase : public IAnalysisTask
     };
 
     // LAMBDA HELPER 2: Clone and multiply (if both are needed) safely
-    auto combineHists = [](const TH1F* hEff, const TH1F* hLoss, const std::string& name) -> std::unique_ptr<TH1F> {
+    auto combineHists = [](const TH1* hEff, const TH1* hLoss, const std::string& name) -> std::unique_ptr<TH1> {
       if (!hEff && !hLoss)
         return nullptr;
 
-      std::unique_ptr<TH1F> hRes(static_cast<TH1F*>(hEff ? hEff->Clone(name.c_str()) : hLoss->Clone(name.c_str())));
+      std::unique_ptr<TH1> hRes(static_cast<TH1*>(hEff ? hEff->Clone(name.c_str()) : hLoss->Clone(name.c_str())));
       if (hEff && hLoss)
         hRes->Multiply(hLoss);
       hRes->SetDirectory(0);
@@ -632,15 +632,15 @@ class CorrelationTaskBase : public IAnalysisTask
       std::string sigLossHistBase = std::format("h1{}SigLoss", name);
 
       // Fetch integrated histograms ONLY if useIntegratedEfficiency is true
-      std::unique_ptr<TH1F> hEffInt = fetchHist(accEffDir, std::format("{}_multIntegrated", effHistBase), doAccEfficiency && useIntegratedEfficiency, targetBinning);
+      std::unique_ptr<TH1> hEffInt = fetchHist(accEffDir, std::format("{}_multIntegrated", effHistBase), doAccEfficiency && useIntegratedEfficiency, targetBinning);
       // Note: Signal loss is typically not integrated, but we fetch it if requested for consistency
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
         // Fetch binned histograms ONLY if useIntegratedEfficiency is false
-        std::unique_ptr<TH1F> hEffBin = fetchHist(accEffDir, std::format("{}_multBin{}", effHistBase, i), doAccEfficiency && !useIntegratedEfficiency, targetBinning);
+        std::unique_ptr<TH1> hEffBin = fetchHist(accEffDir, std::format("{}_multBin{}", effHistBase, i), doAccEfficiency && !useIntegratedEfficiency, targetBinning);
         // Note: Signal loss is typically not integrated, so we fetch the binned version if signal loss correction is requested,
         // regardless of the useIntegratedEfficiency flag
-        std::unique_ptr<TH1F> hLossBin = fetchHist(sigLossDir, std::format("{}_multBin{}", sigLossHistBase, i), doSigLoss, targetBinning);
+        std::unique_ptr<TH1> hLossBin = fetchHist(sigLossDir, std::format("{}_multBin{}", sigLossHistBase, i), doSigLoss, targetBinning);
 
         corr.h1Corrections[i] = combineHists(hEffBin.get(), hLossBin.get(), std::format("h1Corrected_{}_multBin{}", name, i));
         corr.h1CorrectionsEffMultInt[i] = combineHists(hEffInt.get(), hLossBin.get(), std::format("h1Corrected_{}_multInt{}", name, i));
@@ -1224,8 +1224,8 @@ class CorrelationTaskBase : public IAnalysisTask
     Logger::Info("{}: RUNNING CORRELATIONS (Legacy)...", GetName());
     CorrelationCalculator corrCalculator(applyME, useProjectionCache, false, false);
 
-    const std::vector<std::unique_ptr<TH1F>>* phiCorrs{nullptr};
-    std::vector<const std::vector<std::unique_ptr<TH1F>>*> assocCorrs(assocParticles.size(), nullptr);
+    const std::vector<std::unique_ptr<TH1>>* phiCorrs{nullptr};
+    std::vector<const std::vector<std::unique_ptr<TH1>>*> assocCorrs(assocParticles.size(), nullptr);
 
     if (applyEfficiency && !correctionCollection.empty()) {
       auto itPhi = correctionCollection.find("Phi");

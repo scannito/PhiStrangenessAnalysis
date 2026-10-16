@@ -42,10 +42,13 @@ struct AssocParticleConfig {
   static std::string DefaultDirName(const std::string& particleName) { return "phi" + particleName; }
 };
 
+// TH1 and not TH1F: MCTask writes TH1D, and asking for TH1F made LoadCorrections stop
+// on every Corrections file it produces. The values are read with GetBinContent, so the
+// class only decides the precision they are stored with.
 struct LoadedCorrections {
   std::string name;
-  std::vector<std::unique_ptr<TH1F>> h1Corrections;
-  std::vector<std::unique_ptr<TH1F>> h1CorrectionsEffMultInt;
+  std::vector<std::unique_ptr<TH1>> h1Corrections;
+  std::vector<std::unique_ptr<TH1>> h1CorrectionsEffMultInt;
 };
 
 struct LoadedPurity {

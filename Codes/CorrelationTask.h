@@ -280,8 +280,8 @@ class CorrelationTask : public CorrelationTaskBase
     // Hoisted to the top so both the Cache L2 branch and the calculation branch
     // can access them to properly normalize the trigger signals.
     // =========================================================================
-    const std::vector<std::unique_ptr<TH1F>>* phiCorrs{nullptr};
-    std::vector<const std::vector<std::unique_ptr<TH1F>>*> assocCorrs(assocParticles.size(), nullptr);
+    const std::vector<std::unique_ptr<TH1>>* phiCorrs{nullptr};
+    std::vector<const std::vector<std::unique_ptr<TH1>>*> assocCorrs(assocParticles.size(), nullptr);
 
     if (applyEfficiency && !correctionCollection.empty()) {
       auto itPhi = correctionCollection.find("Phi");
