@@ -42,7 +42,7 @@ class EfficiencyCalculator
 
     std::unique_ptr<TH1> hEventLoss(static_cast<TH1*>(hEventMultGenAssocReco->Clone("hEventLoss")));
     hEventLoss->SetTitle("Event Selection Efficiency;Multiplicity Percentile (%);Efficiency");
-    hEventLoss->SetDirectory(0);
+    hEventLoss->SetDirectory(nullptr);
 
     hEventLoss->Divide(hEventMultGenAssocReco, hEventMultGen, 1.0, 1.0, "B");
 
@@ -84,7 +84,7 @@ class EfficiencyCalculator
     }
 
     if (h3TotalMap)
-      h3TotalMap->SetDirectory(0);
+      h3TotalMap->SetDirectory(nullptr);
 
     return h3TotalMap;
   }
@@ -100,7 +100,7 @@ class EfficiencyCalculator
     // Project Generator level 2D
     std::string h2GenName = "h2" + data.name + "MCGen_multInt_temp";
     std::unique_ptr<TH2> h2MCGen(static_cast<TH2D*>(data.h3MCGen->Project3D("zy")));
-    h2MCGen->SetDirectory(0);
+    h2MCGen->SetDirectory(nullptr);
 
     // Project 2D histograms safely from the THnSparse
     std::unique_ptr<TH2> h2MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH2>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult}, {3, 2}, "h2" + data.name + "MCGenAssocRecoTemp");
@@ -132,7 +132,7 @@ class EfficiencyCalculator
     }
 
     if (h2TotalMapMultInt)
-      h2TotalMapMultInt->SetDirectory(0);
+      h2TotalMapMultInt->SetDirectory(nullptr);
 
     return h2TotalMapMultInt;
   }
@@ -146,7 +146,7 @@ class EfficiencyCalculator
 
     std::unique_ptr<TH2> h2Error(static_cast<TH2*>(h2Source->Clone(name.c_str())));
     h2Error->Reset();
-    h2Error->SetDirectory(0);
+    h2Error->SetDirectory(nullptr);
 
     for (int ix = 1; ix <= h2Source->GetNbinsX(); ++ix) {
       for (int iy = 1; iy <= h2Source->GetNbinsY(); ++iy) {
@@ -166,7 +166,7 @@ class EfficiencyCalculator
 
     std::unique_ptr<TH2> h2RelError(static_cast<TH2*>(h2Source->Clone(name.c_str())));
     h2RelError->Reset();
-    h2RelError->SetDirectory(0);
+    h2RelError->SetDirectory(nullptr);
 
     for (int ix = 1; ix <= h2Source->GetNbinsX(); ++ix) {
       for (int iy = 1; iy <= h2Source->GetNbinsY(); ++iy) {
@@ -275,7 +275,7 @@ class EfficiencyCalculator
     // Project Generator level 1D
     std::string h1GenName = std::format("h1{}MCGen_multBin{}_temp", data.name, multBin);
     std::unique_ptr<TH1> h1MCGen(data.h3MCGen->ProjectionY(h1GenName.c_str(), multBin + 1, multBin + 1, 1, data.h3MCGen->GetZaxis()->GetNbins()));
-    h1MCGen->SetDirectory(0);
+    h1MCGen->SetDirectory(nullptr);
 
     // Project Sparse levels 1D
     std::unique_ptr<TH1> h1MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp");
@@ -297,7 +297,7 @@ class EfficiencyCalculator
     std::string h1GenName = "h1" + data.name + "MCGen_Integrated_temp";
     std::unique_ptr<TH1> h1MCGen(data.h3MCGen->ProjectionY(h1GenName.c_str(), 1, data.h3MCGen->GetXaxis()->GetNbins(),
                                                            1, data.h3MCGen->GetZaxis()->GetNbins()));
-    h1MCGen->SetDirectory(0);
+    h1MCGen->SetDirectory(nullptr);
 
     // Project Sparse levels 1D (Integrated)
     std::unique_ptr<TH1> h1MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp_Int");

@@ -64,7 +64,7 @@ inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& o
 
   if constexpr (std::is_base_of_v<TH1, T>) {
     if (detachFromFile)
-      obj->SetDirectory(0);
+      obj->SetDirectory(nullptr);
   }
 
   return std::unique_ptr<T>(obj);
@@ -83,7 +83,7 @@ inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& ob
 
   if constexpr (std::is_base_of_v<TH1, T>) {
     if (detachFromFile)
-      obj->SetDirectory(0);
+      obj->SetDirectory(nullptr);
   }
 
   return std::unique_ptr<T>(obj);

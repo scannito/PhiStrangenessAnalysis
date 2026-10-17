@@ -34,7 +34,7 @@ class PurityTask : public IAnalysisTask
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    Logger::Info("PurityTask: INITIALIZING...");
+    Logger::Info("{}: INITIALIZING...", GetName());
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
@@ -49,8 +49,8 @@ class PurityTask : public IAnalysisTask
     provenance.insert(runEnv.begin(), runEnv.end());
 
     // 1. Open input file, extract 3D histograms to RAM, and immediately close it
-    std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", "PurityTask");
-    std::unique_ptr<TFile> fileInput = RootIO::OpenOrThrow(inputFile, "READ", "PurityTask");
+    std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
+    std::unique_ptr<TFile> fileInput = RootIO::OpenOrThrow(inputFile, "READ", GetName());
 
     // 2. Open Output files
     std::string outputDir = JsonConfig::RequireString(taskConfig, "output_dir", GetName());
@@ -65,9 +65,9 @@ class PurityTask : public IAnalysisTask
     std::error_code ec;
     std::filesystem::create_directories(ccdbOutputDir, ec);
     if (ec)
-      throw std::runtime_error(std::format("[FATAL] PurityTask: Cannot create output directory '{}': {}", ccdbOutputDir, ec.message()));
+      throw std::runtime_error(std::format("[FATAL] {}: Cannot create output directory '{}': {}", GetName(), ccdbOutputDir, ec.message()));
 
-    auto particles = JsonConfig::RequireArray(taskConfig, "purity_particles", "PurityTask");
+    auto particles = JsonConfig::RequireArray(taskConfig, "purity_particles", GetName());
 
     int pIdx = 0;
     for (const auto& particle : particles) {
@@ -78,7 +78,7 @@ class PurityTask : public IAnalysisTask
       std::string histName = JsonConfig::RequireString(particle, "hist_name", ctx);
       std::string outputFileSuffix = JsonConfig::RequireString(particle, "output_file_suffix", ctx);
 
-      std::unique_ptr<TH3F> h3Source = RootIO::GetUniqueOrThrow<TH3F>(fileInput.get(), histName, "PurityTask");
+      std::unique_ptr<TH3F> h3Source = RootIO::GetUniqueOrThrow<TH3F>(fileInput.get(), histName, GetName());
 
       // The binning comes from the file, never from the configuration: the loops
       // below address these very bins, and the purity spectrum is built on these
@@ -94,7 +94,7 @@ class PurityTask : public IAnalysisTask
       if (auto rebin = JsonConfig::TryArray(particle, "rebinning_pt", GetName())) {
         std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, std::format("rebinning_pt for '{}'", name), GetName());
         if (bins.size() < 2) {
-          throw std::runtime_error(std::format("[FATAL] PurityTask: 'rebinning_pt' for '{}' needs at least 2 edges!", name));
+          throw std::runtime_error(std::format("[FATAL] {}: 'rebinning_pt' for '{}' needs at least 2 edges!", GetName(), name));
         }
         rebinningPt = std::move(bins);
       }
@@ -108,7 +108,7 @@ class PurityTask : public IAnalysisTask
       if (it != outputFiles.end()) {
         outputFilePtr = it->second.get();
       } else {
-        std::unique_ptr<TFile> outputFile = RootIO::OpenOrThrow(outputFileName, "RECREATE", "PurityTask");
+        std::unique_ptr<TFile> outputFile = RootIO::OpenOrThrow(outputFileName, "RECREATE", GetName());
         outputFiles[outputFileName] = std::move(outputFile);
         outputFilePtr = outputFiles[outputFileName].get();
       }
@@ -119,7 +119,7 @@ class PurityTask : public IAnalysisTask
       auto h2CCDB = std::make_unique<TH2F>(ccdbName.c_str(), ";Multiplicity percentile (%);p_{T} (GeV/#it{c})",
                                            BinningUtils::NBins(multBinning), multBinning.data(),
                                            BinningUtils::NBins(sourceBinning), sourceBinning.data());
-      h2CCDB->SetDirectory(0);
+      h2CCDB->SetDirectory(nullptr);
 
       // The mapping between the two binnings is derived by the constructor, so it
       // is not passed here: an analysis edge that is not an edge of the source
@@ -139,7 +139,7 @@ class PurityTask : public IAnalysisTask
 
     // 3. Read task-specific settings from the JSON node (DOM)
     // Keep the fit configuration file completely separated for physics tuning
-    std::string fitCfgPath = JsonConfig::RequireString(taskConfig, "fit_config_file", "PurityTask");
+    std::string fitCfgPath = JsonConfig::RequireString(taskConfig, "fit_config_file", GetName());
 
     // A snapshot, not a path: this is the file being edited while the fits are
     // tuned, so knowing which one it was says nothing about what was in it.
@@ -151,7 +151,7 @@ class PurityTask : public IAnalysisTask
 
   void Run() override
   {
-    Logger::Info("PurityTask: RUNNING FITS...");
+    Logger::Info("{}: RUNNING FITS...", GetName());
 
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
 
@@ -220,7 +220,7 @@ class PurityTask : public IAnalysisTask
 
   void Terminate() override
   {
-    Logger::Info("PurityTask: TERMINATING AND SAVING...");
+    Logger::Info("{}: TERMINATING AND SAVING...", GetName());
 
     // 1. Save each particle's summary canvas into its own output file
     for (auto& task : particleTasks) {
@@ -245,7 +245,7 @@ class PurityTask : public IAnalysisTask
         continue;
 
       std::string ccdbPath = ccdbOutputDir + outputPrefix + "h2PurityMap" + task.name + ".root";
-      std::unique_ptr<TFile> ccdbFile = RootIO::OpenOrThrow(ccdbPath, "RECREATE", "PurityTask");
+      std::unique_ptr<TFile> ccdbFile = RootIO::OpenOrThrow(ccdbPath, "RECREATE", GetName());
       ccdbFile->cd();
       task.h2PurityCCDB->SetName("ccdb_object");
       task.h2PurityCCDB->Write(nullptr, TObject::kOverwrite);
@@ -259,7 +259,7 @@ class PurityTask : public IAnalysisTask
       }
     }
 
-    Logger::Info("PurityTask: DONE.");
+    Logger::Info("{}: DONE.", GetName());
   }
 
  private:
@@ -301,7 +301,7 @@ class PurityTask : public IAnalysisTask
     std::string hName = std::format("h1{}Purity_multBin{}{}", task.name, multBin, nameSuffix);
     std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
                                                                    BinningUtils::NBins(binning), binning.data());
-    h1PuritySpectrum->SetDirectory(0);
+    h1PuritySpectrum->SetDirectory(nullptr);
 
     for (int k{0}; k < BinningUtils::NBins(binning); k++) {
       std::string histName = std::format("h1{}_multBin{}_ptBin{}{}", task.name, multBin, k, nameSuffix);
@@ -309,7 +309,7 @@ class PurityTask : public IAnalysisTask
       const BinningUtils::BinRange range = atSource ? BinningUtils::BinRange{k + 1, k + 1} : task.mappedSourceBins[k];
       std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), multBin + 1, multBin + 1,
                                                                                 range.first, range.last)));
-      h1Data->SetDirectory(0);
+      h1Data->SetDirectory(nullptr);
 
       // Run Fitter using JSON-based configuration
       FitConfig cfg = fitConfigManager->GetConfig(task.name, multBin, k);

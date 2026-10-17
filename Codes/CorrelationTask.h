@@ -18,7 +18,7 @@ class CorrelationTask : public CorrelationTaskBase
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    Logger::Info("CorrelationTask: INITIALIZING...");
+    Logger::Info("{}: INITIALIZING...", GetName());
 
     InitCommonFlags(taskConfig, globalSettings);
 
@@ -50,7 +50,7 @@ class CorrelationTask : public CorrelationTaskBase
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "input_dir_proj", GetName());
     std::string phiDataName = basePathProj + triggerPrefix + "PhiDataHistograms.root";
 
-    std::unique_ptr<TFile> filePhiDataInput = RootIO::OpenOrThrow(phiDataName, "READ", "CorrelationTask");
+    std::unique_ptr<TFile> filePhiDataInput = RootIO::OpenOrThrow(phiDataName, "READ", GetName());
 
     RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePhiDataInput.get(), {globalCfgs.binningName, "Provenance"}, true),
                             std::format("trigger file '{}'", phiDataName));
@@ -58,8 +58,8 @@ class CorrelationTask : public CorrelationTaskBase
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
     std::string folderPath = RootIO::MakeDirPath(summaryPath);
 
-    h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerSignal", "CorrelationTask");
-    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerBkgRatio", "CorrelationTask");
+    h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerSignal", GetName());
+    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerBkgRatio", GetName());
 
     // The same exposure the WPDG task has, by a different route: this matrix is written
     // cell by cell by PhiFitTask, so a run where every fit failed leaves it present,
@@ -74,17 +74,17 @@ class CorrelationTask : public CorrelationTaskBase
     InitAssocParticles(taskConfig);
 
     if (!useProjectionCache) {
-      Logger::Info("CorrelationTask: Cache DISABLED. Loading heavy THnSparse data...");
+      Logger::Info("{}: Cache DISABLED. Loading heavy THnSparse data...", GetName());
 
       std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
-      std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", "CorrelationTask");
+      std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", GetName());
 
       basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
 
       std::unique_ptr<TFile> fileDataMEInput{nullptr};
       if (applyME) {
         std::string inputMEFile = JsonConfig::RequireString(taskConfig, "input_me_file", GetName());
-        fileDataMEInput = RootIO::OpenOrThrow(inputMEFile, "READ", "CorrelationTask");
+        fileDataMEInput = RootIO::OpenOrThrow(inputMEFile, "READ", GetName());
 
         basePathDataME = JsonConfig::RequireString(taskConfig, "base_path_me", GetName());
       }
@@ -93,19 +93,19 @@ class CorrelationTask : public CorrelationTaskBase
         LoadedAssocData data;
         data.name = config.name;
         std::string baseData = basePathData + config.dirName + "/h5Phi" + config.name;
-        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSignal"), "CorrelationTask");
-        data.h5DataSideband = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSideband"), "CorrelationTask");
+        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSignal"), GetName());
+        data.h5DataSideband = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSideband"), GetName());
 
         if (applyME) {
           std::string baseDataME = basePathDataME + config.dirName + "/h5Phi" + config.name;
-          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESignal"), "CorrelationTask");
-          data.h5DataMESideband = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESideband"), "CorrelationTask");
+          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESignal"), GetName());
+          data.h5DataMESideband = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESideband"), GetName());
         }
 
         loadedDataCollection.push_back(std::move(data));
       }
     } else {
-      Logger::Info("CorrelationTask: Cache ENABLED. Skipping THnSparse loading.");
+      Logger::Info("{}: Cache ENABLED. Skipping THnSparse loading.", GetName());
       for (const auto& config : assocParticles) {
         LoadedAssocData data;
         data.name = config.name;
@@ -118,7 +118,7 @@ class CorrelationTask : public CorrelationTaskBase
     std::string projMode = useProjectionCache ? "READ" : "UPDATE";
     std::string basePathFinal = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     std::string phiSpectraName = basePathFinal + outputPrefix + "PhiAssocSpectra.root";
-    fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", "CorrelationTask");
+    fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", GetName());
 
     // This run rewrites its whole scheme directory, so whatever a previous one left
     // there - produced when the layout or the object names were different - would sit
@@ -129,12 +129,12 @@ class CorrelationTask : public CorrelationTaskBase
 
     for (const auto& p : assocParticles) {
       std::string fName = basePathProj + outputPrefix + "Phi" + p.name + "DataHistograms.root";
-      std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), "CorrelationTask");
+      std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), GetName());
       filesPhiAssocDataOutput.push_back(std::move(fProj));
 
       if (doMoreQA) {
         std::string fQAName = basePathProj + outputPrefix + "Phi" + p.name + "QAHistograms.root";
-        std::unique_ptr<TFile> fQA = RootIO::OpenOrThrow(fQAName, "RECREATE", "CorrelationTask");
+        std::unique_ptr<TFile> fQA = RootIO::OpenOrThrow(fQAName, "RECREATE", GetName());
         filesPhiAssocQAOutput.push_back(std::move(fQA));
 
       }
@@ -161,7 +161,7 @@ class CorrelationTask : public CorrelationTaskBase
         RunOptimized();
         break;
       default:
-        throw std::runtime_error("[FATAL ERROR] CorrelationTask: Unknown run mode!");
+        throw std::runtime_error("[FATAL] CorrelationTask: Unknown run mode!");
     }
   }
 
@@ -172,7 +172,7 @@ class CorrelationTask : public CorrelationTaskBase
       return nullptr;
     auto it = purityCollection.find(particleName);
     if (it == purityCollection.end())
-      throw std::runtime_error(std::format("[FATAL] CorrelationTask: Missing purity data for particle '{}'", particleName));
+      throw std::runtime_error(std::format("[FATAL] {}: Missing purity data for particle '{}'", GetName(), particleName));
     return it->second.h1Purity[multBin].get();
   }
 
@@ -234,11 +234,11 @@ class CorrelationTask : public CorrelationTaskBase
       } else {
         auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == name; });
         if (it == assocParticles.end())
-          throw std::runtime_error(std::format("[FATAL] CorrelationTask: Unknown particle name in 'purity_sources': {}", name));
+          throw std::runtime_error(std::format("[FATAL] {}: Unknown particle name in 'purity_sources': {}", GetName(), name));
         targetBinning = it->binning;
       }
 
-      std::unique_ptr<TFile> filePurity = RootIO::OpenOrThrow(purityFilePath, "READ", "CorrelationTask");
+      std::unique_ptr<TFile> filePurity = RootIO::OpenOrThrow(purityFilePath, "READ", GetName());
 
       RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName, "Provenance"}, true),
                               std::format("purity file '{}'", purityFilePath));
@@ -251,7 +251,7 @@ class CorrelationTask : public CorrelationTaskBase
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
         std::string hName = std::format("{}h1{}Purity_multBin{}", folderPath, purityKey, i);
-        std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(filePurity.get(), hName, "CorrelationTask");
+        std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(filePurity.get(), hName, GetName());
 
         // Verified, NOT rebinned: a purity is a ratio, and merging its bins would
         // sum the ratios. A coarser purity can only be obtained by fitting the
@@ -271,12 +271,12 @@ class CorrelationTask : public CorrelationTaskBase
 
       purityCollection[name] = std::move(purity);
     }
-    Logger::Info("CorrelationTask: Purities loaded successfully.");
+    Logger::Info("{}: Purities loaded successfully.", GetName());
   }
 
   void RunOptimized()
   {
-    Logger::Info("CorrelationTask: RUNNING OPTIMIZED CORRELATIONS AND QA...");
+    Logger::Info("{}: RUNNING OPTIMIZED CORRELATIONS AND QA...", GetName());
 
     // =========================================================================
     // 0. EFFICIENCY POINTERS SETUP
@@ -306,7 +306,7 @@ class CorrelationTask : public CorrelationTaskBase
     // If active, completely bypasses the CorrelationCalculator and heavy loops.
     // =========================================================================
     if (useSignalCache) {
-      Logger::Info("CorrelationTask: Super Cache (Signal L2) is ON. Skipping Calculator.");
+      Logger::Info("{}: Super Cache (Signal L2) is ON. Skipping Calculator.", GetName());
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
         double totalTriggerSignalPerMult = 0.0;
@@ -331,7 +331,7 @@ class CorrelationTask : public CorrelationTaskBase
             h1PhiAssocNoPtPhi[pIdx][i][k].reset(dynamic_cast<TH1*>(sourceDir->Get(cacheName.c_str())));
             if (!h1PhiAssocNoPtPhi[pIdx][i][k])
               throw std::runtime_error(std::format("[FATAL] Cache L2 missing for: {}. Run with use_signal_cache: false first!", cacheName));
-            h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
+            h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(nullptr);
           }
         }
         GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
@@ -386,7 +386,7 @@ class CorrelationTask : public CorrelationTaskBase
             if (j == 0) {
               std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, i, k));
               h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
-              h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
+              h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(nullptr);
             } else {
               h1PhiAssocNoPtPhi[pIdx][i][k]->Add(h1FinalSignal.get());
             }

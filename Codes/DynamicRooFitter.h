@@ -110,7 +110,7 @@ class DynamicRooFitter
   FitResults ExtractYieldsAndPurity()
   {
     if (!fitResult)
-      throw std::runtime_error("[FATAL ERROR] Call DoFit() first!");
+      throw std::runtime_error("[FATAL] Call DoFit() first!");
 
     FitResults results;
 
@@ -189,10 +189,10 @@ class DynamicRooFitter
   void DrawFitOnPads(TPad* mainPad, TPad* pullPad, double fontScale)
   {
     if (!fitResult) {
-      throw std::runtime_error("[FATAL ERROR] You must call DoFit() before drawing the fit!");
+      throw std::runtime_error("[FATAL] You must call DoFit() before drawing the fit!");
     }
     if (!mainPad) {
-      throw std::runtime_error("[FATAL ERROR] DynamicRooFitter::DrawFit: no pad to draw on.");
+      throw std::runtime_error("[FATAL] DynamicRooFitter::DrawFit: no pad to draw on.");
     }
 
     auto [minRange, maxRange] = CalculateIntegrationLimits();
@@ -293,7 +293,7 @@ class DynamicRooFitter
     // Safety check: if you request a parameter that you forgot to include in the JSON,
     // the program stops immediately with a clear error, preventing a cryptic ROOT crash later.
     if (config.model.params.count(name) == 0) {
-      throw std::runtime_error(std::format("[FATAL ERROR] Missing parameter in JSON: {}", name));
+      throw std::runtime_error(std::format("[FATAL] Missing parameter in JSON: {}", name));
     }
 
     // Extract the [val, min, max, isConstant] struct from the map
@@ -328,7 +328,7 @@ class DynamicRooFitter
     }
 
     throw std::runtime_error(std::format(
-      "[FATAL ERROR] DynamicRooFitter: Variable '{}' not found in model{}",
+      "[FATAL] DynamicRooFitter: Variable '{}' not found in model{}",
       name, fallbacks.size() ? " (tried: [" + tried + "])" : ""));
   }
 
@@ -442,7 +442,7 @@ class DynamicRooFitter
     }
 
     else {
-      throw std::runtime_error(std::format("[FATAL ERROR] Unknown model type: {}", modelType));
+      throw std::runtime_error(std::format("[FATAL] Unknown model type: {}", modelType));
     }
 
     return pdf;

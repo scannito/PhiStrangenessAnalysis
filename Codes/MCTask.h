@@ -42,7 +42,7 @@ class MCTask : public IAnalysisTask
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    Logger::Info("MCTask: INITIALIZING...");
+    Logger::Info("{}: INITIALIZING...", GetName());
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
@@ -57,7 +57,7 @@ class MCTask : public IAnalysisTask
     provenance.insert(runEnv.begin(), runEnv.end());
 
     // 1. Check if a list of particle to compute MC corrections is provided
-    auto particles = JsonConfig::RequireArray(taskConfig, "mc_particles", "MCTask");
+    auto particles = JsonConfig::RequireArray(taskConfig, "mc_particles", GetName());
 
     // Task-level input file. Required: a particle may point somewhere else with
     // its own "input_mc_file", but there must be a file to fall back on, and an
@@ -77,7 +77,7 @@ class MCTask : public IAnalysisTask
     std::error_code ec;
     std::filesystem::create_directories(ccdbOutputDir, ec);
     if (ec) {
-      throw std::runtime_error(std::format("[FATAL] MCTask: Cannot create output directory '{}': {}", ccdbOutputDir, ec.message()));
+      throw std::runtime_error(std::format("[FATAL] {}: Cannot create output directory '{}': {}", GetName(), ccdbOutputDir, ec.message()));
     }
 
     particleCorrectionMode = JsonConfig::OptionalEnum<CorrectionMode>(taskConfig, "particle_correction_mode", "efficiency_only",
@@ -94,7 +94,7 @@ class MCTask : public IAnalysisTask
       auto it = openInputFiles.find(path);
       if (it != openInputFiles.end())
         return it->second.get();
-      std::unique_ptr<TFile> f = RootIO::OpenOrThrow(path, "READ", "MCTask");
+      std::unique_ptr<TFile> f = RootIO::OpenOrThrow(path, "READ", GetName());
       openInputFiles[path] = std::move(f);
       return openInputFiles[path].get();
     };
@@ -125,7 +125,7 @@ class MCTask : public IAnalysisTask
       // The task-level key is required, so this only fires on an explicitly
       // empty string, in the JSON or in the per-particle override.
       if (particleInputFile.empty()) {
-        throw std::runtime_error(std::format("[FATAL ERROR] MCTask: empty 'input_mc_file' for particle '{}'!", name));
+        throw std::runtime_error(std::format("[FATAL] MCTask: empty 'input_mc_file' for particle '{}'!", name));
       }
 
       LoadedMC data;
@@ -135,9 +135,9 @@ class MCTask : public IAnalysisTask
       std::string h4MCGenAssocRecoName = mcBasePath + dirName + "/h4" + name + "MCGenAssocReco";
       std::string h4MCRecoName = mcBasePath + dirName + "/h4" + name + "MCReco";
 
-      data.h3MCGen = RootIO::GetUniqueOrThrow<TH3F>(getOrOpenFile(particleInputFile), h3MCGenName, "MCTask");
-      data.h4MCGenAssocReco = RootIO::GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCGenAssocRecoName, "MCTask");
-      data.h4MCReco = RootIO::GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCRecoName, "MCTask");
+      data.h3MCGen = RootIO::GetUniqueOrThrow<TH3F>(getOrOpenFile(particleInputFile), h3MCGenName, GetName());
+      data.h4MCGenAssocReco = RootIO::GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCGenAssocRecoName, GetName());
+      data.h4MCReco = RootIO::GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCRecoName, GetName());
 
       // These three are divided by each other to build efficiency and signal
       // loss, so they must share their axes whatever the configuration says.
@@ -169,7 +169,7 @@ class MCTask : public IAnalysisTask
       if (auto rebin = JsonConfig::TryArray(p, "rebinning_pt", GetName())) {
         std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, std::format("rebinning_pt for '{}'", name), GetName());
         if (bins.size() < 2) {
-          throw std::runtime_error(std::format("[FATAL ERROR] MCTask: 'rebinning_pt' for particle '{}' must have at least 2 edges!", name));
+          throw std::runtime_error(std::format("[FATAL] MCTask: 'rebinning_pt' for particle '{}' must have at least 2 edges!", name));
         }
         data.rebinningPt = std::move(bins);
       }
@@ -198,8 +198,8 @@ class MCTask : public IAnalysisTask
       std::string genAssocRecoEventPath = mcBasePath + "event/hGenMCAssocRecoMultiplicityPercent";
       std::string genEventPath = mcBasePath + "event/hGenMCMultiplicityPercent";
 
-      hEventMultGenAssocReco = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genAssocRecoEventPath, "MCTask");
-      hEventMultGen = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genEventPath, "MCTask");
+      hEventMultGenAssocReco = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genAssocRecoEventPath, GetName());
+      hEventMultGen = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genEventPath, GetName());
 
       // The event loss is addressed below with the multiplicity bin index of the
       // particle maps, so the two must share their axis.
@@ -222,7 +222,7 @@ class MCTask : public IAnalysisTask
         }
       }
     } else {
-      Logger::Warn("MCTask: No input files were opened. Event Loss will not be computed!");
+      Logger::Warn("{}: No input files were opened. Event Loss will not be computed!", GetName());
     }
 
     for (auto& [name, file] : openInputFiles) {
@@ -233,7 +233,7 @@ class MCTask : public IAnalysisTask
 
     // 6. Open the master output file for corrections
     std::string outPath = outputDirectory + outputPrefix + "Corrections.root";
-    fileMCOutput = RootIO::OpenOrThrow(outPath, "UPDATE", "MCTask");
+    fileMCOutput = RootIO::OpenOrThrow(outPath, "UPDATE", GetName());
 
     // This run rewrites its whole scheme directory - AccEff, SigLoss, EvLoss and the
     // stamps - so anything a previous one left there would sit beside the new maps
@@ -245,12 +245,12 @@ class MCTask : public IAnalysisTask
     // different 'binning_name' writing to the same file keeps its own.
     RootIO::ClearPath(fileMCOutput.get(), {globalCfgs.binningName});
 
-    Logger::Info("MCTask: Initialization complete.");
+    Logger::Info("{}: Initialization complete.", GetName());
   }
 
   void Run() override
   {
-    Logger::Info("MCTask: RUNNING EFFICIENCY COMPUTATIONS...");
+    Logger::Info("{}: RUNNING EFFICIENCY COMPUTATIONS...", GetName());
 
     std::unique_ptr<TH1> hEventLoss;
 
@@ -282,7 +282,7 @@ class MCTask : public IAnalysisTask
       std::unique_ptr<TH3> h3TotalMap = EfficiencyCalculator::Compute3DTotalMap(data, particleCorrectionMode);
 
       std::string fileMCOutputPerPartPath3D = ccdbOutputDir + outputPrefix + "h3EffMap" + data.name + ".root";
-      std::unique_ptr<TFile> fileMCOutputPerPart3D = RootIO::OpenOrThrow(fileMCOutputPerPartPath3D, "RECREATE", "MCTask");
+      std::unique_ptr<TFile> fileMCOutputPerPart3D = RootIO::OpenOrThrow(fileMCOutputPerPartPath3D, "RECREATE", GetName());
       fileMCOutputPerPart3D->cd();
       h3TotalMap->SetName("ccdb_object");
       h3TotalMap->Write(nullptr, TObject::kOverwrite);
@@ -291,7 +291,7 @@ class MCTask : public IAnalysisTask
       std::unique_ptr<TH2> h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data, particleCorrectionMode);
 
       std::string fileMCOutputPerPartPath2D = ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root";
-      std::unique_ptr<TFile> fileMCOutputPerPart2D = RootIO::OpenOrThrow(fileMCOutputPerPartPath2D, "RECREATE", "MCTask");
+      std::unique_ptr<TFile> fileMCOutputPerPart2D = RootIO::OpenOrThrow(fileMCOutputPerPartPath2D, "RECREATE", GetName());
       fileMCOutputPerPart2D->cd();
       h2TotalMapMultInt->SetName("ccdb_object");
       h2TotalMapMultInt->Write(nullptr, TObject::kOverwrite);
@@ -302,7 +302,7 @@ class MCTask : public IAnalysisTask
       std::unique_ptr<TH2> h2TotalMapMultIntRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2TotalMapMultInt.get(), "h2EffMapRelError" + data.name);
 
       std::string fileMCOutputPerPartErrorPath2D = ccdbOutputDir + outputPrefix + "h2EffMapError" + data.name + ".root";
-      std::unique_ptr<TFile> fileMCOutputPerPartError2D = RootIO::OpenOrThrow(fileMCOutputPerPartErrorPath2D, "RECREATE", "MCTask");
+      std::unique_ptr<TFile> fileMCOutputPerPartError2D = RootIO::OpenOrThrow(fileMCOutputPerPartErrorPath2D, "RECREATE", GetName());
       fileMCOutputPerPartError2D->cd();
       // h2TotalMapMultIntError->SetName("ccdb_object");
       if (h2TotalMapMultIntError)
@@ -366,7 +366,7 @@ class MCTask : public IAnalysisTask
           auto collapse = [&](TH1* h) {
             const auto [integral, error] = HistogramUtils::IntegralAndErrorPair(h, multBinning.front(), multBinning.back());
             auto c = std::make_unique<TH1D>("", "", 1, 0., 1.);
-            c->SetDirectory(0);
+            c->SetDirectory(nullptr);
             c->Sumw2();
             c->SetBinContent(1, integral);
             c->SetBinError(1, error);
@@ -382,7 +382,7 @@ class MCTask : public IAnalysisTask
           evLossErr = integrated->GetBinError(1);
         }
         if (evLoss <= 0.) {
-          Logger::Warn("MCTask: event loss is zero for {}, signal loss over event loss skipped.", data.name);
+          Logger::Warn("{}: event loss is zero for {}, signal loss over event loss skipped.", GetName(), data.name);
           return;
         }
 
@@ -395,7 +395,7 @@ class MCTask : public IAnalysisTask
           const std::string baseName = signalLoss->GetName();
 
           std::unique_ptr<TH1> hEvLossConst{static_cast<TH1*>(signalLoss->Clone((baseName + "_evLossConst").c_str()))};
-          hEvLossConst->SetDirectory(0);
+          hEvLossConst->SetDirectory(nullptr);
           hEvLossConst->Reset();
           for (int b = 1; b <= hEvLossConst->GetNbinsX(); b++) {
             hEvLossConst->SetBinContent(b, evLoss);
@@ -404,7 +404,7 @@ class MCTask : public IAnalysisTask
 
           std::unique_ptr<TH1> ratio{static_cast<TH1*>(signalLoss->Clone((baseName + "_overEvLoss").c_str()))};
           ratio->GetYaxis()->SetTitle("Signal Loss / Event Loss");
-          ratio->SetDirectory(0);
+          ratio->SetDirectory(nullptr);
           ratio->Divide(hEvLossConst.get());
 
           canvas->cd();
@@ -457,7 +457,7 @@ class MCTask : public IAnalysisTask
 
   void Terminate() override
   {
-    Logger::Info("MCTask: TERMINATING AND CLEANING UP...");
+    Logger::Info("{}: TERMINATING AND CLEANING UP...", GetName());
 
     // The pT binning of every correction is carried by its own axis, so the
     // consumer can verify it by reading it. The multiplicity binning is not: it
@@ -476,7 +476,7 @@ class MCTask : public IAnalysisTask
     if (fileMCOutput)
       fileMCOutput->Close();
 
-    Logger::Info("MCTask: DONE.");
+    Logger::Info("{}: DONE.", GetName());
   }
 
  private:

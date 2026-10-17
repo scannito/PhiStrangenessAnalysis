@@ -26,7 +26,7 @@ class BaseConfigManager
   {
     std::unique_ptr<FILE, int (*)(FILE*)> fp(fopen(jsonPath.c_str(), "rb"), &fclose);
     if (!fp) {
-      throw std::runtime_error(std::format("[FATAL ERROR] {}: Cannot open configuration file at path: {}",
+      throw std::runtime_error(std::format("[FATAL] {}: Cannot open configuration file at path: {}",
                                            managerName, jsonPath));
     }
 
@@ -39,12 +39,12 @@ class BaseConfigManager
 
     // Check for parsing errors and validate the JSON structure.
     if (document.HasParseError()) {
-      throw std::runtime_error(std::format("[FATAL ERROR] {}: JSON Syntax Error! Code: {}",
+      throw std::runtime_error(std::format("[FATAL] {}: JSON Syntax Error! Code: {}",
                                            managerName, static_cast<int>(document.GetParseError())));
     }
 
     if (!document.IsObject()) {
-      throw std::runtime_error(std::format("[FATAL ERROR] {}: Invalid JSON structure. Root element must be a JSON Object!",
+      throw std::runtime_error(std::format("[FATAL] {}: Invalid JSON structure. Root element must be a JSON Object!",
                                            managerName));
     }
 

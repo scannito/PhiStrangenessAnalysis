@@ -643,7 +643,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // the error below instead of being used as a histogram.
       if (auto hTemp = dynamic_cast<TH1*>(evLossDir->Get("hEventLoss"))) {
         hEventLoss.reset(static_cast<TH1*>(hTemp->Clone("hEventLoss")));
-        hEventLoss->SetDirectory(0);
+        hEventLoss->SetDirectory(nullptr);
       } else
         throw std::runtime_error("[FATAL] 'event_loss' requested but 'hEventLoss' not found, or it is not a histogram!");
     }
@@ -684,7 +684,7 @@ class CorrelationTaskBase : public IAnalysisTask
       std::unique_ptr<TH1> hRes(static_cast<TH1*>(hEff ? hEff->Clone(name.c_str()) : hLoss->Clone(name.c_str())));
       if (hEff && hLoss)
         hRes->Multiply(hLoss);
-      hRes->SetDirectory(0);
+      hRes->SetDirectory(nullptr);
 
       return hRes;
     };
@@ -730,7 +730,7 @@ class CorrelationTaskBase : public IAnalysisTask
       correctionCollection[name] = std::move(corr);
     }
 
-    Logger::Info("CorrelationTask: Efficiencies loaded successfully.");
+    Logger::Info("{}: Efficiencies loaded successfully.", GetName());
   }
 
   // -------------------------------------------------------------------------
@@ -967,7 +967,7 @@ class CorrelationTaskBase : public IAnalysisTask
         std::string hTitle = std::format("Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
         std::unique_ptr<TH1F> hTrend = std::make_unique<TH1F>(hName.c_str(), hTitle.c_str(), BinningUtils::NBins(multBinning), multBinning.data());
-        hTrend->SetDirectory(0);
+        hTrend->SetDirectory(nullptr);
         h1MultTrends[pIdx].push_back(std::move(hTrend));
 
         if (doExtrapForThis) {
@@ -975,7 +975,7 @@ class CorrelationTaskBase : public IAnalysisTask
           std::string hExtrapTitle = std::format("Extrapolated Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
           std::unique_ptr<TH1F> hTrendExtrap = std::make_unique<TH1F>(hExtrapName.c_str(), hExtrapTitle.c_str(), BinningUtils::NBins(multBinning), multBinning.data());
-          hTrendExtrap->SetDirectory(0);
+          hTrendExtrap->SetDirectory(nullptr);
           h1MultTrendsExtrap[pIdx].push_back(std::move(hTrendExtrap));
         }
 
@@ -1098,7 +1098,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
     std::string extName = std::string(hSpec->GetName()) + "_extended";
     std::unique_ptr<TH1> hSpecExt = std::make_unique<TH1D>(extName.c_str(), extName.c_str(), extBinning.size() - 1, extBinning.data());
-    hSpecExt->SetDirectory(0);
+    hSpecExt->SetDirectory(nullptr);
 
     // 6. Copy measured contents (shifted by 1 bin to the right)
     for (int b = 1; b <= hSpec->GetNbinsX(); ++b) {
@@ -1358,7 +1358,7 @@ class CorrelationTaskBase : public IAnalysisTask
             if (j == 0) {
               std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, i, k));
               h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
-              h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
+              h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(nullptr);
             } else {
               h1PhiAssocNoPtPhi[pIdx][i][k]->Add(h1FinalSignal.get());
             }

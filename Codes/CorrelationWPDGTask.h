@@ -21,7 +21,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    Logger::Info("CorrelationWPDGTask: INITIALIZING...");
+    Logger::Info("{}: INITIALIZING...", GetName());
 
     InitCommonFlags(taskConfig, globalSettings);
 
@@ -30,14 +30,14 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     // 2. Load Data
 
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
-    std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", "CorrelationWPDGTask");
+    std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", GetName());
 
     basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
 
     if (!isPureGen) {
-      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", "CorrelationWPDGTask");
+      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", GetName());
     } else {
-      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiMCClosureGen", "CorrelationWPDGTask");
+      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiMCClosureGen", GetName());
     }
 
     // Checked here rather than left to the guard in GenerateSpectraAndTrends, which is
@@ -57,12 +57,12 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     InitAssocParticles(taskConfig);
 
     if (!useProjectionCache) {
-      Logger::Info("CorrelationWPDGTask: Cache DISABLED. Loading heavy THnSparse data...");
+      Logger::Info("{}: Cache DISABLED. Loading heavy THnSparse data...", GetName());
 
       std::unique_ptr<TFile> fileDataMEInput{nullptr};
       if (applyME) {
         std::string inputMEFile = JsonConfig::RequireString(taskConfig, "input_me_file", GetName());
-        fileDataMEInput = RootIO::OpenOrThrow(inputMEFile, "READ", "CorrelationWPDGTask");
+        fileDataMEInput = RootIO::OpenOrThrow(inputMEFile, "READ", GetName());
 
         basePathDataME = JsonConfig::RequireString(taskConfig, "base_path_me", GetName());
       }
@@ -71,16 +71,16 @@ class CorrelationWPDGTask : public CorrelationTaskBase
         LoadedAssocData data;
         data.name = config.name;
         std::string baseData = basePathData + config.dirName + "/h5Phi" + config.name;
-        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + (isPureGen ? "ClosureMCGen" : "DataSignal")), "CorrelationWPDGTask");
+        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + (isPureGen ? "ClosureMCGen" : "DataSignal")), GetName());
 
         if (applyME) {
           std::string baseDataME = basePathDataME + config.dirName + "/h5Phi" + config.name;
-          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + (isPureGen ? "ClosureMCGenME" : "DataMESignal")), "CorrelationWPDGTask");
+          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + (isPureGen ? "ClosureMCGenME" : "DataMESignal")), GetName());
         }
         loadedDataCollection.push_back(std::move(data));
       }
     } else {
-      Logger::Info("CorrelationWPDGTask: Cache ENABLED. Skipping THnSparse loading.");
+      Logger::Info("{}: Cache ENABLED. Skipping THnSparse loading.", GetName());
       for (const auto& config : assocParticles) {
         LoadedAssocData data;
         data.name = config.name;
@@ -95,7 +95,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "output_dir_proj", GetName());
     std::string basePathFinal = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     std::string phiSpectraName = basePathFinal + prefix + "PhiAssocSpectra.root";
-    fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", "CorrelationWPDGTask");
+    fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", GetName());
 
     // Same as CorrelationTask, which this used to differ from for no stated reason:
     // this run rewrites its whole scheme directory, so a previous run's objects would
@@ -111,7 +111,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
     for (const auto& p : assocParticles) {
       std::string fName = basePathProj + prefix + "Phi" + p.name + "DataHistograms.root";
-      std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), "CorrelationWPDGTask");
+      std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), GetName());
       filesPhiAssocDataOutput.push_back(std::move(fProj));
     }
 
@@ -162,7 +162,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     std::string phiHistName = std::format("h1PhiTrigger_multBin{}_ptBin{}", multBin, ptPhiBin);
     std::unique_ptr<TH1D> h1PhiTrigger(static_cast<TH1D*>(h3PhiData->ProjectionZ(
       phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
-    h1PhiTrigger->SetDirectory(0);
+    h1PhiTrigger->SetDirectory(nullptr);
 
     // Bins 1..N, so the under/overflow of the third axis is excluded. Deliberate on
     // both paths: outside [0.9, 1.2] is not a phi candidate, and outside |y| < 0.5 is

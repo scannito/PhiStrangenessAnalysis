@@ -34,7 +34,7 @@ class PhiFitTask : public IAnalysisTask
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    Logger::Info("PhiFitTask: INITIALIZING...");
+    Logger::Info("{}: INITIALIZING...", GetName());
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
@@ -49,11 +49,11 @@ class PhiFitTask : public IAnalysisTask
     provenance.insert(runEnv.begin(), runEnv.end());
 
     // 1. Input Configuration
-    std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", "PhiFitTask");
-    std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", "PhiFitTask");
+    std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
+    std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", GetName());
 
-    basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", "PhiFitTask");
-    h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", "PhiFitTask");
+    basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
+    h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", GetName());
 
     // The binning comes from the file, never from the configuration: the loops
     // below address these very bins. h3PhiData axes: (mult, pT, invariant mass).
@@ -62,7 +62,7 @@ class PhiFitTask : public IAnalysisTask
     ptPhiBinning = globalCfgs.ResolvePtBinning("Phi", h3PhiData->GetYaxis(), origin);
 
     // 2. Fit Configuration
-    std::string fitCfgPath = JsonConfig::RequireString(taskConfig, "fit_config_file", "PhiFitTask");
+    std::string fitCfgPath = JsonConfig::RequireString(taskConfig, "fit_config_file", GetName());
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
 
     // A snapshot, not a path: this is the file being edited while the fits are
@@ -70,11 +70,11 @@ class PhiFitTask : public IAnalysisTask
     provenance["fit_config"] = JsonConfig::ReadFileText(fitCfgPath);
 
     // 3. Output Configuration
-    std::string basePathProj = JsonConfig::RequireString(taskConfig, "output_dir_proj", "PhiFitTask");
-    std::string prefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", "PhiFitTask");
+    std::string basePathProj = JsonConfig::RequireString(taskConfig, "output_dir_proj", GetName());
+    std::string prefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
 
     std::string phiDataName = basePathProj + prefix + "PhiDataHistograms.root";
-    filePhiDataOutput = RootIO::OpenOrThrow(phiDataName, "RECREATE", "PhiFitTask");
+    filePhiDataOutput = RootIO::OpenOrThrow(phiDataName, "RECREATE", GetName());
 
     // Real bin edges on both axes, not 0..N counters: these matrices cross the
     // boundary to CorrelationTask, and with index axes the association to a pT
@@ -85,7 +85,7 @@ class PhiFitTask : public IAnalysisTask
       auto h = std::make_unique<TH2D>(name, (title + axesTitles).c_str(),
                                       BinningUtils::NBins(multBinning), multBinning.data(),
                                       BinningUtils::NBins(ptPhiBinning), ptPhiBinning.data());
-      h->SetDirectory(0);
+      h->SetDirectory(nullptr);
       return h;
     };
 
@@ -97,11 +97,11 @@ class PhiFitTask : public IAnalysisTask
 
   void Run() override
   {
-    Logger::Info("PhiFitTask: RUNNING TRIGGER SIGNAL EXTRACTION...");
+    Logger::Info("{}: RUNNING TRIGGER SIGNAL EXTRACTION...", GetName());
 
     TDirectory* fitDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Fits"}, false);
     if (!fitDir) {
-      throw std::runtime_error(std::format("[FATAL] PhiFitTask: Cannot create the '{}/Fits' directory in the output file.",
+      throw std::runtime_error(std::format("[FATAL] {}: Cannot create the '{}/Fits' directory in the output file.", GetName(),
                                            globalCfgs.binningName));
     }
 
@@ -109,7 +109,7 @@ class PhiFitTask : public IAnalysisTask
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
         std::string phiHistName = std::format("h1PhiData_multBin{}_ptBin{}", i, j);
         std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), i + 1, i + 1, j + 1, j + 1)));
-        h1PhiData->SetDirectory(0);
+        h1PhiData->SetDirectory(nullptr);
 
         // Fetch configuration dynamically from JSON
         FitConfig cfg = fitConfigManager->GetConfig(kFitSection, i, j);
@@ -146,13 +146,13 @@ class PhiFitTask : public IAnalysisTask
 
   void Terminate() override
   {
-    Logger::Info("PhiFitTask: TERMINATING...");
+    Logger::Info("{}: TERMINATING...", GetName());
 
     TDirectory* summaryDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Summary"}, false);
     if (!summaryDir) {
-      throw std::runtime_error(std::format("[FATAL] PhiFitTask: Cannot create the '{}/Summary' directory in the output "
+      throw std::runtime_error(std::format("[FATAL] {}: Cannot create the '{}/Summary' directory in the output "
                                            "file. Trigger yields would be lost!",
-                                           globalCfgs.binningName));
+                                           GetName(), globalCfgs.binningName));
     }
     summaryDir->cd();
 
@@ -169,7 +169,7 @@ class PhiFitTask : public IAnalysisTask
     if (filePhiDataOutput)
       filePhiDataOutput->Close();
 
-    Logger::Info("PhiFitTask: DONE.");
+    Logger::Info("{}: DONE.", GetName());
   }
 
  private:

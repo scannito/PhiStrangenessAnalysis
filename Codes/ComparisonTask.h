@@ -67,7 +67,7 @@ class ComparisonTask : public IAnalysisTask
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
-    Logger::Info("ComparisonTask: INITIALIZING...");
+    Logger::Info("{}: INITIALIZING...", GetName());
 
     globalCfgs = globalSettings;
 
@@ -216,7 +216,7 @@ class ComparisonTask : public IAnalysisTask
     const auto& runEnv = RunEnvironment::Facts();
     provenance.insert(runEnv.begin(), runEnv.end());
 
-    Logger::Info("ComparisonTask: {} comparison(s) configured.", comparisons.size());
+    Logger::Info("{}: {} comparison(s) configured.", GetName(), comparisons.size());
   }
 
   void Run() override
@@ -232,13 +232,13 @@ class ComparisonTask : public IAnalysisTask
         RunRatios();
         break;
       default:
-        throw std::runtime_error("[FATAL] ComparisonTask: Unknown target!");
+        throw std::runtime_error(std::format("[FATAL] {}: Unknown target!", GetName()));
     }
   }
 
   void Terminate() override
   {
-    Logger::Info("ComparisonTask: TERMINATING AND CLEANING UP...");
+    Logger::Info("{}: TERMINATING AND CLEANING UP...", GetName());
 
     RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileOutput.get(), {"Provenance"}, false), provenance);
 
@@ -246,7 +246,7 @@ class ComparisonTask : public IAnalysisTask
       fileOutput->Close();
     }
 
-    Logger::Info("ComparisonTask: DONE.");
+    Logger::Info("{}: DONE.", GetName());
   }
 
  private:

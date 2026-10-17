@@ -98,7 +98,7 @@ inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
 
   if (hProjection) {
     hProjection->SetName(histName.c_str());
-    hProjection->SetDirectory(0);
+    hProjection->SetDirectory(nullptr);
     // THnSparse::Projection already propagates the errors when the sparse
     // stores them, so the projection usually comes with Sumw2 already set.
     // Calling it again is a no-op that only prints a warning.
@@ -122,10 +122,10 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
   // Checked before the subtraction below: size() is unsigned, so on an empty
   // span size() - 1 would wrap around instead of failing the comparison.
   if (binsVec.size() < 2) {
-    throw std::runtime_error("ConstructSpectrum: the binning needs at least two edges");
+    throw std::runtime_error("[FATAL] ConstructSpectrum: the binning needs at least two edges");
   }
   if (binsVec.size() - 1 != hContainer.size()) {
-    throw std::runtime_error("Size of histogram container must be equal to number of bins - 1");
+    throw std::runtime_error("[FATAL] ConstructSpectrum: the number of histograms must be the number of bins, edges - 1");
   }
 
   std::unique_ptr<TH1> hSpectrum = std::make_unique<TH1D>(histName.c_str(), "; p_{T} (GeV/#it{c}); 1/N_{trig} d^{2}N/dp_{T}d#Deltay", binsVec.size() - 1, binsVec.data());
@@ -138,7 +138,7 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
     hSpectrum->SetBinError(i + 1, binError / normalizationFactor);
   }
 
-  hSpectrum->SetDirectory(0);
+  hSpectrum->SetDirectory(nullptr);
 
   return hSpectrum;
 }
@@ -216,7 +216,7 @@ inline std::unique_ptr<TH1> MakeRatioHist(TH1* num, TH1* den, const std::string&
 {
   std::unique_ptr<TH1> h(static_cast<TH1*>(num->Clone(name.c_str())));
   h->SetTitle(title.c_str());
-  h->SetDirectory(0);
+  h->SetDirectory(nullptr);
   h->Divide(num, den, numScale, denScale, option);
   return h;
 }

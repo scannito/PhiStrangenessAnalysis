@@ -125,12 +125,12 @@ class CorrelationCalculator
       if (!ioDir)
         throw std::runtime_error("[FATAL] Cache mode requested but no ioDir provided!");
 
-      h2Signal = RootIO::GetUniqueOrThrow<TH2>(ioDir, nameSig2D, "CorrelationTask");
-      h2Sideband = RootIO::GetUniqueOrWarn<TH2>(ioDir, nameSb2D, "CorrelationTask");
+      h2Signal = RootIO::GetUniqueOrThrow<TH2>(ioDir, nameSig2D, "CorrelationCalculator");
+      h2Sideband = RootIO::GetUniqueOrWarn<TH2>(ioDir, nameSb2D, "CorrelationCalculator");
 
       if (applyME) {
-        h2MESignal = RootIO::GetUniqueOrThrow<TH2>(ioDir, nameMESig2D, "CorrelationTask");
-        h2MESideband = RootIO::GetUniqueOrWarn<TH2>(ioDir, nameMESb2D, "CorrelationTask");
+        h2MESignal = RootIO::GetUniqueOrThrow<TH2>(ioDir, nameMESig2D, "CorrelationCalculator");
+        h2MESideband = RootIO::GetUniqueOrWarn<TH2>(ioDir, nameMESb2D, "CorrelationCalculator");
       }
     } else {
       std::vector<int> projAxes = {kAxisDeltaY, kAxisDeltaPhi}; // Y = Delta y, X = Delta Phi
@@ -166,7 +166,7 @@ class CorrelationCalculator
     // 2. ME normalization (if requested)
     if (applyME) {
       std::unique_ptr<TH1> h1MEProjY(static_cast<TH1*>(h2MESignal->ProjectionY("tempMEProjY_Sig")));
-      h1MEProjY->SetDirectory(0);
+      h1MEProjY->SetDirectory(nullptr);
 
       double a0_Sig = GetZeroAvgFromFit(h1MEProjY.get());
       double nBinsPhi_Sig = h2MESignal->GetNbinsX();
@@ -177,7 +177,7 @@ class CorrelationCalculator
 
       if (h2MESideband) {
         std::unique_ptr<TH1> h1MEProjY_Sb(static_cast<TH1*>(h2MESideband->ProjectionY("tempMEProjY_Sb")));
-        h1MEProjY_Sb->SetDirectory(0);
+        h1MEProjY_Sb->SetDirectory(nullptr);
 
         double a0_Sb = GetZeroAvgFromFit(h1MEProjY_Sb.get());
         double nBinsPhi_Sb = h2MESideband->GetNbinsX();
@@ -214,23 +214,23 @@ class CorrelationCalculator
 
       // QA: X axis (Delta Phi)
       std::unique_ptr<TH1> h1QA_X_Sig(h2Signal->ProjectionX((histNameBase + "Signal1D_dPhi_Uncut").c_str()));
-      h1QA_X_Sig->SetDirectory(0);
+      h1QA_X_Sig->SetDirectory(nullptr);
       std::unique_ptr<TH1> h1QA_X_Sb = h2Sideband ? std::unique_ptr<TH1>(h2Sideband->ProjectionX((histNameBase + "Sideband1D_dPhi_Uncut").c_str())) : nullptr;
       if (h1QA_X_Sb)
-        h1QA_X_Sb->SetDirectory(0);
+        h1QA_X_Sb->SetDirectory(nullptr);
       std::unique_ptr<TH1> h1QA_X_Final(static_cast<TH1*>(h1QA_X_Sig->Clone((histNameBase + "Final_dPhi_Uncut").c_str())));
-      h1QA_X_Final->SetDirectory(0);
+      h1QA_X_Final->SetDirectory(nullptr);
       if (h1QA_X_Sb && triggerBkgRatio > 0)
         h1QA_X_Final->Add(h1QA_X_Sb.get(), -1);
 
       // QA: Y axis (Delta y)
       std::unique_ptr<TH1> h1QA_Y_Sig(h2Signal->ProjectionY((histNameBase + "Signal1D_dy_Uncut").c_str()));
-      h1QA_Y_Sig->SetDirectory(0);
+      h1QA_Y_Sig->SetDirectory(nullptr);
       std::unique_ptr<TH1> h1QA_Y_Sb = h2Sideband ? std::unique_ptr<TH1>(h2Sideband->ProjectionY((histNameBase + "Sideband1D_dy_Uncut").c_str())) : nullptr;
       if (h1QA_Y_Sb)
-        h1QA_Y_Sb->SetDirectory(0);
+        h1QA_Y_Sb->SetDirectory(nullptr);
       std::unique_ptr<TH1> h1QA_Y_Final(static_cast<TH1*>(h1QA_Y_Sig->Clone((histNameBase + "Final_dy_Uncut").c_str())));
-      h1QA_Y_Final->SetDirectory(0);
+      h1QA_Y_Final->SetDirectory(nullptr);
       if (h1QA_Y_Sb && triggerBkgRatio > 0)
         h1QA_Y_Final->Add(h1QA_Y_Sb.get(), -1);
 
@@ -238,7 +238,7 @@ class CorrelationCalculator
         TH1* targetQA = (targetAxis == AxisTarget::DeltaPhi_X) ? h1QA_X_Final.get() : h1QA_Y_Final.get();
 
         h1Final1D.reset(static_cast<TH1*>(targetQA->Clone((histNameBase + "Final" + ((targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy")).c_str())));
-        h1Final1D->SetDirectory(0);
+        h1Final1D->SetDirectory(nullptr);
       }
 
       h1QA_X_Sig->Write();
@@ -276,18 +276,18 @@ class CorrelationCalculator
       std::unique_ptr<TH1> h1Sig1D = (targetAxis == AxisTarget::DeltaPhi_X)
                                        ? std::unique_ptr<TH1>(h2Signal->ProjectionX((histNameBase + "Signal1D_dPhi").c_str()))
                                        : std::unique_ptr<TH1>(h2Signal->ProjectionY((histNameBase + "Signal1D_dy").c_str()));
-      h1Sig1D->SetDirectory(0);
+      h1Sig1D->SetDirectory(nullptr);
 
       std::unique_ptr<TH1> h1Side1D;
       if (h2Sideband) {
         h1Side1D = (targetAxis == AxisTarget::DeltaPhi_X)
                      ? std::unique_ptr<TH1>(h2Sideband->ProjectionX((histNameBase + "Sideband1D_dPhi").c_str()))
                      : std::unique_ptr<TH1>(h2Sideband->ProjectionY((histNameBase + "Sideband1D_dy").c_str()));
-        h1Side1D->SetDirectory(0);
+        h1Side1D->SetDirectory(nullptr);
       }
 
       h1Final1D.reset(static_cast<TH1*>(h1Sig1D->Clone((histNameBase + "Final" + ((targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy")).c_str())));
-      h1Final1D->SetDirectory(0);
+      h1Final1D->SetDirectory(nullptr);
       if (h1Side1D && triggerBkgRatio > 0) {
         h1Final1D->Add(h1Side1D.get(), -1);
       }
@@ -323,12 +323,12 @@ class CorrelationCalculator
       if (!ioDir)
         throw std::runtime_error("[FATAL] Cache mode requested but no ioDir provided!");
 
-      h1Signal = RootIO::GetUniqueOrThrow<TH1>(ioDir, histNameBase + "Signal", "CorrelationTask");
-      h1Sideband = RootIO::GetUniqueOrWarn<TH1>(ioDir, histNameBase + "Sideband", "CorrelationTask");
+      h1Signal = RootIO::GetUniqueOrThrow<TH1>(ioDir, histNameBase + "Signal", "CorrelationCalculator");
+      h1Sideband = RootIO::GetUniqueOrWarn<TH1>(ioDir, histNameBase + "Sideband", "CorrelationCalculator");
 
       if (applyME) {
-        h1MESignal = RootIO::GetUniqueOrThrow<TH1>(ioDir, histNameBase + "MESignal", "CorrelationTask");
-        h1MESideband = RootIO::GetUniqueOrWarn<TH1>(ioDir, histNameBase + "MESideband", "CorrelationTask");
+        h1MESignal = RootIO::GetUniqueOrThrow<TH1>(ioDir, histNameBase + "MESignal", "CorrelationCalculator");
+        h1MESideband = RootIO::GetUniqueOrWarn<TH1>(ioDir, histNameBase + "MESideband", "CorrelationCalculator");
       }
     } else {
       if (!data.h5DataSignal)
@@ -383,7 +383,7 @@ class CorrelationCalculator
 
     // 4. Final Subtraction
     std::unique_ptr<TH1> h1FinalSignal(static_cast<TH1*>(h1Signal->Clone(histNameBase.c_str())));
-    h1FinalSignal->SetDirectory(0);
+    h1FinalSignal->SetDirectory(nullptr);
     if (h1Sideband && triggerBkgRatio > 0)
       h1FinalSignal->Add(h1Sideband.get(), -1);
 
