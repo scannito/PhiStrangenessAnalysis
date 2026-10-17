@@ -139,6 +139,9 @@ Parsing rules. Each one throws, with the key and what to write instead:
 - `event_loss` is required inside `corrections`; `mult` is required inside `acceptance_efficiency`, read with
   `ResolveEnum` so that "Available: binned, integrated" comes from the same table. Both change a number.
 - `signal_loss` is a `bool`, since it has no option; `true` reads better than `{}`.
+- `particles` is required (`JsonConfig::RequireObject`, added for it on 17 October): `{}` when only the event loss
+  is applied, absent is an error, because absent could be a child block that replaced `corrections` and
+  forgot its particles. First written as `TryObject` plus a hand-written throw, which read as optional.
 - Every entry of `particles` activates at least one correction (not correcting a particle is done by not
   listing it), and the block as a whole activates at least one. A name must be `Phi` or one of the
   `associated_particles`.
@@ -185,8 +188,10 @@ and the easier a change of format becomes one day.
   (`h1Corrected_<p>_multInt<i>` for the integrated variant, `..._multBin<i>` otherwise), so nothing
   that could reach an output changed name.
 - The run log lists, per particle, what is corrected ("K0S corrected for acceptance x efficiency (per
-  multiplicity class)."), and whether the event loss is applied: the configuration in force is
-  readable from the log as well as from the provenance.
+  multiplicity class)."), every particle of the analysis that is not listed ("Phi not corrected here (not
+  listed in \"corrections\")", added on 17 October: a particle left out by mistake would otherwise show only as a
+  missing line; `Info`, not `Warn`, since leaving it out is how a configuration asks for it), and whether the
+  event loss is applied: the configuration in force is readable from the log as well as from the provenance.
 
 ## Corrections read as TH1, not TH1F
 
@@ -235,7 +240,9 @@ changing one thing, all stop at initialisation with their message: an old key (`
 `input_efficiency_file`), `particles` or `event_loss` missing, `"corrections": "none"`, an unknown
 particle (`Lambda`, not among the associated), a misspelled key (`signal_los`), `"mult": "binnned"`,
 an empty particle entry, a block that applies nothing, `feed_down` on the K0S ("does not apply"),
-`primary_fraction` on the π ("not implemented yet").
+`primary_fraction` on the π ("not implemented yet"). On 17 October, with `RequireObject`: `particles` absent
+and `particles: []` stop, `"particles": {}` with `"event_loss": true` runs to the end applying the event loss
+only (the log lists no particle).
 
 *The new path: run.* `"mult": "binned"` had never run, since every configuration uses `integrated`.
 The same task with the K0S switched to binned: the K0S spectra, trends and ratios change (trends by up

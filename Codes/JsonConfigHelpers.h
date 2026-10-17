@@ -166,6 +166,17 @@ inline auto RequireArray(const rapidjson::Value& node, const char* key, std::str
   return ToArray(RequireMember(node, key, errCtx), key, errCtx);
 }
 
+// The node and not a ConstObject, as TryObject returns, and for the same reason: the
+// accessors in this header take a Value. An empty object is a value like any other:
+// "absent" and "empty" are different statements, and only absent is an error here.
+inline const rapidjson::Value& RequireObject(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  const auto& val = RequireMember(node, key, errCtx);
+  if (!val.IsObject())
+    throw std::runtime_error(std::format("[FATAL] {}: key '{}' exists but is NOT an object!", errCtx, key));
+  return val;
+}
+
 // ---------------------------------------------------------------------------
 // Optional keys
 // ---------------------------------------------------------------------------

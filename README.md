@@ -253,7 +253,7 @@ one particle: see `DESIGN_NOTES.md` section 13). A particle that is not listed i
 "corrections_file": "../DataFile/pp/DeltaY/Corrections/2024_Corrections.root",
 "corrections": {
   "event_loss": true,                                   // required; per event, not per particle
-  "particles": {                                        // "Phi" or one of associated_particles
+  "particles": {                                        // required; "Phi" or one of associated_particles, {} for none
     "Phi": { "acceptance_efficiency": { "mult": "integrated" }, "signal_loss": true },
     "K0S": { "acceptance_efficiency": { "mult": "binned" } }
   }
@@ -268,6 +268,9 @@ one particle: see `DESIGN_NOTES.md` section 13). A particle that is not listed i
 | `signal_loss` | optional | `true`; always per multiplicity class. |
 | `feed_down`, `primary_fraction` | — | Reserved for Λ/Λ̄ and π; not implemented, so they stop the run. |
 
+`particles` is required: `{}` when only the event loss is applied here (for instance when the
+efficiency and the signal loss of every particle are applied online, with a `combined` map), since
+an absent key could equally be a block that replaced `corrections` and forgot its particles.
 Every entry applies at least one correction, and the block as a whole at least one; unknown
 keys inside the block stop the run instead of being ignored. `"corrections": null` is how a
 block that inherits corrections switches them off, since `inherits` cannot remove a key

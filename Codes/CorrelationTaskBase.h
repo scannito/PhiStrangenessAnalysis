@@ -535,11 +535,11 @@ class CorrelationTaskBase : public IAnalysisTask
     cfg.file = JsonConfig::RequireString(taskConfig, "corrections_file", GetName());
     cfg.eventLoss = JsonConfig::RequireBool(*node, "event_loss", ctx);
 
-    const rapidjson::Value* particles = JsonConfig::TryObject(*node, "particles", ctx);
-    if (!particles)
-      throw std::runtime_error(std::format("[FATAL] {}: 'particles' missing (an empty object if only the event loss is applied).", ctx));
+    // Required, and {} when only the event loss is applied here: absent could equally be a
+    // child block that replaced "corrections" and forgot its particles.
+    const rapidjson::Value& particles = JsonConfig::RequireObject(*node, "particles", ctx);
 
-    for (const auto& member : particles->GetObject()) {
+    for (const auto& member : particles.GetObject()) {
       const std::string name = member.name.GetString();
       const std::string pctx = std::format("{}.particles.{}", ctx, name);
 
@@ -594,6 +594,15 @@ class CorrelationTaskBase : public IAnalysisTask
         what += what.empty() ? "signal loss" : " + signal loss";
       Logger::Info("{}: {} corrected for {}.", GetName(), name, what);
     }
+    // Every particle of the analysis gets a line, the uncorrected ones too: a particle left
+    // out by mistake would otherwise show only as a line that is missing. Info and not Warn,
+    // since not listing a particle is how the configuration asks for it (the no_phi blocks).
+    std::vector<std::string> analysed{"Phi"};
+    for (const auto& p : assocParticles)
+      analysed.push_back(p.name);
+    for (const auto& name : analysed)
+      if (!cfg.perParticle.contains(name))
+        Logger::Info("{}: {} not corrected here (not listed in \"corrections\").", GetName(), name);
     Logger::Info("{}: Event loss {}.", GetName(), cfg.eventLoss ? "applied" : "not applied");
 
     corrections = std::move(cfg);
