@@ -204,7 +204,9 @@ inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& 
   if (!dir)
     return {};
 
-  auto* raw = static_cast<TH1*>(dir->Get(name.c_str()));
+  // dynamic_cast for the reason given at GetUniqueOrThrow: a stamp that is not a histogram
+  // reads as no stamp, which RequireMatchingBinningStamp reports, instead of a bad pointer.
+  auto* raw = dynamic_cast<TH1*>(dir->Get(name.c_str()));
   if (!raw)
     return {};
 

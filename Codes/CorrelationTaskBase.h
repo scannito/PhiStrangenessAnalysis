@@ -637,11 +637,13 @@ class CorrelationTaskBase : public IAnalysisTask
       if (!evLossDir)
         throw std::runtime_error(std::format("[FATAL] 'event_loss' requested but directory '{}/EvLoss' not found!", globalCfgs.binningName));
 
-      if (auto hTemp = static_cast<TH1*>(evLossDir->Get("hEventLoss"))) {
+      // dynamic_cast, as in RootIO::GetUniqueOrThrow: another class under this name falls to
+      // the error below instead of being used as a histogram.
+      if (auto hTemp = dynamic_cast<TH1*>(evLossDir->Get("hEventLoss"))) {
         hEventLoss.reset(static_cast<TH1*>(hTemp->Clone("hEventLoss")));
         hEventLoss->SetDirectory(0);
       } else
-        throw std::runtime_error("[FATAL] 'event_loss' requested but 'hEventLoss' not found!");
+        throw std::runtime_error("[FATAL] 'event_loss' requested but 'hEventLoss' not found, or it is not a histogram!");
     }
 
     // LAMBDA HELPER 1: Load the histogram and throw an error if missing
