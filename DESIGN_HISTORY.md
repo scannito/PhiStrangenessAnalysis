@@ -249,6 +249,11 @@ The same task with the K0S switched to binned: the K0S spectra, trends and ratio
 to 2.4%), nothing else does, with one exception recorded in `DESIGN_NOTES.md` section 5: the errors of
 the extrapolated trends of Pi and Xi move at the 1e-12 relative level.
 
+*Repeated after the follow-ups.* On 17 October the same three configurations were run again at `16c1252`
+(after `RequireObject`, the "not corrected here" log lines and the signal-loss flag) and compared with the
+same baseline: the same 50 files and 43,730 objects, identical, no file more or less, identical warning
+summaries.
+
 *Not checked.* `mcclosure` (configuration broken), the pp_ref configurations and `Datapp_OnlineEffonly`
 by running (by the equivalence script only), the interpreted mode, and anything with
 `"mult": "binned"` beyond the one task above.
