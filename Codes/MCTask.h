@@ -107,8 +107,11 @@ class MCTask : public IAnalysisTask
     // dirName defaults to the lowercased particle name ("dir_name" overrides it).
     // Each entry may specify its own "input_mc_file" — useful when different
     // species live in different MC production files (e.g. K0S vs Xi vs Pi).
+    int pIdx = 0;
     for (const auto& p : particles) {
-      std::string name = p["name"].GetString();
+      const std::string ctx = std::format("{} mc_particles[{}]", GetName(), pIdx++);
+      JsonConfig::RequireKnownKeys(p, {"name", "dir_name", "input_mc_file", "rebinning_pt"}, ctx);
+      std::string name = JsonConfig::RequireString(p, "name", ctx);
 
       // Default: the particle name lowercased, which is how the O2 task names
       // its output directories. Override it when several species share one

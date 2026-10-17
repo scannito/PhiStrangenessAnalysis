@@ -215,10 +215,13 @@ class CorrelationTask : public CorrelationTaskBase
 
     purityCollection.clear();
 
+    int srcIdx = 0;
     for (const auto& src : puritySources) {
-      std::string name = src["name"].GetString();
-      std::string purityKey = src["purity_key"].GetString();
-      std::string fileSuffix = src["file_suffix"].GetString();
+      const std::string ctx = std::format("{} purity_sources[{}]", GetName(), srcIdx++);
+      JsonConfig::RequireKnownKeys(src, {"name", "purity_key", "file_suffix"}, ctx);
+      std::string name = JsonConfig::RequireString(src, "name", ctx);
+      std::string purityKey = JsonConfig::RequireString(src, "purity_key", ctx);
+      std::string fileSuffix = JsonConfig::RequireString(src, "file_suffix", ctx);
       std::string purityFilePath = purityDir + purityPrefix + fileSuffix;
 
       LoadedPurity purity;

@@ -445,6 +445,7 @@ class CorrelationTaskBase : public IAnalysisTask
         // The index is in the context because the entries have no name of their
         // own: without it a missing key only says "somewhere in yield_ratios".
         const std::string ctx = std::format("{} yield_ratios[{}]", GetName(), idx++);
+        JsonConfig::RequireKnownKeys(r, {"numerator", "denominator", "label"}, ctx);
 
         YieldRatioConfig ratio;
         ratio.num = JsonConfig::RequireString(r, "numerator", ctx);
@@ -471,6 +472,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // The index is in the context because a missing 'name' leaves nothing else to
       // identify the entry by.
       const std::string ctx = std::format("{} associated_particles[{}]", GetName(), idx++);
+      JsonConfig::RequireKnownKeys(sp, {"name", "dir_name"}, ctx);
 
       std::string name = JsonConfig::RequireString(sp, "name", ctx);
 

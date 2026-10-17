@@ -28,6 +28,10 @@ class FitConfigManager : public BaseConfigManager
                                            managerName, particle));
 
     const rapidjson::Value& partNode = document[particle.c_str()];
+    // Every block below has a closed set of keys, so a misspelled one is refused instead
+    // of skipped: a typo in n_sigma_integration would otherwise leave the previous window
+    // in force and change the fit with no word (CLAUDE.md, Configuration).
+    JsonConfig::RequireKnownKeys(partNode, {"observable", "fit_setup"}, std::format("{}: section '{}'", managerName, particle));
 
     // LOAD GLOBAL OBSERVABLE PROPERTIES
     // This is done ONLY ONCE for the particle, completely outside the override logic.
@@ -38,6 +42,7 @@ class FitConfigManager : public BaseConfigManager
     const rapidjson::Value* obs = JsonConfig::TryObject(partNode, "observable", obsCtx);
     if (!obs)
       throw std::runtime_error(std::format("[FATAL] {}: 'observable' missing in JSON!", obsCtx));
+    JsonConfig::RequireKnownKeys(*obs, {"name", "title", "min", "max"}, obsCtx + ".observable");
     config.obs.name = JsonConfig::RequireString(*obs, "name", obsCtx);
     config.obs.title = JsonConfig::OptionalString(*obs, "title", config.obs.title, obsCtx);
     config.obs.min = JsonConfig::RequireDouble(*obs, "min", obsCtx);
@@ -50,12 +55,15 @@ class FitConfigManager : public BaseConfigManager
     //  We now look strictly inside the "fit_setup" block for mathematical models.
     if (const rapidjson::Value* fitSetup = JsonConfig::TryObject(partNode, "fit_setup", managerName)) {
       const auto& fitNode = *fitSetup;
+      JsonConfig::RequireKnownKeys(fitNode, {"default", "bins"}, std::format("{}: section '{}'.fit_setup", managerName, particle));
 
       // Local Lambda function to populate the nested ModelConfig struct
       // Every key is optional because this runs twice, on "default" and then on the
       // bin override, which carries only what it changes. The current value is the
       // fallback, so absent means "keep the previous pass" and never "reset".
       auto loadNodeIntoModel = [&](const rapidjson::Value& node) {
+        JsonConfig::RequireKnownKeys(node, {"sig_model", "bkg_model", "snap_to_bin", "integration_range", "n_sigma_integration", "calculate_purity", "sideband", "params"},
+                                     std::format("{}: section '{}'", managerName, particle));
         config.model.sigModel = JsonConfig::OptionalString(node, "sig_model", config.model.sigModel, managerName);
         config.model.bkgModel = JsonConfig::OptionalString(node, "bkg_model", config.model.bkgModel, managerName);
 
@@ -72,6 +80,7 @@ class FitConfigManager : public BaseConfigManager
         config.integration.calculatePurity = JsonConfig::OptionalBool(node, "calculate_purity", config.integration.calculatePurity, managerName);
 
         if (const rapidjson::Value* sbNode = JsonConfig::TryObject(node, "sideband", managerName)) {
+          JsonConfig::RequireKnownKeys(*sbNode, {"from_fit", "range"}, std::format("{}: section '{}'.sideband", managerName, particle));
           SidebandConfig sb = config.integration.sideband.value_or(SidebandConfig{});
           sb.fromFit = JsonConfig::OptionalBool(*sbNode, "from_fit", sb.fromFit, managerName);
           if (auto r = JsonConfig::TryRange(*sbNode, "range", managerName))

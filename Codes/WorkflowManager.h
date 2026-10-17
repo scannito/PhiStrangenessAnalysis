@@ -207,6 +207,7 @@ class WorkflowManager
       return;
     }
 
+    JsonConfig::RequireKnownKeys(*config, {"binning_name", "multiplicity_binning", "pt_binning"}, "global_binning");
     globalSettings.binningName = JsonConfig::OptionalString(*config, "binning_name", globalSettings.binningName, "global_binning");
 
     // Override multiplicity binning if specified in JSON
@@ -257,7 +258,7 @@ class WorkflowManager
     }
 
     // RECURSIVE CASE: Resolve the parent chain first
-    std::string baseName = currentSrc["inherits"].GetString();
+    std::string baseName = JsonConfig::RequireString(currentSrc, "inherits", taskName);
     rapidjson::Value mergedConfig = MergeTaskConfiguration(baseName);
 
     // Apply the local overrides from the child to the resolved parent

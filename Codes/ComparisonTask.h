@@ -95,6 +95,7 @@ class ComparisonTask : public IAnalysisTask
       // The index is in the context because a missing 'label' leaves nothing else to
       // identify the entry by.
       const std::string ctx = std::format("{} comparisons[{}]", GetName(), idx++);
+      JsonConfig::RequireKnownKeys(c, {"numerator", "denominator", "label", "divide_option", "objects"}, ctx);
 
       Comparison comp;
       comp.numeratorFile = JsonConfig::RequireString(c, "numerator", ctx);
@@ -132,6 +133,7 @@ class ComparisonTask : public IAnalysisTask
         int oIdx = 0;
         for (const auto& o : *objs) {
           const std::string octx = std::format("{} objects[{}]", ctx, oIdx++);
+          JsonConfig::RequireKnownKeys(o, {"numerator", "denominator", "name"}, octx);
 
           ObjectPair pair;
           pair.numeratorPath = JsonConfig::RequireString(o, "numerator", octx);

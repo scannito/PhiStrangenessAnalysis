@@ -69,11 +69,14 @@ class PurityTask : public IAnalysisTask
 
     auto particles = JsonConfig::RequireArray(taskConfig, "purity_particles", "PurityTask");
 
+    int pIdx = 0;
     for (const auto& particle : particles) {
-      std::string name = particle["name"].GetString();
-      std::string purityKey = particle["purity_key"].GetString();
-      std::string histName = particle["hist_name"].GetString();
-      std::string outputFileSuffix = particle["output_file_suffix"].GetString();
+      const std::string ctx = std::format("{} purity_particles[{}]", GetName(), pIdx++);
+      JsonConfig::RequireKnownKeys(particle, {"name", "purity_key", "hist_name", "output_file_suffix", "rebinning_pt"}, ctx);
+      std::string name = JsonConfig::RequireString(particle, "name", ctx);
+      std::string purityKey = JsonConfig::RequireString(particle, "purity_key", ctx);
+      std::string histName = JsonConfig::RequireString(particle, "hist_name", ctx);
+      std::string outputFileSuffix = JsonConfig::RequireString(particle, "output_file_suffix", ctx);
 
       std::unique_ptr<TH3F> h3Source = RootIO::GetUniqueOrThrow<TH3F>(fileInput.get(), histName, "PurityTask");
 

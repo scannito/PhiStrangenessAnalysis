@@ -32,12 +32,15 @@ class ExtrapConfigManager : public BaseConfigManager
     }
 
     const rapidjson::Value& partNode = document[particle.c_str()];
+    // Closed sets of keys, as in FitConfigManager: a misspelled key is refused, not skipped.
+    JsonConfig::RequireKnownKeys(partNode, {"default", "bins"}, std::format("{}: section '{}'", managerName, particle));
 
     // Local Lambda function to populate the config struct dynamically
     // Every key here is optional because this lambda runs twice: once on "default"
     // and once on the bin override, which only carries what it changes. Absent
     // therefore means "keep what the previous pass set", never "reset".
     auto loadNodeIntoConfig = [&](const rapidjson::Value& node) {
+      JsonConfig::RequireKnownKeys(node, {"model", "domain_range", "fit_range", "params"}, std::format("{}: section '{}'", managerName, particle));
       config.model = JsonConfig::OptionalString(node, "model", config.model, managerName);
 
       if (auto range = JsonConfig::TryRange(node, "domain_range", managerName))
