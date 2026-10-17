@@ -129,7 +129,10 @@ block (`DESIGN_HISTORY.md`, *The corrections block*):
 | `RequireKnownKeys` | a block whose whole set of keys is known: a misspelled key stops the run instead of being skipped |
 
 Unknown keys are not rejected in general (`DESIGN_NOTES.md` section 5); the last two close
-that hole where a new structure is introduced. When you replace or rename a key, reject the
+that hole where they can. `RequireKnownKeys` is on every block whose set of keys is closed
+(the nodes of `fitConfig.json` and `extrapConfig.json`, the entries of every array of
+objects, `global_binning`, `corrections`); a new block of that kind gets it too. It does
+not fit where the keys are names (`params`, `pt_binning`) nor the task blocks themselves. When you replace or rename a key, reject the
 old one: a configuration that keeps carrying it otherwise looks as if it applied it.
 
 Blocks resolve `inherits` recursively in `WorkflowManager::MergeTaskConfiguration`;
@@ -202,6 +205,15 @@ strings.
 
 - Comments explain **why**, not what. Where one records a decision, it was argued
   through — read it before changing the line under it.
+- A task names itself with `GetName()`, in log lines and in the context it passes to
+  `RootIO` and `JsonConfig`, never with its class name written by hand: two spellings of
+  one task in one log, and a shared base reporting the wrong derived task, are what that
+  produced. A helper that is not a task names itself.
+- Exceptions start with `[FATAL]` (one `grep` finds them all); a detached histogram is
+  `SetDirectory(nullptr)`, as every other null pointer in the code. An object read with
+  `TDirectory::Get` is cast with `dynamic_cast` or read through `RootIO::GetUniqueOrThrow`,
+  never `static_cast`: with the wrong class under the name, a `static_cast` gives a pointer
+  that passes the null check and fails on first use.
 - Prefer deriving over storing: if a member follows from other members, a
   constructor or an accessor should produce it (`AssocParticleConfig::mass`,
   `ParticleTask::AnalysisBinning`).

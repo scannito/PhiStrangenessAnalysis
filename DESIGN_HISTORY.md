@@ -7,6 +7,42 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## Style made uniform, and closed blocks refuse unknown keys
+
+**Three commits on 17 October 2026, none of which changes a number.**
+
+- *`dynamic_cast` on `TDirectory::Get`.* Three places still used `static_cast` (the event-loss
+  histogram in `LoadCorrections`, the L2 signal cache in `CorrelationTask`, `ReadBinningStamp`),
+  against the reason `RootIO::GetUniqueOrThrow` gives: with the wrong class under the name, a
+  `static_cast` gives a pointer that passes the null check and fails on first use. The same kind of
+  mismatch as the `TH1F`/`TH1D` one, which stopped the corrections.
+- *`RequireKnownKeys` on every closed block* (`DESIGN_NOTES.md` section 5 says where), and
+  `RequireString` instead of `operator[]` for the array entries of `purity_sources`, `mc_particles`
+  and `purity_particles` and for `inherits`, which `CLAUDE.md` rules out (a missing key asserts, or
+  reads as null in Release). The worst case it closes: a misspelled `n_sigma_integration` in
+  `fitConfig.json` left the previous window in force and changed the fit in silence.
+- *One way to say each thing.* The tasks named themselves by `GetName()` and by their class name
+  written by hand (about 70 places), so one task had two prefixes in one log, and the WPDG task printed
+  "CorrelationTask: Efficiencies loaded" from the shared base: now `GetName()`, and
+  `CorrelationCalculator` names itself. Exceptions all start with `[FATAL]` (12 said `[FATAL ERROR]`,
+  2 had no prefix). `SetDirectory(nullptr)` everywhere (43 were `SetDirectory(0)`; chosen with the user,
+  as for every other null pointer).
+
+*Kept as it was:* `HasMember` on the keys built from bin indices in the two config managers; the comment
+there argues it (absence is the normal case), and `CLAUDE.md` says to read such a comment before
+changing the line.
+
+*How it was checked.* In a scratch copy, as for the corrections block. Every key of every current
+configuration is in its set (112 objects, fitConfig and extrapConfig included), so no configuration
+breaks. A misspelled `n_sigma_integation` in `fitConfig.json` and `dir_nme` in `associated_particles`
+stop the run with the key, the entry and the known keys. `data`, `mcclosurewpdg` and `mcclosuregen` pp:
+the 50 output files, 43,730 objects, identical to the baseline of the corrections check, and identical
+warning summaries. `mc pp` (`MCTask` was touched): the 355 `Corrections` files it wrote, 5,330 objects,
+identical to the ones produced on 14 October by the code before all of this. Not run: `purity`,
+`comparison`, the pp_ref configurations.
+
+---
+
 ## The corrections block
 
 **The five correction keys of the correlation tasks are replaced by one `corrections` block,
