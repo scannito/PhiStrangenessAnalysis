@@ -707,13 +707,14 @@ class CorrelationTaskBase : public IAnalysisTask
 
       const bool effBinned = pc.accEff && pc.accEff->mult == MultDependence::Binned;
       const bool effIntegrated = pc.accEff && pc.accEff->mult == MultDependence::Integrated;
+      // The signal loss is always per multiplicity class, whatever the efficiency uses.
+      const bool sigLoss = pc.sigLoss.has_value();
 
       std::unique_ptr<TH1> hEffInt = fetchHist(accEffDir, std::format("{}_multIntegrated", effHistBase), effIntegrated, targetBinning);
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
         std::unique_ptr<TH1> hEffBin = fetchHist(accEffDir, std::format("{}_multBin{}", effHistBase, i), effBinned, targetBinning);
-        // The signal loss is always per multiplicity class, whatever the efficiency uses.
-        std::unique_ptr<TH1> hLossBin = fetchHist(sigLossDir, std::format("{}_multBin{}", sigLossHistBase, i), pc.sigLoss.has_value(), targetBinning);
+        std::unique_ptr<TH1> hLossBin = fetchHist(sigLossDir, std::format("{}_multBin{}", sigLossHistBase, i), sigLoss, targetBinning);
 
         // The names are the ones the two former vectors used, "_multInt" for the
         // integrated variant, so the in-memory objects are unchanged.
