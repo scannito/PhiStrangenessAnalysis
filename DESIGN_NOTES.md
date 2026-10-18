@@ -317,6 +317,31 @@ one (`JsonConfig::RequireKnownKeys`): the sections and nodes of `fitConfig.json`
 `global_binning` and the `corrections` block. What is left is the case above: the task
 blocks themselves, where `inherits` mixes keys that different tasks read.
 
+*The way to close it, and to stop maintaining the lists (idea, 18 October, agreed with the
+user, not designed).* `RequireKnownKeys` is not redundant: `Require*` and `Optional*` only see
+the keys the code asks for, so a misspelled **optional** key (`n_sigma_integation`,
+`dir_nme`, `signal_los`) reads as "not written" and the fallback applies in silence; only a
+check of every key present catches it. Where every key is required (`purity_sources`) it adds
+little. Its real cost is that the list of keys is a second copy of the reads, kept aligned by
+hand (a key added to the code and not to the list is refused: loud, but one more rule to keep
+in step). The fix is to derive the list instead of writing it: read a block through a small
+object that records every key asked for (`Require*`, `Optional*`, `Try*`) and, at the end,
+refuses any key present and never asked for:
+
+```cpp
+JsonConfig::Reader r(node, ctx);
+auto name  = r.RequireString("name");
+auto label = r.OptionalString("label", name);
+r.RequireAllRead();   // any key present and never asked for stops the run
+```
+
+One source of truth, and the same mechanism on the merged block of a task, at the end of
+`Init`, would close the task-level case above: what the task did not read is unknown. The point
+to design is the keys a task reads only conditionally (`extrapolation_config_file` with the
+extrapolation off, `corrections_file` with `"corrections": null`): they must count as read, or
+be declared as known-but-unused, or every configuration that switches a feature off would be
+refused.
+
 **Fit status is discarded.** `DynamicRooFitter::DoFit()` returns
 `fitResult->status()` and nobody looks at it. On ~240 fits per run, the number
 that failed is information that exists and is thrown away. A counter and one line
