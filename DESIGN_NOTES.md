@@ -310,11 +310,13 @@ configuration-that-lies case from `CLAUDE.md`. The key has been removed from tha
 file (13 October); nothing would catch the next one. Rejecting unknown keys needs
 each task to declare the keys it reads, `inherits` resolved first, so it is a
 larger change than it looks.
-What is done (17 October): every block whose set of keys is closed refuses an unknown
-one (`JsonConfig::RequireKnownKeys`): the sections and nodes of `fitConfig.json` and
-`extrapConfig.json`, the entries of the arrays (`associated_particles`, `yield_ratios`,
-`purity_sources`, `mc_particles`, `purity_particles`, `comparisons` and their `objects`),
-`global_binning` and the `corrections` block. What is left is the case above: the task
+What is done (17-18 October): every block whose set of keys is closed and has optional
+keys refuses an unknown one (`JsonConfig::RequireKnownKeys`): the sections and nodes of
+`fitConfig.json` and `extrapConfig.json`, the entries of the arrays (`associated_particles`,
+`yield_ratios`, `mc_particles`, `purity_particles`, `comparisons` and their `objects`),
+`global_binning` and the entries of `corrections.particles`. The blocks whose keys are all
+required (`purity_sources`, the top of `corrections`, `acceptance_efficiency`) were given it
+on 17 October and had it removed on 18 October: there a typo already stops as a missing key. What is left is the case above: the task
 blocks themselves, where `inherits` mixes keys that different tasks read.
 
 *The way to close it, and to stop maintaining the lists (idea, 18 October, agreed with the

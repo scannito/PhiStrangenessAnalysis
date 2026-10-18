@@ -529,7 +529,6 @@ class CorrelationTaskBase : public IAnalysisTask
     }
 
     const std::string ctx = std::format("{} corrections", GetName());
-    JsonConfig::RequireKnownKeys(*node, {"event_loss", "particles"}, ctx);
 
     CorrectionsConfig cfg;
     // Outside the block on purpose: the file changes per year and the corrections per
@@ -571,7 +570,6 @@ class CorrelationTaskBase : public IAnalysisTask
       ParticleCorrections pc;
       if (const rapidjson::Value* accEff = JsonConfig::TryObject(entry, "acceptance_efficiency", pctx)) {
         const std::string actx = pctx + ".acceptance_efficiency";
-        JsonConfig::RequireKnownKeys(*accEff, {"mult"}, actx);
         pc.accEff = AccEffCorrection{JsonConfig::ResolveEnum<MultDependence>(
           JsonConfig::RequireString(*accEff, "mult", actx),
           {{"binned", MultDependence::Binned}, {"integrated", MultDependence::Integrated}}, "mult", actx)};

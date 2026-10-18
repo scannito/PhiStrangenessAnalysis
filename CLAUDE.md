@@ -130,9 +130,13 @@ block (`DESIGN_HISTORY.md`, *The corrections block*):
 
 Unknown keys are not rejected in general (`DESIGN_NOTES.md` section 5); the last two close
 that hole where they can. `RequireKnownKeys` is on every block whose set of keys is closed
-(the nodes of `fitConfig.json` and `extrapConfig.json`, the entries of every array of
-objects, `global_binning`, `corrections`); a new block of that kind gets it too. It does
-not fit where the keys are names (`params`, `pt_binning`) nor the task blocks themselves. When you replace or rename a key, reject the
+**and has optional keys** (the nodes of `fitConfig.json` and `extrapConfig.json`, the entries
+of the arrays of objects, `global_binning`, the entries of `corrections.particles`): a
+misspelled optional key reads as "not written" and only a check of every key present
+catches it. A new block of that kind gets it too. Where every key is required it adds
+nothing, a typo already stops as a missing key, so it is left out (`purity_sources`, the top
+of `corrections`, `acceptance_efficiency`). It does not fit where the keys are names
+(`params`, `pt_binning`) nor the task blocks themselves. When you replace or rename a key, reject the
 old one: a configuration that keeps carrying it otherwise looks as if it applied it.
 
 Blocks resolve `inherits` recursively in `WorkflowManager::MergeTaskConfiguration`;

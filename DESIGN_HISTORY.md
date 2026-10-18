@@ -16,7 +16,8 @@ and several of these fixes look wrong without it. Open items stay in
   against the reason `RootIO::GetUniqueOrThrow` gives: with the wrong class under the name, a
   `static_cast` gives a pointer that passes the null check and fails on first use. The same kind of
   mismatch as the `TH1F`/`TH1D` one, which stopped the corrections.
-- *`RequireKnownKeys` on every closed block* (`DESIGN_NOTES.md` section 5 says where), and
+- *`RequireKnownKeys` on every closed block* (`DESIGN_NOTES.md` section 5 says where; on 18 October
+  removed again from the three whose keys are all required, where a typo already stops as a missing key), and
   `RequireString` instead of `operator[]` for the array entries of `purity_sources`, `mc_particles`
   and `purity_particles` and for `inherits`, which `CLAUDE.md` rules out (a missing key asserts, or
   reads as null in Release). The worst case it closes: a misspelled `n_sigma_integration` in

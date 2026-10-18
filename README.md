@@ -271,8 +271,9 @@ one particle: see `DESIGN_NOTES.md` section 13). A particle that is not listed i
 `particles` is required: `{}` when only the event loss is applied here (for instance when the
 efficiency and the signal loss of every particle are applied online, with a `combined` map), since
 an absent key could equally be a block that replaced `corrections` and forgot its particles.
-Every entry applies at least one correction, and the block as a whole at least one; unknown
-keys inside the block stop the run instead of being ignored. `"corrections": null` is how a
+Every entry applies at least one correction, and the block as a whole at least one; an
+unknown key in a particle entry (a misspelled `signal_loss`, say) stops the run instead of
+being ignored. `"corrections": null` is how a
 block that inherits corrections switches them off, since `inherits` cannot remove a key
 (`CLAUDE.md`, *Configuration*). The file is a separate key so that a block for one year can
 change it without repeating the corrections of its mode. The keys this block replaced

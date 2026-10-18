@@ -218,7 +218,6 @@ class CorrelationTask : public CorrelationTaskBase
     int srcIdx = 0;
     for (const auto& src : puritySources) {
       const std::string ctx = std::format("{} purity_sources[{}]", GetName(), srcIdx++);
-      JsonConfig::RequireKnownKeys(src, {"name", "purity_key", "file_suffix"}, ctx);
       std::string name = JsonConfig::RequireString(src, "name", ctx);
       std::string purityKey = JsonConfig::RequireString(src, "purity_key", ctx);
       std::string fileSuffix = JsonConfig::RequireString(src, "file_suffix", ctx);
