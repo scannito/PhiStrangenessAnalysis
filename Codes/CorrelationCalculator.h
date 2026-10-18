@@ -11,7 +11,6 @@
 #include "THnSparse.h"
 
 #include <format>
-#include <iostream>
 #include <memory>
 #include <optional>
 #include <stdexcept>
@@ -58,45 +57,7 @@ class CorrelationCalculator
   constexpr static int kAxisDeltaY = 3;   // Axis index for Delta y in the THnSparse
   constexpr static int kAxisDeltaPhi = 4; // Axis index for Delta Phi in the THnSparse
 
-  // =========================================================================
-  // Helper: Safe calculation of the average around (0,0)
-  // =========================================================================
-  double GetZeroZeroAvg(TH2* h) const
-  {
-    if (!h)
-      return 0.0;
-    int bx_left = h->GetXaxis()->FindBin(-1e-6);
-    int bx_right = h->GetXaxis()->FindBin(1e-6);
-    int by_down = h->GetYaxis()->FindBin(-1e-6);
-    int by_up = h->GetYaxis()->FindBin(1e-6);
-
-    // If zero falls exactly in the center of a single bin
-    if (bx_left == bx_right && by_down == by_up) {
-      return h->GetBinContent(bx_left, by_down);
-    }
-
-    // If zero falls on the intersection of 4 bins
-    return (h->GetBinContent(bx_left, by_down) + h->GetBinContent(bx_left, by_up) +
-            h->GetBinContent(bx_right, by_down) + h->GetBinContent(bx_right, by_up)) /
-           4.0;
-  }
-
-  double GetZeroAvg(TH1* h) const
-  {
-    if (!h)
-      return 0.0;
-    int bx_left = h->GetXaxis()->FindBin(-1e-6);
-    int bx_right = h->GetXaxis()->FindBin(1e-6);
-
-    // If zero falls exactly in the center of a single bin
-    if (bx_left == bx_right) {
-      return h->GetBinContent(bx_left);
-    }
-
-    // If zero falls on the intersection of 2 bins
-    return (h->GetBinContent(bx_left) + h->GetBinContent(bx_right)) / 2.0;
-  }
-
+  // Normalisation of the 2D mixed event: constant term of a fit near zero of its projection.
   double GetZeroAvgFromFit(TH1* h, double fitRange = 0.5) const
   {
     if (!h)
@@ -315,7 +276,7 @@ class CorrelationCalculator
   }
 
   // =========================================================================
-  // ORIGINAL 1D ENGINE (Untouched, used if use2DME = false)
+  // 1D ENGINE (used if use2DME = false): projects on Delta y only, see ExtractCorrectedSignal
   // =========================================================================
   std::unique_ptr<TH1> Extract1D(const LoadedAssocData& data, const std::vector<HistogramUtils::AxisToCut>& axesToCut,
                                  double totalEff, double triggerBkgRatio, const std::string& histNameBase,
@@ -341,16 +302,16 @@ class CorrelationCalculator
     } else {
       if (!data.h5DataSignal)
         throw std::runtime_error(std::format("[FATAL] Missing Signal THnSparse for {}", data.name));
-      h1Signal = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataSignal.get(), axesToCut, {3}, histNameBase + "Signal");
+      h1Signal = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataSignal.get(), axesToCut, {kAxisDeltaY}, histNameBase + "Signal");
       if (data.h5DataSideband)
-        h1Sideband = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataSideband.get(), axesToCut, {3}, histNameBase + "Sideband");
+        h1Sideband = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataSideband.get(), axesToCut, {kAxisDeltaY}, histNameBase + "Sideband");
 
       if (applyME) {
         if (!data.h5DataMESignal)
           throw std::runtime_error(std::format("[FATAL] Missing ME Signal THnSparse for {}", data.name));
-        h1MESignal = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataMESignal.get(), axesToCut, {3}, histNameBase + "MESignal");
+        h1MESignal = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataMESignal.get(), axesToCut, {kAxisDeltaY}, histNameBase + "MESignal");
         if (data.h5DataMESideband && h1Sideband)
-          h1MESideband = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataMESideband.get(), axesToCut, {3}, histNameBase + "MESideband");
+          h1MESideband = HistogramUtils::ProjectTHnSparse<TH1>(data.h5DataMESideband.get(), axesToCut, {kAxisDeltaY}, histNameBase + "MESideband");
       }
 
       if (ioDir) {
