@@ -87,7 +87,8 @@ class CorrelationCalculator
 
     if (opt.fromCache) {
       if (!req.ioDir)
-        throw std::runtime_error("[FATAL] CorrelationCalculator: cache mode requested but no ioDir provided!");
+        throw std::runtime_error("[FATAL] CorrelationCalculator: cache mode requested but no ioDir provided (the caller "
+                                 "should have found the cache directory or stopped).");
       in.sig = RootIO::GetUniqueOrThrow<H>(req.ioDir, nameSig, "CorrelationCalculator");
       in.sb = RootIO::GetUniqueOrWarn<H>(req.ioDir, nameSb, "CorrelationCalculator");
       if (opt.mixedEvents) {

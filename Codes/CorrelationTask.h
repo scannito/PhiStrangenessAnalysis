@@ -364,7 +364,7 @@ class CorrelationTask : public CorrelationTaskBase
           const auto& data = loadedDataCollection[pIdx];
           TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i].get() : nullptr;
 
-          TDirectory* targetDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
+          TDirectory* targetDir = ProjectionCacheDir(pIdx, logicalPath);
 
           TDirectory* currentQADir{nullptr};
           if (doMoreQA && pIdx < filesPhiAssocQAOutput.size()) {

@@ -1357,7 +1357,7 @@ class CorrelationTaskBase : public IAnalysisTask
           const auto& data = loadedDataCollection[pIdx];
           TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i].get() : nullptr;
 
-          TDirectory* targetDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, useProjectionCache);
+          TDirectory* targetDir = ProjectionCacheDir(pIdx, logicalPath);
 
           for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
             HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {k + 1, k + 1}};
@@ -1401,6 +1401,23 @@ class CorrelationTaskBase : public IAnalysisTask
   // stored: it follows from use2DMENormalization, and the same ternary was spelled
   // out in four places - four chances for one of them to be edited alone.
   std::string SchemeDirName() const { return use2DMENormalization ? "Extract2D" : "Extract1D"; }
+
+  // The directory of one particle's projections. With use_projection_cache on it is looked
+  // up, not created, and it is missing when the cache was never built for this binning and
+  // scheme (Extract1D and Extract2D are separate, see SchemeDirName). The calculator, given
+  // the null directory, could only say that none was provided: this says which file, which
+  // directory, and what to do.
+  TDirectory* ProjectionCacheDir(size_t pIdx, const std::vector<std::string>& logicalPath) const
+  {
+    TFile* file = filesPhiAssocDataOutput[pIdx].get();
+    TDirectory* dir = RootIO::GetOrCreatePath(file, logicalPath, useProjectionCache);
+    if (!dir && useProjectionCache)
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: use_projection_cache is on, but '{}' has no '{}': the projections of {} were never cached "
+        "for this binning and scheme ({}). Run once with use_projection_cache false to build the cache.",
+        GetName(), RootIO::FileNameOf(file), RootIO::MakeDirPath(logicalPath), assocParticles[pIdx].name, SchemeDirName()));
+    return dir;
+  }
 
   static double GetYieldScaleFactor(const std::string& name)
   {
