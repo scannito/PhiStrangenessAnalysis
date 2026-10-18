@@ -369,6 +369,13 @@ not looked into). With identical inputs the outputs are identical bit for bit, w
 before/after check relies on; a check that changes one species must expect the others' extrapolated
 errors to move at that level.
 
+**The scheme directory can name the wrong engine.** `SchemeDirName` returns `Extract2D` when
+`use_2d_me_normalization` is true, but `run_mode: "legacy"` (and the WPDG task) build the 1D engine
+whatever that key says: with both, the 1D results are written under `Extract2D`, and a later
+`optimized` run with the cache on would read them as 2D projections. Found on 18 October 2026; no
+current configuration has the combination (all have `use_2d_me_normalization: false`). The fix is to
+derive the directory from the engine actually built, or to refuse the combination at `Init`.
+
 **A zero event-loss bin is skipped in silence.** In `CorrelationTaskBase`, where the
 number of triggers is corrected for the event loss, `if (eventLossCorr > 0.0)` divides
 only when the bin is positive: a multiplicity class whose event-loss bin is 0 keeps its

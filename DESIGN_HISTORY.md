@@ -7,6 +7,27 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## CorrelationCalculator made lighter
+
+**Four commits on 18 October 2026.** (1) A Δφ projection with the 1D engine is refused at `Init`
+(`RequireProjectionAxisSupported`) and in `ExtractCorrectedSignal`: `run_mode: "legacy"` and the WPDG task
+always build the 1D engine, which projects on Δy only, so `projection_axis: "delta_phi"` gave Δy spectra with
+no error. Δφ in the 1D engine is open (`DESIGN_NOTES.md` section 6). A QA write of a sideband that may not
+exist is guarded. (2) Two helpers never called removed, `kAxisDeltaY` instead of `{3}`. (3) `Options` and
+`Request` structs, built with designated initialisers, instead of four positional `bool`s and nine
+parameters; `LoadOrProject` instead of four copies of load-or-project-and-cache; the mixed-event
+normalisation stays per engine (`NormalizeME1D`, `NormalizeME2D`), the two differ by design. The order of
+every numerical operation is unchanged. (4) A missing projection cache stops with the file, the directory and
+what to do (`ProjectionCacheDir`), instead of the calculator's "no ioDir provided".
+
+*How it was checked.* In a scratch copy, `data pp` only (the user's choice): the 10 output files, 1,360 objects,
+identical to `00df196`, same warning summary. That run uses the 1D engine only. The 2D engine
+(`optimized`, `use_2d_me_normalization`, `do_more_qa`, cache off) ran to the end on `data`; a comparison
+with the baseline for it was not completed. Δφ with `legacy` and a missing `Extract2D` cache stop with their
+new messages.
+
+---
+
 ## Style made uniform, and closed blocks refuse unknown keys
 
 **Three commits on 17 October 2026, none of which changes a number.**
