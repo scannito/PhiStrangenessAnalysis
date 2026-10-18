@@ -98,7 +98,7 @@ inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
 
   if (hProjection) {
     hProjection->SetName(histName.c_str());
-    hProjection->SetDirectory(nullptr);
+    hProjection->SetDirectory(0);
     // THnSparse::Projection already propagates the errors when the sparse
     // stores them, so the projection usually comes with Sumw2 already set.
     // Calling it again is a no-op that only prints a warning.
@@ -138,7 +138,7 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
     hSpectrum->SetBinError(i + 1, binError / normalizationFactor);
   }
 
-  hSpectrum->SetDirectory(nullptr);
+  hSpectrum->SetDirectory(0);
 
   return hSpectrum;
 }
@@ -216,7 +216,7 @@ inline std::unique_ptr<TH1> MakeRatioHist(TH1* num, TH1* den, const std::string&
 {
   std::unique_ptr<TH1> h(static_cast<TH1*>(num->Clone(name.c_str())));
   h->SetTitle(title.c_str());
-  h->SetDirectory(nullptr);
+  h->SetDirectory(0);
   h->Divide(num, den, numScale, denScale, option);
   return h;
 }

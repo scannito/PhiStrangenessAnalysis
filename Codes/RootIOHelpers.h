@@ -64,7 +64,7 @@ inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& o
 
   if constexpr (std::is_base_of_v<TH1, T>) {
     if (detachFromFile)
-      obj->SetDirectory(nullptr);
+      obj->SetDirectory(0);
   }
 
   return std::unique_ptr<T>(obj);
@@ -83,7 +83,7 @@ inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& ob
 
   if constexpr (std::is_base_of_v<TH1, T>) {
     if (detachFromFile)
-      obj->SetDirectory(nullptr);
+      obj->SetDirectory(0);
   }
 
   return std::unique_ptr<T>(obj);
@@ -191,7 +191,7 @@ inline void WriteBinningStamp(TDirectory* dir, const std::string& name, std::spa
 
   TH1D stamp(name.c_str(), "binning stamp (bin edges only, contents unused)",
              BinningUtils::NBins(edges), edges.data());
-  stamp.SetDirectory(nullptr);
+  stamp.SetDirectory(0);
 
   dir->cd();
   stamp.Write(name.c_str(), TObject::kOverwrite);
@@ -210,7 +210,7 @@ inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& 
   if (!raw)
     return {};
 
-  raw->SetDirectory(nullptr);
+  raw->SetDirectory(0);
   std::unique_ptr<TH1> stamp(raw);
   return BinningUtils::AxisEdges(stamp->GetXaxis());
 }

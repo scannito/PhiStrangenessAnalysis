@@ -210,7 +210,8 @@ strings.
   one task in one log, and a shared base reporting the wrong derived task, are what that
   produced. A helper that is not a task names itself.
 - Exceptions start with `[FATAL]` (one `grep` finds them all); a detached histogram is
-  `SetDirectory(nullptr)`, as every other null pointer in the code. An object read with
+  `SetDirectory(0)`, ROOT's own idiom, the one its documentation and tutorials use (the
+  user's choice, 18 October; everywhere else a null pointer is `nullptr`). An object read with
   `TDirectory::Get` is cast with `dynamic_cast` or read through `RootIO::GetUniqueOrThrow`,
   never `static_cast`: with the wrong class under the name, a `static_cast` gives a pointer
   that passes the null check and fails on first use.

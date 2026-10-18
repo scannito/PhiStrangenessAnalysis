@@ -119,7 +119,7 @@ class PurityTask : public IAnalysisTask
       auto h2CCDB = std::make_unique<TH2F>(ccdbName.c_str(), ";Multiplicity percentile (%);p_{T} (GeV/#it{c})",
                                            BinningUtils::NBins(multBinning), multBinning.data(),
                                            BinningUtils::NBins(sourceBinning), sourceBinning.data());
-      h2CCDB->SetDirectory(nullptr);
+      h2CCDB->SetDirectory(0);
 
       // The mapping between the two binnings is derived by the constructor, so it
       // is not passed here: an analysis edge that is not an edge of the source
@@ -301,7 +301,7 @@ class PurityTask : public IAnalysisTask
     std::string hName = std::format("h1{}Purity_multBin{}{}", task.name, multBin, nameSuffix);
     std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
                                                                    BinningUtils::NBins(binning), binning.data());
-    h1PuritySpectrum->SetDirectory(nullptr);
+    h1PuritySpectrum->SetDirectory(0);
 
     for (int k{0}; k < BinningUtils::NBins(binning); k++) {
       std::string histName = std::format("h1{}_multBin{}_ptBin{}{}", task.name, multBin, k, nameSuffix);
@@ -309,7 +309,7 @@ class PurityTask : public IAnalysisTask
       const BinningUtils::BinRange range = atSource ? BinningUtils::BinRange{k + 1, k + 1} : task.mappedSourceBins[k];
       std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), multBin + 1, multBin + 1,
                                                                                 range.first, range.last)));
-      h1Data->SetDirectory(nullptr);
+      h1Data->SetDirectory(0);
 
       // Run Fitter using JSON-based configuration
       FitConfig cfg = fitConfigManager->GetConfig(task.name, multBin, k);

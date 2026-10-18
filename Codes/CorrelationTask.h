@@ -331,7 +331,7 @@ class CorrelationTask : public CorrelationTaskBase
             h1PhiAssocNoPtPhi[pIdx][i][k].reset(dynamic_cast<TH1*>(sourceDir->Get(cacheName.c_str())));
             if (!h1PhiAssocNoPtPhi[pIdx][i][k])
               throw std::runtime_error(std::format("[FATAL] Cache L2 missing for: {}. Run with use_signal_cache: false first!", cacheName));
-            h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(nullptr);
+            h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
           }
         }
         GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
@@ -386,7 +386,7 @@ class CorrelationTask : public CorrelationTaskBase
             if (j == 0) {
               std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, i, k));
               h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
-              h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(nullptr);
+              h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
             } else {
               h1PhiAssocNoPtPhi[pIdx][i][k]->Add(h1FinalSignal.get());
             }

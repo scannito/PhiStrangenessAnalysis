@@ -162,7 +162,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     std::string phiHistName = std::format("h1PhiTrigger_multBin{}_ptBin{}", multBin, ptPhiBin);
     std::unique_ptr<TH1D> h1PhiTrigger(static_cast<TH1D*>(h3PhiData->ProjectionZ(
       phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
-    h1PhiTrigger->SetDirectory(nullptr);
+    h1PhiTrigger->SetDirectory(0);
 
     // Bins 1..N, so the under/overflow of the third axis is excluded. Deliberate on
     // both paths: outside [0.9, 1.2] is not a phi candidate, and outside |y| < 0.5 is

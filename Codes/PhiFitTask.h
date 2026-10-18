@@ -85,7 +85,7 @@ class PhiFitTask : public IAnalysisTask
       auto h = std::make_unique<TH2D>(name, (title + axesTitles).c_str(),
                                       BinningUtils::NBins(multBinning), multBinning.data(),
                                       BinningUtils::NBins(ptPhiBinning), ptPhiBinning.data());
-      h->SetDirectory(nullptr);
+      h->SetDirectory(0);
       return h;
     };
 
@@ -109,7 +109,7 @@ class PhiFitTask : public IAnalysisTask
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
         std::string phiHistName = std::format("h1PhiData_multBin{}_ptBin{}", i, j);
         std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), i + 1, i + 1, j + 1, j + 1)));
-        h1PhiData->SetDirectory(nullptr);
+        h1PhiData->SetDirectory(0);
 
         // Fetch configuration dynamically from JSON
         FitConfig cfg = fitConfigManager->GetConfig(kFitSection, i, j);

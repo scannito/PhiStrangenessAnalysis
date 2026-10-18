@@ -25,8 +25,9 @@ and several of these fixes look wrong without it. Open items stay in
   written by hand (about 70 places), so one task had two prefixes in one log, and the WPDG task printed
   "CorrelationTask: Efficiencies loaded" from the shared base: now `GetName()`, and
   `CorrelationCalculator` names itself. Exceptions all start with `[FATAL]` (12 said `[FATAL ERROR]`,
-  2 had no prefix). `SetDirectory(nullptr)` everywhere (43 were `SetDirectory(0)`; chosen with the user,
-  as for every other null pointer).
+  2 had no prefix). One form of `SetDirectory` everywhere: first made `SetDirectory(nullptr)` (43 were
+  `SetDirectory(0)`, 14 `nullptr`), then, on 18 October, `SetDirectory(0)` on the user's preference for
+  ROOT's own idiom. The two are the same call (the parameter is a `TDirectory*`).
 
 *Kept as it was:* `HasMember` on the keys built from bin indices in the two config managers; the comment
 there argues it (absence is the normal case), and `CLAUDE.md` says to read such a comment before

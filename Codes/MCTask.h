@@ -366,7 +366,7 @@ class MCTask : public IAnalysisTask
           auto collapse = [&](TH1* h) {
             const auto [integral, error] = HistogramUtils::IntegralAndErrorPair(h, multBinning.front(), multBinning.back());
             auto c = std::make_unique<TH1D>("", "", 1, 0., 1.);
-            c->SetDirectory(nullptr);
+            c->SetDirectory(0);
             c->Sumw2();
             c->SetBinContent(1, integral);
             c->SetBinError(1, error);
@@ -395,7 +395,7 @@ class MCTask : public IAnalysisTask
           const std::string baseName = signalLoss->GetName();
 
           std::unique_ptr<TH1> hEvLossConst{static_cast<TH1*>(signalLoss->Clone((baseName + "_evLossConst").c_str()))};
-          hEvLossConst->SetDirectory(nullptr);
+          hEvLossConst->SetDirectory(0);
           hEvLossConst->Reset();
           for (int b = 1; b <= hEvLossConst->GetNbinsX(); b++) {
             hEvLossConst->SetBinContent(b, evLoss);
@@ -404,7 +404,7 @@ class MCTask : public IAnalysisTask
 
           std::unique_ptr<TH1> ratio{static_cast<TH1*>(signalLoss->Clone((baseName + "_overEvLoss").c_str()))};
           ratio->GetYaxis()->SetTitle("Signal Loss / Event Loss");
-          ratio->SetDirectory(nullptr);
+          ratio->SetDirectory(0);
           ratio->Divide(hEvLossConst.get());
 
           canvas->cd();

@@ -208,8 +208,8 @@ class SpectrumExtrapolator
     // than exposed.
     std::unique_ptr<TH1F> hIntegral_tmp = std::make_unique<TH1F>("hInt_tmp", "", 1000, 0.75 * integral, 1.25 * integral);
     std::unique_ptr<TH1F> hMean_tmp = std::make_unique<TH1F>("hMean_tmp", "", 1000, 0.75 * mean, 1.25 * mean);
-    hIntegral_tmp->SetDirectory(nullptr);
-    hMean_tmp->SetDirectory(nullptr);
+    hIntegral_tmp->SetDirectory(0);
+    hMean_tmp->SetDirectory(0);
 
     for (int irnd = 0; irnd < fTrialsCoarse; irnd++) {
       auto hrnd = ReturnRandomHisto(fMeasuredSpectrum);
@@ -237,8 +237,8 @@ class SpectrumExtrapolator
     std::unique_ptr<TH1F> hMean = std::make_unique<TH1F>("hMean", "", 100,
                                                          hMean_tmp->GetMean() - 10. * hMean_tmp->GetRMS(),
                                                          hMean_tmp->GetMean() + 10. * hMean_tmp->GetRMS());
-    hIntegral->SetDirectory(nullptr);
-    hMean->SetDirectory(nullptr);
+    hIntegral->SetDirectory(0);
+    hMean->SetDirectory(0);
 
     for (int irnd = 0; irnd < fTrialsFine; irnd++) {
       auto hrnd = ReturnRandomHisto(fMeasuredSpectrum);
@@ -317,7 +317,7 @@ class SpectrumExtrapolator
   std::unique_ptr<TH1> ShiftedHisto(const TH1* src, double sign, const char* suffix) const
   {
     std::unique_ptr<TH1> hout(static_cast<TH1*>(src->Clone(Form("%s_%s", src->GetName(), suffix))));
-    hout->SetDirectory(nullptr);
+    hout->SetDirectory(0);
     for (int ibin = 0; ibin < src->GetNbinsX(); ibin++) {
       if (src->GetBinError(ibin + 1) <= 0.)
         continue;
@@ -336,7 +336,7 @@ class SpectrumExtrapolator
 
     std::unique_ptr<TH1> hTotal(static_cast<TH1*>(fMeasuredSpectrum->Clone(
       Form("%s_statplussys", fMeasuredSpectrum->GetName()))));
-    hTotal->SetDirectory(nullptr);
+    hTotal->SetDirectory(0);
 
     for (int ibin = 1; ibin <= fMeasuredSpectrum->GetNbinsX(); ibin++) {
       const double stat = fMeasuredSpectrum->GetBinError(ibin);
@@ -519,7 +519,7 @@ class SpectrumExtrapolator
     auto hlo = std::make_unique<TH1F>("hlo", "", nbins, minPt, lo);
     // Detached: these are scratch, and gDirectory here is the physics output
     // file. Attached they get written into it and warn on the next bin.
-    hlo->SetDirectory(nullptr);
+    hlo->SetDirectory(0);
 
     for (int ibin = 0; ibin < hlo->GetNbinsX(); ibin++) {
       double width = hlo->GetBinWidth(ibin + 1);
@@ -554,7 +554,7 @@ class SpectrumExtrapolator
       return nullptr;
 
     auto hhi = std::make_unique<TH1F>("hhi", "", nbins, hi, maxPt);
-    hhi->SetDirectory(nullptr);
+    hhi->SetDirectory(0);
 
     for (int ibin = 0; ibin < hhi->GetNbinsX(); ibin++) {
       double width = hhi->GetBinWidth(ibin + 1);
@@ -575,7 +575,7 @@ class SpectrumExtrapolator
     // Clone inherits the directory of the original, and the measured spectrum
     // lives in the output file: 1100 toy iterations under one name is what the
     // "Replacing existing TH1" warnings were.
-    hout->SetDirectory(nullptr);
+    hout->SetDirectory(0);
     hout->Reset();
 
     for (int ibin = 0; ibin < hin->GetNbinsX(); ibin++) {
@@ -597,7 +597,7 @@ class SpectrumExtrapolator
     // Clone inherits the directory of the original, and the measured spectrum
     // lives in the output file: 1100 toy iterations under one name is what the
     // "Replacing existing TH1" warnings were.
-    hout->SetDirectory(nullptr);
+    hout->SetDirectory(0);
     hout->Reset();
 
     double cohe = fRandomGen.Gaus(0., 1.);
@@ -639,7 +639,7 @@ class SpectrumExtrapolator
     for (int inode = 0; inode < hin->GetNbinsX(); inode++) {
       const double ptnode = hin->GetBinCenter(inode + 1);
       std::unique_ptr<TH1> hout(static_cast<TH1*>(hin->Clone("tmp_extreme")));
-      hout->SetDirectory(nullptr);
+      hout->SetDirectory(0);
 
       for (int ibin = 0; ibin < hin->GetNbinsX(); ibin++) {
         if (hin->GetBinError(ibin + 1) <= 0.)
@@ -659,7 +659,7 @@ class SpectrumExtrapolator
       const double diff = TMath::Abs(mean - hout->GetMean());
       if (diff > maxdiff) {
         hmax.reset(static_cast<TH1*>(hout->Clone(Form("%s_tilted", hin->GetName()))));
-        hmax->SetDirectory(nullptr);
+        hmax->SetDirectory(0);
         maxdiff = diff;
       }
     }
