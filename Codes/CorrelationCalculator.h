@@ -38,6 +38,13 @@ class CorrelationCalculator
                                               TDirectory* ioDir = nullptr, TDirectory* qaDir = nullptr, AxisTarget targetAxis = AxisTarget::DeltaY_Y,
                                               std::optional<std::pair<double, double>> orthogonalCut = std::nullopt) const
   {
+    // The 1D engine projects on Delta y only. Delta phi there needs a normalisation of the
+    // mixed event that is still to be decided (DESIGN_NOTES.md section 6), so it is refused
+    // rather than answered with a Delta y projection. The tasks refuse it at Init already;
+    // this is the guarantee for any other caller.
+    if (!use2DME && targetAxis == AxisTarget::DeltaPhi_X)
+      throw std::runtime_error("[FATAL] CorrelationCalculator: a Delta phi projection needs the 2D engine; the 1D engine projects on Delta y only.");
+
     if (use2DME) {
       return Extract2D(data, axesToCut, totalEff, triggerBkgRatio, histNameBase, ioDir, qaDir, targetAxis, orthogonalCut);
     } else {
@@ -295,7 +302,8 @@ class CorrelationCalculator
       if (qaDir && doMoreQA && orthogonalCut) {
         qaDir->cd();
         h2Signal->Write((histNameBase + "Signal2D_MECorrected_Cut").c_str());
-        h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Cut").c_str());
+        if (h2Sideband)
+          h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Cut").c_str());
         h1Sig1D->Write();
         if (h1Side1D)
           h1Side1D->Write();

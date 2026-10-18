@@ -461,6 +461,23 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
+  // projection_axis against the engine that will run. The 1D engine of
+  // CorrelationCalculator projects on Delta y only, and the configuration chooses the
+  // engine indirectly (run_mode, use_2d_me_normalization): "delta_phi" with the 1D engine
+  // used to give Delta y spectra with no error. Refused here, at Init, so the run stops
+  // before the projections. Delta phi in the 1D engine is open: DESIGN_NOTES.md section 6.
+  // -------------------------------------------------------------------------
+  void RequireProjectionAxisSupported(bool engine2D) const
+  {
+    if (projectionAxis == CorrelationCalculator::AxisTarget::DeltaPhi_X && !engine2D)
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: projection_axis 'delta_phi' needs the 2D engine (run_mode 'optimized' with "
+        "use_2d_me_normalization true); with this configuration the 1D engine runs, and it projects on "
+        "Delta y only. See DESIGN_NOTES.md section 6.",
+        GetName()));
+  }
+
+  // -------------------------------------------------------------------------
   // Shared parsing of "associated_particles". Requires globalCfgs already set.
   // -------------------------------------------------------------------------
   void InitAssocParticles(const rapidjson::Value& taskConfig)

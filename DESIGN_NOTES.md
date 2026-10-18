@@ -393,6 +393,30 @@ treated as a systematic. Decision pending.
 
 ## 6. Physics questions still open
 
+**Δφ in the 1D engine: which normalisation of the mixed event? To decide.** Recorded on
+18 October 2026. `CorrelationCalculator` has two engines, and they differ in more than the
+normalisation:
+
+| | 1D engine (`Extract1D`) | 2D engine (`Extract2D`) |
+|---|---|---|
+| projection | SE and ME projected **at once on Δy**, integrated over Δφ | SE and ME projected on **(Δφ, Δy)** |
+| mixed-event correction | **1D** division, (∫SE dΔφ)/(∫ME dΔφ) | **bin-by-bin 2D** division SE/ME, then the projection |
+| ME normalisation | integral of the two bins around Δy = 0, scaled to about 1 there | fit a0 + a1·\|x\| + a2·x² of the ME projection on Δy near 0, divided by the number of Δφ bins |
+| final axis | Δy only | Δy or Δφ, with the orthogonal cut and the QA |
+
+The second row is the one of substance: ∫SE/∫ME ≠ ∫(SE/ME) in general. The pair acceptance
+depends on Δφ and Δy, and the 2D engine corrects it cell by cell before integrating; the 1D
+engine corrects only its average over Δφ. They agree only if the ME is flat in Δφ.
+
+`run_mode: "legacy"` (every current configuration) and the WPDG task always build the 1D
+engine, and `projection_axis: "delta_phi"` there used to give Δy spectra with no error. It is
+now refused at `Init` (`CorrelationTaskBase::RequireProjectionAxisSupported`, and again in
+`ExtractCorrectedSignal`). The user wants Δφ in the 1D engine eventually; what is open is the
+normalisation. In Δy the ME peaks at 0 and is normalised there; integrated over Δy the ME is
+about flat in Δφ, so "the value at Δφ = 0" has no special role. Candidates: the 2D engine's
+convention (the value at (0, 0)), the mean over the whole Δφ range, or the value around Δφ = 0
+by symmetry with Δy. They give different spectra; the user's call.
+
 **Primaries in the efficiency numerator.** The efficiency is
 `MCReco / MCGenAssocReco`. If the numerator is not restricted to primary
 particles, the correction silently absorbs secondaries from weak decays instead of
