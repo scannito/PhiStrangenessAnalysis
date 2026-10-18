@@ -461,14 +461,23 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
-  // projection_axis against the engine that will run. The 1D engine of
-  // CorrelationCalculator projects on Delta y only, and the configuration chooses the
-  // engine indirectly (run_mode, use_2d_me_normalization): "delta_phi" with the 1D engine
-  // used to give Delta y spectra with no error. Refused here, at Init, so the run stops
-  // before the projections. Delta phi in the 1D engine is open: DESIGN_NOTES.md section 6.
+  // The settings that depend on the engine, against the engine that will actually run. The
+  // configuration chooses it indirectly: run_mode "legacy" and the WPDG task build the 1D
+  // engine whatever use_2d_me_normalization says. Two combinations used to pass in silence:
+  // - projection_axis "delta_phi" with the 1D engine, which projects on Delta y only, gave
+  //   Delta y spectra (Delta phi in the 1D engine is open: DESIGN_NOTES.md section 6);
+  // - use_2d_me_normalization true with the 1D engine filed 1D results under "Extract2D"
+  //   (SchemeDirName), where a later run with the cache on would read them as 2D ones.
+  // Refused here, at Init, so the run stops before the projections.
   // -------------------------------------------------------------------------
-  void RequireProjectionAxisSupported(bool engine2D) const
+  void RequireEngineSettingsSupported(bool engine2D) const
   {
+    if (use2DMENormalization && !engine2D)
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: use_2d_me_normalization is true, but this run builds the 1D engine (run_mode 'legacy', "
+        "or the WPDG task, which always does): its results would be filed under 'Extract2D'. Set it to false, "
+        "or use run_mode 'optimized' for the 2D engine.",
+        GetName()));
     if (projectionAxis == CorrelationCalculator::AxisTarget::DeltaPhi_X && !engine2D)
       throw std::runtime_error(std::format(
         "[FATAL] {}: projection_axis 'delta_phi' needs the 2D engine (run_mode 'optimized' with "
@@ -1318,7 +1327,7 @@ class CorrelationTaskBase : public IAnalysisTask
   void RunLegacy()
   {
     Logger::Info("{}: RUNNING CORRELATIONS (Legacy)...", GetName());
-    // The 1D engine, whatever use_2d_me_normalization says: see RequireProjectionAxisSupported.
+    // The 1D engine: RequireEngineSettingsSupported has refused use_2d_me_normalization with it.
     CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache});
 
     const std::vector<std::unique_ptr<TH1>>* phiCorrs{nullptr};

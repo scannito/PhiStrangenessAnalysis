@@ -31,7 +31,7 @@ class CorrelationTask : public CorrelationTaskBase
                                                  {"optimized", RunMode::Optimized}},
                                                 GetName());
     // RunLegacy builds the 1D engine whatever use_2d_me_normalization says.
-    RequireProjectionAxisSupported(runMode == RunMode::Optimized && use2DMENormalization);
+    RequireEngineSettingsSupported(runMode == RunMode::Optimized && use2DMENormalization);
 
     // Prefix handling: search specific key -> Search fallback -> Search legacy
     auto getPrefix = [ctx = GetName()](const rapidjson::Value& config, const std::string& specificKey, const std::string& fallbackKey) -> std::string {

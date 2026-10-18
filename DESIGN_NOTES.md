@@ -367,14 +367,9 @@ relative, their contents and every measured quantity unchanged. No physical weig
 some state survives from one extrapolation fit to the next (a minimiser, a `TF1`, a cached integral:
 not looked into). With identical inputs the outputs are identical bit for bit, which is what the
 before/after check relies on; a check that changes one species must expect the others' extrapolated
-errors to move at that level.
-
-**The scheme directory can name the wrong engine.** `SchemeDirName` returns `Extract2D` when
-`use_2d_me_normalization` is true, but `run_mode: "legacy"` (and the WPDG task) build the 1D engine
-whatever that key says: with both, the 1D results are written under `Extract2D`, and a later
-`optimized` run with the cache on would read them as 2D projections. Found on 18 October 2026; no
-current configuration has the combination (all have `use_2d_me_normalization: false`). The fix is to
-derive the directory from the engine actually built, or to refuse the combination at `Init`.
+errors to move at that level. Seen again on 18 October: `run_mode: "optimized"` and `"legacy"` with the 1D
+engine give the same contents and extrapolated K0S trend errors that differ by up to 3.5e-12 relative (the
+two modes fit in a different order). Runs of one mode on the same inputs are identical.
 
 **A zero event-loss bin is skipped in silence.** In `CorrelationTaskBase`, where the
 number of triggers is corrected for the event loss, `if (eventLossCorr > 0.0)` divides
@@ -417,7 +412,7 @@ engine corrects only its average over Δφ. They agree only if the ME is flat in
 
 `run_mode: "legacy"` (every current configuration) and the WPDG task always build the 1D
 engine, and `projection_axis: "delta_phi"` there used to give Δy spectra with no error. It is
-now refused at `Init` (`CorrelationTaskBase::RequireProjectionAxisSupported`, and again in
+now refused at `Init` (`CorrelationTaskBase::RequireEngineSettingsSupported`, and again in
 `ExtractCorrectedSignal`). The user wants Δφ in the 1D engine eventually; what is open is the
 normalisation. In Δy the ME peaks at 0 and is normalised there; integrated over Δy the ME is
 about flat in Δφ, so "the value at Δφ = 0" has no special role. Candidates: the 2D engine's

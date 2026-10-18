@@ -25,7 +25,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
     InitCommonFlags(taskConfig, globalSettings);
     // This task always runs RunLegacy, which builds the 1D engine.
-    RequireProjectionAxisSupported(false);
+    RequireEngineSettingsSupported(false);
 
     isPureGen = JsonConfig::RequireBool(taskConfig, "is_pure_gen", GetName());
 
