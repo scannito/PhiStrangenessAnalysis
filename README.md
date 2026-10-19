@@ -180,7 +180,7 @@ the value is matched against, so it cannot go stale.
 
 | Key | Task | Values | Default |
 |---|---|---|---|
-| `projection_axis` | correlation | `delta_y` / `DeltaY`, `delta_phi` / `DeltaPhi` | `delta_y` |
+| `projection_axis` | correlation | `delta_y` / `DeltaY`, `delta_phi` / `DeltaPhi` (Δφ only with the 2D engine: refused at `Init` otherwise, `DESIGN_NOTES.md` section 6) | `delta_y` |
 | `particle_correction_mode` | `mc_task` | `efficiency_only`, `signal_loss_only`, `combined` | `efficiency_only` |
 | `run_mode` | `correlation_task` | `legacy`, `optimized` | `legacy` |
 | `trend_composition` | correlation | `total_extrapolated`, `measured_plus_extrapolated` | `total_extrapolated` |
@@ -229,7 +229,8 @@ silently ignored.
 | Key | | Notes |
 |---|---|---|
 | `apply_mixed_events`, `apply_extrapolation`, `apply_purity` | required | |
-| `use_projection_cache`, `use_2d_me_normalization` | required | |
+| `use_projection_cache` | required | |
+| `use_2d_me_normalization` | required | Despite the name, it chooses the engine: `true` builds the 2D one (SE/ME projected on (Δφ, Δy), divided bin by bin), but only in `correlation_task` with `run_mode: "optimized"`; with `legacy` or in `correlation_wpdg_task`, which always build the 1D engine, `true` is refused at `Init`. The engine also chooses the output section, `Extract2D` or `Extract1D`. |
 | `me_normalization` | required | `bins_at_zero` or `fit`: how the mixed event is scaled to 1 at zero separation, in either engine. See `DESIGN_NOTES.md` section 6. The base configurations say `bins_at_zero`, which is what the 1D engine always did; the 2D engine always used `fit`, so a block that switches the 2D engine on must say `fit` to reproduce its past numbers. |
 | `input_dir_proj`, `input_dir_purity`, `output_dir_final` | required | |
 | `input_data_file`, `base_path_data` | required | Unless the projection cache is enabled. |
@@ -369,6 +370,14 @@ each cache carries a *binning stamp* — an empty histogram whose axis is the bi
 was built with. On reuse the stamp is compared with the current run and a mismatch is
 fatal, because reusing the cache would silently mix two segmentations.
 
+`use_signal_cache` (`run_mode: "optimized"` only) goes further: it reads back the final
+signals of every cell, written by a previous run in the same files, and skips the
+calculator. Those signals already carry the mixed-event normalisation and the
+corrections, and nothing yet records which settings produced them: a run that changes
+`me_normalization`, `apply_mixed_events` or `corrections` and turns this cache on gets
+the previous run's numbers, with no error. Run once with it off after changing any of
+them (`DESIGN_NOTES.md` section 5).
+
 ---
 
 ## Map of `Codes/`
@@ -416,7 +425,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | File | |
 |---|---|
 | `EfficiencyCalculator.h` | Efficiency, signal loss and their combination, as static methods over `LoadedMC`. Merges counts before dividing when a rebinning is requested. |
-| `CorrelationCalculator.h` | Signal extraction from the sparses: sideband subtraction, mixed-event normalisation (1D or 2D), projection onto Δy or Δφ. |
+| `CorrelationCalculator.h` | Signal extraction from the sparses, by one of two engines (1D, or 2D with a bin-by-bin division): sideband subtraction, mixed-event normalisation (`bins_at_zero` or `fit`, in either engine), projection onto Δy, or Δφ with the 2D engine only. The projection cache is read and written here. |
 
 ### Tasks
 
