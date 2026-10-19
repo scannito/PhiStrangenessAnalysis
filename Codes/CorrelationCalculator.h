@@ -2,6 +2,7 @@
 
 #include "AnalysisDataStructures.h"
 #include "HistogramUtils.h"
+#include "Logger.h"
 #include "RootIOHelpers.h"
 
 #include "TDirectory.h"
@@ -15,6 +16,7 @@
 #include <optional>
 #include <stdexcept>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -38,6 +40,7 @@ class CorrelationCalculator
     bool engine2D{false};    // the 2D engine (Extract2D) instead of the 1D one (Extract1D)
     bool moreQA{false};      // write the 2D and 1D QA objects into qaDir (2D engine only)
     MENormalization meNorm{MENormalization::BinsAtZero}; // always set from me_normalization by the tasks
+    AxisTarget targetAxis{AxisTarget::DeltaY_Y};         // the same for every cell of a run; Delta phi only with the 2D engine
   };
 
   // One extraction: the cell to cut, the corrections to apply, where to read and write.
@@ -48,7 +51,6 @@ class CorrelationCalculator
     std::string histNameBase;
     TDirectory* ioDir{nullptr};                                // projections cache, written or read
     TDirectory* qaDir{nullptr};                                // QA objects (2D engine with moreQA)
-    AxisTarget targetAxis{AxisTarget::DeltaY_Y};               // Delta phi only with the 2D engine
     std::optional<std::pair<double, double>> orthogonalCut{};  // range on the other axis (2D engine)
   };
 
@@ -74,53 +76,64 @@ class CorrelationCalculator
   constexpr static int kAxisDeltaY = 3;   // Axis index for Delta y in the THnSparse
   constexpr static int kAxisDeltaPhi = 4; // Axis index for Delta Phi in the THnSparse
 
-  // The four inputs of an extraction: signal and sideband, same event and mixed event.
+  // The four inputs of an extraction - signal and sideband, same event and mixed event - with
+  // what follows from the engine, which is the histogram type: TH2 for the 2D engine, TH1 for
+  // the 1D one. The names (the same in the cache and in the projections, so that what is
+  // written and what is read back cannot drift apart) and the axes to project are derived
+  // from H here, once; LoadOrProject<TH1> with the 2D suffix cannot be written.
   template <typename H>
   struct Inputs {
     std::unique_ptr<H> sig, sb, meSig, meSb;
-  };
 
-  // The names of the four inputs, the same in the cache and in the projections: derived in one
-  // place so that what is written and what is read back cannot drift apart.
-  struct InputNames {
-    std::string sig, sb, meSig, meSb;
-    InputNames(const std::string& base, const std::string& dim)
-      : sig(base + "Signal" + dim), sb(base + "Sideband" + dim), meSig(base + "MESignal" + dim), meSb(base + "MESideband" + dim) {}
+    static constexpr bool k2D = std::is_base_of_v<TH2, H>;
+    struct Names {
+      std::string sig, sb, meSig, meSb;
+    };
+    static Names NamesFor(const std::string& base)
+    {
+      const std::string dim = k2D ? "2D" : "";
+      return {base + "Signal" + dim, base + "Sideband" + dim, base + "MESignal" + dim, base + "MESideband" + dim};
+    }
+    // Y = Delta y, X = Delta phi in the 2D projection.
+    static std::vector<int> ProjAxes() { return k2D ? std::vector<int>{kAxisDeltaY, kAxisDeltaPhi} : std::vector<int>{kAxisDeltaY}; }
   };
 
   // Shared by the two engines: the four inputs, read from the cache or projected. Only freshly
   // projected histograms are written to the cache; what was read from it is already there.
   template <typename H>
-  Inputs<H> LoadOrProject(const LoadedAssocData& data, const Request& req, const std::vector<int>& projAxes,
-                          const std::string& dim) const
+  Inputs<H> LoadOrProject(const LoadedAssocData& data, const Request& req) const
   {
-    const InputNames names(req.histNameBase, dim);
-    return opt.fromCache ? ReadFromCache<H>(req, names) : ProjectAndCache<H>(data, req, projAxes, names);
+    const auto names = Inputs<H>::NamesFor(req.histNameBase);
+    return opt.fromCache ? ReadFromCache<H>(req, names) : ProjectAndCache<H>(data, req, names);
   }
 
-  // Reads only. The sideband and its mixed event may be missing (a warning, not an error). A
+  // Reads only. The sideband may be missing (a warning, not an error); with mixed events, a
+  // sideband comes with its mixed event, the rule ProjectAndCache follows, so a sideband without
+  // it means a damaged cache and stops the run (the cell would subtract a sideband never divided
+  // by the mixed event from a signal that was). A
   // missing cache directory is the caller's to report (CorrelationTaskBase::ProjectionCacheDir,
   // which names the file and what to do); a null ioDir reaching here stops in RootIO.
   template <typename H>
-  Inputs<H> ReadFromCache(const Request& req, const InputNames& names) const
+  Inputs<H> ReadFromCache(const Request& req, const typename Inputs<H>::Names& names) const
   {
     Inputs<H> in;
     in.sig = RootIO::GetUniqueOrThrow<H>(req.ioDir, names.sig, "CorrelationCalculator");
     in.sb = RootIO::GetUniqueOrWarn<H>(req.ioDir, names.sb, "CorrelationCalculator");
     if (opt.mixedEvents) {
       in.meSig = RootIO::GetUniqueOrThrow<H>(req.ioDir, names.meSig, "CorrelationCalculator");
-      in.meSb = RootIO::GetUniqueOrWarn<H>(req.ioDir, names.meSb, "CorrelationCalculator");
+      if (in.sb)
+        in.meSb = RootIO::GetUniqueOrThrow<H>(req.ioDir, names.meSb, "CorrelationCalculator");
     }
     return in;
   }
 
   // Projects the THnSparse and, when ioDir is given, writes the result to the cache: the only
-  // place the cache is written. The sideband and its mixed event are optional; the mixed-event
-  // sideband is projected only when there is a sideband to divide.
+  // place the cache is written. The sideband is optional; with mixed events, a sideband comes
+  // with its mixed event (the loaders require the two together), and one without stops here.
   template <typename H>
-  Inputs<H> ProjectAndCache(const LoadedAssocData& data, const Request& req, const std::vector<int>& projAxes,
-                            const InputNames& names) const
+  Inputs<H> ProjectAndCache(const LoadedAssocData& data, const Request& req, const typename Inputs<H>::Names& names) const
   {
+    const std::vector<int> projAxes = Inputs<H>::ProjAxes();
     Inputs<H> in;
     if (!data.h5DataSignal)
       throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: missing signal THnSparse for {}", data.name));
@@ -132,8 +145,11 @@ class CorrelationCalculator
       if (!data.h5DataMESignal)
         throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: missing mixed-event signal THnSparse for {}", data.name));
       in.meSig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESignal.get(), req.axesToCut, projAxes, names.meSig);
-      if (data.h5DataMESideband && in.sb)
+      if (in.sb) {
+        if (!data.h5DataMESideband)
+          throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: a sideband for {} without its mixed-event sideband THnSparse", data.name));
         in.meSb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESideband.get(), req.axesToCut, projAxes, names.meSb);
+      }
     }
 
     if (req.ioDir) {
@@ -164,12 +180,11 @@ class CorrelationCalculator
     if (opt.meNorm == MENormalization::Fit) {
       std::unique_ptr<TH1> copy(static_cast<TH1*>(me->Clone("tempME1D_fit")));
       copy->SetDirectory(0);
-      norm = GetZeroAvgFromFit(copy.get());
+      norm = GetZeroAvgFromFit(copy.get(), me->GetName());
     } else {
       norm = GetZeroAvg(me);
     }
-    if (norm > 0)
-      me->Scale(1.0 / norm);
+    ScaleToOneAtZero(me, norm);
   }
 
   // 2D. Fit: a0 of the fit of the Delta y projection near zero, divided by the number of
@@ -182,14 +197,30 @@ class CorrelationCalculator
     if (opt.meNorm == MENormalization::Fit) {
       std::unique_ptr<TH1> projY(static_cast<TH1*>(me->ProjectionY(tempName)));
       projY->SetDirectory(0);
-      const double a0 = GetZeroAvgFromFit(projY.get());
+      const double a0 = GetZeroAvgFromFit(projY.get(), me->GetName());
       const double nBinsPhi = me->GetNbinsX();
       norm = a0 / nBinsPhi;
     } else {
       norm = GetZeroZeroAvg(me);
     }
-    if (norm > 0)
+    ScaleToOneAtZero(me, norm);
+  }
+
+  // A normalisation that cannot be computed (an empty mixed event at zero, in a cell with few
+  // pairs) leaves the mixed event as it is, so the same event is divided by raw mixed-event
+  // counts and the cell is off by orders of magnitude. Kept as it was, but no longer silent
+  // (CLAUDE.md: a correction that cannot be computed is not a correction of 1).
+  static void ScaleToOneAtZero(TH1* me, double norm)
+  {
+    if (norm > 0) {
       me->Scale(1.0 / norm);
+      return;
+    }
+    // One constant text, so the end-of-run summary counts it once with (xN) instead of filling
+    // its list of distinct warnings cell by cell; which cell is in the Info line before it.
+    Logger::Info("CorrelationCalculator: mixed event '{}' at zero: {}", me->GetName(), norm);
+    Logger::Warn("CorrelationCalculator: a mixed event is not positive at zero and is left unnormalised; its cell is "
+                 "divided by raw mixed-event counts (the cells are in the Info lines above each)");
   }
 
   // The content at x = 0: the bin around zero, or the mean of the two bins that meet at zero.
@@ -234,14 +265,21 @@ class CorrelationCalculator
 
   // Constant term of a fit near zero. The range (0.5) and the shape are fixed here: with the fit
   // available to both engines they may become configurable (DESIGN_NOTES.md section 6).
-  double GetZeroAvgFromFit(TH1* h, double fitRange = 0.5) const
+  double GetZeroAvgFromFit(TH1* h, const std::string& meName, double fitRange = 0.5) const
   {
     if (!h)
       return 0.0;
 
     // Fit a constant in the range [-fitRange, fitRange]
     std::unique_ptr<TF1> fitFunc = std::make_unique<TF1>("fitFunc", "[0] + [1]*abs(x) + [2]*x*x", -fitRange, fitRange);
-    h->Fit(fitFunc.get(), "RQ"); // R = use range, Q = quiet mode
+    // R = use range, Q = quiet mode. A non-zero status is reported, not interpreted: it is the
+    // minimiser's code, and some non-zero values leave a usable minimum. a0 is used as before.
+    const int status = h->Fit(fitFunc.get(), "RQ");
+    if (status != 0) {
+      Logger::Info("CorrelationCalculator: fit normalising mixed event '{}': status {}", meName, status);
+      Logger::Warn("CorrelationCalculator: a fit normalising a mixed event returned a non-zero status (see TH1::Fit; "
+                   "0 is a successful fit); its a0 is used as it is (the cells are in the Info lines above each)");
+    }
 
     return fitFunc->GetParameter(0);
   }
@@ -256,13 +294,13 @@ class CorrelationCalculator
     const double totalEff = req.totalEff;
     const double triggerBkgRatio = req.triggerBkgRatio;
     TDirectory* qaDir = req.qaDir;
-    const AxisTarget targetAxis = req.targetAxis;
+    const AxisTarget targetAxis = opt.targetAxis;
     const auto& orthogonalCut = req.orthogonalCut;
     const bool applyME = opt.mixedEvents;
     const bool doMoreQA = opt.moreQA;
 
     // 1. Loading / Projection. Y = Delta y, X = Delta phi.
-    Inputs<TH2> in = LoadOrProject<TH2>(data, req, {kAxisDeltaY, kAxisDeltaPhi}, "2D");
+    Inputs<TH2> in = LoadOrProject<TH2>(data, req);
     std::unique_ptr<TH2>& h2Signal = in.sig;
     std::unique_ptr<TH2>& h2Sideband = in.sb;
     std::unique_ptr<TH2>& h2MESignal = in.meSig;
@@ -400,7 +438,7 @@ class CorrelationCalculator
   std::unique_ptr<TH1> Extract1D(const LoadedAssocData& data, const Request& req) const
   {
     // 1. Load from cache or project THnSparse on the fly
-    Inputs<TH1> in = LoadOrProject<TH1>(data, req, {kAxisDeltaY}, "");
+    Inputs<TH1> in = LoadOrProject<TH1>(data, req);
 
     // 2. Efficiency Correction
     in.sig->Scale(1.0 / req.totalEff);

@@ -1329,7 +1329,7 @@ class CorrelationTaskBase : public IAnalysisTask
   void RunLegacy()
   {
     Logger::Info("{}: RUNNING CORRELATIONS (Legacy)...", GetName());
-    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .meNorm = meNormalization});
+    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .meNorm = meNormalization, .targetAxis = projectionAxis});
 
     const std::vector<std::unique_ptr<TH1>>* phiCorrs{nullptr};
     std::vector<const std::vector<std::unique_ptr<TH1>>*> assocCorrs(assocParticles.size(), nullptr);
@@ -1379,7 +1379,7 @@ class CorrelationTaskBase : public IAnalysisTask
             std::string histNameBase = "h1Phi" + config.name + "Data";
             std::string suffix = CellSuffix(config, i, j, k);
 
-            std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, {.axesToCut = axesToCut, .totalEff = totalEff, .triggerBkgRatio = triggerBkgRatio, .histNameBase = histNameBase + suffix, .ioDir = targetDir, .targetAxis = projectionAxis});
+            std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, {.axesToCut = axesToCut, .totalEff = totalEff, .triggerBkgRatio = triggerBkgRatio, .histNameBase = histNameBase + suffix, .ioDir = targetDir});
 
             if (j == 0) {
               std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, i, k));

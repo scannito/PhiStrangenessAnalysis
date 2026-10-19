@@ -7,6 +7,41 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## CorrelationCalculator: the review of the unpushed commits
+
+**19 October 2026, two `analysis-reviewer` passes on the commits from `c1b748d` on.** What changed:
+
+- `Inputs<H>` derives the names of the four inputs and the axes to project from the histogram type
+  (`TH2` = 2D engine), instead of a separate `InputNames` and a suffix and axis list passed by each
+  engine: the two had to agree and nothing made them.
+- `targetAxis` moved from `Request` to `Options`: it is the same for every cell of a run.
+- With mixed events, a sideband comes with its mixed event. `ReadFromCache` reads the mixed-event
+  sideband only when there is a sideband, and one missing stops the run (`GetUniqueOrThrow`; before,
+  a warning, and the cell subtracted a sideband never divided by the mixed event). `ProjectAndCache`
+  throws on a sideband without its mixed-event THnSparse; the loader (`CorrelationTask`) always loads
+  the two together, so that check guards a future loader, not the present one.
+- A mixed event that cannot be normalised (not positive at zero) and a fit of the normalisation that
+  returns a non-zero status now go through `Logger::Warn`. Both were silent. The status is reported,
+  not interpreted (some non-zero codes leave a usable minimum). The warning texts are constant, so the
+  end-of-run summary counts each once with (xN) instead of filling its 500 distinct entries cell by
+  cell; which cell, and the value, is in an `Info` line just before each.
+
+The first warning found something: the Ξ sideband mixed event is 0 at Δy = 0 in 24 cells
+(`DESIGN_NOTES.md` section 6). Set aside from the first review: a constructor check of `targetAxis`
+against the engine (`RequireEngineSettingsSupported` already refuses the combination at `Init`) and a
+second guard on the cache directory (`ProjectionCacheDir` and RootIO already cover it). Recorded, not
+fixed (`DESIGN_NOTES.md` section 5): the L2 signal cache carries no stamp of the settings that made it,
+and a retired key still passes when a parent declares its replacement.
+
+*How it was checked.* In a scratch copy, compiled. `data pp` with the projection cache: 113 output files
+compared with the baseline, 0 differences, and the summary shows one warning, (x24). The 2D engine with
+`fit`, cache off, one block (`optimized`, `use_2d_me_normalization`): the spectra and the four projection
+caches, about 15,800 objects, identical to the baseline; that run used the code before the last four
+changes, which only add warnings and throws. The cache read with a sideband present and its mixed event
+missing was not produced: that change is argued, not measured.
+
+---
+
 ## The mixed-event normalisation is declared
 
 **`me_normalization`, required, `bins_at_zero` or `fit`, for both engines** (18 October 2026, at the

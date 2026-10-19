@@ -371,6 +371,25 @@ errors to move at that level. Seen again on 18 October: `run_mode: "optimized"` 
 engine give the same contents and extrapolated K0S trend errors that differ by up to 3.5e-12 relative (the
 two modes fit in a different order). Runs of one mode on the same inputs are identical.
 
+**The L2 signal cache does not say which settings produced it.** Found by the review of
+19 October 2026. With `use_signal_cache` the final signals of a cell are read back as they were
+written, and they already carry the mixed-event normalisation and the corrections. Nothing records
+which `me_normalization` (or `apply_mixed_events`, or `corrections`) made them: a run with `fit` and the
+cache off, then one with `bins_at_zero` and the cache on, gives the first run's numbers (up to 9.6% on
+the K0S) under a provenance that says `bins_at_zero`. The hole existed for the corrections before; the
+declared normalisation widens it. The general fix, rather than one check per key: stamp the scheme
+directory, when the L2 cache is written, with the settings that change its numbers, and refuse a mismatch
+on read, as `RootIO::RequireMatchingBinningStamp` does for the binning.
+
+**A key retired by a migration still passes when a parent declares its replacement.** Found by the same
+review. `RejectReplacedKey` was dropped on 19 October because the required `corrections` stops a
+configuration that was not migrated. But a child block that still says `"apply_efficiency": false`, and
+inherits `corrections` from a migrated parent, satisfies the required key through the parent and runs
+with the parent's corrections, in silence: the "off must be a value" trap of `CLAUDE.md`. A table of
+retired keys was considered and set aside (one more list to grow with every rename); this is the
+strongest argument for the key-recording reader described above, which refuses any key a task did not
+read.
+
 **A zero event-loss bin is skipped in silence.** In `CorrelationTaskBase`, where the
 number of triggers is corrected for the event loss, `if (eventLossCorr > 0.0)` divides
 only when the bin is positive: a multiplicity class whose event-loss bin is 0 keeps its
@@ -394,6 +413,16 @@ treated as a systematic. Decision pending.
 ---
 
 ## 6. Physics questions still open
+
+**Cells where the mixed event is empty at zero. To decide.** Since 19 October 2026 a mixed event that
+cannot be normalised goes through `Logger::Warn` instead of passing in silence, and the first `data pp`
+run showed where: the **sideband** mixed event of the **Ξ**, multiplicity **70-100%**, associated pT
+**4.2-6.5 GeV/c**, is 0 at Δy = 0 for the four φ pT bins from 2 GeV/c up (2-2.8, 2.8-4, 4-6, 6-10), in every
+task and year (24 warnings). There the sideband is divided by raw mixed-event counts instead of a mixed
+event scaled to 1, then subtracted from the signal: those cells are not corrected as the others are.
+It has always been so; the numbers did not change, only the silence. What to do is the user's call: drop
+the sideband subtraction in such cells, normalise with a wider window or the fit, merge the cell with a
+neighbour, or stop the run.
 
 **Δφ in the 1D engine: which normalisation of the mixed event? To decide.** Recorded on
 18 October 2026. `CorrelationCalculator` has two engines, and they differ in more than the

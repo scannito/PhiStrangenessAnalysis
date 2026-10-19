@@ -345,7 +345,7 @@ class CorrelationTask : public CorrelationTaskBase
     // MODE B: STANDARD CALCULATION (If L2 Cache is disabled)
     // The CorrelationCalculator is invoked here (managing L1 Cache internally)
     // =========================================================================
-    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .moreQA = doMoreQA, .meNorm = meNormalization});
+    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .moreQA = doMoreQA, .meNorm = meNormalization, .targetAxis = projectionAxis});
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
       HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {i + 1, i + 1}};
@@ -383,7 +383,7 @@ class CorrelationTask : public CorrelationTaskBase
             std::string suffix = CellSuffix(config, i, j, k);
 
             std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
-              data, {.axesToCut = axesToCut, .totalEff = totalEff, .triggerBkgRatio = triggerBkgRatio, .histNameBase = baseNameStd + suffix, .ioDir = targetDir, .qaDir = currentQADir, .targetAxis = projectionAxis});
+              data, {.axesToCut = axesToCut, .totalEff = totalEff, .triggerBkgRatio = triggerBkgRatio, .histNameBase = baseNameStd + suffix, .ioDir = targetDir, .qaDir = currentQADir});
 
             if (j == 0) {
               std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, i, k));
