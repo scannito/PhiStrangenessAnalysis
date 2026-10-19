@@ -336,3 +336,18 @@ Where behaviour matters, it was measured and the measurement is in the comment â
 see `HistogramUtils::RebinToTargetBinning`, which records what ROOT actually does
 with the bins outside the target range. Keep doing that: a number in a comment
 outlives an assertion in a chat.
+
+## How a change is reviewed
+
+A code change of more than about ten lines (comments and documentation not counted) is reviewed before it
+is committed, by the `analysis-reviewer` agent (`.claude/agents/analysis-reviewer.md`), a fresh one each time,
+read-only. Agreed with the owner on 19 October 2026, after a series of changes whose problems they had to point
+out by hand: the same rule in two places, checks that could never fire, patches that would pile up with every
+change of the same kind, a value derived and taken apart again, a structure that hid what the code did, a helper
+re-implemented by hand. The agent's checklist is those, plus the conventions above.
+
+- The brief is the diff (or the range, or the sandbox path) and one line on what the change is for. The review
+  runs while the before/after check runs: it costs no waiting.
+- Every finding is either fixed or answered with the reason it does not apply; the report to the owner says
+  which, next to what was checked by running.
+- Below the threshold (a rename, a comment, a one-line fix) no review: it would cost more than it finds.
