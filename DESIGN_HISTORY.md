@@ -10,7 +10,8 @@ and several of these fixes look wrong without it. Open items stay in
 ## CorrelationCalculator made lighter
 
 **Four commits on 18 October 2026.** (1) A Δφ projection with the 1D engine is refused at `Init`
-(`RequireEngineSettingsSupported`) and in `ExtractCorrectedSignal`: `run_mode: "legacy"` and the WPDG task
+(`RequireEngineSettingsSupported`; the rule is `CorrelationCalculator::Supports`, written once there, after a
+first version that also checked it again in `ExtractCorrectedSignal`, which could never fire): `run_mode: "legacy"` and the WPDG task
 always build the 1D engine, which projects on Δy only, so `projection_axis: "delta_phi"` gave Δy spectra with
 no error. Δφ in the 1D engine is open (`DESIGN_NOTES.md` section 6). A QA write of a sideband that may not
 exist is guarded. (2) Two helpers never called removed, `kAxisDeltaY` instead of `{3}`. (3) `Options` and

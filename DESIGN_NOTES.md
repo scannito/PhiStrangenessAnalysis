@@ -412,8 +412,9 @@ engine corrects only its average over Δφ. They agree only if the ME is flat in
 
 `run_mode: "legacy"` (every current configuration) and the WPDG task always build the 1D
 engine, and `projection_axis: "delta_phi"` there used to give Δy spectra with no error. It is
-now refused at `Init` (`CorrelationTaskBase::RequireEngineSettingsSupported`, and again in
-`ExtractCorrectedSignal`). The user wants Δφ in the 1D engine eventually; what is open is the
+now refused at `Init` (`CorrelationTaskBase::RequireEngineSettingsSupported`, which asks
+`CorrelationCalculator::Supports`, where the rule is written once). When the 1D engine learns Δφ,
+`Supports` is the one line to change. The user wants Δφ in the 1D engine eventually; what is open is the
 normalisation. In Δy the ME peaks at 0 and is normalised there; integrated over Δy the ME is
 about flat in Δφ, so "the value at Δφ = 0" has no special role. Candidates: the 2D engine's
 convention (the value at (0, 0)), the mean over the whole Δφ range, or the value around Δφ = 0

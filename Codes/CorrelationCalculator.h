@@ -47,16 +47,17 @@ class CorrelationCalculator
 
   explicit CorrelationCalculator(Options options) : opt(options) {}
 
+  // Which projections each engine can make, stated once. The 1D engine projects on Delta y
+  // only: Delta phi there needs a normalisation of the mixed event that is still to be
+  // decided (DESIGN_NOTES.md section 6). Asked by the tasks at Init
+  // (CorrelationTaskBase::RequireEngineSettingsSupported), which stop before loading any
+  // data and can name the keys to change; an engine asked for an axis it does not support
+  // would otherwise answer with a Delta y projection.
+  static bool Supports(bool engine2D, AxisTarget axis) { return engine2D || axis == AxisTarget::DeltaY_Y; }
+
   // The corrected, sideband-subtracted correlation of one cell, projected on targetAxis.
   std::unique_ptr<TH1> ExtractCorrectedSignal(const LoadedAssocData& data, const Request& req) const
   {
-    // The 1D engine projects on Delta y only. Delta phi there needs a normalisation of the
-    // mixed event that is still to be decided (DESIGN_NOTES.md section 6), so it is refused
-    // rather than answered with a Delta y projection. The tasks refuse it at Init already;
-    // this is the guarantee for any other caller.
-    if (!opt.engine2D && req.targetAxis == AxisTarget::DeltaPhi_X)
-      throw std::runtime_error("[FATAL] CorrelationCalculator: a Delta phi projection needs the 2D engine; the 1D engine projects on Delta y only.");
-
     return opt.engine2D ? Extract2D(data, req) : Extract1D(data, req);
   }
 

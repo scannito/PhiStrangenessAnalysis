@@ -478,7 +478,7 @@ class CorrelationTaskBase : public IAnalysisTask
         "or the WPDG task, which always does): its results would be filed under 'Extract2D'. Set it to false, "
         "or use run_mode 'optimized' for the 2D engine.",
         GetName()));
-    if (projectionAxis == CorrelationCalculator::AxisTarget::DeltaPhi_X && !engine2D)
+    if (!CorrelationCalculator::Supports(engine2D, projectionAxis))
       throw std::runtime_error(std::format(
         "[FATAL] {}: projection_axis 'delta_phi' needs the 2D engine (run_mode 'optimized' with "
         "use_2d_me_normalization true); with this configuration the 1D engine runs, and it projects on "
