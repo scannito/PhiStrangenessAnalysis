@@ -318,6 +318,7 @@ class CorrelationTaskBase : public IAnalysisTask
   std::map<std::string, LoadedCorrections> correctionCollection;
 
   CorrelationCalculator::AxisTarget projectionAxis{CorrelationCalculator::AxisTarget::DeltaY_Y};
+  CorrelationCalculator::MENormalization meNormalization{CorrelationCalculator::MENormalization::BinsAtZero};
 
   std::map<std::string, bool> doExtrapolationPerParticle;
 
@@ -419,6 +420,12 @@ class CorrelationTaskBase : public IAnalysisTask
 
     useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
     use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());
+    // Required, with no default: it changes the numbers (CLAUDE.md, Configuration).
+    meNormalization = JsonConfig::ResolveEnum<CorrelationCalculator::MENormalization>(
+      JsonConfig::RequireString(taskConfig, "me_normalization", GetName()),
+      {{"bins_at_zero", CorrelationCalculator::MENormalization::BinsAtZero},
+       {"fit", CorrelationCalculator::MENormalization::Fit}},
+      "me_normalization", GetName());
 
     // Defaulted to what the chain has always done, so a configuration that says nothing
     // reproduces the previous numbers. The alternative exists to be compared against
@@ -1328,7 +1335,7 @@ class CorrelationTaskBase : public IAnalysisTask
   {
     Logger::Info("{}: RUNNING CORRELATIONS (Legacy)...", GetName());
     // The 1D engine: RequireEngineSettingsSupported has refused use_2d_me_normalization with it.
-    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache});
+    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .meNorm = meNormalization});
 
     const std::vector<std::unique_ptr<TH1>>* phiCorrs{nullptr};
     std::vector<const std::vector<std::unique_ptr<TH1>>*> assocCorrs(assocParticles.size(), nullptr);

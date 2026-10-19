@@ -127,6 +127,7 @@
         ],
         "use_projection_cache": true,
         "use_2d_me_normalization": false,
+        "me_normalization": "bins_at_zero",
         "projection_axis": "delta_y",
         "use_signal_cache": false,
         "do_more_qa": false,

@@ -344,7 +344,7 @@ class CorrelationTask : public CorrelationTaskBase
     // MODE B: STANDARD CALCULATION (If L2 Cache is disabled)
     // The CorrelationCalculator is invoked here (managing L1 Cache internally)
     // =========================================================================
-    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = use2DMENormalization, .moreQA = doMoreQA});
+    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = use2DMENormalization, .moreQA = doMoreQA, .meNorm = meNormalization});
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
       HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {i + 1, i + 1}};

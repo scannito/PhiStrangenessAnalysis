@@ -24,6 +24,12 @@ class CorrelationCalculator
   enum class AxisTarget { DeltaPhi_X = 0,
                           DeltaY_Y };
 
+  // How the mixed event is normalised before it divides the same event: a choice that changes
+  // the numbers, so the configuration declares it (me_normalization). The two do not measure
+  // the same thing in the 2D engine: see NormalizeME2D.
+  enum class MENormalization { BinsAtZero, // the bins at zero: Delta y = 0 (1D), (Delta phi, Delta y) = (0, 0) (2D)
+                               Fit };      // a0 of a0 + a1|x| + a2 x^2 fitted near Delta y = 0
+
   // What the calculator does, fixed for a run. Built with designated initialisers, so the
   // call site says which switch is which; what it does not write is off.
   struct Options {
@@ -31,6 +37,7 @@ class CorrelationCalculator
     bool fromCache{false};   // read the projections from ioDir instead of projecting the THnSparse
     bool engine2D{false};    // the 2D engine (Extract2D) instead of the 1D one (Extract1D)
     bool moreQA{false};      // write the 2D and 1D QA objects into qaDir (2D engine only)
+    MENormalization meNorm{MENormalization::BinsAtZero}; // always set from me_normalization by the tasks
   };
 
   // One extraction: the cell to cut, the corrections to apply, where to read and write.
@@ -127,32 +134,90 @@ class CorrelationCalculator
     return in;
   }
 
-  // The two engines normalise the mixed event differently, a physics choice and not an
-  // accident: see the table in DESIGN_NOTES.md section 6.
+  // The normalisation of the mixed event, chosen by opt.meNorm, is the same idea in the two
+  // engines: the mixed event is scaled to 1 at zero separation.
 
-  // 1D: scaled so that the integral of the two bins around Delta y = 0 is 2, about 1 per bin.
-  static void NormalizeME1D(TH1* me)
+  // 1D. BinsAtZero: the bins at Delta y = 0 (GetZeroAvg). With an even, symmetric binning,
+  // which is what every configuration has had, it equals the integral of the two bins around
+  // zero divided by 2 that this engine used to compute, number for number; with zero at the
+  // centre of a bin that integral took three bins and would have normalised to about 1.5.
+  // Fit: a0 of the fit near zero, on a copy so that the fit is not attached to the histogram.
+  void NormalizeME1D(TH1* me) const
   {
-    const double width = me->GetXaxis()->GetBinWidth(me->GetXaxis()->FindBin(0.0));
-    const double norm = HistogramUtils::IntegralAndErrorPair(me, -width, width).first;
-    if (norm > 0)
-      me->Scale(2.0 / norm);
-  }
-
-  // 2D: scaled so that its average per Delta phi bin at Delta y = 0, from a fit of the
-  // Delta y projection near zero, is 1.
-  void NormalizeME2D(TH2* me, const char* tempName) const
-  {
-    std::unique_ptr<TH1> projY(static_cast<TH1*>(me->ProjectionY(tempName)));
-    projY->SetDirectory(0);
-    const double a0 = GetZeroAvgFromFit(projY.get());
-    const double nBinsPhi = me->GetNbinsX();
-    const double norm = a0 / nBinsPhi;
+    double norm = 0.0;
+    if (opt.meNorm == MENormalization::Fit) {
+      std::unique_ptr<TH1> copy(static_cast<TH1*>(me->Clone("tempME1D_fit")));
+      copy->SetDirectory(0);
+      norm = GetZeroAvgFromFit(copy.get());
+    } else {
+      norm = GetZeroAvg(me);
+    }
     if (norm > 0)
       me->Scale(1.0 / norm);
   }
 
-  // Constant term of a fit near zero of the 2D mixed event's Delta y projection.
+  // 2D. Fit: a0 of the fit of the Delta y projection near zero, divided by the number of
+  // Delta phi bins, i.e. the value per bin at Delta y = 0 AVERAGED OVER Delta phi.
+  // BinsAtZero: the bins at (Delta phi, Delta y) = (0, 0), i.e. the value AT Delta phi = 0.
+  // They agree only if the mixed event is flat in Delta phi.
+  void NormalizeME2D(TH2* me, const char* tempName) const
+  {
+    double norm = 0.0;
+    if (opt.meNorm == MENormalization::Fit) {
+      std::unique_ptr<TH1> projY(static_cast<TH1*>(me->ProjectionY(tempName)));
+      projY->SetDirectory(0);
+      const double a0 = GetZeroAvgFromFit(projY.get());
+      const double nBinsPhi = me->GetNbinsX();
+      norm = a0 / nBinsPhi;
+    } else {
+      norm = GetZeroZeroAvg(me);
+    }
+    if (norm > 0)
+      me->Scale(1.0 / norm);
+  }
+
+  // The content at x = 0: the bin around zero, or the mean of the two bins that meet at zero.
+  static double GetZeroAvg(TH1* h)
+  {
+    if (!h)
+      return 0.0;
+    int bx_left = h->GetXaxis()->FindBin(-1e-6);
+    int bx_right = h->GetXaxis()->FindBin(1e-6);
+
+    // If zero falls exactly in the center of a single bin
+    if (bx_left == bx_right) {
+      return h->GetBinContent(bx_left);
+    }
+
+    // If zero falls on the intersection of 2 bins
+    return (h->GetBinContent(bx_left) + h->GetBinContent(bx_right)) / 2.0;
+  }
+
+  // The content at (0, 0): the bin around it, or the mean of the bins that meet there.
+  static double GetZeroZeroAvg(TH2* h)
+  {
+    if (!h)
+      return 0.0;
+    int bx_left = h->GetXaxis()->FindBin(-1e-6);
+    int bx_right = h->GetXaxis()->FindBin(1e-6);
+    int by_down = h->GetYaxis()->FindBin(-1e-6);
+    int by_up = h->GetYaxis()->FindBin(1e-6);
+
+    // If zero falls exactly in the center of a single bin
+    if (bx_left == bx_right && by_down == by_up) {
+      return h->GetBinContent(bx_left, by_down);
+    }
+
+    // Otherwise the mean of the bins that meet at zero: two (on an edge in one axis) or four.
+    // GetBinContent of the same bin twice counts it twice, so the mean over four is right in
+    // both cases.
+    return (h->GetBinContent(bx_left, by_down) + h->GetBinContent(bx_left, by_up) +
+            h->GetBinContent(bx_right, by_down) + h->GetBinContent(bx_right, by_up)) /
+           4.0;
+  }
+
+  // Constant term of a fit near zero. The range (0.5) and the shape are fixed here: with the fit
+  // available to both engines they may become configurable (DESIGN_NOTES.md section 6).
   double GetZeroAvgFromFit(TH1* h, double fitRange = 0.5) const
   {
     if (!h)

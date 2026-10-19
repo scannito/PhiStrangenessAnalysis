@@ -306,6 +306,7 @@
         ],
         "use_projection_cache": true,
         "use_2d_me_normalization": false,
+        "me_normalization": "bins_at_zero",
         "projection_axis": "delta_y",
         "use_signal_cache": false,
         "do_more_qa": false,
@@ -437,6 +438,7 @@
         "trend_composition": "total_extrapolated",
         "use_projection_cache": false,
         "use_2d_me_normalization": false,
+        "me_normalization": "bins_at_zero",
         "is_pure_gen": false,
         "delta_y_limits": [
             1.0,

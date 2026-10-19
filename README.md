@@ -230,6 +230,7 @@ silently ignored.
 |---|---|---|
 | `apply_mixed_events`, `apply_extrapolation`, `apply_purity` | required | |
 | `use_projection_cache`, `use_2d_me_normalization` | required | |
+| `me_normalization` | required | `bins_at_zero` or `fit`: how the mixed event is scaled to 1 at zero separation, in either engine. See `DESIGN_NOTES.md` section 6. |
 | `input_dir_proj`, `input_dir_purity`, `output_dir_final` | required | |
 | `input_data_file`, `base_path_data` | required | Unless the projection cache is enabled. |
 | `input_me_file`, `base_path_me` | required | Only when mixed events are on. |

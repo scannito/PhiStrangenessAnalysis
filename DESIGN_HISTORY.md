@@ -7,6 +7,28 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## The mixed-event normalisation is declared
+
+**`me_normalization`, required, `bins_at_zero` or `fit`, for both engines** (18 October 2026, at the
+user's request). Before, it was fixed per engine: the 1D engine summed the bins in [-w, +w] around Δy = 0
+and divided by 2, the 2D engine fitted. The 1D computation was `GetZeroAvg` written by hand, and only for
+an even binning: with zero at the centre of a bin it took three bins and would have normalised to about
+1.5, in silence. `GetZeroAvg` and `GetZeroZeroAvg`, removed the day before as unused, are back as the
+implementation of `bins_at_zero` (1D: the bins at Δy = 0; 2D: the bins at (0, 0)); `fit` is the 2D
+engine's fit, now available to the 1D engine as well, on a copy of the histogram. In the 2D engine the two
+measure different things: the fit gives the value averaged over Δφ, the bins the value at Δφ = 0.
+
+Every configuration declares `bins_at_zero` (all 134 merged correlation blocks checked), which reproduces
+the previous numbers: with the 20 bins in [-1, 1] the two bins around zero are the same bins, and
+2/(a+b) and 1/((a+b)/2) are the same double. Measured on a mixed event of the cache: integral/2 = 3902.5,
+`GetZeroAvg` = 3902.5.
+
+*How it was checked.* `data pp` in a scratch copy: `bins_at_zero`, 10 files and 1,360 objects identical to
+the baseline; `fit` runs and moves the K0S spectra by up to 9.6% in one bin; a misspelled value is refused
+with the available ones. The 2D engine with either value was not run.
+
+---
+
 ## CorrelationCalculator made lighter
 
 **Four commits on 18 October 2026.** (1) A Δφ projection with the 1D engine is refused at `Init`

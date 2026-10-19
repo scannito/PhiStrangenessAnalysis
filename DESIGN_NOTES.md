@@ -403,7 +403,7 @@ normalisation:
 |---|---|---|
 | projection | SE and ME projected **at once on Δy**, integrated over Δφ | SE and ME projected on **(Δφ, Δy)** |
 | mixed-event correction | **1D** division, (∫SE dΔφ)/(∫ME dΔφ) | **bin-by-bin 2D** division SE/ME, then the projection |
-| ME normalisation | integral of the two bins around Δy = 0, scaled to about 1 there | fit a0 + a1·\|x\| + a2·x² of the ME projection on Δy near 0, divided by the number of Δφ bins |
+| ME normalisation | chosen by `me_normalization` (since 18 October; before, fixed per engine): `bins_at_zero` takes the bins at Δy = 0, `fit` the a0 of a0 + a1·\|x\| + a2·x² near Δy = 0 | `fit`: a0 of that fit on the Δy projection, divided by the number of Δφ bins (the value **averaged over Δφ**); `bins_at_zero`: the bins at (Δφ, Δy) = (0, 0) (the value **at Δφ = 0**) |
 | final axis | Δy only | Δy or Δφ, with the orthogonal cut and the QA |
 
 The second row is the one of substance: ∫SE/∫ME ≠ ∫(SE/ME) in general. The pair acceptance
@@ -419,6 +419,12 @@ normalisation. In Δy the ME peaks at 0 and is normalised there; integrated over
 about flat in Δφ, so "the value at Δφ = 0" has no special role. Candidates: the 2D engine's
 convention (the value at (0, 0)), the mean over the whole Δφ range, or the value around Δφ = 0
 by symmetry with Δy. They give different spectra; the user's call.
+
+The normalisation itself is now declared, `me_normalization`, for both engines: every configuration
+says `bins_at_zero`, what the 1D engine always did. On `data pp`, `fit` instead moves the spectra by up to
+about 10% (K0S, one bin of 0-1% multiplicity); which one is right is open. The fit has two parameters
+fixed in the code, the range (±0.5 in Δy) and the shape (a0 + a1·|x| + a2·x²): with the fit available to
+both engines they may need to become configurable.
 
 **Primaries in the efficiency numerator.** The efficiency is
 `MCReco / MCGenAssocReco`. If the numerator is not restricted to primary
