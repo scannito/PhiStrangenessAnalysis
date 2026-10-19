@@ -72,17 +72,18 @@ inline int NBins(std::span<const double> edges)
   return edges.empty() ? 0 : static_cast<int>(edges.size()) - 1;
 }
 
+// The tolerance for two edges (or limits on the same scale) to be the same. Absolute: bin
+// edges here are pT in GeV/c (0-20) or multiplicity percentiles (0-100), so 1e-9 sits far
+// below any difference that could be physical and far above double rounding.
+inline constexpr double kEdgeEpsilon = 1e-9;
+
 // Returns an empty string when the two binnings agree within epsilon, otherwise
 // a report listing EVERY difference. Reporting all of them at once matters:
 // a stale configuration or a wrong production usually differs in several places,
 // and fixing them one run at a time is expensive.
-//
-// The tolerance is absolute. Bin edges here are pT in GeV/c (0-20) or
-// multiplicity percentiles (0-100), so 1e-9 sits far below any difference that
-// could be physical and far above double rounding.
 inline std::string Compare(std::span<const double> lhs, std::span<const double> rhs,
                            std::string_view lhsName = "expected", std::string_view rhsName = "found",
-                           double epsilon = 1e-9)
+                           double epsilon = kEdgeEpsilon)
 {
   std::string report;
 
@@ -118,7 +119,7 @@ struct BinRange {
 // Used to merge BEFORE deriving a quantity rather than after: a coarse purity or
 // efficiency must come from the merged counts, never from the merged ratios.
 inline std::vector<BinRange> MapToSourceBins(std::span<const double> source, std::span<const double> target,
-                                             double epsilon = 1e-9)
+                                             double epsilon = kEdgeEpsilon)
 {
   auto findEdge = [&](double edge) -> int {
     for (size_t i = 0; i < source.size(); ++i) {

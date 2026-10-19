@@ -1249,3 +1249,56 @@ comes from (MC, or a fit of the DCA distribution in data) is still to be decided
    first).
 4. Shifted maps: separate wagons with a configurable, or shifted histograms in the same pass (three times the
    CPU against two or three times the memory of the THnSparse).
+
+---
+
+## 14. Plots on demand: what is not done
+
+Written on 19 October 2026, with the first version of `phiplot` (README.md, *Plots on demand*),
+on the branch `plot-on-demand`.
+
+**What is there.** A catalog of what a `PhiAssocSpectra` file holds by meaning (`PlotCatalog`); a
+plot specification whose keys sit in one table that gives both the checks and a JSON schema
+(`PlotSpec`); a resolver that finds every object through the stamps and refuses a division between
+things that do not mean the same (`PlotRenderer`); three front ends on that one interface (`phiplot
+quick`, `Macros/phiplot_ask.py` with a local or remote model, the Claude Code skill). The object
+names moved into `OutputNames`, used by `CorrelationTaskBase` to write them and by the catalog to
+read them, so a rename changes one place; `data pp` gave the same 113 files, object for object,
+after the producer was switched to it.
+
+**Open, roughly in order of weight:**
+
+- **Only `PhiAssocSpectra`.** The corrections, purities, φ fits and projection caches are other
+  files with their own names, still built by hand in their tasks. The same pattern applies (names
+  in `OutputNames` or a sibling, a catalog section per file type), one file type at a time.
+- **The uncertainties are what the files carry**, one error per bin. No systematic band, no
+  separation of statistical and systematic: the framework does not produce systematics yet
+  (`Macros/run_systematics.py`). When it does, the specification gets a key for which band to draw,
+  and the normalisation uncertainty, 100% correlated across bins, belongs to the trend and not to
+  each point (CLAUDE.md, *Physics that the code depends on*).
+- **The 2D-engine QA objects and the per-cell signals** (`Extract2D` `QA` directories, the L2 cache)
+  are not in the catalog: their names are not in `OutputNames` yet.
+- **Names are still indices** (`_multBin3`, section 4). When they become intervals, only
+  `OutputNames` changes; the catalog and the plotter read meanings and are unaffected.
+- **The model front end was tested against a mock endpoint only** (19 October): the request, the
+  schema in `format`, a refused specification handed back with phiplot's message, the corrected one
+  drawn. No real model was run - Ollama is not installed here. Which model is good enough, and
+  whether a 7B one follows the rules about `mult` and `species_den` without the retry, is to be
+  measured; the checks make a wrong answer a refusal, not a wrong plot, but a valid answer that is
+  not what was meant still shows only in the description.
+- **`quick` writes the specification before parsing it**, so a refused one stays on disk next to its
+  error. Deliberate (what was refused can be read), but it means `Plots/` can hold specifications
+  that never rendered.
+- **Two readers of the same layout.** `comparison_task` and `phiplot` both read `PhiAssocSpectra`.
+  They now share the names, the directory and stamp constants and the rule that recognises a species
+  directory (`OutputNames::IsSpeciesDir`, moved there from `ComparisonTask::ListParticles`), and they
+  apply the same rules to the stamps (a mismatch stops a division, a missing stamp is warned about).
+  The comparisons themselves are still written twice: on directories through
+  `RootIO::RequireMatchingBinningStamp` in the task, on the catalog's edges in `PlotRenderer`. One
+  reader for both, giving each the stamps of a scheme and a species, is the way to make them one.
+- **The plot's own provenance has the plotting code's commit only when phiplot runs from `Codes/`**
+  (`RunEnvironment` looks for `../.git`, as the chain does from there); run from the repository root,
+  the inputs' commits are recorded and the plotter's is not.
+- **Style.** One layout (single pad, or a ratio pad), a fixed palette, the legend top right. Grids of
+  pads (one per multiplicity interval), a log X axis, ALICE figure conventions beyond the label: not
+  there. The collision system of the label is never assumed: `quick --alice` needs `--system`.

@@ -48,3 +48,9 @@ target_link_libraries(phistrangeanalysis PRIVATE
   ROOT::Core ROOT::RIO ROOT::Hist ROOT::Tree ROOT::Physics ROOT::Matrix
   ROOT::Graf ROOT::Gpad ROOT::RooFit ROOT::RooFitCore
 )
+
+# Plots on demand from the correlation outputs (README.md, Plots on demand). Not part of
+# the analysis chain: no RooFit, and runAnalysis.sh builds it only because it builds all.
+add_executable(phiplot Codes/phiplot.cpp)
+target_include_directories(phiplot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Codes)
+target_link_libraries(phiplot PRIVATE ROOT::Core ROOT::RIO ROOT::Hist ROOT::Graf ROOT::Gpad)

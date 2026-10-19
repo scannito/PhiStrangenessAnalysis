@@ -7,6 +7,42 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## Plots on demand, and the object names in one place
+
+**19 October 2026, branch `plot-on-demand`, at the user's request** ("plots on demand", usable by
+someone without Claude). The design, argued with the user before any code: a deterministic tool, with a
+plot *specification* as its one interface, and a language model, if any, only as a front end that writes
+specifications - never one that writes macros, because a macro that builds `..._multBin3` by hand does not
+know what the 3 means, and that is the wrong number with no error this framework is built against. What it
+is and how to use it: README.md, *Plots on demand*; what is not done: `DESIGN_NOTES.md` section 14.
+
+Found while doing it: the names of the `PhiAssocSpectra` objects were built by hand at seven sites of
+`CorrelationTaskBase`, and `ComparisonTask` spelled the directories and stamps again. They are now in
+`OutputNames`, with `Parse` as the inverse of the builders, accepted only on an exact round trip; both
+tasks and the plotting tool use it, and the rule that recognises a species directory moved there from
+`ComparisonTask::ListParticles`.
+
+Two `analysis-reviewer` passes, 19 findings, all fixed. The ones that mattered: a division between a
+stamped and an unstamped file passed as "checked" (now warned, and listed as not checked); the overlay
+compared only against the first series and ignored the denominator species (one comparison, on every
+pair); the plot's `.root`, opened with RECREATE, could replace an input (refused unless phiplot wrote
+it); the key table held only names, while types and allowed values were restated in the parser (one
+validation pass from the table); two files with the same name in pp and pp_ref got the same legend label.
+`RootIO::ReadProvenance` now skips what is not a `TNamed` entry: a subdirectory under a provenance
+directory would have been read as a fact and its directory object deleted.
+
+*How it was checked.* Compiled. `data pp` with the projection cache after each change to the producer or
+to a shared header: 113 files identical to the baseline. `comparison_task`, spectra, trends and ratios of
+2026 against 2024, old and new code: identical divided objects. phiplot: the four examples; the refusals
+(an interval that is not a bin, a missing dy, a misspelled species or key, a
+key meaningless for its kind, divided spectra with different axes, mixed X quantities, an output with an
+extension or equal to an input, whose md5 stayed the same); copies of a file with the K0S pT stamp changed
+and removed (division refused, overlay warned; division warned and listed as not checked);
+`Macros/phiplot_ask.py` against a mock Ollama endpoint (a refusal handed back and corrected). No real
+language model was run.
+
+---
+
 ## CorrelationCalculator: the review of the unpushed commits
 
 **19 October 2026, two `analysis-reviewer` passes on the commits from `c1b748d` on.** What changed:

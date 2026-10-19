@@ -12,6 +12,7 @@
 #include <iterator>
 #include <initializer_list>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -148,6 +149,14 @@ inline bool RequireBool(const rapidjson::Value& node, const char* key, std::stri
   return val.GetBool();
 }
 
+inline int RequireInt(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  const auto& val = RequireMember(node, key, errCtx);
+  if (!val.IsInt())
+    throw std::runtime_error(std::format("[FATAL] {}: key '{}' exists but is NOT an integer!", errCtx, key));
+  return val.GetInt();
+}
+
 // The counterpart of OptionalDouble for a key that has to be there, with the same rule for
 // what counts as a number: IsNumber, not IsDouble (rapidjson stores "2" as an int), and
 // not a string - the JSON number accepted by the Optional form and nothing looser, so that
@@ -238,6 +247,15 @@ inline double OptionalDouble(const rapidjson::Value& node, const char* key, doub
 // Split from the reading below so that a caller who needs the name as well - to
 // record it, to log it - gets it from the read and does not have to ask twice.
 
+namespace Detail
+{
+inline std::runtime_error UnknownValue(std::string_view errCtx, std::string_view key, std::string_view requested, const std::string& available)
+{
+  return std::runtime_error(std::format("[FATAL] {}: key '{}' has unknown value '{}'. Available: {}",
+                                        errCtx, key, requested, available));
+}
+} // namespace Detail
+
 template <typename E>
 inline E ResolveEnum(std::string_view requested, std::initializer_list<std::pair<std::string_view, E>> options,
                      std::string_view key, std::string_view errCtx)
@@ -251,8 +269,23 @@ inline E ResolveEnum(std::string_view requested, std::initializer_list<std::pair
     available += name;
   }
 
-  throw std::runtime_error(std::format("[FATAL] {}: key '{}' has unknown value '{}'. Available: {}",
-                                       errCtx, key, requested, available));
+  throw Detail::UnknownValue(errCtx, key, requested, available);
+}
+
+// The same check for a closed list of names kept in a table elsewhere (PlotSpec), when the
+// caller needs the name and maps it itself.
+inline std::string RequireOneOf(std::string_view requested, std::span<const std::string_view> allowed,
+                                std::string_view key, std::string_view errCtx)
+{
+  std::string available;
+  for (std::string_view name : allowed) {
+    if (name == requested)
+      return std::string(requested);
+    if (!available.empty())
+      available += ", ";
+    available += name.empty() ? std::string("\"\"") : std::string(name);
+  }
+  throw Detail::UnknownValue(errCtx, key, requested, available);
 }
 
 // The usual case: read the name, then resolve it. The default is looked up in the
@@ -347,6 +380,26 @@ inline std::optional<double> TryDouble(const rapidjson::Value& node, const char*
   return val->GetDouble();
 }
 
+inline std::optional<int> TryInt(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  const rapidjson::Value* val = OptionalMember(node, key);
+  if (!val)
+    return std::nullopt;
+  if (!val->IsInt())
+    throw std::runtime_error(std::format("[FATAL] {}: key '{}' is present but is NOT an integer, so it would be silently ignored.", errCtx, key));
+  return val->GetInt();
+}
+
+inline std::optional<bool> TryBool(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  const rapidjson::Value* val = OptionalMember(node, key);
+  if (!val)
+    return std::nullopt;
+  if (!val->IsBool())
+    throw std::runtime_error(std::format("[FATAL] {}: key '{}' is present but is NOT a boolean, so it would be silently ignored.", errCtx, key));
+  return val->GetBool();
+}
+
 inline std::optional<std::string> TryString(const rapidjson::Value& node, const char* key, std::string_view errCtx)
 {
   const rapidjson::Value* val = OptionalMember(node, key);
@@ -384,7 +437,9 @@ inline const rapidjson::Value* RequireObjectOrNull(const rapidjson::Value& node,
 // written": this refuses it.
 
 // The list that is matched against is the one the message prints, so they cannot drift.
-inline void RequireKnownKeys(const rapidjson::Value& node, std::initializer_list<std::string_view> known, std::string_view errCtx)
+// Taking a span lets a caller keep the list in a table that also serves other purposes
+// (PlotSpec builds its JSON schema from the same one).
+inline void RequireKnownKeys(const rapidjson::Value& node, std::span<const std::string_view> known, std::string_view errCtx)
 {
   for (const auto& member : node.GetObject()) {
     const std::string_view name(member.name.GetString(), member.name.GetStringLength());
@@ -403,6 +458,11 @@ inline void RequireKnownKeys(const rapidjson::Value& node, std::initializer_list
     throw std::runtime_error(std::format("[FATAL] {}: unknown key '{}', it would be silently ignored. Known: {}",
                                          errCtx, name, available));
   }
+}
+
+inline void RequireKnownKeys(const rapidjson::Value& node, std::initializer_list<std::string_view> known, std::string_view errCtx)
+{
+  RequireKnownKeys(node, std::span<const std::string_view>(known.begin(), known.size()), errCtx);
 }
 
 } // namespace JsonConfig

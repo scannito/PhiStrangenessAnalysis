@@ -1,0 +1,8 @@
+{
+  "output": "Plots/k0s_over_pi_meas_extrap",
+  "y_title": "K^{0}_{S} / #pi",
+  "series": [
+    {"file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root", "kind": "species_ratio_measured", "species": "K0S", "species_den": "Pi", "dy": 1.0, "label": "measured"},
+    {"file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root", "kind": "species_ratio_extrapolated", "species": "K0S", "species_den": "Pi", "dy": 1.0, "label": "extrapolated"}
+  ]
+}

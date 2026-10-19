@@ -1,0 +1,8 @@
+{
+  "output": "Plots/xi_spectrum_mult0-1_dy",
+  "series": [
+    {"file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root", "kind": "spectrum", "species": "Xi", "dy": 1.0, "mult": [0, 1]},
+    {"file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root", "kind": "spectrum", "species": "Xi", "dy": 0.5, "mult": [0, 1]},
+    {"file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root", "kind": "spectrum", "species": "Xi", "dy": 0.1, "mult": [0, 1]}
+  ]
+}

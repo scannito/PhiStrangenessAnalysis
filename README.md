@@ -380,6 +380,56 @@ them (`DESIGN_NOTES.md` section 5).
 
 ---
 
+## Plots on demand
+
+`build/phiplot` draws what the correlation tasks wrote into `PhiAssocSpectra` files, asked
+for by **meaning** - kind, species, |Δy| limit, multiplicity interval - and never by object
+name. Built with the rest (`cmake --build build`, or `--target phiplot`); compiled only.
+
+```bash
+build/phiplot list DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root
+build/phiplot quick trend --species K0S --dy 1 \
+    --file DataFile/.../Data_OfflineEff_2024_PhiAssocSpectra.root:2024 \
+    --file DataFile/.../Data_OfflineEff_2026_PhiAssocSpectra.root:2026 --ratio --out Plots/k0s_years
+build/phiplot render PlotSpecs/examples/spectrum_three_dy.json
+```
+
+| Command | |
+|---|---|
+| `list [--json] <file>...` | What the files hold: per scheme and section, the kinds of object for each species, at which \|Δy\| limits and multiplicity intervals, with the binnings of the stamps and where they came from. |
+| `schema` | The JSON schema of a plot specification, built from the same table the parser checks against. |
+| `describe <spec.json>` | Finds every object and runs every check, then says in plain words what would be drawn. Draws nothing. |
+| `render <spec.json>` | The same, then draws: one image per format, and `<output>.root` with the canvas, the inputs as they were read (`Objects/series<i>`, the drawn copies are in the canvas) and the provenance (the specification in `Provenance`, each input's in `Provenance_series<i>`). |
+| `quick <kind> ...` | A specification from command-line options: saved as `<out>.spec.json`, then rendered from that file. |
+
+**The specification** (`PlotSpecs/examples/`) is the one interface: written by hand, by
+`quick`, or by a language model, it goes through the same parser and the same checks.
+The kinds are `spectrum`, `spectrum_extended` (with the extrapolated bin down to pT = 0),
+`trend`, `trend_extrapolated`, `trend_extrap_over_meas`, `species_ratio_measured` and
+`species_ratio_extrapolated`; a spectrum takes `mult`, a species ratio `species_den`, and
+nothing takes a key that means nothing for its kind. A ratio pad declares its reference and
+`divide_option` (`""`, or `"B"` for a closure), as `comparison_task` does: never guessed.
+
+**What is checked.** A multiplicity interval is looked up in the file's `binning_mult`
+stamp, never taken as an index. Dividing two series requires the same X axis, the same
+trigger-pT binning when both are stamped, and for objects against multiplicity the same
+associated-pT binning of the species (a trend is an integral over it): a mismatch stops.
+Drawing them together without dividing is allowed, and the mismatch goes through
+`Logger::Warn`.
+
+**In words, through a model.** `Macros/phiplot_ask.py` hands a model the schema, the
+catalog (`list --json`) and the examples, constrains its answer to the schema, and passes
+the result to `describe`; a refusal goes back to the model to correct, a few times at
+most. The description is what you confirm before anything is drawn. Standard library only;
+a local model through Ollama by default (offline: nothing leaves the machine), or any
+OpenAI-compatible endpoint. For Claude Code, the skill `.claude/skills/phiplot` does the
+same steps. The model is a front end: without one, `quick` and hand-written
+specifications do everything.
+
+What it does not do yet is in `DESIGN_NOTES.md`, section 14.
+
+---
+
 ## Map of `Codes/`
 
 The headers are layered: nothing in a lower layer includes anything from a higher one.
@@ -403,6 +453,15 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | `HistogramUtils.h` | `namespace HistogramUtils` — integrals with errors, `THnSparse` projections, spectrum and trend construction, ratios, rebinning with compatibility checks. |
 | `Logger.h` | `namespace Logger`: levels, one line format, and a summary of the run's warnings printed at the end. No dependencies. Every task and helper logs through it; the banners of `WorkflowManager` and `RunAnalysisChain` are the only direct output left. |
 | `CanvasManager.h` | Canvas ownership and unique naming, ratio and grid layouts, ALICE styling, path-aware writing into the output files. Owned by tasks, never by data structures. |
+| `OutputNames.h` | `namespace OutputNames` — the names and layout of what the correlation tasks write into `PhiAssocSpectra`: the builders `CorrelationTaskBase` uses, and `Parse`, their inverse, checked by building the name back. |
+
+### Plotting
+
+| File | |
+|---|---|
+| `PlotCatalog.h` | `namespace PlotCatalog` — what a `PhiAssocSpectra` file holds, by meaning, with its stamps and provenance; as text or JSON. |
+| `PlotSpec.h` | `namespace PlotSpec` — the plot specification: one table of keys, from which the checks and the JSON schema both come. |
+| `PlotRenderer.h` | `namespace PlotRenderer` — resolves a specification against the files and checks it (`Resolve`), says what it found (`Describe`), draws it (`Render`). |
 
 ### Fitting and extrapolation
 
@@ -448,6 +507,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | `RunAnalysisChain.h` | Builds and runs the workflow and returns a status. Shared by both entry points; free of ROOT globals. |
 | `PhiStrangenessCorrelation.C` | Entry point for the ROOT interpreter. Translates the status into an exit code. |
 | `main.cpp` | Entry point of the compiled binary (`../CMakeLists.txt`). Sets ROOT to batch mode. |
+| `phiplot.cpp` | Entry point of `build/phiplot`, the plotting tool (*Plots on demand*). Not part of the chain. |
 | `runAnalysis.sh` | Maps a keyword to a configuration, runs ROOT or the binary (`--compile`, rebuilding it if stale), logs, propagates the exit code. |
 
 ---
@@ -466,6 +526,7 @@ chain and no task depends on them.
 | `copyTFileContent.C` | Recursive copy of a ROOT file, excluding chosen directories. |
 | `TestProjections.C`, `esporta_fit.C` | Ad-hoc checks. |
 | `uploadToCCDB.{C,py}`, `downloadHYOutput.py` | Moving maps in and out of CCDB / HEPData. |
+| `phiplot_ask.py` | A plot asked for in words: a language model writes the specification, `phiplot` checks and draws it (*Plots on demand*). |
 | `run_systematics.py` | Skeleton of the systematics driver — generates varied configurations and runs them. **Not usable as it stands**; see the Systematics note in `DESIGN_NOTES.md`. |
 
 `convertGraphHist.C` deserves a note, because the assumption it carries is not

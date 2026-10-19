@@ -6,6 +6,7 @@
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
+#include "OutputNames.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 
@@ -81,7 +82,7 @@ class ComparisonTask : public IAnalysisTask
     // both are fixed by whoever wrote the spectra, and a caller who has not changed
     // them should not have to repeat them.
     inputScheme = JsonConfig::OptionalString(taskConfig, "input_binning_name", globalCfgs.binningName, GetName());
-    inputDirName = JsonConfig::OptionalString(taskConfig, "input_dir_name", "Extract1D", GetName());
+    inputDirName = JsonConfig::OptionalString(taskConfig, "input_dir_name", std::string(OutputNames::kExtract1D), GetName());
 
     outputDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     outputPrefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
@@ -318,7 +319,7 @@ class ComparisonTask : public IAnalysisTask
     // the task cannot tell them apart either, and the file name goes in because it is
     // the only thing that identifies an input nothing else is known about.
     const auto copyProvenance = [&](TFile* src, const char* dirName, const std::string& fileName) {
-      auto facts = RootIO::ReadProvenance(RootIO::GetOrCreatePath(src, {inputScheme, "Provenance"}, true));
+      auto facts = RootIO::ReadProvenance(RootIO::GetOrCreatePath(src, {inputScheme, std::string(OutputNames::kProvenanceDir)}, true));
       if (facts.empty())
         facts["no_provenance"] = std::format("'{}' carries nothing under '{}/Provenance': either it was not "
                                              "produced by this framework, or it predates the provenance records.",
@@ -353,7 +354,7 @@ class ComparisonTask : public IAnalysisTask
     // The two productions must mean the same thing by their bins. Read from the
     // numerator and required of the denominator, so that a mismatch is reported once
     // with both binnings side by side.
-    pair.multBinning = RootIO::ReadBinningStamp(numScheme, "binning_mult");
+    pair.multBinning = RootIO::ReadBinningStamp(numScheme, std::string(OutputNames::kStampMult));
     if (pair.multBinning.empty())
       throw std::runtime_error(std::format(
         "[FATAL] {}: '{}' carries no 'binning_mult' stamp, so there is no way to tell whether its "
@@ -361,16 +362,16 @@ class ComparisonTask : public IAnalysisTask
         "re-run the task that wrote it.",
         ctx, comp.numeratorFile));
 
-    RootIO::RequireMatchingBinningStamp(denScheme, "binning_mult", pair.multBinning,
+    RootIO::RequireMatchingBinningStamp(denScheme, std::string(OutputNames::kStampMult), pair.multBinning,
                                         std::format("{}, denominator '{}'", ctx, comp.denominatorFile));
 
     // Trigger pT is integrated away in everything this task divides - spectra and
     // trends alike - so it is an axis of nothing, and two productions summing over
     // different trigger ranges would compare cleanly and mean different things.
     // Checked here rather than per target because it applies to both.
-    const std::vector<double> ptPhi = RootIO::ReadBinningStamp(numScheme, "binning_ptPhi");
+    const std::vector<double> ptPhi = RootIO::ReadBinningStamp(numScheme, std::string(OutputNames::kStampPtPhi));
     if (!ptPhi.empty())
-      RootIO::RequireMatchingBinningStamp(denScheme, "binning_ptPhi", ptPhi,
+      RootIO::RequireMatchingBinningStamp(denScheme, std::string(OutputNames::kStampPtPhi), ptPhi,
                                           std::format("{}, denominator '{}'", ctx, comp.denominatorFile));
 
     pair.numDir = RootIO::GetOrCreatePath(pair.num.get(), {inputScheme, inputDirName}, true);
@@ -397,7 +398,7 @@ class ComparisonTask : public IAnalysisTask
     ForEachComparison("spectra", [&](const OpenPair& pair, const Comparison& comp) {
       int done = 0;
       for (const auto& particle : ListParticles(pair.numDir))
-        done += DivideDirectory(pair, comp, {particle, "Spectra"});
+        done += DivideDirectory(pair, comp, {particle, std::string(OutputNames::kSpectraDir)});
       return done;
     });
   }
@@ -408,7 +409,7 @@ class ComparisonTask : public IAnalysisTask
       int done = 0;
       for (const auto& particle : ListParticles(pair.numDir)) {
         RequireSamePtAssoc(pair, comp, particle);
-        done += DivideDirectory(pair, comp, {particle, "Trends"});
+        done += DivideDirectory(pair, comp, {particle, std::string(OutputNames::kTrendsDir)});
       }
       return done;
     });
@@ -425,7 +426,7 @@ class ComparisonTask : public IAnalysisTask
       // agree, not just one - and they are trends, integrated over pT.
       for (const auto& particle : ListParticles(pair.numDir))
         RequireSamePtAssoc(pair, comp, particle);
-      return DivideDirectory(pair, comp, {"Ratios"});
+      return DivideDirectory(pair, comp, {std::string(OutputNames::kRatiosDir)});
     });
   }
 
@@ -569,11 +570,11 @@ class ComparisonTask : public IAnalysisTask
   // being divided - see the note at the top of the class.
   void RequireSamePtAssoc(const OpenPair& pair, const Comparison& comp, const std::string& particle)
   {
-    const std::vector<double> stamped = RootIO::ReadBinningStamp(RootIO::GetOrCreatePath(pair.numDir, {particle}, true), "binning_ptAssoc");
+    const std::vector<double> stamped = RootIO::ReadBinningStamp(RootIO::GetOrCreatePath(pair.numDir, {particle}, true), std::string(OutputNames::kStampPtAssoc));
     if (stamped.empty())
       return; // produced before the stamp existed: warned about, not fatal
 
-    RootIO::RequireMatchingBinningStamp(RootIO::GetOrCreatePath(pair.denDir, {particle}, true), "binning_ptAssoc", stamped,
+    RootIO::RequireMatchingBinningStamp(RootIO::GetOrCreatePath(pair.denDir, {particle}, true), std::string(OutputNames::kStampPtAssoc), stamped,
                                         std::format("{} '{}', {}, denominator '{}'", GetName(), comp.label, particle,
                                                     comp.denominatorFile));
   }
@@ -582,11 +583,8 @@ class ComparisonTask : public IAnalysisTask
   // Discovery: what the file holds decides what is compared, rather than a list in
   // the JSON that goes stale the first time a particle or a delta-y cut is added.
   // ---------------------------------------------------------------------------
-  // A particle is a subdirectory that HOLDS per-particle results, which is what
-  // distinguishes it from the "Ratios" sibling. Recognised by what it contains and
-  // not by excluding the names of everything it is not: that exclusion would need a
-  // new entry the first time another sibling appears - systematics, QA - and whoever
-  // added it would have no reason to look here.
+  // A particle is a subdirectory that HOLDS per-particle results; the rule is
+  // OutputNames::IsSpeciesDir, shared with the plotting tool's catalog.
   static std::vector<std::string> ListParticles(TDirectory* dir)
   {
     std::vector<std::string> names;
@@ -598,8 +596,7 @@ class ComparisonTask : public IAnalysisTask
       if (std::string(key->GetClassName()) != "TDirectoryFile")
         continue;
 
-      TDirectory* sub = dir->GetDirectory(key->GetName());
-      if (sub && (sub->GetDirectory("Trends") || sub->GetDirectory("Spectra")))
+      if (OutputNames::IsSpeciesDir(dir->GetDirectory(key->GetName())))
         names.emplace_back(key->GetName());
     }
     return names;

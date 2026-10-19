@@ -1,0 +1,10 @@
+{
+  "output": "Plots/k0s_trend_2024_vs_2026",
+  "title": "K^{0}_{S} yield, 2024 against 2026",
+  "alice_label": {"status": "Work in progress", "system": "pp, #sqrt{#it{s}} = 13.6 TeV"},
+  "series": [
+    {"file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root", "kind": "trend", "species": "K0S", "dy": 1.0, "label": "2024"},
+    {"file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2026_PhiAssocSpectra.root", "kind": "trend", "species": "K0S", "dy": 1.0, "label": "2026"}
+  ],
+  "ratio": {"reference": 0, "divide_option": ""}
+}

@@ -1,0 +1,8 @@
+{
+  "output": "Plots/xi_over_pi_online_offline",
+  "series": [
+    {"file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root", "kind": "species_ratio_measured", "species": "Xi", "species_den": "Pi", "dy": 0.5, "label": "offline efficiency"},
+    {"file": "DataFile/pp/DeltaY/FinalResults/Data_OnlineEff_2024_PhiAssocSpectra.root", "kind": "species_ratio_measured", "species": "Xi", "species_den": "Pi", "dy": 0.5, "label": "online efficiency"}
+  ],
+  "ratio": {"reference": 0, "divide_option": "", "y_title": "online / offline"}
+}

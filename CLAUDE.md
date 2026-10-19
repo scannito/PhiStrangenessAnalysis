@@ -221,12 +221,17 @@ strings.
   `TDirectory::Get` is cast with `dynamic_cast` or read through `RootIO::GetUniqueOrThrow`,
   never `static_cast`: with the wrong class under the name, a `static_cast` gives a pointer
   that passes the null check and fails on first use.
+- **The names and layout of `PhiAssocSpectra` come from `OutputNames`**, in the task that
+  writes them and in every reader (the plotting tool). A name built by hand on either side is
+  a second copy of the rule; `OutputNames::Parse` accepts only what the builders produce, so a
+  builder that changes without its pattern makes objects unrecognised, never misread.
 - Prefer deriving over storing: if a member follows from other members, a
   constructor or an accessor should produce it (`AssocParticleConfig::mass`,
   `ParticleTask::AnalysisBinning`).
 - One namespace per helper header, in `PascalCase` and named after the file, without
   `Helpers` when the file has it: `BinningUtils`, `RootIO` (`RootIOHelpers.h`),
-  `JsonConfig` (`JsonConfigHelpers.h`), `HistogramUtils`, `RunEnvironment`, `Logger`.
+  `JsonConfig` (`JsonConfigHelpers.h`), `HistogramUtils`, `RunEnvironment`, `Logger`,
+  `OutputNames`, and the plotting tool's `PlotCatalog`, `PlotSpec`, `PlotRenderer`.
   What a namespace keeps to itself goes in a nested `Detail`, capitalised like the rest.
   Dedicated managers: `WorkflowManager`,
   `CanvasManager`, `BaseConfigManager`, `FitConfigManager`, `ExtrapConfigManager`.
