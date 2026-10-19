@@ -78,24 +78,25 @@ class CorrelationCalculator
 
   // The four inputs of an extraction - signal and sideband, same event and mixed event - with
   // what follows from the engine, which is the histogram type: TH2 for the 2D engine, TH1 for
-  // the 1D one. The names (the same in the cache and in the projections, so that what is
-  // written and what is read back cannot drift apart) and the axes to project are derived
-  // from H here, once; LoadOrProject<TH1> with the 2D suffix cannot be written.
+  // the 1D one. The names (under which the four are projected, written to the cache and read
+  // back, so the two sides cannot drift apart) and the axes to project are derived from H
+  // here, once; a 1D input with the 2D suffix cannot be written. The names are fixed at
+  // construction and given to the histograms, not a second copy of what they hold.
   template <typename H>
   struct Inputs {
+    static constexpr bool k2D = std::is_base_of_v<TH2, H>;
+
+    explicit Inputs(const std::string& base)
+      : nameSig(base + "Signal" + Suffix()), nameSb(base + "Sideband" + Suffix()), nameMeSig(base + "MESignal" + Suffix()), nameMeSb(base + "MESideband" + Suffix()) {}
+
+    const std::string nameSig, nameSb, nameMeSig, nameMeSb;
     std::unique_ptr<H> sig, sb, meSig, meSb;
 
-    static constexpr bool k2D = std::is_base_of_v<TH2, H>;
-    struct Names {
-      std::string sig, sb, meSig, meSb;
-    };
-    static Names NamesFor(const std::string& base)
-    {
-      const std::string dim = k2D ? "2D" : "";
-      return {base + "Signal" + dim, base + "Sideband" + dim, base + "MESignal" + dim, base + "MESideband" + dim};
-    }
     // Y = Delta y, X = Delta phi in the 2D projection.
     static std::vector<int> ProjAxes() { return k2D ? std::vector<int>{kAxisDeltaY, kAxisDeltaPhi} : std::vector<int>{kAxisDeltaY}; }
+
+   private:
+    static const char* Suffix() { return k2D ? "2D" : ""; }
   };
 
   // Shared by the two engines: the four inputs, read from the cache or projected. Only freshly
@@ -103,8 +104,7 @@ class CorrelationCalculator
   template <typename H>
   Inputs<H> LoadOrProject(const LoadedAssocData& data, const Request& req) const
   {
-    const auto names = Inputs<H>::NamesFor(req.histNameBase);
-    return opt.fromCache ? ReadFromCache<H>(req, names) : ProjectAndCache<H>(data, req, names);
+    return opt.fromCache ? ReadFromCache<H>(req) : ProjectAndCache<H>(data, req);
   }
 
   // Reads only. The sideband may be missing (a warning, not an error); with mixed events, a
@@ -114,15 +114,15 @@ class CorrelationCalculator
   // missing cache directory is the caller's to report (CorrelationTaskBase::ProjectionCacheDir,
   // which names the file and what to do); a null ioDir reaching here stops in RootIO.
   template <typename H>
-  Inputs<H> ReadFromCache(const Request& req, const typename Inputs<H>::Names& names) const
+  Inputs<H> ReadFromCache(const Request& req) const
   {
-    Inputs<H> in;
-    in.sig = RootIO::GetUniqueOrThrow<H>(req.ioDir, names.sig, "CorrelationCalculator");
-    in.sb = RootIO::GetUniqueOrWarn<H>(req.ioDir, names.sb, "CorrelationCalculator");
+    Inputs<H> in(req.histNameBase);
+    in.sig = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameSig, "CorrelationCalculator");
+    in.sb = RootIO::GetUniqueOrWarn<H>(req.ioDir, in.nameSb, "CorrelationCalculator");
     if (opt.mixedEvents) {
-      in.meSig = RootIO::GetUniqueOrThrow<H>(req.ioDir, names.meSig, "CorrelationCalculator");
+      in.meSig = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameMeSig, "CorrelationCalculator");
       if (in.sb)
-        in.meSb = RootIO::GetUniqueOrThrow<H>(req.ioDir, names.meSb, "CorrelationCalculator");
+        in.meSb = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameMeSb, "CorrelationCalculator");
     }
     return in;
   }
@@ -131,24 +131,24 @@ class CorrelationCalculator
   // place the cache is written. The sideband is optional; with mixed events, a sideband comes
   // with its mixed event (the loaders require the two together), and one without stops here.
   template <typename H>
-  Inputs<H> ProjectAndCache(const LoadedAssocData& data, const Request& req, const typename Inputs<H>::Names& names) const
+  Inputs<H> ProjectAndCache(const LoadedAssocData& data, const Request& req) const
   {
     const std::vector<int> projAxes = Inputs<H>::ProjAxes();
-    Inputs<H> in;
+    Inputs<H> in(req.histNameBase);
     if (!data.h5DataSignal)
       throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: missing signal THnSparse for {}", data.name));
-    in.sig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSignal.get(), req.axesToCut, projAxes, names.sig);
+    in.sig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSignal.get(), req.axesToCut, projAxes, in.nameSig);
     if (data.h5DataSideband)
-      in.sb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSideband.get(), req.axesToCut, projAxes, names.sb);
+      in.sb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSideband.get(), req.axesToCut, projAxes, in.nameSb);
 
     if (opt.mixedEvents) {
       if (!data.h5DataMESignal)
         throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: missing mixed-event signal THnSparse for {}", data.name));
-      in.meSig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESignal.get(), req.axesToCut, projAxes, names.meSig);
+      in.meSig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESignal.get(), req.axesToCut, projAxes, in.nameMeSig);
       if (in.sb) {
         if (!data.h5DataMESideband)
           throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: a sideband for {} without its mixed-event sideband THnSparse", data.name));
-        in.meSb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESideband.get(), req.axesToCut, projAxes, names.meSb);
+        in.meSb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESideband.get(), req.axesToCut, projAxes, in.nameMeSb);
       }
     }
 

@@ -423,6 +423,9 @@ event scaled to 1, then subtracted from the signal: those cells are not correcte
 It has always been so; the numbers did not change, only the silence. What to do is the user's call: drop
 the sideband subtraction in such cells, normalise with a wider window or the fit, merge the cell with a
 neighbour, or stop the run.
+The fit is no way out as it stands: with `me_normalization: "fit"` and the 2D engine (one block,
+`data pp` 2024, 19 October) the same four cells give a0 = -0.059 in the first (left unnormalised) and a
+fit status 1 in the other three, whose a0 is used as it is.
 
 **Δφ in the 1D engine: which normalisation of the mixed event? To decide.** Recorded on
 18 October 2026. `CorrelationCalculator` has two engines, and they differ in more than the

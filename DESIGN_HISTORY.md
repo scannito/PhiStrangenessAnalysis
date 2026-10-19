@@ -13,7 +13,11 @@ and several of these fixes look wrong without it. Open items stay in
 
 - `Inputs<H>` derives the names of the four inputs and the axes to project from the histogram type
   (`TH2` = 2D engine), instead of a separate `InputNames` and a suffix and axis list passed by each
-  engine: the two had to agree and nothing made them.
+  engine: the two had to agree and nothing made them. The names are `const` members set by the
+  constructor from the base name (a first version nested a `Names` struct in `Inputs<H>`, one type
+  per engine for the same four strings). Not stored, through an enum of roles and a static name
+  function, was considered and set aside: the names are the ones given to the histograms, not a
+  second copy that can drift, and the enum costs more than the four strings.
 - `targetAxis` moved from `Request` to `Options`: it is the same for every cell of a run.
 - With mixed events, a sideband comes with its mixed event. `ReadFromCache` reads the mixed-event
   sideband only when there is a sideband, and one missing stops the run (`GetUniqueOrThrow`; before,
@@ -38,7 +42,9 @@ compared with the baseline, 0 differences, and the summary shows one warning, (x
 `fit`, cache off, one block (`optimized`, `use_2d_me_normalization`): the spectra and the four projection
 caches, about 15,800 objects, identical to the baseline; that run used the code before the last four
 changes, which only add warnings and throws. The cache read with a sideband present and its mixed event
-missing was not produced: that change is argued, not measured.
+missing was not produced: that change is argued, not measured. After the names became members of `Inputs`, both runs
+again: identical (113 files; the 2D block, now on the final code, reports the four Ξ cells, one mixed event
+not positive at zero and three fit statuses 1).
 
 ---
 
