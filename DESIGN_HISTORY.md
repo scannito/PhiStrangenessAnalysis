@@ -52,6 +52,11 @@ it, and refused at `Init` by the same check, now `RequireEngineSettingsSupported
 `use_2d_me_normalization: true` with an engine that is 1D anyway (`run_mode: "legacy"`, the WPDG task)
 filed the 1D results under `Extract2D` (`SchemeDirName` follows the key, not the engine), where a later
 `optimized` run with the cache on would read them as 2D projections. No configuration had the combination.
+Then, on 19 October, the engine was decided in one place: it had been worked out four times (the `Init`
+check, `RunOptimized`, `RunLegacy`, `SchemeDirName`), each its own way. A task now states only
+`CanBuild2DEngine()` (`CorrelationTask`: `run_mode` optimized; WPDG: no), `Engine2D()` derives the engine
+from that and the key, and the calculators, `SchemeDirName` (which now follows the engine, not the key) and
+the check all ask it. Checked on `data pp`: identical; the two refusals stop as before.
 
 *How it was checked.* In a scratch copy, `data pp` only (the user's choice): the 10 output files, 1,360 objects,
 identical to `00df196`, same warning summary. That run uses the 1D engine only. The 2D engine

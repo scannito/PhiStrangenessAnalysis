@@ -468,24 +468,27 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
-  // The settings that depend on the engine, against the engine that will actually run. The
-  // configuration chooses it indirectly: run_mode "legacy" and the WPDG task build the 1D
-  // engine whatever use_2d_me_normalization says. Two combinations used to pass in silence:
-  // - projection_axis "delta_phi" with the 1D engine, which projects on Delta y only, gave
-  //   Delta y spectra (Delta phi in the 1D engine is open: DESIGN_NOTES.md section 6);
-  // - use_2d_me_normalization true with the 1D engine filed 1D results under "Extract2D"
-  //   (SchemeDirName), where a later run with the cache on would read them as 2D ones.
-  // Refused here, at Init, so the run stops before the projections.
+  // Which engine of CorrelationCalculator runs, decided once. A task says whether it can build
+  // the 2D engine at all (CorrelationTask in run_mode "optimized"; RunLegacy, which the WPDG task
+  // always runs, builds the 1D one); use_2d_me_normalization asks for it. Everything that depends
+  // on the engine - the calculators, SchemeDirName, the checks below - asks Engine2D().
   // -------------------------------------------------------------------------
-  void RequireEngineSettingsSupported(bool engine2D) const
+  virtual bool CanBuild2DEngine() const { return false; }
+  bool Engine2D() const { return use2DMENormalization && CanBuild2DEngine(); }
+
+  // The settings that need an engine this run will not build. Both used to pass in silence:
+  // use_2d_me_normalization true where only the 1D engine runs (the results went under
+  // "Extract2D"), and projection_axis "delta_phi" with the 1D engine, which projects on Delta y
+  // only and gave Delta y spectra (Delta phi in the 1D engine is open: DESIGN_NOTES.md section 6).
+  // Refused at Init, before any data is loaded.
+  void RequireEngineSettingsSupported() const
   {
-    if (use2DMENormalization && !engine2D)
+    if (use2DMENormalization && !CanBuild2DEngine())
       throw std::runtime_error(std::format(
         "[FATAL] {}: use_2d_me_normalization is true, but this run builds the 1D engine (run_mode 'legacy', "
-        "or the WPDG task, which always does): its results would be filed under 'Extract2D'. Set it to false, "
-        "or use run_mode 'optimized' for the 2D engine.",
+        "or the WPDG task, which always does). Set it to false, or use run_mode 'optimized' for the 2D engine.",
         GetName()));
-    if (!CorrelationCalculator::Supports(engine2D, projectionAxis))
+    if (!CorrelationCalculator::Supports(Engine2D(), projectionAxis))
       throw std::runtime_error(std::format(
         "[FATAL] {}: projection_axis 'delta_phi' needs the 2D engine (run_mode 'optimized' with "
         "use_2d_me_normalization true); with this configuration the 1D engine runs, and it projects on "
@@ -1334,8 +1337,7 @@ class CorrelationTaskBase : public IAnalysisTask
   void RunLegacy()
   {
     Logger::Info("{}: RUNNING CORRELATIONS (Legacy)...", GetName());
-    // The 1D engine: RequireEngineSettingsSupported has refused use_2d_me_normalization with it.
-    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .meNorm = meNormalization});
+    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .meNorm = meNormalization});
 
     const std::vector<std::unique_ptr<TH1>>* phiCorrs{nullptr};
     std::vector<const std::vector<std::unique_ptr<TH1>>*> assocCorrs(assocParticles.size(), nullptr);
@@ -1416,7 +1418,8 @@ class CorrelationTaskBase : public IAnalysisTask
   // Which of the two extraction schemes this task writes into. Derived rather than
   // stored: it follows from use2DMENormalization, and the same ternary was spelled
   // out in four places - four chances for one of them to be edited alone.
-  std::string SchemeDirName() const { return use2DMENormalization ? "Extract2D" : "Extract1D"; }
+  // Follows the engine that runs, not the key: the directory says how the results were made.
+  std::string SchemeDirName() const { return Engine2D() ? "Extract2D" : "Extract1D"; }
 
   // The directory of one particle's projections. With use_projection_cache on it is looked
   // up, not created, and it is missing when the cache was never built for this binning and

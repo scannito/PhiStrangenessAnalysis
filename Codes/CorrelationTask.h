@@ -15,6 +15,8 @@ class CorrelationTask : public CorrelationTaskBase
                        Optimized };
 
   std::string GetName() const override { return "correlation_task"; }
+  // RunOptimized builds the engine use_2d_me_normalization asks for; RunLegacy builds the 1D one.
+  bool CanBuild2DEngine() const override { return runMode == RunMode::Optimized; }
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
@@ -30,8 +32,7 @@ class CorrelationTask : public CorrelationTaskBase
                                                 {{"legacy", RunMode::Legacy},
                                                  {"optimized", RunMode::Optimized}},
                                                 GetName());
-    // RunLegacy builds the 1D engine whatever use_2d_me_normalization says.
-    RequireEngineSettingsSupported(runMode == RunMode::Optimized && use2DMENormalization);
+    RequireEngineSettingsSupported();
 
     // Prefix handling: search specific key -> Search fallback -> Search legacy
     auto getPrefix = [ctx = GetName()](const rapidjson::Value& config, const std::string& specificKey, const std::string& fallbackKey) -> std::string {
@@ -344,7 +345,7 @@ class CorrelationTask : public CorrelationTaskBase
     // MODE B: STANDARD CALCULATION (If L2 Cache is disabled)
     // The CorrelationCalculator is invoked here (managing L1 Cache internally)
     // =========================================================================
-    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = use2DMENormalization, .moreQA = doMoreQA, .meNorm = meNormalization});
+    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .moreQA = doMoreQA, .meNorm = meNormalization});
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
       HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {i + 1, i + 1}};
