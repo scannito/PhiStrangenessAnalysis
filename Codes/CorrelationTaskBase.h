@@ -400,14 +400,6 @@ class CorrelationTaskBase : public IAnalysisTask
     applyME = JsonConfig::RequireBool(taskConfig, "apply_mixed_events", GetName());
     applyExtrapolation = JsonConfig::RequireBool(taskConfig, "apply_extrapolation", GetName());
 
-    // Replaced by the "corrections" block (InitCorrections). Refused rather than ignored:
-    // a configuration that still carries them would otherwise look as if it applied them.
-    constexpr std::string_view seeCorrections = "Corrections are declared in the 'corrections' block, see DESIGN_NOTES.md section 13.";
-    JsonConfig::RejectReplacedKey(taskConfig, "apply_efficiency", "Use \"corrections\": null for none. " + std::string(seeCorrections), GetName());
-    JsonConfig::RejectReplacedKey(taskConfig, "active_corrections", seeCorrections, GetName());
-    JsonConfig::RejectReplacedKey(taskConfig, "apply_efficiency_to", seeCorrections, GetName());
-    JsonConfig::RejectReplacedKey(taskConfig, "use_integrated_efficiency", "Use \"mult\" in each \"acceptance_efficiency\". " + std::string(seeCorrections), GetName());
-    JsonConfig::RejectReplacedKey(taskConfig, "input_efficiency_file", "Renamed to 'corrections_file'.", GetName());
     // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
     // block, so a key added to the JSON tomorrow is recorded without touching this.
     provenance["produced_at"] = RunEnvironment::TimestampNow();

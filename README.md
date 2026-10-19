@@ -277,9 +277,9 @@ unknown key in a particle entry (a misspelled `signal_loss`, say) stops the run 
 being ignored. `"corrections": null` is how a
 block that inherits corrections switches them off, since `inherits` cannot remove a key
 (`CLAUDE.md`, *Configuration*). The file is a separate key so that a block for one year can
-change it without repeating the corrections of its mode. The keys this block replaced
-(`apply_efficiency`, `active_corrections`, `apply_efficiency_to`, `use_integrated_efficiency`,
-`input_efficiency_file`) stop the run with the name of what replaces them.
+change it without repeating the corrections of its mode. A configuration still written with the keys
+this block replaced (`apply_efficiency`, `active_corrections`, `apply_efficiency_to`,
+`use_integrated_efficiency`, `input_efficiency_file`) stops at the missing `corrections`.
 
 **`correlation_wpdg_task`** — MC-closure variant reading PDG-matched pairs. Same keys,
 plus `is_pure_gen` (required) and `output_dir_proj`; it has no purity stage.
@@ -390,7 +390,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 |---|---|
 | `RootIOHelpers.h` | `namespace RootIO` — opening files, fetching objects as `unique_ptr`, navigating and clearing directories, reading and writing binning stamps and provenance. |
 | `RunEnvironment.h` | `namespace RunEnvironment` — timestamp, git commit, header fingerprint. Includes no ROOT, and is the one header a plain compiler can check. |
-| `JsonConfigHelpers.h` | `namespace JsonConfig` — `Require*` and `Optional*` accessors, including `OptionalEnum`, whose table doubles as the error message; `RequireObjectOrNull` (null for "none"), `RejectReplacedKey` and `RequireKnownKeys`. |
+| `JsonConfigHelpers.h` | `namespace JsonConfig` — `Require*` and `Optional*` accessors, including `OptionalEnum`, whose table doubles as the error message; `RequireObjectOrNull` (null for "none") and `RequireKnownKeys`. |
 | `HistogramUtils.h` | `namespace HistogramUtils` — integrals with errors, `THnSparse` projections, spectrum and trend construction, ratios, rebinning with compatibility checks. |
 | `Logger.h` | `namespace Logger`: levels, one line format, and a summary of the run's warnings printed at the end. No dependencies. Every task and helper logs through it; the banners of `WorkflowManager` and `RunAnalysisChain` are the only direct output left. |
 | `CanvasManager.h` | Canvas ownership and unique naming, ratio and grid layouts, ALICE styling, path-aware writing into the output files. Owned by tasks, never by data structures. |

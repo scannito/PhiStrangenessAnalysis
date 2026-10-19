@@ -377,18 +377,11 @@ inline const rapidjson::Value* RequireObjectOrNull(const rapidjson::Value& node,
 }
 
 // ---------------------------------------------------------------------------
-// Keys that changed
+// Unknown keys in a closed block
 // ---------------------------------------------------------------------------
-// Unknown keys are not rejected in general (DESIGN_NOTES.md section 5), so a key that
-// was renamed or replaced would keep being written and silently do nothing. These close
-// that hole where it matters: a replaced key names its replacement, and a block whose
-// whole set of keys is known can refuse a misspelled one.
-
-inline void RejectReplacedKey(const rapidjson::Value& node, const char* key, std::string_view replacement, std::string_view errCtx)
-{
-  if (OptionalMember(node, key))
-    throw std::runtime_error(std::format("[FATAL] {}: key '{}' is no longer read. {}", errCtx, key, replacement));
-}
+// Unknown keys are not rejected in general (DESIGN_NOTES.md section 5). Where a block's whole
+// set of keys is known and some are optional, a misspelled optional key would read as "not
+// written": this refuses it.
 
 // The list that is matched against is the one the message prints, so they cannot drift.
 inline void RequireKnownKeys(const rapidjson::Value& node, std::initializer_list<std::string_view> known, std::string_view errCtx)

@@ -250,7 +250,10 @@ Parsing rules. Each one throws, with the key and what to write instead:
 - `null` is handled before the typed readers: in `JsonConfigHelpers` a key present with the wrong type is
   fatal, so `TryObject` on `null` would stop the run. A small helper, or an explicit check.
 - The old keys (`apply_efficiency`, `active_corrections`, `apply_efficiency_to`, `input_efficiency_file`,
-  `use_integrated_efficiency`) throw, naming the key that replaces them.
+  `use_integrated_efficiency`) throw, naming the key that replaces them. *Removed on 19 October* with
+  `RejectReplacedKey`: since `corrections` is required, a configuration not migrated already stops at the
+  missing key, and a check per renamed key would pile up with every rename. An old key left next to the new
+  ones is the general unknown-key case (`DESIGN_NOTES.md` section 5).
 
 ### Migration: numbers first, physics after
 
@@ -283,7 +286,8 @@ and the easier a change of format becomes one day.
 
 - The parser is `CorrelationTaskBase::InitCorrections`, called from `InitCorrectionsAndExtrapolation`
   (after `associated_particles`, which it checks names against); `LoadCorrections` takes no JSON.
-  The old keys are refused in `InitCommonFlags`, before anything is loaded.
+  The old keys were refused in `InitCommonFlags`, before anything is loaded (removed on 19 October, see
+  the parsing rules above).
 - The in-memory names of the combined histograms are those of the two former vectors
   (`h1Corrected_<p>_multInt<i>` for the integrated variant, `..._multBin<i>` otherwise), so nothing
   that could reach an output changed name.

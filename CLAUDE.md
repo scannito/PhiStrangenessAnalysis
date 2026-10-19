@@ -119,25 +119,27 @@ another must not change meaning; and `OptionalEnum`/`ResolveEnum` build the
 "Available: ..." message from the same table they match against, so it cannot go
 stale.
 
-Three for the cases the layers above do not cover, all added with the `corrections`
-block (`DESIGN_HISTORY.md`, *The corrections block*):
+Two for the cases the layers above do not cover, added with the `corrections` block
+(`DESIGN_HISTORY.md`, *The corrections block*):
 
 | | |
 |---|---|
 | `RequireObjectOrNull` | a feature a child block must be able to switch off: the key is required, `null` means none (see `inherits` below for why absence cannot) |
-| `RejectReplacedKey` | a key that was renamed or replaced: present means the configuration still says the old thing, so it stops the run and names the replacement |
 | `RequireKnownKeys` | a block whose whole set of keys is known: a misspelled key stops the run instead of being skipped |
 
-Unknown keys are not rejected in general (`DESIGN_NOTES.md` section 5); the last two close
-that hole where they can. `RequireKnownKeys` is on every block whose set of keys is closed
+Unknown keys are not rejected in general (`DESIGN_NOTES.md` section 5); `RequireKnownKeys`
+closes that hole where it can. `RequireKnownKeys` is on every block whose set of keys is closed
 **and has optional keys** (the nodes of `fitConfig.json` and `extrapConfig.json`, the entries
 of the arrays of objects, `global_binning`, the entries of `corrections.particles`): a
 misspelled optional key reads as "not written" and only a check of every key present
 catches it. A new block of that kind gets it too. Where every key is required it adds
 nothing, a typo already stops as a missing key, so it is left out (`purity_sources`, the top
 of `corrections`, `acceptance_efficiency`). It does not fit where the keys are names
-(`params`, `pt_binning`) nor the task blocks themselves. When you replace or rename a key, reject the
-old one: a configuration that keeps carrying it otherwise looks as if it applied it.
+(`params`, `pt_binning`) nor the task blocks themselves. When you replace or rename a key, make the new one
+required: a configuration that was not migrated then stops at the missing key, by name. Do not
+add a check per old key (one was tried with the `corrections` block and removed): every rename
+would leave one behind for ever. An old key left next to the new ones is the general case of an
+unknown key, to be closed once by the key-recording reader of `DESIGN_NOTES.md` section 5.
 
 Blocks resolve `inherits` recursively in `WorkflowManager::MergeTaskConfiguration`;
 a key that looks absent in a block may well be inherited, so read a configuration

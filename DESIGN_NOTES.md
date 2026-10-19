@@ -1128,9 +1128,8 @@ names say "efficiency" but the keys cover every correction: `apply_efficiency` d
 efficiency *and* signal loss go to, `input_efficiency_file` is the `Corrections` file. First proposed as a
 rename (`apply_corrections`, `apply_corrections_to`, `input_corrections_file`), then replaced by a structure:
 see *The correction configuration is per particle* below. The C++ side is designed first, the JSON after. The
-old keys must throw, naming what replaces them: unknown keys are not rejected (section 5), and a forgotten
-`apply_efficiency_to` would fall back to "all particles" with a warning, which in the `no_phi` blocks applies
-signal loss to the φ. `DESIGN_HISTORY.md` keeps the old names, being a record of what was.
+old keys were first made to throw, naming what replaces them; that check was removed on 19 October,
+since `corrections` is required and an unmigrated configuration stops at it (`CLAUDE.md`, *Configuration*). `DESIGN_HISTORY.md` keeps the old names, being a record of what was.
 
 **Phase 2 — small O2Physics changes, with a reader here.** Defaults aligned with the train: not only the mass
 windows, several configurables have defaults that differ from what the trains use (deferred by the user, 16 October).
