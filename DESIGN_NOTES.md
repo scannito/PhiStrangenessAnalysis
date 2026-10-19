@@ -1254,14 +1254,15 @@ comes from (MC, or a fit of the DCA distribution in data) is still to be decided
 
 ## 14. Plots on demand: what is not done
 
-Written on 19 October 2026, with the first version of `phiplot` (README.md, *Plots on demand*),
+Written on 19 October 2026, with the first version of `phiplot` (PLOTTING.md),
 on the branch `plot-on-demand`.
 
 **What is there.** A catalog of what a `PhiAssocSpectra` file holds by meaning (`PlotCatalog`); a
 plot specification whose keys sit in one table that gives both the checks and a JSON schema
 (`PlotSpec`); a resolver that finds every object through the stamps and refuses a division between
 things that do not mean the same (`PlotRenderer`); three front ends on that one interface (`phiplot
-quick`, `Macros/phiplot_ask.py` with a local or remote model, the Claude Code skill). The object
+quick`, `Macros/phiplot_ask.py` with a local or remote model, the Claude Code skill), and the requests
+the model front end is measured on (`Macros/phiplot_ask_test.py`). How to use all of it: `PLOTTING.md`. The object
 names moved into `OutputNames`, used by `CorrelationTaskBase` to write them and by the catalog to
 read them, so a rename changes one place; `data pp` gave the same 113 files, object for object,
 after the producer was switched to it.
@@ -1280,12 +1281,13 @@ after the producer was switched to it.
   are not in the catalog: their names are not in `OutputNames` yet.
 - **Names are still indices** (`_multBin3`, section 4). When they become intervals, only
   `OutputNames` changes; the catalog and the plotter read meanings and are unaffected.
-- **The model front end is measured on ten requests only** (19 October, `qwen2.5-coder:7b` through
-  Ollama 0.40.6, Q4_K_M, on the user's Mac): eight possible (trends, spectra, species ratios,
+- **The model front end is measured on ten requests only** (19-20 October, `qwen2.5-coder:7b` through
+  Ollama 0.40.6, Q4_K_M, model file sha256 `60e05f2100071479f596b964f89f510f057ce397ea22f2833a0cfe029bfc2463`,
+  on the user's Mac with 24 GB; `Macros/phiplot_ask_test.py`): eight possible (trends, spectra, species ratios,
   extrapolated over measured, years and online/offline compared, Italian and English) and two
   impossible (a |Δy| and a species that are not in the files). With the final code, 9/10: seven
   possible right at the first attempt, the two impossible refused at the second, 15-25 s a request.
-  The tenth, "rapporto estrapolato su misurato per la Xi", is drawn as the Xi/Pi species ratios
+  Request 5, "rapporto estrapolato su misurato per la Xi", is drawn as the Xi/Pi species ratios
   instead of `trend_extrap_over_meas`: valid, so phiplot accepts it, and visible in the description.
   It is on the edge for this model: right or wrong depending on where in the schema the kinds are
   described (right with the description on `kind`, wrong with it once on `series`, the layout kept
@@ -1311,9 +1313,65 @@ after the producer was switched to it.
   The comparisons themselves are still written twice: on directories through
   `RootIO::RequireMatchingBinningStamp` in the task, on the catalog's edges in `PlotRenderer`. One
   reader for both, giving each the stamps of a scheme and a species, is the way to make them one.
-- **The plot's own provenance has the plotting code's commit only when phiplot runs from `Codes/`**
-  (`RunEnvironment` looks for `../.git`, as the chain does from there); run from the repository root,
-  the inputs' commits are recorded and the plotter's is not.
 - **Style.** One layout (single pad, or a ratio pad), a fixed palette, the legend top right. Grids of
   pads (one per multiplicity interval), a log X axis, ALICE figure conventions beyond the label: not
   there. The collision system of the label is never assumed: `quick --alice` needs `--system`.
+
+### A model as part of the codebase: the possibilities. To decide.
+
+Recorded on 19 October 2026, at the user's request ("almeno un modello come parte integrante della
+codebase"). Today the model is whatever the user has pulled into Ollama: nothing in the repository says
+which one the front end was measured with, so two people can run the same request on different models
+and nothing records it. Three questions, separable.
+
+**1. Which model: declared in the repository, verified on use.** The weights cannot live in git: the
+measured model is a 4.7 GB file (GGUF, Q4_K_M), and even through Git LFS every clone would carry it. The
+way out is the one the framework already takes for ROOT: declare it, and check what is used. A file in
+the repository (e.g. `PlotSpecs/model.json`) with the model's name, where to get it (a copy of the measured
+file on EOS or CERNBox, or `ollama pull` of the same tag, checked by its sha256; the GGUF the Qwen team
+publishes on Hugging Face, `Qwen/Qwen2.5-Coder-7B-Instruct-GGUF`, is a different file, see below),
+its sha256, size and licence (Apache 2.0 for this model, which allows redistribution); a script that
+downloads it into a directory git ignores and refuses a file whose sha256 differs; and the model's name
+and sha256 in the plot's provenance. Changing the model is then a commit that says so, after which
+`Macros/phiplot_ask_test.py` is run again. This is independent of the engine below: Ollama keeps the
+GGUF in `~/.ollama/models/blobs/`, named after its sha256, so the file that was measured can be
+pinned as it is, and **that** is the file to declare: checked on 20 October, Ollama's blob for
+`qwen2.5-coder:7b` (sha256 `60e05f21...`, 4,683,074,048 bytes) is not the Q4_K_M file the Qwen team
+publishes on Hugging Face (`509287f7...`, 4,683,073,536 bytes; the same quantisation, 512 bytes apart,
+presumably in the metadata). Declaring the Hugging Face file would pin a model that was never
+measured; switching to it is a new measurement. Small; the recommended first step.
+
+**2. Which engine runs it.** llama.cpp (C/C++, MIT, CMake) is the engine in all three cases; what differs
+is how it is reached.
+
+| | What runs | The front end | Cost |
+|---|---|---|---|
+| Ollama (today) | a background service, `localhost:11434` | `Macros/phiplot_ask.py` | installing Ollama; nothing in the build |
+| `llama-server` | llama.cpp's own server, OpenAI-compatible | the same script, `--api openai` | a server to start; whether it enforces the schema in the form the script sends (`response_format` with `json_schema`) is to be checked: the form has changed across its versions |
+| llama.cpp linked into phiplot | nothing: `phiplot ask "..."` loads the GGUF itself | C++, in phiplot | a build dependency (made optional, `-DPHIPLOT_WITH_LLAMA=ON`, off by default, so the analysis chain never needs it); fetched at configure time with a pinned tag (FetchContent) or vendored, as aliBuild has no recipe for it; an API that changes often, which the pinned tag also answers; Metal on a Mac, CPU on lxplus |
+
+The third is the only one where someone who clones the repository needs nothing but the build: no
+service, no Python. It also turns the two signals the script reads across processes into calls: the
+specification is checked by `PlotSpec::Parse` and `PlotRenderer::Resolve` in the same process, a missing
+object is the `NotInFiles` exception rather than exit code 3, and the constraint is llama.cpp's grammar
+built from `PlotSpec::Schema()`. Decoding would be greedy, deterministic for a given model and build.
+
+**3. Where the logic of the front end lives (Python or C++).** Python is not needed by the model; the
+script holds the glue - the prompt, the calls, the retries, when "cannot" is offered - because HTTP and
+JSON are easy there with the standard library alone. With the engine linked into phiplot, that glue is
+C++. Keeping the script beside it would leave the same logic in two languages, which is the drift this
+framework is built against. So either the script stays as the only front end (Ollama or `llama-server`
+behind it) and nothing goes into the C++, or the C++ front end replaces it and the script goes; keeping
+it only as a bridge to remote endpoints is possible but is the duplicated case.
+
+**Later, if a model has to be adapted.** No training is needed for this task as measured: the knowledge
+reaches the model through the prompt (schema, catalog, examples) and the constraint. If it ever is (a
+model that keeps confusing kinds), a LoRA adapter on pairs of request and specification is a few MB: that
+one could live in the repository, or in CCDB, next to the declared base model.
+
+**Recommendation.** 1 now. Then either keep Ollama with the script (nothing more to build), or, if
+`phiplot ask` must work from the build alone, llama.cpp linked into phiplot with the front end in C++ and
+the script removed. A larger model
+(`qwen2.5-coder:14b`, about 9 GB, fits in 24 GB) is a separate measurement, worth making before linking an
+engine in, since the weak case of the ten requests is the model's.
+

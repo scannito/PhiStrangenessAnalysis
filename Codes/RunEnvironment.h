@@ -112,24 +112,32 @@ inline std::string TimestampNow()
   return buffer;
 }
 
-// The facts, gathered once per process: reading 330 kB of headers is cheap, doing
-// it for every task is pointless.
+// The facts of the repository at 'repoRoot': its commit and the fingerprint of the headers
+// in its Codes/. What is not found is not recorded, the right outcome for documentation.
+// The fingerprint folds in file names, not paths, so the same tree reached by another path
+// gives the same value.
+inline std::map<std::string, std::string> FactsAt(const std::string& repoRoot)
+{
+  std::map<std::string, std::string> f;
+  const std::string commit = GitCommit(repoRoot + "/.git");
+  const std::string sources = SourcesFingerprint(repoRoot + "/Codes");
+  if (!commit.empty())
+    f["git_commit"] = commit;
+  if (!sources.empty())
+    f["sources_fingerprint"] = sources;
+  return f;
+}
+
+// The facts of the chain's run, gathered once per process: reading 330 kB of headers is
+// cheap, doing it for every task is pointless.
 //
-// Both defaults assume the working directory is the framework's own, which
-// runAnalysis.sh guarantees with its cd. Run from anywhere else they come back
-// empty and nothing is recorded, which is the right outcome for documentation.
+// The repository is taken as the parent of the working directory, which is the framework's
+// own (Codes/): runAnalysis.sh guarantees it with its cd. Run from anywhere else they come
+// back empty and nothing is recorded. phiplot, which runs from the repository root, asks
+// FactsAt with the source directory CMake gave it instead.
 inline const std::map<std::string, std::string>& Facts()
 {
-  static const std::map<std::string, std::string> facts = [] {
-    std::map<std::string, std::string> f;
-    const std::string commit = GitCommit();
-    const std::string sources = SourcesFingerprint();
-    if (!commit.empty())
-      f["git_commit"] = commit;
-    if (!sources.empty())
-      f["sources_fingerprint"] = sources;
-    return f;
-  }();
+  static const std::map<std::string, std::string> facts = FactsAt("..");
   return facts;
 }
 

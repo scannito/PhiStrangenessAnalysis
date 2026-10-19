@@ -8,8 +8,8 @@ description: Make a plot from the correlation outputs (PhiAssocSpectra files) on
 The plot is made by `build/phiplot` from a **plot specification** (JSON). You write the
 specification; phiplot finds the objects, runs the checks and draws. Never write a ROOT
 macro that opens the files and builds object names: the names carry multiplicity
-*indices*, and only phiplot reads them through the binning stamps (README.md, *Plots on
-demand*; CLAUDE.md, the rule the framework is built on).
+*indices*, and only phiplot reads them through the binning stamps (PLOTTING.md; CLAUDE.md,
+the rule the framework is built on).
 
 Run every command from the repository root: the file paths in a specification, and the
 examples', are relative to it.

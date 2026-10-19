@@ -2,6 +2,7 @@
 #include "PlotCatalog.h"
 #include "PlotRenderer.h"
 #include "PlotSpec.h"
+#include "RunEnvironment.h"
 
 #include "TROOT.h"
 
@@ -10,12 +11,14 @@
 #include "rapidjson/stringbuffer.h"
 
 #include <exception>
+#include <filesystem>
+#include <map>
 #include <fstream>
 #include <iostream>
 #include <string>
 #include <vector>
 
-// Plots on demand from the files the correlation tasks write (README.md, Plots on demand).
+// Plots on demand from the files the correlation tasks write (PLOTTING.md).
 // Compiled only: it is not part of the analysis chain and Cling is not asked to load it, so
 // format specs such as {:<28} are allowed here.
 //
@@ -76,13 +79,28 @@ int List(const std::vector<std::string>& args)
   return 0;
 }
 
+// The plotting code's commit and header fingerprint for the plot's provenance, from the
+// source directory CMake compiled it from (PHIPLOT_SOURCE_DIR), not from the working
+// directory (RunEnvironment::Facts assumes the chain's, Codes/) nor from where the executable
+// happens to be. A tree that has moved since the build records nothing, never another one's.
+std::map<std::string, std::string> CodeFacts()
+{
+#ifdef PHIPLOT_SOURCE_DIR
+  return RunEnvironment::FactsAt(PHIPLOT_SOURCE_DIR);
+#else
+  return {};
+#endif
+}
+
+std::map<std::string, std::string> gCodeFacts; // set once in main
+
 int DescribeOrRender(const std::string& specPath, bool render)
 {
   const PlotSpec::Spec spec = PlotSpec::ParseFile(specPath);
   PlotRenderer::Plan plan = PlotRenderer::Resolve(spec);
   std::cout << PlotRenderer::Describe(plan);
   if (render)
-    PlotRenderer::Render(plan);
+    PlotRenderer::Render(plan, gCodeFacts);
   return 0;
 }
 
@@ -243,6 +261,7 @@ int Quick(const std::vector<std::string>& args)
 int main(int argc, char* argv[])
 {
   gROOT->SetBatch(kTRUE);
+  gCodeFacts = CodeFacts();
   if (argc < 2)
     return Usage();
   const std::string cmd = argv[1];

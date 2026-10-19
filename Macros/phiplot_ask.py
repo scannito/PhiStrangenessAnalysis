@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """A plot asked for in words: a language model writes the plot specification, phiplot checks
-and draws it (README.md, Plots on demand).
+and draws it (PLOTTING.md).
 
 The model only translates. It is shown the JSON schema of a specification (phiplot schema),
 what the files hold (phiplot list --json) and the examples in PlotSpecs/examples, and its
@@ -33,6 +33,10 @@ from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
 EXIT_NOT_IN_FILES = 3  # phiplot.cpp, kExitNotInFiles: what was asked is not in the files
+# This script's own codes: 0 drawn (or declined at the confirmation), 1 failed, EXIT_CANNOT when
+# the model answered that the request cannot be drawn from these files - the same meaning as
+# phiplot's 3, and what phiplot_ask_test.py counts as the right answer to an impossible request.
+EXIT_CANNOT = 3
 
 # Only what the schema does not already say: what each key means, and when "mult",
 # "species_den" and "divide_option" apply, is in the descriptions of the schema itself
@@ -75,7 +79,7 @@ def ask_model(args, schema, messages):
     # Temperature 0 and a fixed seed: the same request gives the same specification, as far as
     # the endpoint honours them.
     if args.api == "ollama":
-        num_ctx = context_for(messages)
+        num_ctx = args.num_ctx or context_for(messages)
         r = post(f"{args.endpoint.rstrip('/')}/api/chat",
                  {"model": args.model, "messages": messages, "stream": False, "format": schema,
                   "options": {"temperature": 0, "seed": args.seed, "num_ctx": num_ctx}})
@@ -102,6 +106,7 @@ def main():
     ap.add_argument("--endpoint", default=None, help="default: http://localhost:11434 for ollama")
     ap.add_argument("--model", default="qwen2.5-coder:7b")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--num-ctx", type=int, default=None, help="Ollama's context in tokens; by default sized from the prompt")
     ap.add_argument("--retries", type=int, default=2, help="how many times a refused specification is handed back")
     ap.add_argument("--yes", action="store_true", help="draw without asking for confirmation")
     ap.add_argument("--phiplot", default=str(REPO / "build" / "phiplot"))
@@ -149,7 +154,8 @@ def main():
             problem = f"The answer is not valid JSON ({e})."
         else:
             if isinstance(spec, dict) and "cannot" in spec:
-                sys.exit(f"[phiplot_ask] the model says this cannot be drawn from these files: {spec['cannot']}")
+                print(f"[phiplot_ask] the model says this cannot be drawn from these files: {spec['cannot']}", file=sys.stderr)
+                sys.exit(EXIT_CANNOT)
             # The output path is the caller's, not the model's to choose.
             if isinstance(spec, dict) and spec.get("output") != args.out:
                 spec["output"] = args.out

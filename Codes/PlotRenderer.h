@@ -444,7 +444,10 @@ inline std::string Describe(const Plan& plan)
   return out;
 }
 
-inline void Render(Plan& plan)
+// codeFacts: the plotting code's own provenance (its commit and the fingerprint of its
+// headers), which the caller locates - phiplot from where its executable is, so that it does
+// not depend on the directory it is run from.
+inline void Render(Plan& plan, const std::map<std::string, std::string>& codeFacts)
 {
   const PlotSpec::Spec& spec = *plan.spec;
   static constexpr int kPalette[] = {kBlack, kRed + 1, kBlue + 1, kGreen + 2, kMagenta + 1, kOrange + 7, kCyan + 2, kViolet + 1, kAzure + 2, kPink + 9};
@@ -564,7 +567,7 @@ inline void Render(Plan& plan)
   for (auto& h : ratios)
     h->Write(nullptr, TObject::kOverwrite);
 
-  std::map<std::string, std::string> facts = RunEnvironment::Facts();
+  std::map<std::string, std::string> facts = codeFacts;
   facts["produced_at"] = RunEnvironment::TimestampNow();
   facts[Detail::kSpecKey] = spec.json;
   RootIO::WriteProvenance(RootIO::GetOrCreatePath(out.get(), {std::string(OutputNames::kProvenanceDir)}), facts);

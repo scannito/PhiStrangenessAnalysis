@@ -14,7 +14,7 @@ someone without Claude). The design, argued with the user before any code: a det
 plot *specification* as its one interface, and a language model, if any, only as a front end that writes
 specifications - never one that writes macros, because a macro that builds `..._multBin3` by hand does not
 know what the 3 means, and that is the wrong number with no error this framework is built against. What it
-is and how to use it: README.md, *Plots on demand*; what is not done: `DESIGN_NOTES.md` section 14.
+is and how to use it: PLOTTING.md; what is not done: `DESIGN_NOTES.md` section 14.
 
 Found while doing it: the names of the `PhiAssocSpectra` objects were built by hand at seven sites of
 `CorrelationTaskBase`, and `ComparisonTask` spelled the directories and stamps again. They are now in
@@ -43,7 +43,9 @@ against `qwen2.5-coder:7b` through Ollama on ten requests: 9/10 with the final c
 changes the first runs called for, and the tenth a valid plot of the wrong kind that the description
 shows (`DESIGN_NOTES.md` section 14). A third review, of those changes, moved the kind-dependent keys
 into the key table (`KeyInfo::requiredFor`) and gave "not in these files" its own exception and exit
-code, which the script reads instead of matching phiplot's wording. The skill was tried by a fresh agent on four of them: right,
+code, which the script reads instead of matching phiplot's wording. The ten requests are in the
+repository (`Macros/phiplot_ask_test.py`), and the tool has its own guide, `PLOTTING.md`; the ways to
+make a model part of the codebase are written up, to decide, in `DESIGN_NOTES.md` section 14. The skill was tried by a fresh agent on four of the ten requests: right,
 and the impossible one answered with what exists instead of a substitute; what it had to guess went into
 SKILL.md.
 
