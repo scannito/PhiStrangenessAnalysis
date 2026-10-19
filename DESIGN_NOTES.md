@@ -1280,12 +1280,27 @@ after the producer was switched to it.
   are not in the catalog: their names are not in `OutputNames` yet.
 - **Names are still indices** (`_multBin3`, section 4). When they become intervals, only
   `OutputNames` changes; the catalog and the plotter read meanings and are unaffected.
-- **The model front end was tested against a mock endpoint only** (19 October): the request, the
-  schema in `format`, a refused specification handed back with phiplot's message, the corrected one
-  drawn. No real model was run - Ollama is not installed here. Which model is good enough, and
-  whether a 7B one follows the rules about `mult` and `species_den` without the retry, is to be
-  measured; the checks make a wrong answer a refusal, not a wrong plot, but a valid answer that is
-  not what was meant still shows only in the description.
+- **The model front end is measured on ten requests only** (19 October, `qwen2.5-coder:7b` through
+  Ollama 0.40.6, Q4_K_M, on the user's Mac): eight possible (trends, spectra, species ratios,
+  extrapolated over measured, years and online/offline compared, Italian and English) and two
+  impossible (a |Δy| and a species that are not in the files). With the final code, 9/10: seven
+  possible right at the first attempt, the two impossible refused at the second, 15-25 s a request.
+  The tenth, "rapporto estrapolato su misurato per la Xi", is drawn as the Xi/Pi species ratios
+  instead of `trend_extrap_over_meas`: valid, so phiplot accepts it, and visible in the description.
+  It is on the edge for this model: right or wrong depending on where in the schema the kinds are
+  described (right with the description on `kind`, wrong with it once on `series`, the layout kept
+  because it is the one with a single copy); the prompt was not tuned further to one test. A larger
+  set, other phrasings and a larger model (`qwen2.5-coder:14b` fits in 24 GB) are not tried.
+  What the first runs taught, each now in the code: Ollama's default context is 4096 tokens and it
+  cuts a longer prompt without an error (the catalog fell off and the model invented a file), so
+  the script sizes `num_ctx` and warns when the prompt fills it; a schema in `format` constrains the
+  answer but is not read, so it is also in the prompt; kinds chosen by name alone were confused (a
+  trend drawn as a spectrum), so the schema says what each kind is; a description saying when
+  `mult` and `species_den` apply was not enough (left out three times in ten), so the schema has
+  one form per group of kinds; constrained to a specification, the model substituted |Δy| < 0.5 for
+  a missing 0.3, so it may answer "cannot", offered only when phiplot says an object is missing
+  (offered for any refusal, it gave up on fixable ones); one phrasing kept mapping to the wrong kind
+  until an example of that kind was added.
 - **`quick` writes the specification before parsing it**, so a refused one stays on disk next to its
   error. Deliberate (what was refused can be read), but it means `Plots/` can hold specifications
   that never rendered.

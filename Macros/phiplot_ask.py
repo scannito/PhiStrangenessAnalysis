@@ -32,13 +32,15 @@ import urllib.request
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+EXIT_NOT_IN_FILES = 3  # phiplot.cpp, kExitNotInFiles: what was asked is not in the files
 
 # Only what the schema does not already say: what each key means, and when "mult",
 # "species_den" and "divide_option" apply, is in the descriptions of the schema itself
 # (PlotSpec's table), so it is written once.
 INSTRUCTIONS = """You write plot specifications for the tool phiplot, as JSON that follows the schema you are given; read the description of every key.
 - Use only what the catalog lists: its file paths exactly as written, its kinds, species, dy values and multiplicity intervals.
-- Add "ratio" only if the request asks to compare or divide.
+- If the request asks for something the catalog does not have (a species, a dy value, an interval), do not substitute the nearest: answer {"cannot": "<what is missing, and what there is>"} instead.
+- Add "ratio" only if the request asks to compare or divide; its reference is the series the request divides by.
 - Give each series a short "label" when the request names what the series are (years, methods); otherwise leave it out.
 Answer with the JSON object only."""
 
@@ -59,13 +61,29 @@ def post(url, payload, headers=None):
         sys.exit(f"[FATAL] phiplot_ask: cannot reach the model at {url}: {e}. Is the endpoint running (for Ollama: `ollama serve`)?")
 
 
+def context_for(messages):
+    # Ollama gives a model 4096 tokens of context unless told otherwise, and cuts a longer
+    # prompt without an error: measured on 19 October 2026, the catalog fell off the end and the
+    # model invented a file named after the output. Sized here from the prompt, at two characters
+    # per token (compact JSON is dense in tokens), with room for the answer: this estimate, not
+    # the warning below, is what keeps the prompt whole.
+    chars = sum(len(m["content"]) for m in messages)
+    return max(8192, 1024 * (chars // 2 // 1024 + 2))
+
+
 def ask_model(args, schema, messages):
     # Temperature 0 and a fixed seed: the same request gives the same specification, as far as
     # the endpoint honours them.
     if args.api == "ollama":
+        num_ctx = context_for(messages)
         r = post(f"{args.endpoint.rstrip('/')}/api/chat",
                  {"model": args.model, "messages": messages, "stream": False, "format": schema,
-                  "options": {"temperature": 0, "seed": args.seed}})
+                  "options": {"temperature": 0, "seed": args.seed, "num_ctx": num_ctx}})
+        # Best effort: Ollama counts only the tokens it evaluated, not a prefix it reused from its
+        # cache, so a cut prompt can go unreported here.
+        if r.get("prompt_eval_count", 0) >= num_ctx - 16:
+            print(f"[phiplot_ask] WARNING: the prompt filled the whole context ({num_ctx} tokens) and was probably cut; "
+                  "the model may not have seen the catalog.", file=sys.stderr)
         return r["message"]["content"]
     key = os.environ.get("PHIPLOT_API_KEY", "")
     r = post(f"{args.endpoint.rstrip('/')}/v1/chat/completions",
@@ -95,25 +113,43 @@ def main():
     if not Path(args.phiplot).exists():
         sys.exit(f"[FATAL] phiplot_ask: no phiplot at {args.phiplot}. Build it: cmake -B build -S . && cmake --build build --target phiplot")
 
-    schema = json.loads(run([args.phiplot, "schema"]).stdout)
-    catalog = run([args.phiplot, "list", "--json", *args.file]).stdout
-    examples = "\n\n".join(p.read_text() for p in sorted((REPO / "PlotSpecs" / "examples").glob("*.json")))
+    # Compact JSON throughout: the indentation would cost a third of the context. The schema
+    # goes into the prompt as well as into the constraint, because a constraint restricts the
+    # answer without being read: the descriptions of the keys, which say when each applies,
+    # reach the model only as text.
+    compact = lambda text: json.dumps(json.loads(text), separators=(",", ":"), ensure_ascii=False)
+    schema_text = run([args.phiplot, "schema"]).stdout
+    # The answer is a specification or, when what was asked does not exist, a refusal: a
+    # constraint to the specification alone leaves a model no way to say no, and it then
+    # substitutes the nearest thing (measured: |dy| < 0.3 asked, 0.5 drawn).
+    schema = {"anyOf": [json.loads(schema_text),
+                        {"type": "object", "properties": {"cannot": {"type": "string"}}, "required": ["cannot"], "additionalProperties": False}]}
+    catalog = compact(run([args.phiplot, "list", "--json", *args.file]).stdout)
+    examples = "\n".join(compact(p.read_text()) for p in sorted((REPO / "PlotSpecs" / "examples").glob("*.json")))
 
     messages = [
         {"role": "system", "content": INSTRUCTIONS},
-        {"role": "user", "content": f"Examples of specifications:\n{examples}\n\nCatalog of the files:\n{catalog}\n\n"
-                                    f"Output: {args.out}\n\nRequest: {args.request}"},
+        {"role": "user", "content": f"Schema of a specification:\n{compact(schema_text)}\n\nExamples of specifications:\n{examples}\n\n"
+                                    f"Catalog of the files:\n{catalog}\n\nOutput: {args.out}\n\nRequest: {args.request}"},
     ]
     spec_path = Path(f"{args.out}.spec.json")
     spec_path.parent.mkdir(parents=True, exist_ok=True)
 
+    # "cannot" is a way out for what does not exist, not for a specification phiplot found
+    # malformed: offered after a refusal only when the refusal says an object is missing
+    # (measured: a model told it could also say "cannot" gave up on a missing species_den).
+    spec_only = json.loads(schema_text)
+    current = schema
     for attempt in range(args.retries + 1):
-        answer = ask_model(args, schema, messages)
+        described = None
+        answer = ask_model(args, current, messages)
         try:
             spec = json.loads(answer)
         except json.JSONDecodeError as e:
             problem = f"The answer is not valid JSON ({e})."
         else:
+            if isinstance(spec, dict) and "cannot" in spec:
+                sys.exit(f"[phiplot_ask] the model says this cannot be drawn from these files: {spec['cannot']}")
             # The output path is the caller's, not the model's to choose.
             if isinstance(spec, dict) and spec.get("output") != args.out:
                 spec["output"] = args.out
@@ -123,8 +159,12 @@ def main():
                 break
             problem = (described.stderr or described.stdout).strip()
         print(f"[phiplot_ask] attempt {attempt + 1} refused:\n{problem}\n", file=sys.stderr)
+        missing = described is not None and described.returncode == EXIT_NOT_IN_FILES
+        current = schema if missing else spec_only
+        hint = ("Correct it, or answer with \"cannot\" if what was asked does not exist in the catalog." if missing
+                else "Correct the specification.")
         messages += [{"role": "assistant", "content": answer},
-                     {"role": "user", "content": f"phiplot refused this specification:\n{problem}\nCorrect it."}]
+                     {"role": "user", "content": f"phiplot refused this specification:\n{problem}\n{hint}"}]
     else:
         sys.exit(f"[FATAL] phiplot_ask: no acceptable specification after {args.retries + 1} attempts; the last is in {spec_path}.")
 

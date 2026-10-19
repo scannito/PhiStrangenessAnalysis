@@ -421,8 +421,10 @@ Drawing them together without dividing is allowed, and the mismatch goes through
 catalog (`list --json`) and the examples, constrains its answer to the schema, and passes
 the result to `describe`; a refusal goes back to the model to correct, a few times at
 most. The description is what you confirm before anything is drawn. Standard library only;
-a local model through Ollama by default (offline: nothing leaves the machine), or any
-OpenAI-compatible endpoint. For Claude Code, the skill `.claude/skills/phiplot` does the
+a local model through Ollama by default (offline: nothing leaves the machine; e.g.
+`ollama pull qwen2.5-coder:7b`, measured on ten requests in `DESIGN_NOTES.md` section 14), or any
+OpenAI-compatible endpoint. When what was asked is not in the files, the model may answer that
+it cannot be drawn, and the script stops there. For Claude Code, the skill `.claude/skills/phiplot` does the
 same steps. The model is a front end: without one, `quick` and hand-written
 specifications do everything.
 

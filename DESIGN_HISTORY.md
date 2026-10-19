@@ -38,8 +38,14 @@ to a shared header: 113 files identical to the baseline. `comparison_task`, spec
 key meaningless for its kind, divided spectra with different axes, mixed X quantities, an output with an
 extension or equal to an input, whose md5 stayed the same); copies of a file with the K0S pT stamp changed
 and removed (division refused, overlay warned; division warned and listed as not checked);
-`Macros/phiplot_ask.py` against a mock Ollama endpoint (a refusal handed back and corrected). No real
-language model was run.
+`Macros/phiplot_ask.py` against a mock Ollama endpoint (a refusal handed back and corrected), then
+against `qwen2.5-coder:7b` through Ollama on ten requests: 9/10 with the final code, after the
+changes the first runs called for, and the tenth a valid plot of the wrong kind that the description
+shows (`DESIGN_NOTES.md` section 14). A third review, of those changes, moved the kind-dependent keys
+into the key table (`KeyInfo::requiredFor`) and gave "not in these files" its own exception and exit
+code, which the script reads instead of matching phiplot's wording. The skill was tried by a fresh agent on four of them: right,
+and the impossible one answered with what exists instead of a substitute; what it had to guess went into
+SKILL.md.
 
 ---
 

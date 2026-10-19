@@ -31,6 +31,9 @@
 
 namespace
 {
+// Exit codes: 0 done, 1 refused or failed, 2 usage, kExitNotInFiles when what was asked is not
+// in the files (PlotRenderer::NotInFiles). Macros/phiplot_ask.py reads the last one.
+constexpr int kExitNotInFiles = 3;
 
 int Usage()
 {
@@ -257,6 +260,9 @@ int main(int argc, char* argv[])
       rc = Quick(args);
     else
       return Usage();
+  } catch (const PlotRenderer::NotInFiles& e) {
+    std::cerr << e.what() << std::endl;
+    rc = kExitNotInFiles;
   } catch (const std::exception& e) {
     std::cerr << e.what() << std::endl;
     rc = 1;

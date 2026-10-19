@@ -43,6 +43,14 @@
 namespace PlotRenderer
 {
 
+// What was asked is not in these files: a species, a |dy| limit, an interval, a scheme or a
+// section that they do not hold. Its own type, and phiplot's own exit code (kExitNotInFiles),
+// because a front end must tell it from a specification that is malformed: the first is
+// answered by saying what there is, the second by correcting the specification.
+struct NotInFiles : std::runtime_error {
+  using std::runtime_error::runtime_error;
+};
+
 struct Resolved {
   const PlotSpec::Series* spec{nullptr};
   std::string scheme;
@@ -86,12 +94,12 @@ inline std::string Choose(const std::vector<std::string>& options, const std::op
     for (const auto& o : options)
       if (o == *requested)
         return o;
-    throw std::runtime_error(std::format("[FATAL] {}: no {} '{}'. Available: {}", ctx, what, *requested, list.empty() ? "none" : list));
+    throw NotInFiles(std::format("[FATAL] {}: no {} '{}'. Available: {}", ctx, what, *requested, list.empty() ? "none" : list));
   }
   if (options.size() == 1)
     return options.front();
   if (options.empty())
-    throw std::runtime_error(std::format("[FATAL] {}: no {} to choose from: {}", ctx, what, kNoScheme));
+    throw NotInFiles(std::format("[FATAL] {}: no {} to choose from: {}", ctx, what, kNoScheme));
   throw std::runtime_error(std::format("[FATAL] {}: more than one {}, so it must be named. Available: {}", ctx, what, list));
 }
 
@@ -100,7 +108,7 @@ inline std::string Choose(const std::vector<std::string>& options, const std::op
 inline int MultBin(const std::vector<double>& edges, std::pair<double, double> interval, const std::string& ctx)
 {
   if (edges.empty())
-    throw std::runtime_error(std::format("[FATAL] {}: the scheme carries no {} stamp, so there is no way to tell which "
+    throw NotInFiles(std::format("[FATAL] {}: the scheme carries no {} stamp, so there is no way to tell which "
                                          "spectrum is the interval asked for. Re-run the correlation task that wrote it.",
                                          ctx, OutputNames::kStampMult));
   for (int i = 0; i + 1 < static_cast<int>(edges.size()); ++i)
@@ -109,7 +117,7 @@ inline int MultBin(const std::vector<double>& edges, std::pair<double, double> i
   std::set<int> all;
   for (int i = 0; i + 1 < static_cast<int>(edges.size()); ++i)
     all.insert(i);
-  throw std::runtime_error(std::format("[FATAL] {}: [{}, {}] is not a multiplicity bin of this file. Available: {}",
+  throw NotInFiles(std::format("[FATAL] {}: [{}, {}] is not a multiplicity bin of this file. Available: {}",
                                        ctx, BinningUtils::FormatEdge(interval.first), BinningUtils::FormatEdge(interval.second),
                                        PlotCatalog::Intervals(edges, all)));
 }
@@ -274,7 +282,7 @@ inline Plan Resolve(const PlotSpec::Spec& spec)
           g.dy.contains(s.dy) && (r.id.multBin < 0 || g.multBins.contains(r.id.multBin)))
         found = true;
     if (!found)
-      throw std::runtime_error(std::format("[FATAL] {}: no {} for {} at |dy| < {}{} in '{}/{}'. What there is of this kind:{}",
+      throw NotInFiles(std::format("[FATAL] {}: no {} for {} at |dy| < {}{} in '{}/{}'. What there is of this kind:{}",
                                            ctx, OutputNames::Info(s.kind).name, Detail::Who(r.id), BinningUtils::FormatDeltaY(s.dy).first,
                                            s.mult ? std::format(", mult {}-{}", BinningUtils::FormatEdge(s.mult->first), BinningUtils::FormatEdge(s.mult->second)) : "",
                                            r.scheme, r.section, Detail::Available(*r.catalog, s.kind)));

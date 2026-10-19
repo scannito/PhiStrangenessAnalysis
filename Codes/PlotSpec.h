@@ -51,7 +51,23 @@ struct KeyInfo {
   std::string_view description;
   std::span<const KeyInfo> sub{};               // Object, ObjectArray: the keys of the inner block
   std::span<const std::string_view> allowed{}; // String, StringArray: the accepted values, when closed
+  std::string (*more)() = nullptr;              // appended to the description in the schema, from another table
+  // A key that belongs to some kinds only: required for the kinds whose flag is set, refused
+  // for the others. ParseSeries checks it, the schema's description says it, and the schema
+  // gives the series one form per combination of these flags (SeriesForms), all from here.
+  bool OutputNames::KindInfo::* requiredFor = nullptr;
 };
+
+// What each kind is, from OutputNames' table: a model choosing a kind by name alone took "the
+// yield against multiplicity" for a spectrum (measured on 19 October 2026). Once, on the
+// series, and not on each form's kind.
+inline std::string KindsDescription()
+{
+  std::string out = " The kinds:";
+  for (const auto& k : OutputNames::kKinds)
+    out += std::format(" '{}' = {}{};", k.name, k.what, k.hint.empty() ? "" : std::format(" ({})", k.hint));
+  return out;
+}
 
 inline constexpr std::array<std::string_view, 4> kFormats{"pdf", "png", "svg", "eps"};
 // What 'output' must not end with: the formats, and the .root that is always written.
@@ -69,11 +85,11 @@ inline constexpr std::array<std::string_view, 2> kSections{OutputNames::kExtract
 
 inline constexpr std::array<KeyInfo, 11> kSeriesKeys{{
   {"file", ValueType::String, true, "Path of a PhiAssocSpectra ROOT file."},
-  {"kind", ValueType::String, true, "What to draw (see the catalog: phiplot list).", {}, kKindNames},
+  {"kind", ValueType::String, true, "What to draw (see the catalog: phiplot list, and the kinds in the description of 'series').", {}, kKindNames},
   {"species", ValueType::String, true, "Associated species, e.g. K0S, Xi, Pi; the numerator of a species ratio."},
-  {"species_den", ValueType::String, false, "Denominator species: species ratios only, and required there."},
+  {"species_den", ValueType::String, false, "Denominator species.", {}, {}, nullptr, &OutputNames::KindInfo::speciesPair},
   {"dy", ValueType::Number, true, "The |delta y| limit, e.g. 1.0, 0.5."},
-  {"mult", ValueType::Range, false, "Multiplicity interval [low, high] in percent, one bin of the file's binning_mult: spectra only, and required there."},
+  {"mult", ValueType::Range, false, "Multiplicity interval [low, high] in percent, one bin of the file's binning_mult.", {}, {}, nullptr, &OutputNames::KindInfo::perMultBin},
   {"binning_name", ValueType::String, false, "Scheme directory; needed only when the file holds more than one."},
   {"section", ValueType::String, false, "Engine section; needed only when the scheme holds both.", {}, kSections},
   {"label", ValueType::String, false, "Legend entry; by default built from what differs between the series."},
@@ -95,7 +111,7 @@ inline constexpr std::array<KeyInfo, 2> kLabelKeys{{
 
 inline constexpr std::array<KeyInfo, 11> kTopKeys{{
   {"output", ValueType::String, true, "Output path without extension: one file per format, plus <output>.root with the canvas, the objects and the provenance."},
-  {"series", ValueType::ObjectArray, true, "What to draw, in order. Spectra (against pT) and the other kinds (against multiplicity) cannot be mixed in one plot.", kSeriesKeys},
+  {"series", ValueType::ObjectArray, true, "What to draw, in order. Spectra (against pT) and the other kinds (against multiplicity) cannot be mixed in one plot.", kSeriesKeys, {}, KindsDescription},
   {"formats", ValueType::StringArray, false, "Image formats; by default pdf and png.", {}, kFormats},
   {"title", ValueType::String, false, "Plot title."},
   {"x_title", ValueType::String, false, "X axis title; by default the first object's."},
@@ -234,18 +250,16 @@ inline Series ParseSeries(const rapidjson::Value& node, std::string_view ctx)
 
   // A key that selects nothing for this kind is refused, not ignored: it says the writer
   // meant something this kind cannot do (a multiplicity interval on a trend, which is
-  // already a function of multiplicity).
-  const auto species_den = JsonConfig::TryString(node, "species_den", ctx);
-  if (info.speciesPair != species_den.has_value())
-    throw std::runtime_error(std::format("[FATAL] {}: 'species_den' is {} for kind '{}'.", ctx,
-                                         info.speciesPair ? "required" : "meaningless", info.name));
-  s.speciesDen = species_den.value_or("");
-
+  // already a function of multiplicity). Which keys, from the table.
+  for (const KeyInfo& k : kSeriesKeys) {
+    if (!k.requiredFor)
+      continue;
+    const bool needed = info.*k.requiredFor;
+    if (needed != (JsonConfig::OptionalMember(node, std::string(k.name).c_str()) != nullptr))
+      throw std::runtime_error(std::format("[FATAL] {}: '{}' is {} for kind '{}'.", ctx, k.name, needed ? "required" : "meaningless", info.name));
+  }
+  s.speciesDen = JsonConfig::TryString(node, "species_den", ctx).value_or("");
   s.mult = JsonConfig::TryRange(node, "mult", ctx);
-  if (info.perMultBin != s.mult.has_value())
-    throw std::runtime_error(std::format("[FATAL] {}: 'mult' is {} for kind '{}'{}.", ctx,
-                                         info.perMultBin ? "required" : "meaningless", info.name,
-                                         info.perMultBin ? " (one spectrum per multiplicity interval)" : " (it is already a function of multiplicity)"));
   if (s.mult && !(s.mult->first < s.mult->second))
     throw std::runtime_error(std::format("[FATAL] {}: 'mult' must be [low, high] with low < high.", ctx));
 
@@ -343,6 +357,21 @@ inline Spec ParseFile(const std::string& path)
 namespace Detail
 {
 inline rapidjson::Value SchemaOf(std::span<const KeyInfo> keys, rapidjson::Document::AllocatorType& a);
+inline rapidjson::Value SeriesForms(std::span<const KeyInfo> keys, rapidjson::Document::AllocatorType& a);
+
+inline bool HasKindKeys(std::span<const KeyInfo> keys)
+{
+  return std::ranges::any_of(keys, [](const KeyInfo& k) { return k.requiredFor != nullptr; });
+}
+
+inline std::string KindsWhere(bool OutputNames::KindInfo::* flag)
+{
+  std::string kinds;
+  for (const auto& k : OutputNames::kKinds)
+    if (k.*flag)
+      kinds += (kinds.empty() ? "" : ", ") + std::string(k.name);
+  return std::format(" Required for the kinds {}; refused for the others.", kinds);
+}
 
 inline rapidjson::Value SchemaOfKey(const KeyInfo& k, rapidjson::Document::AllocatorType& a)
 {
@@ -392,11 +421,12 @@ inline rapidjson::Value SchemaOfKey(const KeyInfo& k, rapidjson::Document::Alloc
       break;
     case ValueType::ObjectArray:
       v.AddMember("type", "array", a);
-      v.AddMember("items", SchemaOf(k.sub, a), a);
+      v.AddMember("items", HasKindKeys(k.sub) ? SeriesForms(k.sub, a) : SchemaOf(k.sub, a), a);
       v.AddMember("minItems", 1, a);
       break;
   }
-  v.AddMember("description", str(k.description), a);
+  const std::string description = std::string(k.description) + (k.more ? k.more() : "") + (k.requiredFor ? KindsWhere(k.requiredFor) : "");
+  v.AddMember("description", rapidjson::Value(description.c_str(), a), a);
   return v;
 }
 
@@ -415,6 +445,48 @@ inline rapidjson::Value SchemaOf(std::span<const KeyInfo> keys, rapidjson::Docum
   obj.AddMember("required", required, a);
   obj.AddMember("additionalProperties", false, a);
   return obj;
+}
+// The keys a series needs depend on its kind - KeyInfo::requiredFor - and ParseSeries refuses
+// the others. Written into the schema as one form per combination of those flags, from
+// OutputNames' table, so that a constrained answer cannot leave one out: a 7B model told so only
+// in a description left out species_den in three requests of ten (19 October 2026).
+inline rapidjson::Value SeriesForms(std::span<const KeyInfo> keys, rapidjson::Document::AllocatorType& a)
+{
+  const auto flagsOf = [&](const OutputNames::KindInfo& kind) {
+    std::vector<bool> flags;
+    for (const KeyInfo& k : keys)
+      if (k.requiredFor)
+        flags.push_back(kind.*k.requiredFor);
+    return flags;
+  };
+  std::vector<std::vector<bool>> groups;
+  for (const auto& kind : OutputNames::kKinds)
+    if (std::ranges::find(groups, flagsOf(kind)) == groups.end())
+      groups.push_back(flagsOf(kind));
+
+  rapidjson::Value forms(rapidjson::kArrayType);
+  for (const auto& group : groups) {
+    rapidjson::Value form = SchemaOf(keys, a);
+    rapidjson::Value kinds(rapidjson::kArrayType);
+    for (const auto& kind : OutputNames::kKinds)
+      if (flagsOf(kind) == group)
+        kinds.PushBack(rapidjson::Value(kind.name.data(), static_cast<rapidjson::SizeType>(kind.name.size()), a), a);
+    form["properties"]["kind"]["enum"] = kinds;
+    std::size_t f = 0;
+    for (const KeyInfo& k : keys) {
+      if (!k.requiredFor)
+        continue;
+      const rapidjson::Value name(k.name.data(), static_cast<rapidjson::SizeType>(k.name.size()), a);
+      if (group[f++])
+        form["required"].PushBack(rapidjson::Value(name, a), a);
+      else
+        form["properties"].RemoveMember(name);
+    }
+    forms.PushBack(form, a);
+  }
+  rapidjson::Value v(rapidjson::kObjectType);
+  v.AddMember("anyOf", forms, a);
+  return v;
 }
 } // namespace Detail
 

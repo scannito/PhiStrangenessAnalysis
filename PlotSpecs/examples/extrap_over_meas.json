@@ -1,0 +1,7 @@
+{
+  "output": "Plots/k0s_extrap_over_meas",
+  "title": "K^{0}_{S}: extrapolated over measured yield",
+  "series": [
+    {"file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root", "kind": "trend_extrap_over_meas", "species": "K0S", "dy": 1.0}
+  ]
+}

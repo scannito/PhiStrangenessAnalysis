@@ -96,17 +96,18 @@ struct KindInfo {
   std::string_view name;
   bool perMultBin;      // one object per multiplicity interval: the X axis is the associated pT
   bool speciesPair;     // a ratio of two species, filed under Ratios
-  std::string_view what; // for listings and for the plain-words description
+  std::string_view what; // what it is, in words that read on their own: listings and the description
+  std::string_view hint; // what it is NOT, for a model choosing among the kinds (PlotSpec's schema only)
 };
 
 inline constexpr std::array<KindInfo, 7> kKinds{{
-  {Kind::Spectrum, "spectrum", true, false, "pT spectrum"},
-  {Kind::SpectrumExtended, "spectrum_extended", true, false, "pT spectrum with the extrapolated bin down to 0"},
-  {Kind::Trend, "trend", false, false, "measured yield against multiplicity"},
-  {Kind::TrendExtrapolated, "trend_extrapolated", false, false, "extrapolated yield against multiplicity"},
-  {Kind::TrendExtrapOverMeas, "trend_extrap_over_meas", false, false, "extrapolated over measured yield"},
-  {Kind::SpeciesRatioMeasured, "species_ratio_measured", false, true, "ratio of two species, measured yields"},
-  {Kind::SpeciesRatioExtrapolated, "species_ratio_extrapolated", false, true, "ratio of two species, extrapolated yields"},
+  {Kind::Spectrum, "spectrum", true, false, "pT spectrum of one species in one multiplicity interval", ""},
+  {Kind::SpectrumExtended, "spectrum_extended", true, false, "pT spectrum with the extrapolated bin down to pT = 0 in front", ""},
+  {Kind::Trend, "trend", false, false, "measured yield dN/dy of one species against multiplicity", "not a spectrum"},
+  {Kind::TrendExtrapolated, "trend_extrapolated", false, false, "yield of one species against multiplicity, extrapolated to pT = 0", ""},
+  {Kind::TrendExtrapOverMeas, "trend_extrap_over_meas", false, false, "extrapolated over measured yield of one species against multiplicity", "one species, not a ratio of two"},
+  {Kind::SpeciesRatioMeasured, "species_ratio_measured", false, true, "ratio of the measured yields of two species against multiplicity", "e.g. K0S/Pi"},
+  {Kind::SpeciesRatioExtrapolated, "species_ratio_extrapolated", false, true, "ratio of the extrapolated yields of two species against multiplicity", ""},
 }};
 
 inline std::optional<Kind> KindByName(std::string_view name)
