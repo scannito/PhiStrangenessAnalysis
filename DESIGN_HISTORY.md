@@ -41,7 +41,13 @@ exist is guarded. (2) Two helpers never called removed, `kAxisDeltaY` instead of
 parameters; `LoadOrProject` instead of four copies of load-or-project-and-cache; the mixed-event
 normalisation stays per engine (`NormalizeME1D`, `NormalizeME2D`), the two differ by design. The order of
 every numerical operation is unchanged. (4) A missing projection cache stops with the file, the directory and
-what to do (`ProjectionCacheDir`), instead of the calculator's "no ioDir provided". (5) Found while doing
+what to do (`ProjectionCacheDir`), instead of the calculator's "no ioDir provided". Later the same day,
+`LoadOrProject` was split into `ReadFromCache` (reads only) and `ProjectAndCache` (the only place the cache
+is written), because the early return that kept a read histogram from being written back was easy to
+miss; and the calculator's own "no ioDir" check went: the rule is the task's (`ProjectionCacheDir`), and a
+null directory now stops in `RootIO::GetUniqueOrThrow`/`GetUniqueOrWarn` for every caller, instead of
+being dereferenced. Checked on `data pp` with the cache (10 files) and, for one block, without it (the
+spectra and the three projection caches the run writes, 7,793 objects): identical. (5) Found while doing
 it, and refused at `Init` by the same check, now `RequireEngineSettingsSupported`:
 `use_2d_me_normalization: true` with an engine that is 1D anyway (`run_mode: "legacy"`, the WPDG task)
 filed the 1D results under `Extract2D` (`SchemeDirName` follows the key, not the engine), where a later

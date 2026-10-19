@@ -57,6 +57,9 @@ inline std::unique_ptr<T> GetUniqueOrThrow(TDirectory* dir, const std::string& o
   // check below and blows up on first use. The name being right does not make the
   // class right - a foreign file may hold a TGraphErrors where a TH1 was expected -
   // and this turns that into the message already written here.
+  if (!dir)
+    throw std::runtime_error(std::format("[FATAL] {}: no directory to read '{}' from (a null TDirectory was passed).",
+                                         errCtx, objPath));
   T* obj = dynamic_cast<T*>(dir->Get(objPath.c_str()));
   if (!obj)
     throw std::runtime_error(std::format("[FATAL] {}: Missing object '{}' in '{}', or it is not a {}",
@@ -74,6 +77,12 @@ template <RootObject T>
 inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& objPath, std::string_view warnCtx, bool detachFromFile = true)
 {
   // dynamic_cast, for the reason spelled out in GetUniqueOrThrow above.
+  // A null directory is not a missing object, which is what this function forgives: it is a
+  // caller with nothing to read from, so it stops here as in GetUniqueOrThrow instead of
+  // dereferencing it.
+  if (!dir)
+    throw std::runtime_error(std::format("[FATAL] {}: no directory to read '{}' from (a null TDirectory was passed).",
+                                         warnCtx, objPath));
   T* obj = dynamic_cast<T*>(dir->Get(objPath.c_str()));
   if (!obj) {
     Logger::Warn("{}: Missing object '{}' in '{}', or it is not a {}",

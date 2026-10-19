@@ -80,44 +80,60 @@ class CorrelationCalculator
     std::unique_ptr<H> sig, sb, meSig, meSb;
   };
 
-  // Shared by the two engines: read the four inputs from the cache, or project them from the
-  // THnSparse and write them to the cache. The sideband and its mixed event are optional;
-  // the mixed-event sideband is projected only when there is a sideband to divide.
+  // The names of the four inputs, the same in the cache and in the projections: derived in one
+  // place so that what is written and what is read back cannot drift apart.
+  struct InputNames {
+    std::string sig, sb, meSig, meSb;
+    InputNames(const std::string& base, const std::string& dim)
+      : sig(base + "Signal" + dim), sb(base + "Sideband" + dim), meSig(base + "MESignal" + dim), meSb(base + "MESideband" + dim) {}
+  };
+
+  // Shared by the two engines: the four inputs, read from the cache or projected. Only freshly
+  // projected histograms are written to the cache; what was read from it is already there.
   template <typename H>
   Inputs<H> LoadOrProject(const LoadedAssocData& data, const Request& req, const std::vector<int>& projAxes,
                           const std::string& dim) const
   {
-    const std::string nameSig = req.histNameBase + "Signal" + dim;
-    const std::string nameSb = req.histNameBase + "Sideband" + dim;
-    const std::string nameMESig = req.histNameBase + "MESignal" + dim;
-    const std::string nameMESb = req.histNameBase + "MESideband" + dim;
+    const InputNames names(req.histNameBase, dim);
+    return opt.fromCache ? ReadFromCache<H>(req, names) : ProjectAndCache<H>(data, req, projAxes, names);
+  }
+
+  // Reads only. The sideband and its mixed event may be missing (a warning, not an error). A
+  // missing cache directory is the caller's to report (CorrelationTaskBase::ProjectionCacheDir,
+  // which names the file and what to do); a null ioDir reaching here stops in RootIO.
+  template <typename H>
+  Inputs<H> ReadFromCache(const Request& req, const InputNames& names) const
+  {
     Inputs<H> in;
-
-    if (opt.fromCache) {
-      if (!req.ioDir)
-        throw std::runtime_error("[FATAL] CorrelationCalculator: cache mode requested but no ioDir provided (the caller "
-                                 "should have found the cache directory or stopped).");
-      in.sig = RootIO::GetUniqueOrThrow<H>(req.ioDir, nameSig, "CorrelationCalculator");
-      in.sb = RootIO::GetUniqueOrWarn<H>(req.ioDir, nameSb, "CorrelationCalculator");
-      if (opt.mixedEvents) {
-        in.meSig = RootIO::GetUniqueOrThrow<H>(req.ioDir, nameMESig, "CorrelationCalculator");
-        in.meSb = RootIO::GetUniqueOrWarn<H>(req.ioDir, nameMESb, "CorrelationCalculator");
-      }
-      return in;
+    in.sig = RootIO::GetUniqueOrThrow<H>(req.ioDir, names.sig, "CorrelationCalculator");
+    in.sb = RootIO::GetUniqueOrWarn<H>(req.ioDir, names.sb, "CorrelationCalculator");
+    if (opt.mixedEvents) {
+      in.meSig = RootIO::GetUniqueOrThrow<H>(req.ioDir, names.meSig, "CorrelationCalculator");
+      in.meSb = RootIO::GetUniqueOrWarn<H>(req.ioDir, names.meSb, "CorrelationCalculator");
     }
+    return in;
+  }
 
+  // Projects the THnSparse and, when ioDir is given, writes the result to the cache: the only
+  // place the cache is written. The sideband and its mixed event are optional; the mixed-event
+  // sideband is projected only when there is a sideband to divide.
+  template <typename H>
+  Inputs<H> ProjectAndCache(const LoadedAssocData& data, const Request& req, const std::vector<int>& projAxes,
+                            const InputNames& names) const
+  {
+    Inputs<H> in;
     if (!data.h5DataSignal)
       throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: missing signal THnSparse for {}", data.name));
-    in.sig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSignal.get(), req.axesToCut, projAxes, nameSig);
+    in.sig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSignal.get(), req.axesToCut, projAxes, names.sig);
     if (data.h5DataSideband)
-      in.sb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSideband.get(), req.axesToCut, projAxes, nameSb);
+      in.sb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSideband.get(), req.axesToCut, projAxes, names.sb);
 
     if (opt.mixedEvents) {
       if (!data.h5DataMESignal)
         throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: missing mixed-event signal THnSparse for {}", data.name));
-      in.meSig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESignal.get(), req.axesToCut, projAxes, nameMESig);
+      in.meSig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESignal.get(), req.axesToCut, projAxes, names.meSig);
       if (data.h5DataMESideband && in.sb)
-        in.meSb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESideband.get(), req.axesToCut, projAxes, nameMESb);
+        in.meSb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESideband.get(), req.axesToCut, projAxes, names.meSb);
     }
 
     if (req.ioDir) {
