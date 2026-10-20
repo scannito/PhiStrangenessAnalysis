@@ -233,10 +233,10 @@ class PurityTask : public IAnalysisTask
       // read it. The multiplicity binning is only an index in the names
       // ("..._multBin3") and would otherwise be unverifiable.
       if (TDirectory* schemeDir = RootIO::GetOrCreatePath(task.outputFile, {globalCfgs.binningName}, false))
-        RootIO::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
+        RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
 
       // Written per file because several particles can share one, e.g. pi_tpc and pi_tof.
-      RootIO::WriteProvenance(RootIO::GetOrCreatePath(task.outputFile, {globalCfgs.binningName, "Provenance"}, false), provenance);
+      RootIO::WriteProvenance(RootIO::GetOrCreatePath(task.outputFile, {globalCfgs.binningName, RootIO::kProvenanceDir}, false), provenance);
     }
 
     // 2. Write the CCDB-ready maps, one file per particle, object named "ccdb_object"

@@ -7,6 +7,31 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## The PhiAssocSpectra names in one place
+
+**20 October 2026.** The names of the objects in `PhiAssocSpectra` (spectra, trends, extrapolated
+trends, the two kinds of ratio) were built by hand at seven sites of `CorrelationTaskBase`, and
+`ComparisonTask` spelled the directories (`Spectra`, `Trends`, `Ratios`, `Extract1D`) again. They are now in `OutputNames`, which both use; the rule that recognises a species directory (it
+holds `Spectra` or `Trends`) moved there from `ComparisonTask::ListParticles`. The binning stamps' names
+are not only `PhiAssocSpectra`'s - the corrections, the purities and the projection caches carry the same
+three - and were spelled by hand at seventeen sites in five tasks, with a reader telling stamps from data
+by the prefix `"binning_"`: they went next to `RootIO::WriteBinningStamp` (`kStampMult`, `kStampPtPhi`,
+`kStampPtAssoc`, and `IsBinningStamp`, which recognises them by those names rather than by the prefix,
+so that a renamed stamp cannot slip into the data), the review of the move having found the split
+between the two halves of `CorrelationTaskBase`. The provenance directory's name, the same in every file
+and spelled by hand at ten sites in seven tasks, went next to `RootIO::WriteProvenance` for the same
+reason (`kProvenanceDir`).
+Done first on the branch `plot-on-demand`, where the plotting tool reads the same layout, and brought
+to main on its own because the branch stays separate for a while; the reading side of the names
+(`OutputNames::Parse`, the table of kinds) stays on the branch, since only the plotter uses it.
+
+*How it was checked.* Compiled. `data pp` with the projection cache, and `mc pp` (which writes the
+corrections' stamp): the output files identical to the baseline of main, object by object.
+`comparison_task` on the spectra, trends and ratios of the 2026 offline production against the 2024 one,
+old and new code: the same divided objects.
+
+---
+
 ## CorrelationCalculator: the review of the unpushed commits
 
 **19 October 2026, two `analysis-reviewer` passes on the commits from `c1b748d` on.** What changed:

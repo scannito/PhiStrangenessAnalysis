@@ -164,7 +164,7 @@ class PhiFitTask : public IAnalysisTask
     // The trigger matrices cross into CorrelationTask, so this file is a link in
     // the chain and not a by-product: it has to say what produced it. No binning
     // stamp is needed here - both axes of the matrices are the real binnings.
-    RootIO::WriteProvenance(RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Provenance"}, false), provenance);
+    RootIO::WriteProvenance(RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, RootIO::kProvenanceDir}, false), provenance);
 
     if (filePhiDataOutput)
       filePhiDataOutput->Close();

@@ -397,12 +397,13 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 
 | File | |
 |---|---|
-| `RootIOHelpers.h` | `namespace RootIO` — opening files, fetching objects as `unique_ptr`, navigating and clearing directories, reading and writing binning stamps and provenance. |
+| `RootIOHelpers.h` | `namespace RootIO` — opening files, fetching objects as `unique_ptr`, navigating and clearing directories, reading and writing binning stamps (and their names, one spelling for every file) and provenance. |
 | `RunEnvironment.h` | `namespace RunEnvironment` — timestamp, git commit, header fingerprint. Includes no ROOT, and is the one header a plain compiler can check. |
 | `JsonConfigHelpers.h` | `namespace JsonConfig` — `Require*` and `Optional*` accessors, including `OptionalEnum`, whose table doubles as the error message; `RequireObjectOrNull` (null for "none") and `RequireKnownKeys`. |
 | `HistogramUtils.h` | `namespace HistogramUtils` — integrals with errors, `THnSparse` projections, spectrum and trend construction, ratios, rebinning with compatibility checks. |
 | `Logger.h` | `namespace Logger`: levels, one line format, and a summary of the run's warnings printed at the end. No dependencies. Every task and helper logs through it; the banners of `WorkflowManager` and `RunAnalysisChain` are the only direct output left. |
 | `CanvasManager.h` | Canvas ownership and unique naming, ratio and grid layouts, ALICE styling, path-aware writing into the output files. Owned by tasks, never by data structures. |
+| `OutputNames.h` | `namespace OutputNames` — the names and layout of what the correlation tasks write into `PhiAssocSpectra`: object names, directories, section names, and the rule that recognises a species directory. Used by `CorrelationTaskBase` to write them and by `ComparisonTask` to read them. |
 
 ### Fitting and extrapolation
 

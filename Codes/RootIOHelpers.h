@@ -190,6 +190,21 @@ inline std::string MakeDirPath(const std::vector<std::string>& path)
 // Binning stamps: provenance for cached projections
 // -----------------------------------------------------------------------------
 
+// The names of the stamps, the same in every file that carries them (the spectra, the
+// corrections, the purities, the projection caches): one spelling, here, for every writer and
+// reader.
+inline const std::string kStampMult{"binning_mult"};
+inline const std::string kStampPtPhi{"binning_ptPhi"};
+inline const std::string kStampPtAssoc{"binning_ptAssoc"};
+
+// How a reader that lists histograms keeps the stamps (TH1D too) out of the data. By the names
+// themselves, not by a prefix they happen to share: a stamp renamed would otherwise stop being
+// recognised and be divided like data, with no error. A new stamp is added here as well.
+inline bool IsBinningStamp(std::string_view name)
+{
+  return name == kStampMult || name == kStampPtPhi || name == kStampPtAssoc;
+}
+
 // Records a binning inside a file as an empty TH1D whose axis IS the binning.
 // Storing it as a histogram rather than as a bare array means it reads back
 // through AxisEdges like any other axis, and is inspectable in a TBrowser.
@@ -263,6 +278,10 @@ inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name
 //
 // One TNamed per entry so that it reads in a TBrowser, or with "rootls -l",
 // without any code, and so that adding an entry breaks nobody.
+
+// The directory a file keeps its provenance in, below its scheme directory: the same name in
+// every file the framework writes, for every writer and every reader.
+inline const std::string kProvenanceDir{"Provenance"};
 
 inline void WriteProvenance(TDirectory* dir, const std::map<std::string, std::string>& facts)
 {

@@ -55,7 +55,7 @@ class CorrelationTask : public CorrelationTaskBase
 
     std::unique_ptr<TFile> filePhiDataInput = RootIO::OpenOrThrow(phiDataName, "READ", GetName());
 
-    RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePhiDataInput.get(), {globalCfgs.binningName, "Provenance"}, true),
+    RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePhiDataInput.get(), {globalCfgs.binningName, RootIO::kProvenanceDir}, true),
                             std::format("trigger file '{}'", phiDataName));
 
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
@@ -242,14 +242,14 @@ class CorrelationTask : public CorrelationTaskBase
 
       std::unique_ptr<TFile> filePurity = RootIO::OpenOrThrow(purityFilePath, "READ", GetName());
 
-      RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName, "Provenance"}, true),
+      RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName, RootIO::kProvenanceDir}, true),
                               std::format("purity file '{}'", purityFilePath));
 
       // Same as for the corrections: the purities are addressed by multiplicity
       // index, and only the stamp says what those indices meant when they were fitted.
       RootIO::RequireMatchingBinningStamp(
         RootIO::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName}, true),
-        "binning_mult", multBinning, std::format("purity file '{}'", purityFilePath));
+        RootIO::kStampMult, multBinning, std::format("purity file '{}'", purityFilePath));
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
         std::string hName = std::format("{}h1{}Purity_multBin{}", folderPath, purityKey, i);

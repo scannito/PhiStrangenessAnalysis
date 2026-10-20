@@ -465,9 +465,9 @@ class MCTask : public IAnalysisTask
     // task addresses those names with the bin indices of the DATA. Record it, so
     // that a mismatch between the two productions is detectable instead of silent.
     if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName}, false))
-      RootIO::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
+      RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
 
-    RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "Provenance"}, false), provenance);
+    RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, RootIO::kProvenanceDir}, false), provenance);
 
     // Save all diagnostic canvases into their registered subdirectories; the Y ranges
     // declared at creation are applied on the way out.

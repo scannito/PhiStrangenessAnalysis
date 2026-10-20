@@ -12,6 +12,7 @@
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
+#include "OutputNames.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 #include "SpectrumExtrapolator.h"
@@ -75,9 +76,9 @@ class CorrelationTaskBase : public IAnalysisTask
       particlePath.push_back(pName);
 
       std::vector<std::string> trendsPath = particlePath;
-      trendsPath.push_back("Trends");
+      trendsPath.push_back(OutputNames::kTrendsDir);
       std::vector<std::string> spectraPath = particlePath;
-      spectraPath.push_back("Spectra");
+      spectraPath.push_back(OutputNames::kSpectraDir);
 
       TDirectory* trendsDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), trendsPath);
       TDirectory* spectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), spectraPath);
@@ -90,7 +91,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // it: those are integrals over pT, so a disagreement there does not show up in
       // any axis. See the note by the scheme-level stamps below.
       RootIO::WriteBinningStamp(RootIO::GetOrCreatePath(fileOutputSpectra.get(), particlePath),
-                                "binning_ptAssoc", assocParticles[pIdx].binning);
+                                RootIO::kStampPtAssoc, assocParticles[pIdx].binning);
       trendsDir->cd();
 
       // --- Save measured trends ---
@@ -132,9 +133,8 @@ class CorrelationTaskBase : public IAnalysisTask
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
-          auto [dyTitleStr, dyNameStr] = BinningUtils::FormatDeltaY(dyLimit);
 
-          std::string ratioName = std::format("Ratio_Extrap_Meas_{}_dy{}", pName, dyNameStr);
+          std::string ratioName = OutputNames::TrendExtrapOverMeas(pName, dyLimit);
           std::string title = Form("Extrap/Measured Contribution %s |#Delta y| < %.2f; Multiplicity percentile (%%); Yield_{Extrap} / Yield_{Meas}", pName.c_str(), dyLimit);
 
           std::unique_ptr<TH1> hRatioExtrapMeas = HistogramUtils::MakeRatioHist(h1MultTrendsExtrap[pIdx][yIdx].get(), h1MultTrends[pIdx][yIdx].get(),
@@ -167,13 +167,13 @@ class CorrelationTaskBase : public IAnalysisTask
     // productions with different pT binnings would produce trends whose axes agree
     // perfectly and whose contents are integrals over different ranges.
     if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName}, false)) {
-      RootIO::WriteBinningStamp(schemeDir, "binning_mult", multBinning);
-      RootIO::WriteBinningStamp(schemeDir, "binning_ptPhi", ptPhiBinning);
+      RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
+      RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhiBinning);
     }
 
     // The spectra leave this task and, once the trends and ratios move to a task
     // of their own, this is what will say which method produced them.
-    RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName, "Provenance"}, false), provenance);
+    RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName, RootIO::kProvenanceDir}, false), provenance);
 
     // =========================================================================
     // 2. Write Yield Ratios across species (into a dedicated "Ratios" directory)
@@ -181,7 +181,7 @@ class CorrelationTaskBase : public IAnalysisTask
     if (!requestedRatios.empty()) {
       // Create or access the "Ratios" directory inside Extract1D/2D
       std::vector<std::string> ratioPath = baseLogicalPath;
-      ratioPath.push_back("Ratios");
+      ratioPath.push_back(OutputNames::kRatiosDir);
       TDirectory* ratioDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), ratioPath);
 
       if (ratioDir) {
@@ -224,9 +224,9 @@ class CorrelationTaskBase : public IAnalysisTask
 
           for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
             double dyLimit = deltaYLimits[yIdx];
-            auto [dyTitleStr, dyNameStr] = BinningUtils::FormatDeltaY(dyLimit);
+            const std::string dyTitleStr = BinningUtils::FormatDeltaY(dyLimit).first;
 
-            std::string ratioMeasName = std::format("Ratio_{}_{}_Meas_dy{}", num.name, den.name, dyNameStr);
+            std::string ratioMeasName = OutputNames::SpeciesRatio(num.name, den.name, false, dyLimit);
             std::string ratioMeasTitle = "Measured Ratio; Multiplicity percentile (%);" + ratioCfg.label;
             std::unique_ptr<TH1> hRatioMeas = HistogramUtils::MakeRatioHist(h1MultTrends[idxNum][yIdx].get(), h1MultTrends[idxDen][yIdx].get(),
                                                                            ratioMeasName, ratioMeasTitle, numScale, denScale);
@@ -241,7 +241,7 @@ class CorrelationTaskBase : public IAnalysisTask
               TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[idxNum][yIdx].get() : h1MultTrends[idxNum][yIdx].get();
               TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[idxDen][yIdx].get() : h1MultTrends[idxDen][yIdx].get();
 
-              std::string ratioExtrapName = std::format("Ratio_{}_{}_Extrap_dy{}", num.name, den.name, dyNameStr);
+              std::string ratioExtrapName = OutputNames::SpeciesRatio(num.name, den.name, true, dyLimit);
               std::string ratioExtrapTitle = "Extrapolated Ratio; Multiplicity percentile (%);" + ratioCfg.label;
               hRatioExtrap = HistogramUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
 
@@ -645,7 +645,7 @@ class CorrelationTaskBase : public IAnalysisTask
     const std::string& inputEffFile = cfg.file;
     std::unique_ptr<TFile> fileEffInput = RootIO::OpenOrThrow(inputEffFile, "READ", "CorrelationTaskBase::LoadCorrections");
 
-    RootIO::PrintProvenance(RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "Provenance"}, true),
+    RootIO::PrintProvenance(RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, RootIO::kProvenanceDir}, true),
                             std::format("corrections file '{}'", inputEffFile));
 
     // The corrections are addressed by multiplicity INDEX ("..._multBin3"), with
@@ -653,7 +653,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // way to know the intervals those indices meant in the MC production.
     RootIO::RequireMatchingBinningStamp(
       RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName}, true),
-      "binning_mult", multBinning, std::format("efficiency map '{}'", inputEffFile));
+      RootIO::kStampMult, multBinning, std::format("efficiency map '{}'", inputEffFile));
 
     // Mirror the exact layout MCTask writes: {binningName}/AccEff/MultBin,
     // {binningName}/SigLoss/MultBin, {binningName}/EvLoss
@@ -859,7 +859,7 @@ class CorrelationTaskBase : public IAnalysisTask
         // Projections from an earlier run under the SAME scheme name are still
         // there: if that run used a different binning, the ones whose bin range
         // no longer exists are not overwritten and would survive as garbage.
-        const std::vector<double> previous = RootIO::ReadBinningStamp(schemeDir, "binning_ptAssoc");
+        const std::vector<double> previous = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtAssoc);
         if (!previous.empty()) {
           const std::string diff = BinningUtils::Compare(previous, particle.binning, "existing file", "current run");
           if (!diff.empty()) {
@@ -871,9 +871,9 @@ class CorrelationTaskBase : public IAnalysisTask
           }
         }
 
-        RootIO::WriteBinningStamp(schemeDir, "binning_ptAssoc", particle.binning);
-        RootIO::WriteBinningStamp(schemeDir, "binning_ptPhi", ptPhi);
-        RootIO::WriteBinningStamp(schemeDir, "binning_mult", mult);
+        RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtAssoc, particle.binning);
+        RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhi);
+        RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, mult);
 
         // The stamps say WITH WHAT BINNING these projections were built. They cannot
         // say WHAT THEY WERE BUILT FROM, and two productions can share a binning - so
@@ -886,7 +886,7 @@ class CorrelationTaskBase : public IAnalysisTask
         // nothing reads it on reuse yet. Turning it into a cache key - and with it
         // deciding automatically whether the cache is usable - is a separate step,
         // and one that must not land while files are being rebuilt. See DESIGN_NOTES.
-        RootIO::WriteProvenance(RootIO::GetOrCreatePath(cacheFile, {globalCfgs.binningName, "Provenance"}, false),
+        RootIO::WriteProvenance(RootIO::GetOrCreatePath(cacheFile, {globalCfgs.binningName, RootIO::kProvenanceDir}, false),
                                 provenance);
       } else {
         TDirectory* schemeDir = RootIO::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, true);
@@ -896,9 +896,9 @@ class CorrelationTaskBase : public IAnalysisTask
                                                GetName(), globalCfgs.binningName, particle.name));
         }
 
-        particle.binning = RootIO::ReadBinningStamp(schemeDir, "binning_ptAssoc");
-        ptPhi = RootIO::ReadBinningStamp(schemeDir, "binning_ptPhi");
-        mult = RootIO::ReadBinningStamp(schemeDir, "binning_mult");
+        particle.binning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtAssoc);
+        ptPhi = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtPhi);
+        mult = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult);
 
         if (particle.binning.empty() || ptPhi.empty() || mult.empty()) {
           throw std::runtime_error(std::format("[FATAL] {}: {} carries no binning stamps, so the binning its projections "
@@ -983,13 +983,13 @@ class CorrelationTaskBase : public IAnalysisTask
       bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.contains(p.name) && doExtrapolationPerParticle.at(p.name);
 
       const std::string dirName = SchemeDirName();
-      std::vector<std::string> spectraPath = {globalCfgs.binningName, dirName, p.name, "Spectra"};
+      std::vector<std::string> spectraPath = {globalCfgs.binningName, dirName, p.name, OutputNames::kSpectraDir};
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
         auto [dyTitleStr, dyNameStr] = BinningUtils::FormatDeltaY(dyLimit);
 
-        std::string hName = std::format("h1MultTrend_{}_dy{}", p.name, dyNameStr);
+        std::string hName = OutputNames::Trend(p.name, dyLimit);
         std::string hTitle = std::format("Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
         std::unique_ptr<TH1F> hTrend = std::make_unique<TH1F>(hName.c_str(), hTitle.c_str(), BinningUtils::NBins(multBinning), multBinning.data());
@@ -997,7 +997,7 @@ class CorrelationTaskBase : public IAnalysisTask
         h1MultTrends[pIdx].push_back(std::move(hTrend));
 
         if (doExtrapForThis) {
-          std::string hExtrapName = std::format("h1MultTrendExtrap_{}_dy{}", p.name, dyNameStr);
+          std::string hExtrapName = OutputNames::TrendExtrapolated(p.name, dyLimit);
           std::string hExtrapTitle = std::format("Extrapolated Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
           std::unique_ptr<TH1F> hTrendExtrap = std::make_unique<TH1F>(hExtrapName.c_str(), hExtrapTitle.c_str(), BinningUtils::NBins(multBinning), multBinning.data());
@@ -1122,7 +1122,7 @@ class CorrelationTaskBase : public IAnalysisTask
       extBinning.push_back(edge);
     }
 
-    std::string extName = std::string(hSpec->GetName()) + "_extended";
+    std::string extName = OutputNames::SpectrumExtended(hSpec->GetName());
     std::unique_ptr<TH1> hSpecExt = std::make_unique<TH1D>(extName.c_str(), extName.c_str(), extBinning.size() - 1, extBinning.data());
     hSpecExt->SetDirectory(0);
 
@@ -1234,7 +1234,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Per particle, alongside the Trends written in Terminate(). Resolved inside
       // the loop and not once outside it, because the directory now depends on which
       // species this iteration is producing.
-      TDirectory* targetSpectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName, dirName, config.name, "Spectra"});
+      TDirectory* targetSpectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName, dirName, config.name, OutputNames::kSpectraDir});
       if (!targetSpectraDir)
         continue;
       bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.contains(config.name) && doExtrapolationPerParticle.at(config.name);
@@ -1244,7 +1244,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
         auto [dyTitleStr, dyNameStr] = BinningUtils::FormatDeltaY(dyLimit);
 
-        std::string spectraName = std::format("h1SpectrumPhi{}_dy{}_multBin{}", config.name, dyNameStr, multBin);
+        std::string spectraName = OutputNames::Spectrum(config.name, dyLimit, multBin);
 
         std::vector<TH1*> views;
         views.reserve(h1PhiAssocNoPtPhi[pIdx][multBin].size());
@@ -1411,7 +1411,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // stored: it follows from use2DMENormalization, and the same ternary was spelled
   // out in four places - four chances for one of them to be edited alone.
   // Follows the engine that runs, not the key: the directory says how the results were made.
-  std::string SchemeDirName() const { return Engine2D() ? "Extract2D" : "Extract1D"; }
+  std::string SchemeDirName() const { return OutputNames::SectionName(Engine2D()); }
 
   // The directory of one particle's projections. With use_projection_cache on it is looked
   // up, not created, and it is missing when the cache was never built for this binning and
