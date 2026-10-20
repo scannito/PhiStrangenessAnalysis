@@ -1,0 +1,28 @@
+{
+    "workflow": {
+        "global_binning": {
+            "binning_name": "MoreFullDifferential"
+        },
+        "active_tasks": [
+            "comparison_task_old_k0spi"
+        ]
+    },
+    "comparison_task_old_k0spi": {
+        "output_dir_final": "../OldComparison/output/",
+        "output_prefix": "Old_",
+        "comparisons": [
+            {
+                "label": "2024_over_old",
+                "numerator": "../DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root",
+                "denominator": "../OldComparison/output/oldK0SPiRatio.root",
+                "divide_option": "",
+                "objects": [
+                    {
+                        "numerator": "MoreFullDifferential/Extract1D/Ratios/Ratio_K0S_Pi_Extrap_dy1_00",
+                        "denominator": "Ratio_K0S_Pi_dy1_00_stat"
+                    }
+                ]
+            }
+        ]
+    }
+}

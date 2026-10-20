@@ -16,3 +16,9 @@ build/
 # RooFit research: scratch programs and outputs, copied out of /private/tmp so they survive a reboot.
 # Large and regenerable; the notes in RooFitKnowledge/ are what is tracked.
 RooFitKnowledge/scratch/
+
+# OldComparison: the old inputs and everything run.sh makes stay out of git (OldComparison/README.md).
+OldComparison/data/
+OldComparison/output/
+# ...except a snapshot of a result, kept for reference (OldComparison/README.md).
+!OldComparison/reference/*.png
