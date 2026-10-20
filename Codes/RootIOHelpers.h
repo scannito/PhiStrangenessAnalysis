@@ -284,6 +284,10 @@ inline std::map<std::string, std::string> ReadProvenance(TDirectory* dir)
 
   for (TObject* keyObj : *dir->GetListOfKeys()) {
     auto* key = static_cast<TKey*>(keyObj);
+    // Entries are TNamed exactly. A subdirectory is a TNamed too, and reading it here would
+    // record it as a fact and delete a directory its file still owns.
+    if (std::string(key->GetClassName()) != "TNamed")
+      continue;
     std::unique_ptr<TNamed> entry(dynamic_cast<TNamed*>(key->ReadObj()));
     if (entry)
       facts[entry->GetName()] = entry->GetTitle();

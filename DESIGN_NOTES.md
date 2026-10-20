@@ -358,6 +358,10 @@ should read is the user's to say. Found on 16 October 2026 while running the cha
 the corrections refactoring; left for later on the user's request, and that check was done
 without `mcclosure`. `globalConfigMCClosureppref.json` was changed by the same commit and was
 not looked at.
+It also blocks `globalConfigComparisonpp.json` (found on 19 October 2026): its closure comparisons
+read `MCClosurewPDG_OnlineEff_{2024,2026}` and `MCClosureGen_{2024,2026}_PhiAssocSpectra.root`, which
+date from 12 August, before the binning stamps, and `comparison_task` stops at the missing
+`binning_mult`, as it should. They come back with the `mcclosure` runs.
 
 **The extrapolated error of a species depends, in the last digits, on what was fitted before
 it.** Found on 16 October 2026 while checking the corrections block: with only the K0S efficiency
