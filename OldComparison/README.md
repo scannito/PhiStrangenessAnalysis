@@ -89,29 +89,50 @@ offline-efficiency 2024 result, |Δy| < 1.0, the extrapolated yields (see *The e
 The 2024 ratio is about 5 % below the old one in every class (0.92-0.98), within or at the edge of the old
 systematic band (about ±7 %); both are flat with multiplicity.
 
-**The extrapolation.** Both compute the yield the same way (the main README, *The extrapolated yield*; the
-old macro's hand-made sum of the bins plus `YieldMean`'s `kExtra` is `YieldMean`'s `kYield`). Where they
-extrapolate differs:
+## The differences between the two analyses
 
-| | K0S | π |
+Everything found so far that differs between the old macro and the framework's 2024 result, with what each
+does to the 2024/old ratio where it was measured (20 October 2026, 2024 offline, |Δy| < 1.0). The ratio is
+0.947 on average (0.92-0.98 per class); the aim is to account for the 5 %.
+
+**Measured:**
+
+| Difference | Old macro | Framework 2024 | Effect on 2024/old |
+|---|---|---|---|
+| π extrapolation above the data | none: `YieldMean` is called with `max = 1.0`, below the last edge (3.0), so it drops the high part | the Lévy-Tsallis fitted in 0.2-1.0 GeV/c (`fit_range`) and integrated from 3 to 10 GeV/c (`domain_range` `[0, 10]`), where no data constrain it | removing it lowers the π yield by 0.4 % (70-100 %) to 3.5 % (1-5 %) and raises the ratio as much: mean 0.947 → 0.966. **The largest single difference found.** |
+| K0S extrapolation above the data | none (`max = 6.0`, the last edge) | from 6.4 to 10 GeV/c | 0.1 % of the K0S yield in every class: negligible |
+| How the yield is assembled | sum of the measured bins + `YieldMean`'s `kExtra` (equal to `kYield`) | measured bins + model outside them (`SpectrumExtrapolator`, the same scheme) | none: the same quantity (main README, *The extrapolated yield*) |
+| Normalisation | per event with a φ candidate, purity-corrected | per trigger | none: it cancels in the ratio |
+| Multiplicity classes, \|Δy\| window | 0-1 … 70-100 %, \|Δy\| < 1.0 | the same | none (`RequireSameAxis` checked the classes) |
+
+**Not measured yet**, each able to move the ratio as a whole:
+
+| Difference | Old macro | Framework 2024 |
 |---|---|---|
-| old macro | below 0.1 GeV/c (first edge 0.1); nothing above 6.0, the last edge (`max = 6.0`) | below 0.2; nothing above 3.0 (`max = 1.0`, below the last edge, so `YieldMean` drops the high part) |
-| framework 2024 | nothing below (its binning starts at 0); above 6.4 up to 10 GeV/c (`domain_range` `[0, 10]`) | below 0.2; above 3.0 up to 10 GeV/c |
+| K0S at low pT | first edge 0.1 GeV/c, 0-0.1 extrapolated | first bin 0-0.3 measured, nothing extrapolated |
+| K0S upper edge of the data | 6.0 GeV/c | 6.4 GeV/c |
+| K0S efficiency | multiplicity-integrated, per Δy window | multiplicity-integrated (`acceptance_efficiency.mult: integrated`); the MC production behind it not compared |
+| Signal loss | per class, always taken at \|Δy\| < 1.0 | applied (`signal_loss: true`); how it is binned not compared |
+| π reconstruction | TPC below 0.5 GeV/c (tracking efficiency), TOF above (tracking × matching), the 0.5-0.6 bin a weighted mean, the 0.15-0.2 bin dropped | the framework's π spectrum from 0.2 GeV/c; the PID scheme not compared |
+| Event loss | not applied | applied (`event_loss: true`); per class, so it would cancel in K0S/π if equal for both |
+| Data | the productions of the old analysis (which train is not recorded in its inputs; the systematics files name trains 19977-25965) | 2024 |
 
-Measured on 20 October with the 2024 file remade without the high-pT part (`domain_range` up to the last
-measured edge, 6.4 for the K0S, 3.0 for the π): the mean 2024/old ratio goes from 0.947 to 0.966, per class
-from 0.92-0.98 to 0.94-0.99. The high-pT tail explains about 2 of the 5 %; about 3.5 % remains.
+**Open, about the errors.** The old statistical errors are 3-4 times smaller than the 2024 ones (≈0.0004
+against ≈0.0015). Unless the old sample was much larger they are suspect: `YieldMean`'s resampling error of the
+total yield may leave out the errors of the efficiencies and the correlation between the K0S and π yields.
+The old systematic band includes an unlabelled 6 % (line 1100 of the macro); it does not move the central
+values.
 
-**Before reading the rest as physics:**
+**Reading.** A shift the same in every class points to a factor (an efficiency, a normalisation that does not
+cancel) rather than to a multiplicity effect. The π tail is the exception: it grows with multiplicity, since
+the spectra harden, but here it is the model's tail and not the data that says so. Whether the framework
+should extrapolate the π above 3 GeV/c from a fit that stops at 1 GeV/c is a choice for the framework's
+results, not for this comparison: no extrapolation above the data, a `fit_range` reaching the last measured
+edge, or the tail as a systematic.
 
-- **The old statistical errors are 3-4 times smaller** than the 2024 ones (≈0.0004 against ≈0.0015). Unless
-  the old sample was much larger, they are suspect: `YieldMean`'s resampling error of the total yield may
-  leave out the errors of the efficiencies and the correlation between the K0S and π yields.
-- **Different choices**, any of which can move the ratio as a whole: the K0S efficiency integrated in
-  multiplicity and the signal loss always at |Δy| < 1.0; the TPC/TOF combination of the π; the unlabelled
-  6 % in the old systematics; and different data-taking years.
-- A shift the same in every class points to a factor (a normalisation, an efficiency) rather than to a
-  multiplicity effect.
+How the "measured" rows were obtained: the 2024 file remade with `domain_range` up to the last measured edge
+(6.4 for the K0S, 3.0 for the π) and every other setting unchanged, and the extrapolated trends of the two
+species compared bin by bin; with `trend_composition` switched, before it was removed, for the assembly row.
 
 ## Removing it
 
