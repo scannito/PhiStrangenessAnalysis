@@ -166,3 +166,55 @@ caches fits in `gDirectory`, which inside `PurityTask` is the output file).
 3. **2.3** (contract with O2Physics): small and isolated, and it closes real holes.
 4. **3.3 and 2.1** (correlations by composition, results by interval): when `CorrelationTaskBase` is opened.
 5. **2.2, 2.6, 2.7** (pipeline, tests, schema): they grow with the above.
+
+---
+
+## 5. Five days later (20 October 2026)
+
+Still opinions, not decisions. What moved since these notes were written, and what I would now say
+differently.
+
+**Drawing apart from computing (3.6, 2.4), made concrete.** There are two kinds of plot, and they leave the
+tasks at different times:
+
+- **Summaries**, derivable from what the files hold: spectra overlaid per multiplicity, trends, ratios,
+  extrapolated over measured. They need no state of the run, so they can leave the tasks now. Made inside the
+  run they cost a full chain run to restyle, scatter the style over four tasks, fill the files (about 70
+  canvases in a spectra file), and couple the tasks internally (a summary canvas created in one place and
+  found by name in another).
+- **Diagnostics** that need state existing only during the run: a mass fit of one cell with its model curve,
+  the purity fits, the fit of an extrapolation. They stay in the tasks, optional (`do_more_qa` exists), until
+  2.4 gives the fit a persistent record; then they too are drawn from files, and the tasks stop drawing.
+
+The plotting stage of 3.6 is no longer an idea: `phiplot` (branch `plot-on-demand`, `PLOTTING.md`) reads
+`PhiAssocSpectra` by meaning, resolves intervals through the stamps and refuses divisions between series
+that disagree. The path I would take:
+
+1. An inventory of the canvases of every task, each marked diagnostic or summary. No code.
+2. The catalog of `phiplot` extended to the other files (corrections, purities, phi fits), and a set of
+   standard specifications that remakes in one command the summaries the tasks make today, so that nobody
+   loses the canvases they open in a TBrowser.
+3. The summaries removed from the tasks one family at a time, the data checked identical each time; after
+   `phiplot` is on main, not before.
+4. The diagnostics made optional and, where an object can be saved instead of a canvas (the `TF1` of an
+   extrapolation fit, the parameters of a fit), saved as data.
+
+**What else moved:**
+
+- **2.1 (by interval, not by index).** The names are still indices, but they are built in one place now
+  (`OutputNames`, on main), so the day they become intervals one file changes; and `phiplot` already reads
+  by interval, through the stamp, never through the index.
+- **2.7 (configuration by schema).** The plot specification is a working prototype of the pattern: one table
+  of keys (type, required, allowed values, the kinds a key belongs to) from which both the checks and the
+  JSON schema are built. The task blocks could follow it.
+- **2.6 (tests).** The exact before/after comparisons of every output, and the ten requests the model front end
+  of `phiplot` is measured on, are regression tests in all but name: still run by hand, with no CI.
+- **2.5 (compiled mode only).** It is the practice: in this environment the interpreted mode does not start
+  (`CLAUDE.md`), and `phiplot` is compiled only.
+- **Names shared by every file** (the binning stamps, the provenance directory) are now `RootIO`'s, and the
+  provenance functions find their directory themselves: a small step towards the explicit layout 2.2 and 3.2
+  would need.
+
+**The order of section 4, revised.** The summaries leaving the tasks (steps 1-3 above) go up, next to 2.4 /
+3.6 and not after: the tool exists, and what remains is the inventory and the catalog. The rest of the order
+stands.
