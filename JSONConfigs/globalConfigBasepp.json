@@ -286,7 +286,6 @@
         },
         "apply_purity": false,
         "apply_extrapolation": true,
-        "trend_composition": "total_extrapolated",
         "purity_sources": [
             {
                 "name": "K0S",
@@ -435,7 +434,6 @@
             }
         },
         "apply_extrapolation": true,
-        "trend_composition": "total_extrapolated",
         "use_projection_cache": false,
         "use_2d_me_normalization": false,
         "me_normalization": "bins_at_zero",

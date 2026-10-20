@@ -301,7 +301,6 @@ class CorrelationTaskBase : public IAnalysisTask
   bool applyME{false}, applyExtrapolation{false};
   bool useProjectionCache{false}, use2DMENormalization{false};
   std::optional<CorrectionsConfig> corrections; // Empty: no correction is applied here
-  HistogramUtils::TrendComposition trendComposition{HistogramUtils::TrendComposition::TotalExtrapolated};
 
   std::unique_ptr<TH1> hEventLoss;
 
@@ -418,15 +417,6 @@ class CorrelationTaskBase : public IAnalysisTask
       {{"bins_at_zero", CorrelationCalculator::MENormalization::BinsAtZero},
        {"fit", CorrelationCalculator::MENormalization::Fit}},
       "me_normalization", GetName());
-
-    // Defaulted to what the chain has always done, so a configuration that says nothing
-    // reproduces the previous numbers. The alternative exists to be compared against
-    // it: see HistogramUtils::TrendComposition.
-    trendComposition = JsonConfig::OptionalEnum<HistogramUtils::TrendComposition>(
-      taskConfig, "trend_composition", "total_extrapolated",
-      {{"total_extrapolated", HistogramUtils::TrendComposition::TotalExtrapolated},
-       {"measured_plus_extrapolated", HistogramUtils::TrendComposition::MeasuredPlusExtrapolated}},
-      GetName());
 
     // Both spellings of each axis are entries in the same table, so the accepted
     // values and the error message can never drift apart.
@@ -1307,8 +1297,7 @@ class CorrelationTaskBase : public IAnalysisTask
           std::string cExtName = OutputNames::SpectraExtrapCanvas(config.name, dyLimit);
           TCanvas* overlay = canvasManager.GetCanvas(cExtName);
           ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir, overlay);
-          HistogramUtils::FillTrendFromExtrapolation(h1MultTrendsExtrap[pIdx][yIdx].get(), h1Spectrum.get(),
-                                                    res, trendComposition, multBin);
+          HistogramUtils::FillTrendFromExtrapolation(h1MultTrendsExtrap[pIdx][yIdx].get(), res, multBin);
         }
       }
     }

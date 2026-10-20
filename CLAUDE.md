@@ -164,10 +164,11 @@ The merge works at the top level only, and that has two consequences to design a
 Provenance records `JsonConfig::Serialize(taskConfig)` — the merged block, so only
 the keys the JSON actually contains. A run that leans on a C++ default leaves no
 trace of which value was in force, and changing that default later silently
-reinterprets every file already produced. `trend_composition` is spelled out in the
-base configurations for exactly this reason, at its default value.
+reinterprets every file already produced. `projection_axis` is spelled out in
+`correlation_base_settings` for exactly this reason, at its default value.
 
-The converse holds too, and it is why the `dir_name` entries came out: a key that
+The converse holds too, and it is why the `dir_name` entries came out, and the
+`trend_composition` key with them (its two values computed the same yield): a key that
 changes no number is better absent, because it is one more copy of a rule to keep
 aligned. The test is not "is it obvious" but "would a reader of the output need to
 know it".

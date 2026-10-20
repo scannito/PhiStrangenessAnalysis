@@ -183,7 +183,6 @@ the value is matched against, so it cannot go stale.
 | `projection_axis` | correlation | `delta_y` / `DeltaY`, `delta_phi` / `DeltaPhi` (Δφ only with the 2D engine: refused at `Init` otherwise, `DESIGN_NOTES.md` section 6) | `delta_y` |
 | `particle_correction_mode` | `mc_task` | `efficiency_only`, `signal_loss_only`, `combined` | `efficiency_only` |
 | `run_mode` | `correlation_task` | `legacy`, `optimized` | `legacy` |
-| `trend_composition` | correlation | `total_extrapolated`, `measured_plus_extrapolated` | `total_extrapolated` |
 | `target` | `comparison_task` | `spectra`, `trends`, `ratios` | `ratios` |
 
 ### Keys per task
@@ -244,7 +243,6 @@ silently ignored.
 | `yield_ratios` | optional | Array of `{numerator, denominator, label?}`. |
 | `use_signal_cache`, `do_more_qa` | optional | |
 | `run_mode`, `projection_axis` | optional | See enumerations above. |
-| `trend_composition` | optional | How the extrapolated trend is built — see below. |
 | `*_prefix` | optional | `purity_prefix`, `trigger_prefix`, `output_prefix`, with `input_prefix` and `input_output_prefix` as fallbacks. |
 
 **The `corrections` block** says, per particle, which corrections are applied here, in this
@@ -339,28 +337,18 @@ landed where it was meant to.
 directory per `label`, mirroring the input sub-paths, with the provenance of *both*
 inputs copied in beside the ratios.
 
-### `trend_composition`, in detail
+### The extrapolated yield
 
-Only the *extrapolated* multiplicity trend is affected; the measured trend next to it
-is the integral of the spectrum either way.
-
-| Value | Each bin holds |
-|---|---|
-| `total_extrapolated` | the integral of the fitted model over the whole domain |
-| `measured_plus_extrapolated` | the integral of the spectrum over the measured bins, plus the extrapolated low and high parts |
-
-The difference is where the model is allowed to speak. The first lets it replace the
-data everywhere, including the region where data exist; the second keeps the measured
-points and uses the model only outside them. They agree exactly when the fit describes
-the measured region perfectly, so the gap between them is a readout of how well it
-does — which is why the alternative is worth keeping rather than choosing once.
-
-The error is the same in both cases — the RMS of the toy ensemble, which is an error on
-the *total extrapolated* yield. Under `measured_plus_extrapolated` the content is a
-different estimator from the one that error was computed for, so the bar is carried over
-rather than derived. It is a reasonable approximation while the two compositions agree
-closely, and it is one more reason to treat the alternative as a cross-check rather than
-as a result to quote.
+The extrapolated trends (and the species ratios built on them) take, per multiplicity
+interval, the yield `SpectrumExtrapolator` computes: the **measured bins**, plus the fitted
+model **only where there are no data**, below the first measured edge and above the last one,
+as far as the `domain_range` of the species in the extrapolation configuration (widened, if
+needed, to cover its `fit_range`). Its error is
+the RMS of the toy ensemble, an error on that total. The model never replaces a measured bin;
+a measured bin with a content but a non-positive error is left out of the yield, with a
+warning that gives the amount. What changes the number between configurations is therefore the
+extent of `domain_range` (with `[0, 10]`, the K0S and π yields include a model tail up to 10 GeV/c),
+and the binning that decides where the data stop.
 
 ### Cache and provenance
 
@@ -410,7 +398,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | File | |
 |---|---|
 | `DynamicRooFitter.h` | The only fitter, used by `PhiFitTask` and `PurityTask`. RooFit engine driven entirely by JSON: builds signal and background PDFs from names (`BkgSourav1/2`, `BkgMattia`, Chebychev, …), owns every `RooAbsArg` it creates. |
-| `SpectrumExtrapolator.h` | Extrapolates the unmeasured low-pT part of a spectrum and propagates the uncertainty. Replaced the ALICE-standard `YieldMean` (now in `OldCodes/`) after reproducing it number for number. |
+| `SpectrumExtrapolator.h` | Extrapolates the unmeasured parts of a spectrum, below and above the measured bins within `domain_range`, and propagates the uncertainty (*The extrapolated yield*). Replaced the ALICE-standard `YieldMean` (now in `OldCodes/`) after reproducing it number for number. |
 | `ExtrapolationModelFactory.h` | Builds the `TF1` model (Lévy–Tsallis, …) with its initial parameters. |
 
 ### Configuration managers

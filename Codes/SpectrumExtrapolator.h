@@ -162,7 +162,8 @@ class SpectrumExtrapolator
     auto hhi = CreateHighExtrapolationHisto(hCentral, fFitModel, maxPt);
 
     double integral = 0.0, mean = 0.0, extraLow = 0.0, extraHigh = 0.0;
-    Integrate(hCentral, hlo.get(), hhi.get(), integral, mean, extraLow, extraHigh);
+    double skippedData = 0.0;
+    Integrate(hCentral, hlo.get(), hhi.get(), integral, mean, extraLow, extraHigh, &skippedData);
 
     res.yield = integral;
     res.meanPt = mean;
@@ -186,6 +187,19 @@ class SpectrumExtrapolator
     };
     warnIfEmpty("low", hlo.get(), extraLow);
     warnIfEmpty("high", hhi.get(), extraHigh);
+
+    // The data side of the same rule: Integrate skips every bin with a non-positive error, as
+    // YieldMean does, so a bin that holds a content all the same is left out of the yield, and
+    // nothing in the result shows it - while the measured trend, a plain integral of the
+    // spectrum, counts it, so the two trends of this spectrum differ by exactly that amount.
+    // Measured by Integrate itself, on the central sum only (the toys and the variations
+    // repeat it). With a systematic spectrum the central sum is the total-error one; a bin with
+    // a zero statistical error and a positive systematic one is then in the yield but not in
+    // the toys - a path no configuration takes today.
+    if (skippedData != 0.0)
+      Logger::Warn("SpectrumExtrapolator: '{}' has measured bins with a content but a non-positive error, left out of "
+                   "the yield: {:g} ({:.1f}% of it), which the measured trend does count.",
+                   fMeasuredSpectrum->GetName(), skippedData, integral > 0 ? 100.0 * skippedData / integral : 0.0);
 
     // 3. Statistical Error Evaluation via Toy MC
     //
@@ -448,8 +462,10 @@ class SpectrumExtrapolator
   }
 
   // Internal Utility Methods
+  // 'skippedData', when given, receives the yield of the data bins skipped for a non-positive
+  // error although they hold a content.
   void Integrate(TH1* hdata, TH1* hlo, TH1* hhi, double& integral, double& mean,
-                 double& extraLow, double& extraHigh) const
+                 double& extraLow, double& extraHigh, double* skippedData = nullptr) const
   {
     double I = 0., IX = 0.;
     extraLow = 0.0;
@@ -460,8 +476,11 @@ class SpectrumExtrapolator
       double cent = hdata->GetBinCenter(ibin + 1);
       double width = hdata->GetBinWidth(ibin + 1);
       double cont = width * hdata->GetBinContent(ibin + 1);
-      if (hdata->GetBinError(ibin + 1) <= 0.)
+      if (hdata->GetBinError(ibin + 1) <= 0.) {
+        if (skippedData)
+          *skippedData += cont;
         continue;
+      }
       I += cont;
       IX += cont * cent;
     }

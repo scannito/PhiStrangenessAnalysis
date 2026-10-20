@@ -7,6 +7,28 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## `trend_composition` removed: its two values were the same yield
+
+**20 October 2026**, found while comparing the 2024 K0S/π ratio with the pre-framework one
+(`OldComparison/`). The key chose how the extrapolated trend was assembled: `total_extrapolated`,
+`SpectrumExtrapolator`'s `res.yield`, or `measured_plus_extrapolated`, the integral of the spectrum
+plus `res.ExtrapolatedYield()`. The README described the first as "the integral of the fitted model
+over the whole domain", which it is not: `Integrate` adds the measured bins and the model only below
+and above them (`SpectrumExtrapolator.h`, the scheme of `YieldMean_IntegralMean`), so both values gave
+the same number by construction. They could differ only for a bin with a content and a non-positive
+error, which `Integrate` skips and `TH1::Integral` counts; the second value existed to reveal that case
+by comparison. Measured: with each of the two, the six data spectra files (2024 and 2026, offline,
+online, online without φ) identical object for object.
+
+So the key went (a key that changes no number is better absent, CLAUDE.md), the trend takes
+`res.yield`, for which the toy error is computed, and the case the alternative revealed is said directly:
+`SpectrumExtrapolator` warns when a measured bin with a content is left out of the yield. The old
+pre-framework macro did the same as the framework (its hand-made sum of the bins plus `YieldMean`'s
+`kExtra` equals `kYield`); what differs between it and the 2024 result is `domain_range`, which extends
+the 2024 yields with a model tail up to 10 GeV/c that the old macro did not have (`OldComparison/README.md`).
+
+---
+
 ## The PhiAssocSpectra names in one place
 
 **20 October 2026.** The names of the objects in `PhiAssocSpectra` (spectra, trends, extrapolated
