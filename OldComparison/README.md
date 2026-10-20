@@ -69,7 +69,7 @@ are otherwise the same. Not checkable: whether `macro/YieldMean.C` is exactly th
 only the axes are checked (`RequireSameAxis`; the classes coincide), with `divide_option: ""` (independent
 samples). The old systematic uncertainty is shown as a band in the overlay and as a column in the table, not
 divided: a ratio carrying 2024's statistical and the old systematic error would be neither. Numerator: `Ratio_K0S_Pi_Extrap_dy1_00` of `Data_OfflineEff_2024_PhiAssocSpectra.root`, i.e. the
-offline-efficiency 2024 result, |Δy| < 1.0, both yields extrapolated (to pT = 0, Lévy-Tsallis, as the old one).
+offline-efficiency 2024 result, |Δy| < 1.0, the extrapolated yields (see *The extrapolation* below).
 
 **Result of 20 October 2026** (2024 file produced at commit `a3f6899`):
 
@@ -89,7 +89,20 @@ offline-efficiency 2024 result, |Δy| < 1.0, both yields extrapolated (to pT = 0
 The 2024 ratio is about 5 % below the old one in every class (0.92-0.98), within or at the edge of the old
 systematic band (about ±7 %); both are flat with multiplicity.
 
-**Before reading the 5 % as physics:**
+**The extrapolation.** Both compute the yield the same way (the main README, *The extrapolated yield*; the
+old macro's hand-made sum of the bins plus `YieldMean`'s `kExtra` is `YieldMean`'s `kYield`). Where they
+extrapolate differs:
+
+| | K0S | π |
+|---|---|---|
+| old macro | below 0.1 GeV/c (first edge 0.1); nothing above 6.0, the last edge (`max = 6.0`) | below 0.2; nothing above 3.0 (`max = 1.0`, below the last edge, so `YieldMean` drops the high part) |
+| framework 2024 | nothing below (its binning starts at 0); above 6.4 up to 10 GeV/c (`domain_range` `[0, 10]`) | below 0.2; above 3.0 up to 10 GeV/c |
+
+Measured on 20 October with the 2024 file remade without the high-pT part (`domain_range` up to the last
+measured edge, 6.4 for the K0S, 3.0 for the π): the mean 2024/old ratio goes from 0.947 to 0.966, per class
+from 0.92-0.98 to 0.94-0.99. The high-pT tail explains about 2 of the 5 %; about 3.5 % remains.
+
+**Before reading the rest as physics:**
 
 - **The old statistical errors are 3-4 times smaller** than the 2024 ones (≈0.0004 against ≈0.0015). Unless
   the old sample was much larger, they are suspect: `YieldMean`'s resampling error of the total yield may
