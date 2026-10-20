@@ -40,11 +40,25 @@ This list comes from the reviews the owner of the project has actually made. Che
    `RootIO::GetUniqueOrThrow` on `TDirectory::Get`, `Logger::` not `std::cout`, `SetDirectory(0)`, `JsonConfig`
    accessors (never `HasMember` + `operator[]`), a key that changes a number declared and required, comments that
    say why.
-9. **The numbers.** Whether the change can move a number, and whether the check that was run (the brief says which)
+9. **Leftovers of a reason that no longer holds.** A type, a signature or a conversion that exists for a reason
+   the change removed (a `string_view` parameter turned straight back into a `std::string`, a `constexpr` nothing
+   needs at compile time), and sibling declarations made in different ways for no reason (one constant a
+   `std::string`, its neighbour a `string_view`). Correct is not enough: ask whether it is the plain way to write it.
+10. **The numbers.** Whether the change can move a number, and whether the check that was run (the brief says which)
    is enough to show it did not; if the order of floating-point operations changed, say where.
 
-Do not report style the project does not follow (there is no clang-format configuration), nor taste without a
-reason from the list above.
+Besides any specific questions in the brief, always answer the open one: what in this change you would not have
+written this way, even where it is correct. A narrow brief is not a reason to skip the rest of the list.
+
+Do report what makes the code longer or more laborious than it needs to be when it has a concrete cost: a
+conversion every caller has to write, a declaration that forces an extra step at each use, the same expression
+repeated where a name would do. That is not taste. To find it, ask of each repeated line in the callers why it is
+needed, and follow the answer to the declaration that causes it, even in another file.
+
+Do not report formatting (there is no clang-format configuration), nor preferences with no cost you can name.
+
+The brief says what the change is for; it may also say what the author believes and checked. Judge the code, not
+the author's account of it.
 
 ## Report
 Findings only, most important first, each as:

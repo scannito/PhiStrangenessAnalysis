@@ -346,14 +346,19 @@ outlives an assertion in a chat.
 ## How a change is reviewed
 
 A code change of more than about ten lines (comments and documentation not counted) is reviewed before it
-is committed, by the `analysis-reviewer` agent (`.claude/agents/analysis-reviewer.md`), a fresh one each time,
-read-only. Agreed with the owner on 19 October 2026, after a series of changes whose problems they had to point
+is committed, by two agents, a fresh one each time, read-only, in parallel: `analysis-reviewer`
+(`.claude/agents/analysis-reviewer.md`), against the checklist below, and `analysis-simplifier`
+(`.claude/agents/analysis-simplifier.md`), with one question: can it be written more simply or more directly. Agreed with the owner on 19 October 2026, after a series of changes whose problems they had to point
 out by hand: the same rule in two places, checks that could never fire, patches that would pile up with every
 change of the same kind, a value derived and taken apart again, a structure that hid what the code did, a helper
-re-implemented by hand. The agent's checklist is those, plus the conventions above.
+re-implemented by hand. The reviewer's checklist is those, plus the conventions above. The second agent came on
+20 October, after the owner found twice in a day what a review had passed as correct: a `string_view` parameter
+turned straight back into a `std::string`, and constants that made every caller write `std::string(...)`.
 
-- The brief is the diff (or the range, or the sandbox path) and one line on what the change is for. The review
-  runs while the before/after check runs: it costs no waiting.
+- The brief is the diff (or the range, or the sandbox path) and one line on what the change is for, nothing more:
+  not the author's account of how it was done or what was checked, which anchors the reviewer to the author's
+  reading. What was checked goes in the report to the owner. A specific question may be added, never instead of
+  the open review. The reviews run while the before/after check runs: they cost no waiting.
 - Every finding is either fixed or answered with the reason it does not apply; the report to the owner says
   which, next to what was checked by running.
 - Below the threshold (a rename, a comment, a one-line fix) no review: it would cost more than it finds.
