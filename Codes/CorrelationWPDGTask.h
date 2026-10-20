@@ -100,10 +100,10 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", GetName());
 
     // Same as CorrelationTask, which this used to differ from for no stated reason:
-    // this run rewrites its whole scheme directory, so a previous run's objects would
+    // this run rewrites its whole section directory, so a previous run's objects would
     // otherwise sit beside the new ones. UPDATE and not RECREATE because only this
     // subtree is ours - another 'binning_name', or the other Extract1D/2D, stays.
-    RootIO::ClearPath(fileOutputSpectra.get(), {globalCfgs.binningName, SchemeDirName()});
+    RootIO::ClearPath(fileOutputSpectra.get(), SectionPath());
 
     // UPDATE and not RECREATE here too, and for a different reason: the cache is
     // expensive to rebuild, so a scheme directory that already holds projections of

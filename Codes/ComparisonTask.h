@@ -241,7 +241,7 @@ class ComparisonTask : public IAnalysisTask
   {
     Logger::Info("{}: TERMINATING AND CLEANING UP...", GetName());
 
-    RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileOutput.get(), {RootIO::kProvenanceDir}, false), provenance);
+    RootIO::WriteProvenance(fileOutput.get(), "", provenance);
 
     if (fileOutput) {
       fileOutput->Close();
@@ -318,17 +318,17 @@ class ComparisonTask : public IAnalysisTask
     // write", which is what actually happened. Both possible causes are named because
     // the task cannot tell them apart either, and the file name goes in because it is
     // the only thing that identifies an input nothing else is known about.
-    const auto copyProvenance = [&](TFile* src, const char* dirName, const std::string& fileName) {
-      auto facts = RootIO::ReadProvenance(RootIO::GetOrCreatePath(src, {inputScheme, RootIO::kProvenanceDir}, true));
+    const auto copyProvenance = [&](TFile* src, const char* record, const std::string& fileName) {
+      auto facts = RootIO::ReadProvenance(src, inputScheme);
       if (facts.empty())
-        facts["no_provenance"] = std::format("'{}' carries nothing under '{}/{}': either it was not "
+        facts["no_provenance"] = std::format("'{}' carries no provenance for '{}': either it was not "
                                              "produced by this framework, or it predates the provenance records.",
-                                             fileName, inputScheme, RootIO::kProvenanceDir);
-      RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileOutput.get(), {comp.label, dirName}, false), facts);
+                                             fileName, inputScheme);
+      RootIO::WriteProvenance(fileOutput.get(), comp.label, facts, record);
     };
 
-    copyProvenance(pair.num.get(), "Provenance_numerator", comp.numeratorFile);
-    copyProvenance(pair.den.get(), "Provenance_denominator", comp.denominatorFile);
+    copyProvenance(pair.num.get(), "numerator", comp.numeratorFile);
+    copyProvenance(pair.den.get(), "denominator", comp.denominatorFile);
 
     // A declared comparison stops here. Its denominator was not written by this
     // framework, so it has no scheme directory to navigate and no stamps to compare -
@@ -513,7 +513,8 @@ class ComparisonTask : public IAnalysisTask
 
   // Divides every histogram the numerator holds in 'subPath' by the one of the same
   // name in the denominator. Canvases and anything that is not a histogram are
-  // skipped, which is what keeps the binning stamps and the drawing canvases out.
+  // skipped. The binning stamps are never met here: they live one level up, in the
+  // scheme and species directories, not in Spectra, Trends or Ratios.
   int DivideDirectory(const OpenPair& pair, const Comparison& comp, const std::vector<std::string>& subPath)
   {
     // Read-only on the inputs: navigate, never create. They are opened READ, so a
@@ -603,8 +604,7 @@ class ComparisonTask : public IAnalysisTask
   }
 
   // Histograms only. Filtering by class rather than by name is what keeps the
-  // drawing canvases out - and the binning stamps, which are TH1D and would
-  // otherwise be divided like data.
+  // drawing canvases out.
   static std::vector<std::string> ListHistograms(TDirectory* dir)
   {
     std::vector<std::string> names;
@@ -614,7 +614,7 @@ class ComparisonTask : public IAnalysisTask
     for (TObject* keyObj : *dir->GetListOfKeys()) {
       auto* key = static_cast<TKey*>(keyObj);
       TClass* cl = TClass::GetClass(key->GetClassName());
-      if (cl && cl->InheritsFrom(TH1::Class()) && !RootIO::IsBinningStamp(key->GetName()))
+      if (cl && cl->InheritsFrom(TH1::Class()))
         names.emplace_back(key->GetName());
     }
     return names;

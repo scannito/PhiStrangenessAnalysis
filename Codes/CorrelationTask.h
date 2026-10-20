@@ -55,7 +55,7 @@ class CorrelationTask : public CorrelationTaskBase
 
     std::unique_ptr<TFile> filePhiDataInput = RootIO::OpenOrThrow(phiDataName, "READ", GetName());
 
-    RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePhiDataInput.get(), {globalCfgs.binningName, RootIO::kProvenanceDir}, true),
+    RootIO::PrintProvenance(filePhiDataInput.get(), globalCfgs.binningName,
                             std::format("trigger file '{}'", phiDataName));
 
     std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
@@ -123,12 +123,12 @@ class CorrelationTask : public CorrelationTaskBase
     std::string phiSpectraName = basePathFinal + outputPrefix + "PhiAssocSpectra.root";
     fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", GetName());
 
-    // This run rewrites its whole scheme directory, so whatever a previous one left
+    // This run rewrites its whole section directory, so whatever a previous one left
     // there - produced when the layout or the object names were different - would sit
     // beside the new objects with nothing to tell them apart. UPDATE and not RECREATE
     // because only this subtree is ours: another 'binning_name', or the other
     // Extract1D/2D, belongs to somebody else and stays.
-    RootIO::ClearPath(fileOutputSpectra.get(), {globalCfgs.binningName, SchemeDirName()});
+    RootIO::ClearPath(fileOutputSpectra.get(), SectionPath());
 
     for (const auto& p : assocParticles) {
       std::string fName = basePathProj + outputPrefix + "Phi" + p.name + "DataHistograms.root";
@@ -242,7 +242,7 @@ class CorrelationTask : public CorrelationTaskBase
 
       std::unique_ptr<TFile> filePurity = RootIO::OpenOrThrow(purityFilePath, "READ", GetName());
 
-      RootIO::PrintProvenance(RootIO::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName, RootIO::kProvenanceDir}, true),
+      RootIO::PrintProvenance(filePurity.get(), globalCfgs.binningName,
                               std::format("purity file '{}'", purityFilePath));
 
       // Same as for the corrections: the purities are addressed by multiplicity
@@ -300,8 +300,7 @@ class CorrelationTask : public CorrelationTaskBase
       }
     }
 
-    const std::string dirName = SchemeDirName();
-    std::vector<std::string> logicalPath{globalCfgs.binningName, dirName};
+    const std::vector<std::string> logicalPath = SectionPath();
 
     // =========================================================================
     // MODE A: SUPER CACHE MANAGEMENT (LEVEL 2)
@@ -324,7 +323,7 @@ class CorrelationTask : public CorrelationTaskBase
           const auto& config = assocParticles[pIdx];
           TDirectory* sourceDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, true);
           if (!sourceDir)
-            throw std::runtime_error(std::format("[FATAL] Cache L2 missing: Directory {} not found!", dirName));
+            throw std::runtime_error(std::format("[FATAL] Cache L2 missing: Directory {} not found!", RootIO::MakeDirPath(logicalPath)));
 
           for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
             std::string cacheName = std::format("h1Phi{}Final{}", config.name, CellSuffix(config, i, k));

@@ -53,15 +53,13 @@ inline std::string FormatEdge(double value)
   return buffer;
 }
 
-// Formats a delta-y limit into a human-readable title (e.g. "0.80") and an identifier-safe name (e.g. "0_80").
-inline std::pair<std::string, std::string> FormatDeltaY(double dyLimit)
+// A delta-y limit as written in titles and messages, to two decimals ("0.80"). The form used
+// in object names is OutputNames::DyTag.
+inline std::string FormatDeltaY(double dyLimit)
 {
   char buffer[32];
   std::snprintf(buffer, sizeof(buffer), "%.2f", dyLimit);
-  std::string title = buffer;
-  std::string name = title;
-  std::replace(name.begin(), name.end(), '.', '_');
-  return {title, name};
+  return buffer;
 }
 
 // Number of bins described by a sequence of edges. Provided so that the count

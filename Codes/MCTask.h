@@ -467,7 +467,7 @@ class MCTask : public IAnalysisTask
     if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName}, false))
       RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
 
-    RootIO::WriteProvenance(RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, RootIO::kProvenanceDir}, false), provenance);
+    RootIO::WriteProvenance(fileMCOutput.get(), globalCfgs.binningName, provenance);
 
     // Save all diagnostic canvases into their registered subdirectories; the Y ranges
     // declared at creation are applied on the way out.

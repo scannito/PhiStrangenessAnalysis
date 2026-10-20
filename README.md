@@ -397,7 +397,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 
 | File | |
 |---|---|
-| `RootIOHelpers.h` | `namespace RootIO` — opening files, fetching objects as `unique_ptr`, navigating and clearing directories, reading and writing binning stamps (and their names, one spelling for every file) and provenance. |
+| `RootIOHelpers.h` | `namespace RootIO` — opening files, fetching objects as `unique_ptr`, navigating and clearing directories, reading and writing binning stamps (and their names, one spelling for every file) and provenance (the functions find its directory themselves, below the directory they are given, usually the binning_name). |
 | `RunEnvironment.h` | `namespace RunEnvironment` — timestamp, git commit, header fingerprint. Includes no ROOT, and is the one header a plain compiler can check. |
 | `JsonConfigHelpers.h` | `namespace JsonConfig` — `Require*` and `Optional*` accessors, including `OptionalEnum`, whose table doubles as the error message; `RequireObjectOrNull` (null for "none") and `RequireKnownKeys`. |
 | `HistogramUtils.h` | `namespace HistogramUtils` — integrals with errors, `THnSparse` projections, spectrum and trend construction, ratios, rebinning with compatibility checks. |

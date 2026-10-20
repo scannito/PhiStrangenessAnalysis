@@ -224,8 +224,8 @@ strings.
 - **The names and layout of `PhiAssocSpectra` come from `OutputNames`**, in the task that writes
   them and in every reader (`comparison_task`): object names, the `Spectra`/`Trends`/`Ratios`
   directories, the section names. The binning stamps' names, the same in every file that carries
-  one, and the provenance directory's come from `RootIO` (`kStampMult`, `kStampPtPhi`,
-  `kStampPtAssoc`, `IsBinningStamp`, `kProvenanceDir`). One spelled by hand anywhere is a second
+  one, come from `RootIO` (`kStampMult`, `kStampPtPhi`, `kStampPtAssoc`), and its provenance
+  functions find the provenance directory themselves. One spelled by hand anywhere is a second
   copy of the rule.
 - Prefer deriving over storing: if a member follows from other members, a
   constructor or an accessor should produce it (`AssocParticleConfig::mass`,

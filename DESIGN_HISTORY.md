@@ -25,6 +25,28 @@ Done first on the branch `plot-on-demand`, where the plotting tool reads the sam
 to main on its own because the branch stays separate for a while; the reading side of the names
 (`OutputNames::Parse`, the table of kinds) stays on the branch, since only the plotter uses it.
 
+Then the first run of the second reviewer (`analysis-simplifier`, added the same day) on the committed
+change found four things the reviews had passed, all taken: every provenance call built the path to
+`Provenance` and chose the read-only flag by hand (ten sites), so `WriteProvenance`, `ReadProvenance` and
+`PrintProvenance` now take the scheme path and add the directory themselves; `IsBinningStamp` filtered
+stamps out of directories where they never are (they sit one level up from `Spectra`, `Trends` and
+`Ratios`), so it went, with the two comments that said the opposite; `SectionName` had one caller that
+only forwarded to it; and the |dy| tag was formatted twice in the same loops, once for the object names and
+once for the summary canvases, which are created in one place and looked up by name in another - their
+names joined the builders, and `SpeciesRatio(..., bool)` became two named builders. The two reviews of that
+follow-up, and a last round of both, made the provenance functions take the directory the record sits
+under as a string (`owner`: no caller passed more than one level) and, for writing only, a record qualifier
+instead of a free directory name (`comparison_task` passes "numerator" and "denominator", and `RootIO` names
+the directories `Provenance_numerator`/`_denominator` as before); the provenance directory's name is now
+`RootIO`'s own (`Detail`), and the one message that described the path does not any more;
+`SectionPath()` builds {binning_name, section} where seven call sites spelled it;
+`BinningUtils::FormatDeltaY` returns the title only, the name form being `OutputNames::DyTag`;
+`SchemeDirName` became `SectionDirName`, since it returns Extract1D/2D and the scheme is the binning_name;
+and `LoadCorrections` names itself with `GetName()`. On the branch `plot-on-demand`, the next merge of main
+has to move `SectionName`, `SpeciesRatio`, `FormatDeltaY(...).first` and the provenance calls to these.
+Checked on that state: `mc pp`, `data pp` and `comparison_task` (spectra, trends, ratios) identical to the
+baseline of main, objects and the place of every provenance record alike.
+
 *How it was checked.* Compiled. `data pp` with the projection cache, and `mc pp` (which writes the
 corrections' stamp): the output files identical to the baseline of main, object by object.
 `comparison_task` on the spectra, trends and ratios of the 2026 offline production against the 2024 one,

@@ -197,14 +197,6 @@ inline const std::string kStampMult{"binning_mult"};
 inline const std::string kStampPtPhi{"binning_ptPhi"};
 inline const std::string kStampPtAssoc{"binning_ptAssoc"};
 
-// How a reader that lists histograms keeps the stamps (TH1D too) out of the data. By the names
-// themselves, not by a prefix they happen to share: a stamp renamed would otherwise stop being
-// recognised and be divided like data, with no error. A new stamp is added here as well.
-inline bool IsBinningStamp(std::string_view name)
-{
-  return name == kStampMult || name == kStampPtPhi || name == kStampPtAssoc;
-}
-
 // Records a binning inside a file as an empty TH1D whose axis IS the binning.
 // Storing it as a histogram rather than as a bare array means it reads back
 // through AxisEdges like any other axis, and is inspectable in a TBrowser.
@@ -279,12 +271,25 @@ inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name
 // One TNamed per entry so that it reads in a TBrowser, or with "rootls -l",
 // without any code, and so that adding an entry breaks nobody.
 
-// The directory a file keeps its provenance in, below its scheme directory: the same name in
-// every file the framework writes, for every writer and every reader.
+// Where the provenance is: a directory below 'owner' - usually the file's binning_name; ""
+// for the top of the file - named the same in every file the framework writes. These functions
+// find it themselves, and decide whether it is created (writing) or only looked up (reading),
+// so that no caller spells either. A file that keeps several records side by side
+// (comparison_task: one per input, next to its own) qualifies them with 'record'.
+namespace Detail
+{
 inline const std::string kProvenanceDir{"Provenance"};
 
-inline void WriteProvenance(TDirectory* dir, const std::map<std::string, std::string>& facts)
+inline std::string ProvenanceDirName(std::string_view record)
 {
+  return record.empty() ? kProvenanceDir : std::format("{}_{}", kProvenanceDir, record);
+}
+} // namespace Detail
+
+inline void WriteProvenance(TDirectory* base, const std::string& owner, const std::map<std::string, std::string>& facts,
+                            std::string_view record = {})
+{
+  TDirectory* dir = GetOrCreatePath(base, {owner, Detail::ProvenanceDirName(record)}, false);
   if (!dir)
     return;
 
@@ -295,9 +300,10 @@ inline void WriteProvenance(TDirectory* dir, const std::map<std::string, std::st
   }
 }
 
-inline std::map<std::string, std::string> ReadProvenance(TDirectory* dir)
+inline std::map<std::string, std::string> ReadProvenance(TDirectory* base, const std::string& owner)
 {
   std::map<std::string, std::string> facts;
+  TDirectory* dir = GetOrCreatePath(base, {owner, Detail::kProvenanceDir}, true);
   if (!dir || !dir->GetListOfKeys())
     return facts;
 
@@ -317,9 +323,9 @@ inline std::map<std::string, std::string> ReadProvenance(TDirectory* dir)
 // For the task consuming the file. The serialised configuration is one long line,
 // so it is announced rather than printed: it is there to be diffed, not read in a
 // log.
-inline void PrintProvenance(TDirectory* dir, std::string_view fileLabel)
+inline void PrintProvenance(TDirectory* base, const std::string& owner, std::string_view fileLabel)
 {
-  const std::map<std::string, std::string> facts = ReadProvenance(dir);
+  const std::map<std::string, std::string> facts = ReadProvenance(base, owner);
   if (facts.empty()) {
     Logger::Info("{}: no provenance recorded (written before it existed).", fileLabel);
     return;

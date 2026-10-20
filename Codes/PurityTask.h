@@ -236,7 +236,7 @@ class PurityTask : public IAnalysisTask
         RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
 
       // Written per file because several particles can share one, e.g. pi_tpc and pi_tof.
-      RootIO::WriteProvenance(RootIO::GetOrCreatePath(task.outputFile, {globalCfgs.binningName, RootIO::kProvenanceDir}, false), provenance);
+      RootIO::WriteProvenance(task.outputFile, globalCfgs.binningName, provenance);
     }
 
     // 2. Write the CCDB-ready maps, one file per particle, object named "ccdb_object"
