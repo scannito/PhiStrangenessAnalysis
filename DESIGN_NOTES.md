@@ -416,6 +416,29 @@ so far are harmless (the extrapolation study of `OldComparison/extrapolation/` c
 but a ROOT message that matters would pass the same way. A `SetErrorHandler` that hands `kWarning` and above to
 `Logger::Warn` would put them in the count; what to do with the hundreds that are expected is the open part.
 
+**`Macros/uploadToCCDB.C` needs a rework before the next upload** (noted on 21 October 2026, to be discussed).
+The macro now selects the dataset by a unique name and reads the `..._updated_` maps; what is left:
+
+- **Two uploads can land on the same CCDB path.** The 2026 strangeness-injected datasets have `dir = "pp26"`, as
+  the inclusive ones (2023 has its own `pp23strinj`), so an upload of one replaces the other for every reader. And
+  `per_period` and `per_IR` both write to `.../perIR_Updated/...` with overlapping validity windows: for a given run,
+  `getForRun` in O2Physics returns whichever was uploaded last.
+- **Nothing is checked before uploading.** A missing file or a missing `ccdb_object` gives a null pointer that is
+  passed to `storeAsTFileAny` (CCDB refuses it, the macro goes on and ends with "Done!"); the cast is a C cast to
+  `TH2D`; a failed upload is caught and its message dropped. Every input should be checked before anything is sent,
+  and a dry run (file, object, path, validity as dates) should be the default: an upload cannot be taken back.
+- **Hard-coded:** the input directory and binning (`../DataFile/pp/DeltaY/Corrections/MoreFullDifferential/`, relative
+  to where ROOT is started), the variant `_updated_` in both the file name and the path, the particle list, the CCDB
+  root, the validity of a full upload (1 to 2524604400000 ms, twice), and the choice of the run-range branch by
+  comparing the dataset name with four names instead of the `category` the struct now carries.
+- **The margin around SOR/EOR is 300 ms**, not 300 s: RCT gives them in milliseconds. To confirm which was meant.
+- **What is in CCDB today** (the run of 21 October): `Users/s/scannito/Efficiencies/pp26_highIR/fullvalidityh2EffMap*`
+  and `pp26_lowIR/...` hold the maps of the production of 18 September (`2026_HighIR_` / `2026_LowIR_`, no Omega), not
+  the `updated` ones of 20-21 October. A reader of those paths gets the old efficiencies.
+
+Open: whether the variant goes into the path; ms or s; whether the 3D maps (`h3EffMap`, the default of
+`ccdbEfficiencyPath` in O2Physics) are uploaded too.
+
 **Background-ratio uncertainty is computed but not propagated.** `bkgRatioAndError`
 now reaches `h2TriggerBkgRatio`, but `CorrelationCalculator` still scales the
 sideband by an exact factor. Adding it per bin would be wrong: σ_R is fully
