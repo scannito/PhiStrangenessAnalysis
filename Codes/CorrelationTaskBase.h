@@ -1139,8 +1139,19 @@ class CorrelationTaskBase : public IAnalysisTask
     // The fitted curve, travelling with the spectrum it describes. Same colour as the
     // points, so that on the overlay below each curve is readable against its own
     // spectrum rather than against the one next to it.
+    //
+    // A copy, not Clone(). The models are TF1s built from C++ functions, and ROOT streams such
+    // a TF1 as its values on GetNpx() points; Clone() goes through the streamer, so a clone is
+    // already an interpolation of 100 points, in memory as in the file, and a SetNpx after it
+    // changes nothing (TF1::Streamer, ROOT 6.36). The copy constructor keeps the function, so
+    // SetNpx decides what the file gets. Measured on 20 October 2026, read back against the
+    // live function: 100 points, 17 % off below 0.3 GeV/c and 2 % above (pi blast-wave), and
+    // the integral over 0-0.2 GeV/c 6 % low; 1000 points, 0.16 % and 0.02 %. Checked again on
+    // the chain's own output: 0.26 % below 0.3 GeV/c, the integral 0.07 % low. The price is
+    // the file: a spectra file goes from 0.46 to 1.7 MB, the canvases carrying the curves too.
     auto attachCurve = [&](const TF1* model, Style_t style, double from, double to) {
-      std::unique_ptr<TF1> curve(static_cast<TF1*>(model->Clone()));
+      auto curve = std::make_unique<TF1>(*model);
+      curve->SetNpx(1000);
       curve->SetLineColor(globalCfgs.GetSpectraColor(multBin));
       curve->SetLineWidth(2);
       curve->SetLineStyle(style);

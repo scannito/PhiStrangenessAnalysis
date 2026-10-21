@@ -407,26 +407,6 @@ binning from `h3PhiData`, `CorrelationTask` resolves it from axis 1 of the spars
 The two must agree because those matrices are read by index. Now that they carry
 real axes it is checkable — three lines in `ResolveBinningAndCache`.
 
-**The statistical error of an extrapolated yield depends on the spectrum extrapolated before it.**
-`SpectrumExtrapolator` reads its toy distributions with `gROOT->GetFunction("gaus")`, the global `gaus`,
-and fits it in place: each spectrum starts that fit from the parameters the previous one left. Measured on
-20 October 2026 (a standalone program, the K0S of class 10-15 % after a π fitted over two different ranges):
-statistical error 0.013885548562513277 against …515343, 1.5e-13 relative; with a local `TF1` the two agree to
-the last digit. Found because a π-only configuration change moved the K0S and Ξ errors by up to 1e-10 in 9 of
-the 10 classes. Negligible as a number, but it means no output is a function of its own inputs alone, and an
-exact before/after on one species fails for a change to another. The fix is one line, a `TF1` owned by the
-function with a name of its own (CLAUDE.md, ROOT's global lists); every statistical error moves at the 1e-10
-level once, so it goes in a commit of its own.
-
-**The curves written next to the spectra are not the fitted functions.** The models of
-`ExtrapolationModelFactory` are `TF1`s built from C++ functions, and ROOT writes such a `TF1` as its values
-on `GetNpx()` points (100, so 0.1 GeV/c steps over [0, 10]); read back, it interpolates them. Measured on
-20 October 2026 with the π blast-wave: read back / live 0.84 at 0.02 GeV/c, 0.95 at 0.12, 1.02 above
-1 GeV/c, and the integral over 0-0.2 GeV/c 6 % low; a χ² recomputed from the curves in the file was 98
-instead of the fit's 67. The yields are not affected (computed with the live functions), but every plot or
-reader of the `_extended` curves is (`phiplot` too). A larger `SetNpx` before writing, finer where the
-spectrum turns over, is the obvious fix; how fine is to be measured.
-
 **Background-ratio uncertainty is computed but not propagated.** `bkgRatioAndError`
 now reaches `h2TriggerBkgRatio`, but `CorrelationCalculator` still scales the
 sideband by an exact factor. Adding it per bin would be wrong: σ_R is fully
@@ -556,7 +536,7 @@ Separate these before trusting the extrapolated yields.
   rest is elsewhere.
 
 - **Blast-wave over 0.2-3.0 against the two fits**, on the same ten points (0.2-3.0 GeV/c) and recomputed with
-  the live functions (the curves in a file are not the fits, section 5):
+  the live functions (the curves in a file were not the fits then, `DESIGN_HISTORY.md`, *The toy fits and the saved curves*):
 
   | class (%) | χ²/ndf, blast-wave (4 par.) | χ²/ndf, two fits (6 par.) | χ², first 3 bins: blast-wave | two fits |
   |---|---|---|---|---|

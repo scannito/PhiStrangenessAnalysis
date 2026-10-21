@@ -7,6 +7,42 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## The toy fits and the saved curves: two ROOT globals
+
+**20 October 2026**, both found while checking the second fit of the high side (below).
+
+**The toy distributions were fitted with gROOT's shared `gaus`.** A π-only configuration change moved the
+statistical errors of the K0S and Ξ by up to 1e-10 in 9 of the 10 classes. The mechanism, read in ROOT 6.36's
+`HFitImpl.cxx`: for a predefined `gaus`, `TH1::Fit` recomputes the starting values every time (`InitGaus`), but
+takes Minuit's initial step sizes from the parameter errors the function carries (`GetParError` before
+`SetStepSize`), which are what the previous fit wrote into it. Measured on one toy distribution fitted after two
+different ones: σ 0.013324856901797291 against …905001868; with the errors reset before the fit, or with a `TF1`
+of its own, …918743088 both times. So only the errors carried over, not the values; and within one spectrum the
+fit of ⟨pT⟩ took its steps from the fit of the yield. Now each fit has a `TF1` of its own, out of the global list,
+built on the histogram's range (without `"R"` the range is not a window, and `[0, 1]`, the first version, read as
+one). A failed fit is said with `Logger::Warn`, since its width was written out as the error regardless; the two
+`GetEntries() > 0` guards went (1000 toys always fill them, and a run with none now fails the fit and warns).
+
+**The curves written next to the spectra were interpolations of 100 points.** The models are `TF1`s built from C++
+functions, which ROOT streams as their values on `GetNpx()` points (`TF1::Streamer`). `Clone()` goes through the
+streamer, so the clone attached to the spectrum was already a 100-point interpolation, in memory as in the file,
+and a `SetNpx` on it changed nothing (the first attempt, measured identical for 100 to 2000). A copy made with the
+copy constructor keeps the function (and does not register in gROOT's list), and `SetNpx(1000)` then decides what is
+written. Read back from the chain's output against the live function rebuilt from the saved parameters: π
+blast-wave, worst 23 % below 0.3 GeV/c and the integral over 0-0.2 GeV/c 7 % low before, 0.26 % and 0.07 % after;
+K0S Lévy-Tsallis 3 % before, below 0.03 % after. A χ² recomputed from the old curves had given 98 for a fit of 67.
+The yields never used these curves; plots and any reader of the `_extended` curves did (`phiplot` too).
+
+**Checked**, data pp, compiled, each sandbox built from its own sources: the run with the π default and the run
+with the two-fit π differ in nothing outside the π (they differed in the K0S and Ξ errors before); against the code
+before, every content identical and the statistical errors of the extrapolated trends moved by at most 9e-6
+relative (another minimum within Minuit's tolerance, far inside the toys' few percent), no new warning. A spectra
+file grows from 0.46 to 1.7 MB, the canvases carrying the curves as well; 500 points would be about 1.0 MB for
+about 0.8 % (estimated, not run). Reviewed by `analysis-reviewer` and `analysis-simplifier`: the range and the
+unread fit status taken, the guards removed; the literal `1000` kept, with one use and its reason above it.
+
+---
+
 ## A second fit for the high side, and the blast-wave for the π
 
 **20 October 2026.** The comparison with the pre-framework K0S/π (`OldComparison/`) found that the π yield
@@ -53,7 +89,7 @@ provenance (it is: `provenance["extrap_config"]`, the whole file).
 |---|---|---|
 | regression, no `high` | the whole data chain before and after, object by object (`Macros/CompareRootFiles.cpp`), on the six spectra files it writes (2024 and 2026; offline, online, online without φ) | identical, run twice (before and after the review changes); same single warning. The other 48 files of `FinalResults` come from MC runs and are not written by the data chain: they compare equal and say nothing |
 | K0S `fit_range` 6.0 → 6.4 | same comparison, the four projection caches included | the ten files identical: the last bin, 4.2-6.4, has its centre at 5.3 and was already in |
-| chain with `high` | π Lévy-Tsallis 0.2-1.0 plus Lévy-Tsallis 1.0-3.0, against the run without | only the six data files with a π spectrum change, 39 objects each: the π trends and the ratios over π. The K0S and Ξ trends move by 1e-10 in their errors only, traced to the global `gaus` (`DESIGN_NOTES.md` section 5) |
+| chain with `high` | π Lévy-Tsallis 0.2-1.0 plus Lévy-Tsallis 1.0-3.0, against the run without | only the six data files with a π spectrum change, 39 objects each: the π trends and the ratios over π. The K0S and Ξ trends move by 1e-10 in their errors only, traced to the global `gaus` (*The toy fits and the saved curves*, above) |
 | the same, against a standalone program | the π yields of the chain and of `SpectrumExtrapolator` driven directly | the same to the 0.02 % that the different `n` limit (20 against 30) explains |
 | curves | functions attached to `_extended` | main [0, 1], high [1, 10] dashed; without `high` one curve over [0, 10] as before |
 | parser | a valid block with a bin override `null` and another replacing it; `high` not an object; `model` missing; a misspelled key next to it; `fit_range` of the wrong type | each as intended: the override switches off and replaces, the four errors stop with key and section |
@@ -64,7 +100,7 @@ provenance (it is: `provenance["extrap_config"]`, the whole file).
 | MC chain | `mc pp` before and after | the 355 files it writes (`Corrections/`) identical, same warnings: nothing there is extrapolated |
 
 The χ² comparisons were first made from the curves in the output file and gave numbers that did not match the
-fits (98 against 67): those curves are interpolated from 100 saved points (`DESIGN_NOTES.md` section 5). All the
+fits (98 against 67): those curves were interpolated from 100 saved points (*The toy fits and the saved curves*, above). All the
 numbers recorded were recomputed with the live functions.
 
 **Not run:** the MC closure, whose files hold extrapolated π, K0S and Ξ trends but are written by no mode of

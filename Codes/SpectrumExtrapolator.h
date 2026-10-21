@@ -6,7 +6,6 @@
 #include "TF1.h"
 #include "TH1.h"
 #include "TMath.h"
-#include "TROOT.h"
 #include "TRandom3.h"
 #include "TString.h"
 #include "TVirtualFitter.h"
@@ -276,17 +275,31 @@ class SpectrumExtrapolator
     }
 
     // 4. Extract Gaussian widths as the statistical uncertainties
-    TF1* gaus = static_cast<TF1*>(gROOT->GetFunction("gaus"));
+    //
+    // A fresh TF1 for each fit, not gROOT's "gaus", which every fit used to share. TH1::Fit
+    // recomputes the starting values of a predefined gaus every time, but takes Minuit's
+    // initial step sizes from the parameter errors the function carries (HFitImpl.cxx, the
+    // GetParError before SetStepSize), and those are what the previous fit left: another
+    // spectrum's, or this spectrum's yield for its mean. Measured on 20 October 2026: the same
+    // toy distribution fitted after two different ones, sigma 0.013324856901797291 against
+    // ...905001868; with the errors reset, or with a TF1 of its own, ...918743088 both times.
+    // In the chain, a pi-only configuration change moved the K0S and Xi errors by 1e-10, and
+    // no longer does. The switch itself moved every statistical error once, by at most 9e-6
+    // relative: another minimum within Minuit's tolerance, far inside the toys' few percent.
+    // The range is the histogram's own: without "R" the fit ignores it, and any other would
+    // read as a window. A failed fit is said, since its width would be written out as the
+    // error all the same; with no toys at all the fit fails, which covers that case too.
+    auto relativeWidth = [this](TH1* h) {
+      TF1 gaus("gausToys", "gaus", h->GetXaxis()->GetXmin(), h->GetXaxis()->GetXmax(), TF1::EAddToList::kNo);
+      if (const int status = h->Fit(&gaus, "0Q"); status != 0)
+        Logger::Warn("SpectrumExtrapolator: the Gaussian fit of the toy distribution '{}' of '{}' failed (status {}): "
+                     "the statistical error derived from it is not reliable.",
+                     h->GetName(), fMeasuredSpectrum->GetName(), status);
+      return gaus.GetParameter(2) / gaus.GetParameter(1);
+    };
 
-    if (hIntegral->GetEntries() > 0) {
-      hIntegral->Fit(gaus, "0Q");
-      res.yieldStatErr = res.yield * gaus->GetParameter(2) / gaus->GetParameter(1);
-    }
-
-    if (hMean->GetEntries() > 0) {
-      hMean->Fit(gaus, "0Q");
-      res.meanPtStatErr = res.meanPt * gaus->GetParameter(2) / gaus->GetParameter(1);
-    }
+    res.yieldStatErr = res.yield * relativeWidth(hIntegral.get());
+    res.meanPtStatErr = res.meanPt * relativeWidth(hMean.get());
 
     // 5. Systematic uncertainty, only if a systematic spectrum was supplied
     ComputeSystematics(res, minPt, maxPt);
