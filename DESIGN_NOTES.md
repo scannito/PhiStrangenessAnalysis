@@ -1011,6 +1011,20 @@ Already done around it: `ExtrapConfigManager::GetConfig` throws for a particle w
 efficiency side of the same problem (`apply_efficiency_to` missing fell back to "all active
 particles") is gone with the `corrections` block, where nothing is defaulted.
 
+**How a spectrum is extrapolated is written twice: in the chain and in the study.** The sequence of
+`CorrelationTaskBase::ExtrapolateSpectrum` that builds the models from the configuration (the high one through
+`HighConfig`), configures `SpectrumExtrapolator` (fit and domain ranges, `SetHighModel`, and the three options
+`kFitOption`, `kLoPrecision`, `kHiPrecision`, local constants there) and runs `Extrapolate` is private to the task,
+so `OldComparison/extrapolation/Chain.h` repeats it (`Chain::Extrapolate`). Today the two agree:
+`checks/asTheChain` there remakes a file's yields and fails if they differ (21 October 2026: within 4e-8). But it
+finds a drift after the fact, and only when someone runs it. The way out: that sequence as one public function of
+the framework, e.g. `ExtrapolateAsConfigured(TH1*, const ExtrapConfig&, name)` in `SpectrumExtrapolator.h`,
+returning the fitted functions, the result and the convergence, with the three options and their comment moved
+with it. `ExtrapolateSpectrum` would keep what is the task's (the report, the `_extended` spectrum, the curves, the
+writing), `Chain::Extrapolate` and the copied constants would go, and `asTheChain` would remain as a check that a
+file's provenance reproduces it. About 25 lines moved, no operation changed: the six spectra files must come out
+identical. Proposed on 21 October 2026, left for later by the owner.
+
 **Purely static classes that would read better as namespaces.** `EfficiencyCalculator`
 is ten `static` functions, no data member, nothing private, and a deleted constructor
 (commented "Purely static class"); only `MCTask` uses it. A class used that way is a

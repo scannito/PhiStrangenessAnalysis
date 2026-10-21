@@ -26,7 +26,7 @@ it was made with from its provenance (the whole `extrapConfig.json`), with the m
 cannot be read is copied there once: the three options of `CorrelationTaskBase::ExtrapolateSpectrum` (local
 constants in the chain), which `checks/asTheChain` verifies by remaking the file's extrapolated yields, and the π
 starting points of the configuration before and after the change, for the study's own cases. A function of the
-framework that both the chain and the study call would remove that copy; it is not there yet.
+framework that both the chain and the study call would remove that copy; it is not there yet (`DESIGN_NOTES.md` section 10).
 
 ## The programs
 
