@@ -1,0 +1,21 @@
+ok   high, null and a replacement in two bins
+     [0] LevyTsallis 0.2-1 T=0.3 n=5 norm=1.5 | high LevyTsallis 1-3 T=0.3 n=5 norm=1.5; [3] LevyTsallis 0.2-1 T=0.3 n=5 norm=1.5; [4] LevyTsallis 0.2-1 T=0.3 n=5 norm=1.5 | high LevyTsallis 0.8-3 T=0.3(fixed, 0..0) n=6(fixed, 0..0) norm=2(fixed, 0..0); 
+ok   params merged by name, fixed, as a string
+     [0] LevyTsallis 0.2-1 T=0.3 n=5 norm=1.5; [3] LevyTsallis 0.2-1 T=0.25(fixed, 0..0) n=7.5(fixed, 0..0) norm=1.5; [4] LevyTsallis 0.2-1 T=0.3 n=5 norm=1.5; 
+ok   high not an object
+     [FATAL] ExtrapConfigManager: section 'Pi', high: key 'high' must be an object, or null for none.
+ok   high without model
+     [FATAL] ExtrapConfigManager: section 'Pi', high: 'model' missing in JSON!
+ok   high without params
+     [FATAL] ExtrapConfigManager: section 'Pi', high: 'params' missing in JSON!
+ok   high with fit_range a string
+     [FATAL] ExtrapConfigManager: section 'Pi', high: 'fit_range' is not an array.
+ok   misspelled key next to high
+     [FATAL] ExtrapConfigManager: section 'Pi': unknown key 'hihg', it would be silently ignored. Known: model, domain_range, fit_range, params, high
+ok   parameter array of two
+     [FATAL] ExtrapConfigManager: section 'Pi': parameter 'n' is an array of 2 entries; a free parameter needs exactly three, [value, min, max].
+ok   parameter array of two inside high
+     [FATAL] ExtrapConfigManager: section 'Pi', high: parameter 'n' is an array of 2 entries; a free parameter needs exactly three, [value, min, max].
+ok   parameter of the wrong type
+     [FATAL] ExtrapConfigManager: section 'Pi': 'T' is neither a number nor a string.
+PASS: 10 cases, 0 failed

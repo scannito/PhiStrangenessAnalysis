@@ -1,0 +1,25 @@
+1. ROOT: a curve written and read back (worst deviation below 0.3 GeV/c, above it; integral over 0-0.2 GeV/c)
+   Pi   fBlastWave    Clone  Npx  100: 1.71e-01, 2.19e-02; integral -5.81e-02
+   Pi   fBlastWave    Clone  Npx  200: 1.71e-01, 2.19e-02; integral -5.81e-02
+   Pi   fBlastWave    Clone  Npx  500: 1.71e-01, 2.19e-02; integral -5.81e-02
+   Pi   fBlastWave    Clone  Npx 1000: 1.71e-01, 2.19e-02; integral -5.81e-02
+   Pi   fBlastWave    Clone  Npx 2000: 1.71e-01, 2.19e-02; integral -5.81e-02
+   Pi   fBlastWave    copy   Npx  100: 1.71e-01, 2.19e-02; integral -5.81e-02
+   Pi   fBlastWave    copy   Npx  200: 4.88e-02, 5.44e-03; integral -1.42e-02
+   Pi   fBlastWave    copy   Npx  500: 7.92e-03, 8.68e-04; integral -2.26e-03
+   Pi   fBlastWave    copy   Npx 1000: 1.78e-03, 2.17e-04; integral -5.64e-04
+   Pi   fBlastWave    copy   Npx 2000: 3.66e-04, 5.43e-05; integral -1.41e-04
+   K0S  fLevyTsallis  Clone  Npx  100: 3.89e-02, 1.39e-02; integral -1.78e-02
+   K0S  fLevyTsallis  Clone  Npx  200: 3.89e-02, 1.39e-02; integral -1.78e-02
+   K0S  fLevyTsallis  Clone  Npx  500: 3.89e-02, 1.39e-02; integral -1.78e-02
+   K0S  fLevyTsallis  Clone  Npx 1000: 3.89e-02, 1.39e-02; integral -1.78e-02
+   K0S  fLevyTsallis  Clone  Npx 2000: 3.89e-02, 1.39e-02; integral -1.78e-02
+   K0S  fLevyTsallis  copy   Npx  100: 3.89e-02, 1.39e-02; integral -1.78e-02
+   K0S  fLevyTsallis  copy   Npx  200: 9.91e-03, 3.84e-03; integral -4.42e-03
+   K0S  fLevyTsallis  copy   Npx  500: 1.55e-03, 6.46e-04; integral -7.06e-04
+   K0S  fLevyTsallis  copy   Npx 1000: 3.47e-04, 1.52e-04; integral -1.77e-04
+   K0S  fLevyTsallis  copy   Npx 2000: 7.35e-05, 3.95e-05; integral -4.43e-05
+2. framework: the curves attached to the spectra (class 3) of the file
+   Pi   fBlastWave_h1SpectrumPhiPi_dy1_00_multBin3, 1000 points: 2.58e-03 below 0.3 GeV/c; above, 7.36e-02 at 8.62 GeV/c (8.87e-05 below 3.5); integral -6.78e-04  ok
+   K0S  fLevyTsallis_h1SpectrumPhiK0S_dy1_00_multBin3, 1000 points: 2.90e-04 below 0.3 GeV/c; above, 1.36e-04 at 0.32 GeV/c (1.36e-04 below 3.5); integral -1.49e-04  ok
+   PASS

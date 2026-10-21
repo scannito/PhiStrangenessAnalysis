@@ -30,7 +30,8 @@ numerator, so run the chain first.
 | `run.sh` | All of it, in order. |
 | `data/` | The old inputs (not in git): copied from `~/Downloads/OldAnalysis` on 20 October 2026. |
 | `output/` | What `run.sh` makes (not in git). |
-| `reference/` | A snapshot of the result of 20 October 2026, in git: the overlay and the table, as `run.sh` printed them. |
+| `reference/` | Snapshots of the result, in git: the overlay and the table as `run.sh` printed them, one per date (20 October 2026, the π extrapolated with the Lévy-Tsallis over 0.2-1.0; 21 October, with the blast-wave over 0.2-3.0). |
+| `extrapolation/` | The study of the π extrapolation that the comparison led to, and the checks of what was changed in the framework because of it (its README). |
 
 ## The old result
 
@@ -69,9 +70,15 @@ are otherwise the same. Not checkable: whether `macro/YieldMean.C` is exactly th
 only the axes are checked (`RequireSameAxis`; the classes coincide), with `divide_option: ""` (independent
 samples). The old systematic uncertainty is shown as a band in the overlay and as a column in the table, not
 divided: a ratio carrying 2024's statistical and the old systematic error would be neither. Numerator: `Ratio_K0S_Pi_Extrap_dy1_00` of `Data_OfflineEff_2024_PhiAssocSpectra.root`, i.e. the
-offline-efficiency 2024 result, |Δy| < 1.0, the extrapolated yields (see *The extrapolation* below).
+offline-efficiency 2024 result, |Δy| < 1.0, the extrapolated yields (main README, *The extrapolated yield*).
 
-**Result of 20 October 2026** (2024 file produced at commit `a3f6899`):
+The comparison has been made twice, and the two are kept apart: what was found on 20 October, as it was found,
+and what changed on 21 October because of it. The old side is the same remake both times.
+
+## 20 October 2026: the original comparison
+
+The framework at commit `a3f6899`, the π extrapolated with the Lévy-Tsallis fitted over 0.2-1.0 GeV/c, its
+default then (`reference/overlay_2026-10-20.png`, `reference/table_2026-10-20.txt`).
 
 | class (%) | 2024 (extrap., stat) | old (stat) [syst] | 2024 / old |
 |---|---|---|---|
@@ -89,13 +96,7 @@ offline-efficiency 2024 result, |Δy| < 1.0, the extrapolated yields (see *The e
 The 2024 ratio is about 5 % below the old one in every class (0.92-0.98), within or at the edge of the old
 systematic band (about ±7 %); both are flat with multiplicity.
 
-That table is the π extrapolated with the Lévy-Tsallis fitted over 0.2-1.0 GeV/c, the default of the time.
-With the blast-wave over 0.2-3.0 that replaced it (main `DESIGN_NOTES.md` section 6), measured the same day on
-uncommitted code, 2024/old per class is 0.974, 0.994, 0.966, 0.984, 0.938, 0.970, 0.980, 0.993, 0.951,
-0.956: mean 0.971, 1 within the statistical error in two classes (1-5 and 40-50 %) and within the old systematic
-band in all. `reference/` stays the earlier snapshot, the one a commit can be named for.
-
-## The differences between the two analyses
+### The differences between the two analyses
 
 Everything found so far that differs between the old macro and the framework's 2024 result, with what each
 does to the 2024/old ratio where it was measured (20 October 2026, 2024 offline, |Δy| < 1.0). The ratio is
@@ -105,7 +106,7 @@ does to the 2024/old ratio where it was measured (20 October 2026, 2024 offline,
 
 | Difference | Old macro | Framework 2024 | Effect on 2024/old |
 |---|---|---|---|
-| π extrapolation above the data | none: `YieldMean` is called with `max = 1.0`, below the last edge (3.0), so it drops the high part | the Lévy-Tsallis fitted in 0.2-1.0 GeV/c (`fit_range`) and integrated from 3 to 10 GeV/c (`domain_range` `[0, 10]`), where no data constrain it | removing it lowers the π yield by 0.4 % (70-100 %) to 3.5 % (1-5 %) and raises the ratio as much: mean 0.947 → 0.966. **The largest single difference found.** It was the model's tail and not the data: fitted to the data up to 3 GeV/c, by a blast-wave or by a second fit of the high side alone, the tail is 0.1-0.3 % of the yield. With the blast-wave, now the default, the mean is 0.971; the extra 0.5 % comes from its low-pT side. |
+| π extrapolation above the data | none: `YieldMean` is called with `max = 1.0`, below the last edge (3.0), so it drops the high part | the Lévy-Tsallis fitted in 0.2-1.0 GeV/c (`fit_range`) and integrated from 3 to 10 GeV/c (`domain_range` `[0, 10]`), where no data constrain it | removing it lowers the π yield by 0.4 % (70-100 %) to 3.5 % (1-5 %) and raises the ratio as much: mean 0.947 → 0.966. **The largest single difference found.** |
 | K0S extrapolation above the data | none (`max = 6.0`, the last edge) | from 6.4 to 10 GeV/c | 0.1 % of the K0S yield in every class: negligible |
 | How the yield is assembled | sum of the measured bins + `YieldMean`'s `kExtra` (equal to `kYield`) | measured bins + model outside them (`SpectrumExtrapolator`, the same scheme) | none: the same quantity (main README, *The extrapolated yield*) |
 | Normalisation | per event with a φ candidate, purity-corrected | per trigger | none: it cancels in the ratio |
@@ -140,7 +141,37 @@ How the "measured" rows were obtained: the 2024 file remade with `domain_range` 
 (6.4 for the K0S, 3.0 for the π) and every other setting unchanged, and the extrapolated trends of the two
 species compared bin by bin; with `trend_composition` switched, before it was removed, for the assembly row.
 
+## 21 October 2026: after the π extrapolation changed
+
+What the comparison of 20 October led to, in the framework: the π default became a blast-wave over 0.2-3.0 GeV/c,
+with a second fit of the high side available as the alternative (commit `d0b4b52`; the study, its figures and
+checks in `extrapolation/`), and the statistical errors of the extrapolated yields stopped depending on the
+spectrum extrapolated before them (`25fe5fb`, a shift of at most 1e-5 relative). Everything else unchanged. The
+framework at commit `25fe5fb` (`reference/overlay_2026-10-21.png`, `reference/table_2026-10-21.txt`):
+
+| class (%) | 2024 (extrap., stat) | old (stat) [syst] | 2024 / old | on 20 October |
+|---|---|---|---|---|
+| 0-1 | 0.1199 ± 0.0023 | 0.1232 ± 0.0005 [0.0085] | 0.974 ± 0.019 | 0.929 |
+| 1-5 | 0.1226 ± 0.0013 | 0.1234 ± 0.0004 [0.0085] | 0.994 ± 0.011 | 0.955 |
+| 5-10 | 0.1197 ± 0.0013 | 0.1239 ± 0.0005 [0.0086] | 0.966 ± 0.011 | 0.936 |
+| 10-15 | 0.1195 ± 0.0015 | 0.1215 ± 0.0003 [0.0084] | 0.984 ± 0.013 | 0.959 |
+| 15-20 | 0.1134 ± 0.0016 | 0.1210 ± 0.0003 [0.0084] | 0.938 ± 0.013 | 0.921 |
+| 20-30 | 0.1176 ± 0.0013 | 0.1212 ± 0.0003 [0.0084] | 0.970 ± 0.011 | 0.955 |
+| 30-40 | 0.1184 ± 0.0015 | 0.1208 ± 0.0003 [0.0084] | 0.980 ± 0.013 | 0.962 |
+| 40-50 | 0.1201 ± 0.0018 | 0.1209 ± 0.0005 [0.0085] | 0.993 ± 0.016 | 0.976 |
+| 50-70 | 0.1148 ± 0.0016 | 0.1207 ± 0.0003 [0.0084] | 0.951 ± 0.014 | 0.934 |
+| 70-100 | 0.1213 ± 0.0020 | 0.1268 ± 0.0005 [0.0089] | 0.956 ± 0.017 | 0.941 |
+
+Mean 0.971 (0.947 on 20 October): 1 within the statistical error in two classes (1-5 and 40-50 %), and within
+the old systematic band in all.
+
+**What this settles of the differences above.** The π extrapolation above the data, the largest of them, was the
+model's tail and not the data: fitted to the data up to 3 GeV/c, by the blast-wave or by a second fit of the high
+side alone, the tail is 0.1-0.3 % of the yield, and the ratio moves from 0.947 to 0.971 (0.966 with no high-pT
+extrapolation at all; the extra 0.5 % comes from the blast-wave's low-pT side). About 3 % remains, the same in
+every class, and every row of *Not measured yet* stays open; so do the old statistical errors.
+
 ## Removing it
 
-`git rm -r OldComparison`, delete the two `OldComparison/` lines in `.gitignore`, commit. The data in
+`git rm -r OldComparison`, delete the `OldComparison/` lines in `.gitignore`, commit. The data in
 `OldComparison/data` are a copy; the originals are in `~/Downloads/OldAnalysis`.

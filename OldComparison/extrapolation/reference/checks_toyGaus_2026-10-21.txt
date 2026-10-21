@@ -1,0 +1,8 @@
+1. ROOT: sigma of the same toy distribution, fitted after two different fits
+   shared gROOT gaus             after previousA: 0.013324856901797291  after previousB: 0.013324856905001868
+   shared, errors reset first    after previousA: 0.013324856918743088  after previousB: 0.013324856918743088
+   a TF1 of its own              after previousA: 0.013324856918743088  after previousB: 0.013324856918743088
+2. framework: K0S statistical error after a pi extrapolated two ways
+   after a pi fitted up to 1.0 GeV/c: 0.013885548562347156
+   after a pi fitted up to 3.0 GeV/c: 0.013885548562347156
+   PASS: the K0S error does not depend on the pi extrapolated before it

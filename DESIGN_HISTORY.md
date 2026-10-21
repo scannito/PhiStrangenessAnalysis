@@ -37,8 +37,9 @@ The yields never used these curves; plots and any reader of the `_extended` curv
 with the two-fit π differ in nothing outside the π (they differed in the K0S and Ξ errors before); against the code
 before, every content identical and the statistical errors of the extrapolated trends moved by at most 9e-6
 relative (another minimum within Minuit's tolerance, far inside the toys' few percent), no new warning. A spectra
-file grows from 0.46 to 1.7 MB, the canvases carrying the curves as well; 500 points would be about 1.0 MB for
-about 0.8 % (estimated, not run). Reviewed by `analysis-reviewer` and `analysis-simplifier`: the range and the
+file grows from 0.46 to 1.7 MB, the canvases carrying the curves as well; 500 points would give 0.8 % (measured)
+for about 1.0 MB (estimated). Both behaviours and both fixes are checked by `OldComparison/extrapolation/checks/`
+(`toyGaus`, `savedCurves`). Reviewed by `analysis-reviewer` and `analysis-simplifier`: the range and the
 unread fit status taken, the guards removed; the literal `1000` kept, with one use and its reason above it.
 
 ---
@@ -107,6 +108,12 @@ numbers recorded were recomputed with the live functions.
 `runAnalysis.sh` today (the ones in `FinalResults` are of August, in the old layout), the
 systematic variations with `high` (no configuration supplies a systematic spectrum, so `ComputeSystematics`
 does not run), and the interpreted mode (it does not start in this environment, CLAUDE.md).
+
+The model scan, the comparison of one fit with two and the parser cases are programs in
+`OldComparison/extrapolation/` (`modelScan`, `twoFits`, `checks/configHigh`), with what they gave in its
+`reference/`; `checks/asTheChain` there verifies that they extrapolate as the chain does, by remaking the yields
+of a chain output from the configuration it records (21 October 2026: the 30 of the 2024 file within 4e-8, the
+precision of the trends' `TH1F`).
 
 ---
 

@@ -21,4 +21,8 @@ RooFitKnowledge/scratch/
 OldComparison/data/
 OldComparison/output/
 # ...except a snapshot of a result, kept for reference (OldComparison/README.md).
-!OldComparison/reference/*.png
+!OldComparison/reference/*
+# The extrapolation study: the same, its output out and its reference in. Every file of the two reference folders,
+# not only the figures: *_C* above matches checks_configHigh_* too, since git compares names without case here.
+OldComparison/extrapolation/output/
+!OldComparison/extrapolation/reference/*

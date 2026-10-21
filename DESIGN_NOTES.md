@@ -407,6 +407,15 @@ binning from `h3PhiData`, `CorrelationTask` resolves it from axis 1 of the spars
 The two must agree because those matrices are read by index. Now that they carry
 real axes it is checkable — three lines in `ResolveBinningAndCache`.
 
+**ROOT's own warnings are not in the end-of-run summary.** ROOT prints through its own error handler, not
+`Logger`, so `RunAnalysisChain`'s count of warnings never sees them. Measured on 21 October 2026, data pp at
+`25fe5fb`: the log holds 323 `GSLError` 18 (round-off in an integral), 182 `TF1Helper::IntegralError` (the error of
+an extrapolated bin known to less than the 1e-6 asked for), 5 `GSLError` 22 (an integral divergent or slowly
+convergent) and the `IntegralOneDim` lines around them, while the summary says "1 distinct warning". The ones seen
+so far are harmless (the extrapolation study of `OldComparison/extrapolation/` counts them in its programs too),
+but a ROOT message that matters would pass the same way. A `SetErrorHandler` that hands `kWarning` and above to
+`Logger::Warn` would put them in the count; what to do with the hundreds that are expected is the open part.
+
 **Background-ratio uncertainty is computed but not propagated.** `bkgRatioAndError`
 now reaches `h2TriggerBkgRatio`, but `CorrelationCalculator` still scales the
 sideband by an exact factor. Adding it per bin would be wrong: σ_R is fully
@@ -531,7 +540,7 @@ Separate these before trusting the extrapolated yields.
   over 0.8-3.0, 2 ndf and the same yields within 0.06 %. The tail above 3 GeV/c drops to 0.1-0.3 % of the yield
   and the yield by 0.2 (70-100 %) to 3.2 % (1-5 %), 2.9 % in 0-1 % (chain, 2024 offline): all of it from the
   tail, since the low side is the current fit. Blast-wave over 0.2-3.0 is within 0.5 % of it in the middle
-  classes and 1.7 % (0-1 %) and 1.4 % (70-100 %) lower at the two ends, all from its low side. The mean 2024/old of `OldComparison` goes from
+  classes and 1.8 % (0-1 %) and 1.4 % (70-100 %) lower at the two ends, all from its low side. The mean 2024/old of `OldComparison` goes from
   0.947 to 0.965, the 0.966 of no high-pT extrapolation at all: the current tail accounts for 2 of the 5 %, the
   rest is elsewhere.
 
@@ -540,8 +549,8 @@ Separate these before trusting the extrapolated yields.
 
   | class (%) | χ²/ndf, blast-wave (4 par.) | χ²/ndf, two fits (6 par.) | χ², first 3 bins: blast-wave | two fits |
   |---|---|---|---|---|
-  | 0-1 | 66.8/6 = 11.1 | 42.0/4 = 10.5 | 24.5 | 6.5 |
-  | 1-5 | 176.9/6 = 29.5 | 132.9/4 = 33.2 | 82.5 | 29.3 |
+  | 0-1 | 66.8/6 = 11.1 | 42.4/4 = 10.6 | 24.5 | 6.5 |
+  | 1-5 | 176.9/6 = 29.5 | 133.0/4 = 33.2 | 82.5 | 29.3 |
   | 5-10 | 107.2/6 = 17.9 | 99.2/4 = 24.8 | 35.1 | 19.2 |
   | 10-15 | 73.5/6 = 12.3 | 74.8/4 = 18.7 | 16.2 | 13.8 |
   | 15-20 | 38.9/6 = 6.5 | 49.5/4 = 12.4 | 3.8 | 10.0 |
@@ -551,17 +560,24 @@ Separate these before trusting the extrapolated yields.
   | 50-70 | 64.3/6 = 10.7 | 56.2/4 = 14.0 | 12.2 | 15.8 |
   | 70-100 | 27.1/6 = 4.5 | 13.6/4 = 3.4 | 5.6 | 5.7 |
 
+  (Recomputed on 21 October 2026 by `OldComparison/extrapolation/twoFits.cpp`, whose Lévy-Tsallis limits are the
+  configuration's, n ≤ 20; the first version had n ≤ 30, which moved two cells by 0.4 and 0.1.)
+
   The high side is the same for both (tails within 0.1 % of the yield). Over all the points the blast-wave has the
   lower χ²/ndf in 8 classes of 10 with two parameters fewer, and needs no fit with 1 ndf. On the first bins, which
-  decide the low-pT part and with it the 0-1.7 % between the two yields, neither wins: the Lévy-Tsallis is closer
+  decide the low-pT part and with it the 0-1.8 % between the two yields, neither wins: the Lévy-Tsallis is closer
   in 0-15 %, the blast-wave in the middle classes. Neither is good in absolute terms, but the fits are weighted
   with the statistical errors alone (no systematic spectrum reaches the extrapolator yet), so a χ²/ndf of 10-30
   does not by itself condemn a model.
 
+The tables and figures of this entry are reproduced by `OldComparison/extrapolation/run.sh` (its README; the
+results of 21 October 2026 are in its `reference/`), which also holds the checks of the two ROOT behaviours found on
+the way (`DESIGN_HISTORY.md`, *The toy fits and the saved curves*).
+
 **Decided on 20 October 2026 (owner):** the π default is the blast-wave over 0.2-3.0 GeV/c; the two fits stay
 available through `high` (the block is in the README, *The extrapolated yield*). Measured with it, data pp: every
 fit converges in every |Δy| window and file, no new warning; the K0S/π of `OldComparison` goes to 0.971 of the
-old on average (`OldComparison/README.md`). Still open: whether the low-pT spread between the two (up to 1.7 %
+old on average (`OldComparison/README.md`). Still open: whether the low-pT spread between the two (up to 1.8 %
 of the π yield) is quoted as a systematic of the extrapolation.
 
 This was recorded with a condition attached: keep the legacy branch

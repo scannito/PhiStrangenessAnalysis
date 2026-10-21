@@ -1146,9 +1146,10 @@ class CorrelationTaskBase : public IAnalysisTask
     // changes nothing (TF1::Streamer, ROOT 6.36). The copy constructor keeps the function, so
     // SetNpx decides what the file gets. Measured on 20 October 2026, read back against the
     // live function: 100 points, 17 % off below 0.3 GeV/c and 2 % above (pi blast-wave), and
-    // the integral over 0-0.2 GeV/c 6 % low; 1000 points, 0.16 % and 0.02 %. Checked again on
-    // the chain's own output: 0.26 % below 0.3 GeV/c, the integral 0.07 % low. The price is
-    // the file: a spectra file goes from 0.46 to 1.7 MB, the canvases carrying the curves too.
+    // the integral over 0-0.2 GeV/c 6 % low; 1000 points, 0.16-0.18 % (by the points checked)
+    // and 0.02 %. On the chain's own output: 0.26 % below 0.3 GeV/c, the integral 0.07 % low
+    // (OldComparison/extrapolation/checks/savedCurves.cpp). The price is the file: a spectra
+    // file goes from 0.46 to 1.7 MB, the canvases carrying the curves too.
     auto attachCurve = [&](const TF1* model, Style_t style, double from, double to) {
       auto curve = std::make_unique<TF1>(*model);
       curve->SetNpx(1000);
