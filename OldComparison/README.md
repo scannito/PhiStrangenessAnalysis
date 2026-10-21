@@ -89,6 +89,12 @@ offline-efficiency 2024 result, |Δy| < 1.0, the extrapolated yields (see *The e
 The 2024 ratio is about 5 % below the old one in every class (0.92-0.98), within or at the edge of the old
 systematic band (about ±7 %); both are flat with multiplicity.
 
+That table is the π extrapolated with the Lévy-Tsallis fitted over 0.2-1.0 GeV/c, the default of the time.
+With the blast-wave over 0.2-3.0 that replaced it (main `DESIGN_NOTES.md` section 6), measured the same day on
+uncommitted code, 2024/old per class is 0.974, 0.994, 0.966, 0.984, 0.938, 0.970, 0.980, 0.993, 0.951,
+0.956: mean 0.971, 1 within the statistical error in two classes (1-5 and 40-50 %) and within the old systematic
+band in all. `reference/` stays the earlier snapshot, the one a commit can be named for.
+
 ## The differences between the two analyses
 
 Everything found so far that differs between the old macro and the framework's 2024 result, with what each
@@ -99,7 +105,7 @@ does to the 2024/old ratio where it was measured (20 October 2026, 2024 offline,
 
 | Difference | Old macro | Framework 2024 | Effect on 2024/old |
 |---|---|---|---|
-| π extrapolation above the data | none: `YieldMean` is called with `max = 1.0`, below the last edge (3.0), so it drops the high part | the Lévy-Tsallis fitted in 0.2-1.0 GeV/c (`fit_range`) and integrated from 3 to 10 GeV/c (`domain_range` `[0, 10]`), where no data constrain it | removing it lowers the π yield by 0.4 % (70-100 %) to 3.5 % (1-5 %) and raises the ratio as much: mean 0.947 → 0.966. **The largest single difference found.** |
+| π extrapolation above the data | none: `YieldMean` is called with `max = 1.0`, below the last edge (3.0), so it drops the high part | the Lévy-Tsallis fitted in 0.2-1.0 GeV/c (`fit_range`) and integrated from 3 to 10 GeV/c (`domain_range` `[0, 10]`), where no data constrain it | removing it lowers the π yield by 0.4 % (70-100 %) to 3.5 % (1-5 %) and raises the ratio as much: mean 0.947 → 0.966. **The largest single difference found.** It was the model's tail and not the data: fitted to the data up to 3 GeV/c, by a blast-wave or by a second fit of the high side alone, the tail is 0.1-0.3 % of the yield. With the blast-wave, now the default, the mean is 0.971; the extra 0.5 % comes from its low-pT side. |
 | K0S extrapolation above the data | none (`max = 6.0`, the last edge) | from 6.4 to 10 GeV/c | 0.1 % of the K0S yield in every class: negligible |
 | How the yield is assembled | sum of the measured bins + `YieldMean`'s `kExtra` (equal to `kYield`) | measured bins + model outside them (`SpectrumExtrapolator`, the same scheme) | none: the same quantity (main README, *The extrapolated yield*) |
 | Normalisation | per event with a φ candidate, purity-corrected | per trigger | none: it cancels in the ratio |

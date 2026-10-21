@@ -88,14 +88,7 @@ class FitConfigManager : public BaseConfigManager
           config.integration.sideband = sb;
         }
 
-        // DYNAMICALLY loop through all items inside the "params" object
-        if (const rapidjson::Value* params = JsonConfig::TryObject(node, "params", managerName)) {
-          for (auto& m : params->GetObject()) {
-            std::string paramName = m.name.GetString();
-            // Notice we are saving into config.model.params now!
-            LoadParam(m.value, paramName, config.model.params[paramName]);
-          }
-        }
+        MergeParams(node, config.model.params, managerName);
       };
 
       // 1. First, apply all "default" mathematical parameters

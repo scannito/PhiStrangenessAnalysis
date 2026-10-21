@@ -1046,6 +1046,14 @@ class CorrelationTaskBase : public IAnalysisTask
     // copy by itself.
     extrapModel->SetName(std::format("{}_{}", extrapModel->GetName(), hSpec->GetName()).c_str());
 
+    // The separate fit of the high side, when the configuration asks for one: built and
+    // named the same way.
+    std::unique_ptr<TF1> highModel;
+    if (eCfg.high) {
+      highModel = ExtrapolationModelFactory::CreateModel(eCfg.HighConfig(), hSpec->GetMaximum());
+      highModel->SetName(std::format("{}_high_{}", highModel->GetName(), hSpec->GetName()).c_str());
+    }
+
     /*{
       // std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}", hSpec->GetName(), extrapFunction);
       std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}_multBin{}", hSpec->GetName(), eCfg.model, multBin);
@@ -1093,6 +1101,8 @@ class CorrelationTaskBase : public IAnalysisTask
     extrapolator.SetExtrapolationLimits(eCfg.domainRange.first, eCfg.domainRange.second);
     extrapolator.SetFitOption(kFitOption);
     extrapolator.SetIntegrationPrecisions(kLoPrecision, kHiPrecision);
+    if (highModel)
+      extrapolator.SetHighModel(highModel.get(), eCfg.high->fitRange.first, eCfg.high->fitRange.second);
 
     // No SetSystematicSpectrum: nothing in this chain produces per-bin systematic
     // uncertainties yet, so the four variations stay switched off and the result
@@ -1129,10 +1139,21 @@ class CorrelationTaskBase : public IAnalysisTask
     // The fitted curve, travelling with the spectrum it describes. Same colour as the
     // points, so that on the overlay below each curve is readable against its own
     // spectrum rather than against the one next to it.
-    std::unique_ptr<TF1> fittedCurve(static_cast<TF1*>(extrapModel->Clone()));
-    fittedCurve->SetLineColor(globalCfgs.GetSpectraColor(multBin));
-    fittedCurve->SetLineWidth(2);
-    hSpecExt->GetListOfFunctions()->Add(fittedCurve.release());
+    auto attachCurve = [&](const TF1* model, Style_t style, double from, double to) {
+      std::unique_ptr<TF1> curve(static_cast<TF1*>(model->Clone()));
+      curve->SetLineColor(globalCfgs.GetSpectraColor(multBin));
+      curve->SetLineWidth(2);
+      curve->SetLineStyle(style);
+      curve->SetRange(from, to);
+      hSpecExt->GetListOfFunctions()->Add(curve.release());
+    };
+    // With a high fit, each curve is drawn only on its side of where the high fit starts,
+    // the high one dashed: drawn over the whole domain, the plot would show two tails on
+    // each side and nothing would say which one entered the yield.
+    const double split = eCfg.high ? eCfg.high->fitRange.first : eCfg.domainRange.second;
+    attachCurve(extrapModel.get(), 1, eCfg.domainRange.first, split);
+    if (highModel)
+      attachCurve(highModel.get(), 2, split, eCfg.domainRange.second);
 
     targetDir->cd();
     hSpecExt->Write(nullptr, TObject::kOverwrite);
@@ -1195,8 +1216,13 @@ class CorrelationTaskBase : public IAnalysisTask
     // decoration. It used to be printed only by YieldMean, which meant retiring that
     // path would have silently removed the only sign that the fit does not describe
     // the data. See DESIGN_NOTES.md, which still lists that as open.
-    Logger::Debug("  -> Fit {} over [{:g}, {:g}]: chi2/ndf = {:g}/{} = {:g}",
-                  eCfg.model, eCfg.fitRange.first, eCfg.fitRange.second, res.chi2, res.ndf, res.ReducedChi2());
+    auto reportFit = [](const char* label, const ExtrapFit& fit, const FitQuality& quality) {
+      Logger::Debug("  -> {} {} over [{:g}, {:g}]: chi2/ndf = {:g}/{} = {:g}", label, fit.model,
+                    fit.fitRange.first, fit.fitRange.second, quality.chi2, quality.ndf, quality.ReducedChi2());
+    };
+    reportFit("Fit", eCfg, res.fit);
+    if (eCfg.high)
+      reportFit("High fit", *eCfg.high, *res.highFit);
 
     if (res.hasSystematics)
       Logger::Debug("  -> Systematics: yield +{:g} -{:g}   <pT> +{:g} -{:g}",

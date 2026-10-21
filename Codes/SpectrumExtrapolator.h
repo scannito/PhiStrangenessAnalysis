@@ -110,6 +110,17 @@ class SpectrumExtrapolator
     fMaxFit = maxFit;
   }
 
+  // A second model for the part ABOVE the last measured point, fitted over its own range;
+  // the main model then serves the part below the first point only. Optional: without it
+  // one fit serves both sides, as YieldMean did. Fitted in place, like the main one, and
+  // owned by the caller.
+  void SetHighModel(TF1* highModel, double minFit, double maxFit)
+  {
+    fHighModel = highModel;
+    fHighMinFit = minFit;
+    fHighMaxFit = maxFit;
+  }
+
   void SetIntegrationPrecisions(double lowPrecision, double highPrecision)
   {
     fLoPrecision = lowPrecision;
@@ -136,7 +147,7 @@ class SpectrumExtrapolator
     // numbers are legitimate on their own. Widening rather than throwing because
     // it is what the reference does, and the configurations rely on it.
     const double minPt = std::min(fMinPt, fMinFit);
-    const double maxPt = std::max(fMaxPt, fMaxFit);
+    const double maxPt = std::max({fMaxPt, fMaxFit, fHighMaxFit});
 
     // 1. The central value, from a fit weighted with the TOTAL error.
     //
@@ -152,14 +163,13 @@ class SpectrumExtrapolator
     std::unique_ptr<TH1> hTotal = MakeTotalErrorSpectrum();
     TH1* hCentral = hTotal ? hTotal.get() : fMeasuredSpectrum;
 
-    fFitConverged = FitOrWarn(hCentral);
-
-    res.chi2 = fFitModel->GetChisquare();
-    res.ndf = fFitModel->GetNDF();
-
     // 2. Extrapolate standard values
-    auto hlo = CreateLowExtrapolationHisto(hCentral, fFitModel, minPt);
-    auto hhi = CreateHighExtrapolationHisto(hCentral, fFitModel, maxPt);
+    std::unique_ptr<TH1> hlo, hhi;
+    fFitConverged = FitAndBuildExtrapolations(hCentral, minPt, maxPt, hlo, hhi);
+
+    res.fit = {fFitModel->GetChisquare(), fFitModel->GetNDF()};
+    if (fHighModel)
+      res.highFit = FitQuality{fHighModel->GetChisquare(), fHighModel->GetNDF()};
 
     double integral = 0.0, mean = 0.0, extraLow = 0.0, extraHigh = 0.0;
     double skippedData = 0.0;
@@ -209,11 +219,8 @@ class SpectrumExtrapolator
     // fMeasuredSpectrum and this would refit the same data a second time - which is
     // what the reference does, harmlessly, and what produced its duplicated 'hlo'
     // and 'hhi' warnings.
-    if (hTotal) {
-      FitOrWarn(fMeasuredSpectrum);
-      hlo = CreateLowExtrapolationHisto(fMeasuredSpectrum, fFitModel, minPt);
-      hhi = CreateHighExtrapolationHisto(fMeasuredSpectrum, fFitModel, maxPt);
-    }
+    if (hTotal)
+      FitAndBuildExtrapolations(fMeasuredSpectrum, minPt, maxPt, hlo, hhi);
 
     // 3a. Coarse phase (to find the bounds for the histograms)
     // 0.75 to 1.25, as YieldMean: with 1000 bins either way, a wider window means
@@ -290,6 +297,7 @@ class SpectrumExtrapolator
  private:
   TH1* fMeasuredSpectrum{nullptr};
   TF1* fFitModel{nullptr};    // Owned by the caller, and fitted in place - see the constructor
+  TF1* fHighModel{nullptr};   // Owned by the caller, optional - see SetHighModel
   TH1* fSysSpectrum{nullptr}; // Owned by the caller, optional - see SetSystematicSpectrum
 
   // TRandom3's own default, and also where gRandom - which YieldMean used - starts.
@@ -309,6 +317,8 @@ class SpectrumExtrapolator
   double fMaxPt{10.0};
   double fMinFit{0.0};
   double fMaxFit{10.0};
+  double fHighMinFit{0.0};
+  double fHighMaxFit{0.0};
 
   // Integration parameters
   std::string fFitOption{"0QI"};
@@ -386,6 +396,9 @@ class SpectrumExtrapolator
     // otherwise what the caller draws would be the last systematic variation.
     std::vector<double> centralPars(fFitModel->GetNpar());
     fFitModel->GetParameters(centralPars.data());
+    std::vector<double> centralHighPars(fHighModel ? fHighModel->GetNpar() : 0);
+    if (fHighModel)
+      fHighModel->GetParameters(centralHighPars.data());
 
     // Yield and mean of one variation, refitted exactly as the central value was.
     // Falls back to the central numbers when the variation could not be built, so
@@ -396,9 +409,8 @@ class SpectrumExtrapolator
       if (!hvar)
         return;
 
-      FitOrWarn(hvar.get());
-      auto hlo = CreateLowExtrapolationHisto(hvar.get(), fFitModel, minPt);
-      auto hhi = CreateHighExtrapolationHisto(hvar.get(), fFitModel, maxPt);
+      std::unique_ptr<TH1> hlo, hhi;
+      FitAndBuildExtrapolations(hvar.get(), minPt, maxPt, hlo, hhi);
 
       double extraLow = 0.0, extraHigh = 0.0;
       Integrate(hvar.get(), hlo.get(), hhi.get(), yield, meanPt, extraLow, extraHigh);
@@ -425,16 +437,37 @@ class SpectrumExtrapolator
     res.hasSystematics = true;
 
     // Parameters only: the covariance matrix left in the global fitter belongs to
-    // the last variation. Nothing reads it after this point, and res.chi2 was taken
+    // the last variation. Nothing reads it after this point, and res.fit was taken
     // from the central fit long before, but anything added here that calls
     // TF1::IntegralError would silently use the wrong one.
     fFitModel->SetParameters(centralPars.data());
+    if (fHighModel)
+      fHighModel->SetParameters(centralHighPars.data());
+  }
+
+  // The fits of 'h' and the two extrapolation histograms built from them: the low one from
+  // the main model, the high one from the high model when there is one. Each histogram is
+  // built right after the fit it comes from, and that order is the point of having this in
+  // one place: TF1::IntegralError, which gives the bins their errors, reads the covariance
+  // of the LAST fit, so a low histogram built after the high fit would carry the high fit's
+  // errors. Returns whether every fit converged.
+  bool FitAndBuildExtrapolations(TH1* h, double minPt, double maxPt, std::unique_ptr<TH1>& hlo, std::unique_ptr<TH1>& hhi)
+  {
+    bool converged = FitOrWarn(h, fFitModel, fMinFit, fMaxFit);
+    hlo = CreateLowExtrapolationHisto(h, fFitModel, minPt);
+    TF1* highSide = fFitModel;
+    if (fHighModel) {
+      converged = FitOrWarn(h, fHighModel, fHighMinFit, fHighMaxFit) && converged;
+      highSide = fHighModel;
+    }
+    hhi = CreateHighExtrapolationHisto(h, highSide, maxPt);
+    return converged;
   }
 
   // The fit procedure, in one place: the systematic variations have to be fitted
   // exactly as the central value is, and duplicating the loop is how the two would
   // come to differ. Returns whether it converged.
-  bool FitOrWarn(TH1* h)
+  bool FitOrWarn(TH1* h, TF1* model, double minFit, double maxFit)
   {
     // Enough iterations that minimisation is not stopped by MAX_CALLS.
     TVirtualFitter::SetMaxIterations(1000000);
@@ -442,18 +475,19 @@ class SpectrumExtrapolator
     int fitres = 0;
     int trials = 0;
     do {
-      fitres = h->Fit(fFitModel, fFitOption.c_str(), "", fMinFit, fMaxFit);
+      fitres = h->Fit(model, fFitOption.c_str(), "", minFit, maxFit);
       trials++;
       if (trials > 10) {
         // Not just "the fit is bad": a failed fit leaves no usable covariance
         // matrix, so TF1::IntegralError returns 0 for every bin of hlo/hhi, and
         // the 'error <= 0' guard in Integrate - which exists to skip empty bins -
-        // then drops the whole extrapolation. The yield that comes out is the raw
-        // data integral, looks perfectly plausible, and is not extrapolated.
+        // then drops what was built from this fit: both sides, or one when there is
+        // a high fit. The yield that comes out looks perfectly plausible, and is not
+        // extrapolated there.
         Logger::Warn("SpectrumExtrapolator: the fit of '{}' with '{}' did not converge in 10 trials over [{:g}, {:g}"
-                     "]. The covariance matrix is unusable, so the extrapolation will contribute nothing and the "
-                     "yield below is the raw integral, NOT an extrapolated one. Do not use it.",
-                     h->GetName(), fFitModel->GetName(), fMinFit, fMaxFit);
+                     "]. The covariance matrix is unusable, so the part of the extrapolation built from this fit will "
+                     "contribute nothing and the yield below is NOT an extrapolated one. Do not use it.",
+                     h->GetName(), model->GetName(), minFit, maxFit);
         return false;
       }
     } while (fitres != 0);

@@ -365,15 +365,21 @@ inline std::optional<std::string> TryString(const rapidjson::Value& node, const 
 // the parent's value would come through. The key is therefore required, and null is
 // the spelling of "none". Returns nullptr for null, the node for an object, and throws
 // for anything else - including absent, since a block that says nothing about it leaves
-// no trace in the provenance of which state was in force.
-inline const rapidjson::Value* RequireObjectOrNull(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+// no trace in the provenance of which state was in force. ToObjectOrNull is the same test on
+// a value already in hand, for a key whose absence has a meaning of its own (a bin override
+// that keeps what it overrides): found with OptionalMember, read with this.
+inline const rapidjson::Value* ToObjectOrNull(const rapidjson::Value& val, std::string_view what, std::string_view errCtx)
 {
-  const rapidjson::Value& val = RequireMember(node, key, errCtx);
   if (val.IsNull())
     return nullptr;
   if (!val.IsObject())
-    throw std::runtime_error(std::format("[FATAL] {}: key '{}' must be an object, or null for none.", errCtx, key));
+    throw std::runtime_error(std::format("[FATAL] {}: key '{}' must be an object, or null for none.", errCtx, what));
   return &val;
+}
+
+inline const rapidjson::Value* RequireObjectOrNull(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  return ToObjectOrNull(RequireMember(node, key, errCtx), key, errCtx);
 }
 
 // ---------------------------------------------------------------------------

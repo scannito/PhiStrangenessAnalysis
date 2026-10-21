@@ -407,6 +407,26 @@ binning from `h3PhiData`, `CorrelationTask` resolves it from axis 1 of the spars
 The two must agree because those matrices are read by index. Now that they carry
 real axes it is checkable — three lines in `ResolveBinningAndCache`.
 
+**The statistical error of an extrapolated yield depends on the spectrum extrapolated before it.**
+`SpectrumExtrapolator` reads its toy distributions with `gROOT->GetFunction("gaus")`, the global `gaus`,
+and fits it in place: each spectrum starts that fit from the parameters the previous one left. Measured on
+20 October 2026 (a standalone program, the K0S of class 10-15 % after a π fitted over two different ranges):
+statistical error 0.013885548562513277 against …515343, 1.5e-13 relative; with a local `TF1` the two agree to
+the last digit. Found because a π-only configuration change moved the K0S and Ξ errors by up to 1e-10 in 9 of
+the 10 classes. Negligible as a number, but it means no output is a function of its own inputs alone, and an
+exact before/after on one species fails for a change to another. The fix is one line, a `TF1` owned by the
+function with a name of its own (CLAUDE.md, ROOT's global lists); every statistical error moves at the 1e-10
+level once, so it goes in a commit of its own.
+
+**The curves written next to the spectra are not the fitted functions.** The models of
+`ExtrapolationModelFactory` are `TF1`s built from C++ functions, and ROOT writes such a `TF1` as its values
+on `GetNpx()` points (100, so 0.1 GeV/c steps over [0, 10]); read back, it interpolates them. Measured on
+20 October 2026 with the π blast-wave: read back / live 0.84 at 0.02 GeV/c, 0.95 at 0.12, 1.02 above
+1 GeV/c, and the integral over 0-0.2 GeV/c 6 % low; a χ² recomputed from the curves in the file was 98
+instead of the fit's 67. The yields are not affected (computed with the live functions), but every plot or
+reader of the `_extended` curves is (`phiplot` too). A larger `SetNpx` before writing, finer where the
+spectrum turns over, is the obvious fix; how fine is to be measured.
+
 **Background-ratio uncertainty is computed but not propagated.** `bkgRatioAndError`
 now reaches `h2TriggerBkgRatio`, but `CorrelationCalculator` still scales the
 sideband by an exact factor. Adding it per bin would be wrong: σ_R is fully
@@ -488,6 +508,81 @@ Two readings, and they call for different fixes:
   the efficiency and purity corrections but treated as independent.
 
 Separate these before trusting the extrapolated yields.
+
+**Measured on 20 October 2026**, while comparing the 2024 K0S/π ratio with the pre-framework one
+(`OldComparison/`; 2024 offline, |Δy| < 1.0, the ten multiplicity classes):
+
+- **π, the current fit (Lévy-Tsallis over 0.2-1.0 GeV/c) overshoots the data above 1 GeV/c**: data/fit about
+  0.8 at 1.7 GeV/c, down to 0.5 at 2.5 GeV/c (20-30 %); χ²/ndf from 2.7 (70-100 %) to 40 (1-5 %), 3 ndf. The tail
+  it integrates from 3 to 10 GeV/c, where no data constrain it, is 0.4 % (70-100 %) to 3.5 % (1-5 %) of the
+  yield, growing with multiplicity.
+- **π, the fit over 0.2-3.0 GeV/c (all the data) converges in every class but describes them worse**: χ²/ndf
+  15-221 on 7 ndf, with structured residuals (about 1.1 between 1 and 2 GeV/c, about 0.85 above). The tail
+  above 3 GeV/c drops to 0.3-1.0 % of the yield; the yield itself drops by 0.5-5.2 %, more than the tail, the
+  rest coming from the **low-pT extrapolation (0-0.2 GeV/c), about 20 % of the π yield** and drawn from the same
+  function: that part, not the high tail, is the largest model dependence of the π yield.
+- **K0S: the fit (Lévy-Tsallis over 0-6.0 GeV/c) is good**, χ²/ndf 1.3-3.7 with flat residuals, and its tail
+  above the data is 0.1 % of the yield. Extending the fit to 6.4 changes nothing: the last bin, 4.2-6.4, has its
+  centre at 5.3 and was already in. `fit_range` is now `[0.0, 6.4]`, the last measured edge, so that it says
+  what it does.
+- **π, every model of `ExtrapolationModelFactory`, over 0.2-1.0 and 0.2-3.0** (χ²/ndf; yield relative to the
+  current fit; classes 0-1, 20-30, 70-100 %):
+
+  | model, fit range | χ²/ndf | yield |
+  |---|---|---|
+  | Lévy-Tsallis 0.2-1.0 (current) | 8.2, 34, 2.7 | — |
+  | Lévy-Tsallis 0.2-3.0 | 77, 147, 15 | −4.5, −3.3, −0.5 % |
+  | Blast-wave 0.2-1.0 | 10, 37, 3.4 | −2.7, −1.4, −0.8 % |
+  | **Blast-wave 0.2-3.0** | **11, 15, 4.5** | −4.6, −1.6, −1.6 % |
+  | Bose-Einstein, mT- and pT-exponential, either range | 68 to 3700 | −0.5 to −11 % |
+
+  Blast-wave over all the data is the only single fit that describes them, the 2-3 GeV/c bin included (data/fit
+  0.948-1.005 over the classes). An earlier reading of this entry said that bin sat 15 % below the curves in every class and should be
+  checked in the data: it sits below the two Lévy-Tsallis curves only, so it is the Lévy-Tsallis shape and not
+  the bin. The blast-wave function has a numerical kink above about 3.7 GeV/c in 0-1 %, checked on the function
+  itself and not only on its curve in the file: 0.0682, 0.0469, 0.0248 at 3.5, 3.7, 3.9 GeV/c, a factor 0.53 for
+  the last step where 1-5 % falls by 0.69 at every step. The tail it integrates is 0.1-0.3 % of the yield, so the
+  kink costs nothing here, but it would above the data of a harder species. The low-pT part (0-0.2 GeV/c) is 20-27 % of the yield; between the three fits with the
+  smallest χ² (Lévy-Tsallis 0.2-1.0, blast-wave 0.2-1.0 and 0.2-3.0) it varies by 0.4-1.7 % of the yield, while
+  the tails of the fits that reach the last bins (blast-wave 0.2-3.0, the two fits below) agree within 0.1 %:
+  once the tail is fitted to the data, the low side is the largest model dependence of the π yield.
+- **π, two fits** (`ExtrapConfig::high`, added for this): Lévy-Tsallis over 0.2-1.0 for the low side, a second
+  Lévy-Tsallis over 1.0-3.0 for the high side. The high fit has 1 ndf, the price of four points above 1 GeV/c;
+  over 0.8-3.0, 2 ndf and the same yields within 0.06 %. The tail above 3 GeV/c drops to 0.1-0.3 % of the yield
+  and the yield by 0.2 (70-100 %) to 3.2 % (1-5 %), 2.9 % in 0-1 % (chain, 2024 offline): all of it from the
+  tail, since the low side is the current fit. Blast-wave over 0.2-3.0 is within 0.5 % of it in the middle
+  classes and 1.7 % (0-1 %) and 1.4 % (70-100 %) lower at the two ends, all from its low side. The mean 2024/old of `OldComparison` goes from
+  0.947 to 0.965, the 0.966 of no high-pT extrapolation at all: the current tail accounts for 2 of the 5 %, the
+  rest is elsewhere.
+
+- **Blast-wave over 0.2-3.0 against the two fits**, on the same ten points (0.2-3.0 GeV/c) and recomputed with
+  the live functions (the curves in a file are not the fits, section 5):
+
+  | class (%) | χ²/ndf, blast-wave (4 par.) | χ²/ndf, two fits (6 par.) | χ², first 3 bins: blast-wave | two fits |
+  |---|---|---|---|---|
+  | 0-1 | 66.8/6 = 11.1 | 42.0/4 = 10.5 | 24.5 | 6.5 |
+  | 1-5 | 176.9/6 = 29.5 | 132.9/4 = 33.2 | 82.5 | 29.3 |
+  | 5-10 | 107.2/6 = 17.9 | 99.2/4 = 24.8 | 35.1 | 19.2 |
+  | 10-15 | 73.5/6 = 12.3 | 74.8/4 = 18.7 | 16.2 | 13.8 |
+  | 15-20 | 38.9/6 = 6.5 | 49.5/4 = 12.4 | 3.8 | 10.0 |
+  | 20-30 | 90.4/6 = 15.1 | 107.0/4 = 26.8 | 11.3 | 24.4 |
+  | 30-40 | 64.4/6 = 10.7 | 56.5/4 = 14.1 | 7.6 | 13.7 |
+  | 40-50 | 62.4/6 = 10.4 | 61.3/4 = 15.3 | 6.4 | 9.5 |
+  | 50-70 | 64.3/6 = 10.7 | 56.2/4 = 14.0 | 12.2 | 15.8 |
+  | 70-100 | 27.1/6 = 4.5 | 13.6/4 = 3.4 | 5.6 | 5.7 |
+
+  The high side is the same for both (tails within 0.1 % of the yield). Over all the points the blast-wave has the
+  lower χ²/ndf in 8 classes of 10 with two parameters fewer, and needs no fit with 1 ndf. On the first bins, which
+  decide the low-pT part and with it the 0-1.7 % between the two yields, neither wins: the Lévy-Tsallis is closer
+  in 0-15 %, the blast-wave in the middle classes. Neither is good in absolute terms, but the fits are weighted
+  with the statistical errors alone (no systematic spectrum reaches the extrapolator yet), so a χ²/ndf of 10-30
+  does not by itself condemn a model.
+
+**Decided on 20 October 2026 (owner):** the π default is the blast-wave over 0.2-3.0 GeV/c; the two fits stay
+available through `high` (the block is in the README, *The extrapolated yield*). Measured with it, data pp: every
+fit converges in every |Δy| window and file, no new warning; the K0S/π of `OldComparison` goes to 0.971 of the
+old on average (`OldComparison/README.md`). Still open: whether the low-pT spread between the two (up to 1.7 %
+of the π yield) is quoted as a systematic of the extrapolation.
 
 This was recorded with a condition attached: keep the legacy branch
 (`use_legacy_extrapolation`) until the question is settled, because if the fit

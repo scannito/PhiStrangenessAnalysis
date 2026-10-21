@@ -9,9 +9,10 @@
 
 #include <cstdio>
 #include <format>
-#include <iostream>
+#include <map>
 #include <stdexcept>
 #include <string>
+#include <string_view>
 #include <vector>
 
 class BaseConfigManager
@@ -52,29 +53,36 @@ class BaseConfigManager
     Logger::Info("{}: JSON successfully loaded into RAM.", managerName);
   }
 
-  // Universal parameter parser: [value, min, max] to let it float, a single value
-  // to fix it. Both forms accept numbers written as strings, like every other
-  // number in these configurations.
-  void LoadParam(const rapidjson::Value& node, const std::string& paramName, MathParam& param) const
+  // The entries of the "params" object of 'node', merged by name into 'params': an entry
+  // replaces the parameter of that name and the others stay, since a bin override carries
+  // only what it changes. Absent "params" leaves them all.
+  static void MergeParams(const rapidjson::Value& node, std::map<std::string, MathParam>& params, std::string_view errCtx)
   {
-    const std::string what = std::format("parameter '{}'", paramName);
-
-    if (node.IsArray()) {
-      const std::vector<double> values = JsonConfig::ReadNumberArray(node.GetArray(), what, managerName);
-      if (values.size() != 3) {
-        throw std::runtime_error(std::format("[FATAL] {}: {} is an array of {} entries; a free parameter needs "
-                                             "exactly three, [value, min, max].",
-                                             managerName, what, values.size()));
+    if (const rapidjson::Value* entries = JsonConfig::TryObject(node, "params", errCtx)) {
+      for (auto& m : entries->GetObject()) {
+        const char* name = m.name.GetString();
+        params[name] = ReadParam(m.value, name, errCtx);
       }
-      param.val = values[0];
-      param.min = values[1];
-      param.max = values[2];
-      param.isConstant = false;
-      return;
+    }
+  }
+
+ private:
+  // [value, min, max] to let it float, a single value to fix it. Both forms accept numbers
+  // written as strings, like every other number in these configurations. A whole parameter
+  // every time: a fixed one has min and max at zero, not whatever an earlier pass left.
+  static MathParam ReadParam(const rapidjson::Value& value, std::string_view paramName, std::string_view errCtx)
+  {
+    if (value.IsArray()) {
+      const std::vector<double> values = JsonConfig::ReadNumberArray(value.GetArray(), paramName, errCtx);
+      if (values.size() != 3) {
+        throw std::runtime_error(std::format("[FATAL] {}: parameter '{}' is an array of {} entries; a free parameter "
+                                             "needs exactly three, [value, min, max].",
+                                             errCtx, paramName, values.size()));
+      }
+      return {.val = values[0], .min = values[1], .max = values[2], .isConstant = false};
     }
 
     // Anything else must be a single number: ToNumber says so by name if it is not.
-    param.val = JsonConfig::ToNumber(node, what, managerName);
-    param.isConstant = true;
+    return {.val = JsonConfig::ToNumber(value, paramName, errCtx), .isConstant = true};
   }
 };

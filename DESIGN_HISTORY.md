@@ -7,6 +7,73 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## A second fit for the high side, and the blast-wave for the π
+
+**20 October 2026.** The comparison with the pre-framework K0S/π (`OldComparison/`) found that the π yield
+carried a tail of up to 3.5 % above the data, integrated from a Lévy-Tsallis fitted over 0.2-1.0 GeV/c that
+overshoots everything above 1 GeV/c. What was measured, model by model, is in `DESIGN_NOTES.md` section 6; this
+records what changed and how it was checked.
+
+**What changed.**
+
+- `ExtrapConfig::high` (extrapConfig key `high`): an optional second fit, with its own `model`, `fit_range` and
+  `params`, all three required. When present it alone builds the part above the last measured edge, and the
+  main fit the part below the first. Replaced whole by a `bins` override; `"high": null` there switches it off.
+- `ExtrapConfig` derives from `ExtrapFit` (the three keys of a fit), so a fit is declared once, and
+  `HighConfig()` is the configuration with the fit replaced: whatever belongs to the species (domain, mass, what
+  is added later) comes along. One reader, `loadFit`, for the main fit and for `high`.
+- `BaseConfigManager::MergeParams` replaces `LoadParam` and the loop around it, which `FitConfigManager` and
+  `ExtrapConfigManager` each had a copy of: the caller passed the name twice (for the message, and to find the
+  slot) and an output parameter that a fixed value only half overwrote, leaving the `min`/`max` of an earlier
+  pass (read by nobody: both readers branch on `isConstant`). `ReadParam` now returns a whole parameter. The
+  errors name the section, the high fit included, and no longer quote the name twice (`'parameter 'n''`).
+- `SpectrumExtrapolator::FitAndBuildExtrapolations`: every fit is followed at once by the histogram built from
+  it, because `TF1::IntegralError` reads the covariance of the last fit. The central value, the statistical refit
+  and the systematic variations all go through it.
+- `ExtrapolationResult::fit` and `highFit` (`FitQuality`, with its reduced χ²) replace `chi2`/`ndf`. The warning
+  of a fit that does not converge says that the part built from that fit is lost, no longer the whole
+  extrapolation.
+- The curves on the `_extended` spectrum: with `high`, each is drawn only on its side of where the high fit
+  starts, the high one dashed, so that the plot does not show two tails on each side.
+- Configuration: K0S `fit_range` 0-6.0 → 0-6.4 (the last measured edge; no number changes, see below). π: the
+  blast-wave over 0.2-3.0 GeV/c instead of the Lévy-Tsallis over 0.2-1.0, the owner's choice; the two fits stay
+  available, their block is in the README.
+
+**Reviewed** by `analysis-reviewer` and `analysis-simplifier` on the first version. Taken: the duplicated fields
+(both), the second hand-written reader with its own null-or-object check (both; it now uses
+`RequireObjectOrNull`), the `RequireMember` + `*TryRange` pair (both; gone with the shared reader), the curve
+code written twice, the reduced χ² missing for the high fit, the curves over the whole domain, the warning that
+overstated. Not taken: skipping the high fit when there is no high region (a configuration asking for a fit it
+cannot use; the warning that its fit failed is right), and the claim that extrapConfig.json is not in the
+provenance (it is: `provenance["extrap_config"]`, the whole file).
+
+**How it was checked**, all in a sandbox copy, compiled mode, data pp:
+
+| test | what | result |
+|---|---|---|
+| regression, no `high` | the whole data chain before and after, object by object (`Macros/CompareRootFiles.cpp`), on the six spectra files it writes (2024 and 2026; offline, online, online without φ) | identical, run twice (before and after the review changes); same single warning. The other 48 files of `FinalResults` come from MC runs and are not written by the data chain: they compare equal and say nothing |
+| K0S `fit_range` 6.0 → 6.4 | same comparison, the four projection caches included | the ten files identical: the last bin, 4.2-6.4, has its centre at 5.3 and was already in |
+| chain with `high` | π Lévy-Tsallis 0.2-1.0 plus Lévy-Tsallis 1.0-3.0, against the run without | only the six data files with a π spectrum change, 39 objects each: the π trends and the ratios over π. The K0S and Ξ trends move by 1e-10 in their errors only, traced to the global `gaus` (`DESIGN_NOTES.md` section 5) |
+| the same, against a standalone program | the π yields of the chain and of `SpectrumExtrapolator` driven directly | the same to the 0.02 % that the different `n` limit (20 against 30) explains |
+| curves | functions attached to `_extended` | main [0, 1], high [1, 10] dashed; without `high` one curve over [0, 10] as before |
+| parser | a valid block with a bin override `null` and another replacing it; `high` not an object; `model` missing; a misspelled key next to it; `fit_range` of the wrong type | each as intended: the override switches off and replaces, the four errors stop with key and section |
+| parameters | a bin override fixing two parameters (one written as a string) and leaving the third; an array of two; the same inside `high`; a boolean | the override replaces by name and keeps the rest, a fixed parameter has `min`/`max` 0; the errors stop naming section (and `high`) and parameter |
+| `MergeParams` | data pp before and after, the six spectra files and the four φ-fit files (the φ fit reads `fitConfig.json` through it) | identical |
+| model scan | every model of the factory over 0.2-1.0 and 0.2-3.0, the ten classes, standalone | `DESIGN_NOTES.md` section 6 |
+| blast-wave as default | the whole data chain | every fit converges, in every Δy window and file; no new warning; `OldComparison` 2024/old mean 0.947 → 0.971 |
+| MC chain | `mc pp` before and after | the 355 files it writes (`Corrections/`) identical, same warnings: nothing there is extrapolated |
+
+The χ² comparisons were first made from the curves in the output file and gave numbers that did not match the
+fits (98 against 67): those curves are interpolated from 100 saved points (`DESIGN_NOTES.md` section 5). All the
+numbers recorded were recomputed with the live functions.
+
+**Not run:** the MC closure, whose files hold extrapolated π, K0S and Ξ trends but are written by no mode of
+`runAnalysis.sh` today (the ones in `FinalResults` are of August, in the old layout), the
+systematic variations with `high` (no configuration supplies a systematic spectrum, so `ComputeSystematics`
+does not run), and the interpreted mode (it does not start in this environment, CLAUDE.md).
+
+---
+
 ## `trend_composition` removed: its two values were the same yield
 
 **20 October 2026**, found while comparing the 2024 K0S/π ratio with the pre-framework one

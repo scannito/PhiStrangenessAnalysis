@@ -216,12 +216,46 @@ struct FitConfig {
 // ============================================================================
 // EXTRAPOLATION CONFIGURATION STRUCTURE
 // ============================================================================
-struct ExtrapConfig {
+// One fit of a spectrum: what extrapConfig.json says per fit, the main one and "high".
+struct ExtrapFit {
   std::string model;
-  std::pair<double, double> domainRange{0.0, 15.0};
   std::pair<double, double> fitRange{0.0, 0.0};
   std::map<std::string, MathParam> params; // Uses the unified MathParam
-  double mass{0.0};                        // Injected dynamically at runtime by the Task
+};
+
+// The main fit, and what belongs to the species rather than to a fit.
+struct ExtrapConfig : ExtrapFit {
+  std::pair<double, double> domainRange{0.0, 15.0};
+  double mass{0.0}; // Injected dynamically at runtime by the Task
+
+  // When set, the part above the last measured point comes from this fit instead of the
+  // main one, which then serves the part below the first point only. The two sides are
+  // constrained by different data - the first bins and the last - and one function fitted
+  // to both has to compromise between them; for the pi spectra it describes neither end
+  // (DESIGN_NOTES.md section 6).
+  std::optional<ExtrapFit> high;
+
+  // The high fit as a configuration the model factory can build: this one with the fit
+  // replaced, so that whatever belongs to the species comes along, including what is added
+  // to it later. Only for a configuration that has a high fit.
+  ExtrapConfig HighConfig() const
+  {
+    ExtrapConfig c = *this;
+    static_cast<ExtrapFit&>(c) = *high;
+    c.high.reset();
+    return c;
+  }
+};
+
+// The quality of one fit, so that the main and the high fit report it the same way.
+struct FitQuality {
+  double chi2{0.0};
+  int ndf{0};
+
+  // No threshold and no warning attached: what counts as an acceptable chi2 is a
+  // physics judgement, and inventing a cut here would only hide it. It is printed
+  // on every extrapolation instead.
+  double ReducedChi2() const { return ndf > 0 ? chi2 / ndf : 0.0; }
 };
 
 struct ExtrapolationResult {
@@ -250,13 +284,8 @@ struct ExtrapolationResult {
   // the yield alone gives no way to tell a description from an extrapolation of
   // nonsense. YieldMean printed it and SpectrumExtrapolator did not, so retiring
   // that path would have quietly removed the only warning there was.
-  double chi2{0.0};
-  int ndf{0};
-
-  // No threshold and no warning attached: what counts as an acceptable chi2 is a
-  // physics judgement, and inventing a cut here would only hide it. It is printed
-  // on every extrapolation instead.
-  double ReducedChi2() const { return ndf > 0 ? chi2 / ndf : 0.0; }
+  FitQuality fit;
+  std::optional<FitQuality> highFit; // Only with a high fit (ExtrapConfig::high)
 
   // Systematic uncertainty from propagating the spectrum's own systematic band
   // through the extrapolation - NOT a systematic on the choice of extrapolation

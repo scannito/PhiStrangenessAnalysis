@@ -33,27 +33,41 @@ class ExtrapConfigManager : public BaseConfigManager
 
     const rapidjson::Value& partNode = document[particle.c_str()];
     // Closed sets of keys, as in FitConfigManager: a misspelled key is refused, not skipped.
-    JsonConfig::RequireKnownKeys(partNode, {"default", "bins"}, std::format("{}: section '{}'", managerName, particle));
+    // Every error inside the section names it, the high fit included.
+    const std::string sectionCtx = std::format("{}: section '{}'", managerName, particle);
+    JsonConfig::RequireKnownKeys(partNode, {"default", "bins"}, sectionCtx);
 
-    // Local Lambda function to populate the config struct dynamically
-    // Every key here is optional because this lambda runs twice: once on "default"
-    // and once on the bin override, which only carries what it changes. Absent
-    // therefore means "keep what the previous pass set", never "reset".
+    // The keys of one fit, read into 'fit' over what it already holds. Every key here is
+    // optional because the main fit is read twice: once from "default" and once from the
+    // bin override, which only carries what it changes. Absent therefore means "keep what
+    // the previous pass set", never "reset".
+    auto loadFit = [](const rapidjson::Value& node, ExtrapFit& fit, std::string_view ctx) {
+      fit.model = JsonConfig::OptionalString(node, "model", fit.model, ctx);
+
+      if (auto range = JsonConfig::TryRange(node, "fit_range", ctx))
+        fit.fitRange = *range;
+
+      MergeParams(node, fit.params, ctx);
+    };
+
     auto loadNodeIntoConfig = [&](const rapidjson::Value& node) {
-      JsonConfig::RequireKnownKeys(node, {"model", "domain_range", "fit_range", "params"}, std::format("{}: section '{}'", managerName, particle));
-      config.model = JsonConfig::OptionalString(node, "model", config.model, managerName);
+      JsonConfig::RequireKnownKeys(node, {"model", "domain_range", "fit_range", "params", "high"}, sectionCtx);
+      loadFit(node, config, sectionCtx);
 
-      if (auto range = JsonConfig::TryRange(node, "domain_range", managerName))
+      if (auto range = JsonConfig::TryRange(node, "domain_range", sectionCtx))
         config.domainRange = *range;
 
-      if (auto range = JsonConfig::TryRange(node, "fit_range", managerName))
-        config.fitRange = *range;
-
-      // DYNAMICALLY loop through all items inside the "params" object
-      if (const rapidjson::Value* params = JsonConfig::TryObject(node, "params", managerName)) {
-        for (auto& m : params->GetObject()) {
-          std::string paramName = m.name.GetString();
-          LoadParam(m.value, paramName, config.params[paramName]);
+      // The separate fit of the high side (ExtrapConfig::high). Replaced whole when a bin
+      // override carries it, and switched off there with null: an override that only left
+      // it out would keep the default's. Replaced whole, it has nothing to keep from a
+      // previous pass, so its three keys are required.
+      if (const rapidjson::Value* value = JsonConfig::OptionalMember(node, "high")) {
+        const std::string ctx = sectionCtx + ", high";
+        config.high.reset();
+        if (const rapidjson::Value* high = JsonConfig::ToObjectOrNull(*value, "high", ctx)) {
+          for (const char* key : {"model", "fit_range", "params"})
+            JsonConfig::RequireMember(*high, key, ctx);
+          loadFit(*high, config.high.emplace(), ctx);
         }
       }
     };

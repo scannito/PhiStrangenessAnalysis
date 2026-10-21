@@ -124,7 +124,7 @@ Two for the cases the layers above do not cover, added with the `corrections` bl
 
 | | |
 |---|---|
-| `RequireObjectOrNull` | a feature a child block must be able to switch off: the key is required, `null` means none (see `inherits` below for why absence cannot) |
+| `RequireObjectOrNull` | a feature a child block must be able to switch off: the key is required, `null` means none (see `inherits` below for why absence cannot). `ToObjectOrNull` is the same test on a value in hand, where absence means something else (`high` in a bin override of `extrapConfig.json`: absent keeps the default's) |
 | `RequireKnownKeys` | a block whose whole set of keys is known: a misspelled key stops the run instead of being skipped |
 
 Unknown keys are not rejected in general (`DESIGN_NOTES.md` section 5); `RequireKnownKeys`

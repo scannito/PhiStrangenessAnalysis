@@ -343,12 +343,31 @@ The extrapolated trends (and the species ratios built on them) take, per multipl
 interval, the yield `SpectrumExtrapolator` computes: the **measured bins**, plus the fitted
 model **only where there are no data**, below the first measured edge and above the last one,
 as far as the `domain_range` of the species in the extrapolation configuration (widened, if
-needed, to cover its `fit_range`). Its error is
+needed, to cover its `fit_range` and that of `high`). Its error is
 the RMS of the toy ensemble, an error on that total. The model never replaces a measured bin;
 a measured bin with a content but a non-positive error is left out of the yield, with a
 warning that gives the amount. What changes the number between configurations is therefore the
 extent of `domain_range` (with `[0, 10]`, the K0S and π yields include a model tail up to 10 GeV/c),
 and the binning that decides where the data stop.
+
+One fit serves both sides unless the node of the species has a `high` block: `model`, `fit_range` and
+`params`, as in the node itself, all three required. The part above the last measured edge then comes
+from that fit, and the main one serves the part below the first edge only. It is replaced whole by a
+`bins` override, and `"high": null` there switches it off for that interval. The two sides are
+constrained by different data, and one function fitted to both compromises between them: a Lévy-Tsallis
+fitted to the π spectra describes neither end. The π default is therefore a blast-wave over all the
+data (0.2-3.0 GeV/c), which does, with the two-fit configuration as the alternative (`DESIGN_NOTES.md`
+section 6, where both are compared):
+
+```json
+"model": "LevyTsallis", "fit_range": [0.2, 1.0],
+"params": {"n": [5.0, 2.0, 20.0], "T": [0.3, 0.05, 0.8], "norm": [1.5, 0.0, 1000.0]},
+"high": {"model": "LevyTsallis", "fit_range": [1.0, 3.0],
+         "params": {"n": [5.0, 2.0, 20.0], "T": [0.3, 0.05, 0.8], "norm": [1.5, 0.0, 1000.0]}}
+```
+
+Both curves are attached to the `_extended` spectrum, each drawn on its side of where the high fit
+starts, the high one dashed.
 
 ### Cache and provenance
 
