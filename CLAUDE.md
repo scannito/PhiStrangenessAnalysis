@@ -228,6 +228,13 @@ strings.
   one, come from `RootIO` (`kStampMult`, `kStampPtPhi`, `kStampPtAssoc`), and its provenance
   functions find the provenance directory themselves. One spelled by hand anywhere is a second
   copy of the rule.
+- **A record kept next to the results takes the shape of its data.** A set of named facts is one `TNamed` per fact
+  (the provenance); a table of rows with the same typed fields is a `TTree`, detached (`SetDirectory(0)`),
+  filled in memory and written like a histogram (`FitQualityRecorder`, at `{binning_name}/FitQuality`); a number per
+  cell that another task reads is a histogram with real edges, which `RequireSameAxis` can check. A table stores
+  raw facts, never verdicts: the rule that judges them is one function. Decided on 21 October 2026, with both review
+  agents, against moving every record to one form. `Macros/CompareRootFiles.cpp` compares all three, and says
+  NOT COMPARED for anything else instead of passing it.
 - Prefer deriving over storing: if a member follows from other members, a
   constructor or an accessor should produce it (`AssocParticleConfig::mass`,
   `ParticleTask::AnalysisBinning`).
@@ -259,8 +266,8 @@ Opening mode and clearing are two separate decisions:
 
 | | when | who |
 |---|---|---|
-| `RECREATE` | the whole file is this task's | `PhiFitTask`, `PurityTask`, `ComparisonTask`, the per-particle maps |
-| `UPDATE` + `RootIO::ClearPath` | the file is shared; the owned subtree is rewritten from scratch | `CorrelationTask`, `CorrelationWPDGTask` (`PhiAssocSpectra.root`), `MCTask` (`Corrections.root`) |
+| `RECREATE` | the whole file is this task's | `ComparisonTask`, the per-particle maps |
+| `UPDATE` + `RootIO::ClearPath` | the file is shared; the owned subtree is rewritten from scratch | `CorrelationTask`, `CorrelationWPDGTask` (`PhiAssocSpectra.root`), `MCTask` (`Corrections.root`), `PhiFitTask` (`PhiDataHistograms.root`), `PurityTask` (`Purity.root`); the last three own `{binning_name}`, so that two schemes coexist in one file |
 | `UPDATE`, no clearing | the file is shared; the owned subtree is defended by REFUSING | the projection caches |
 
 `UPDATE` says "this file may hold things that are not mine" - another
@@ -363,3 +370,8 @@ turned straight back into a `std::string`, and constants that made every caller 
 - Every finding is either fixed or answered with the reason it does not apply; the report to the owner says
   which, next to what was checked by running.
 - Below the threshold (a rename, a comment, a one-line fix) no review: it would cost more than it finds.
+- **A design that brings in something new** (a ROOT class the framework has not used, a new kind of output, a new
+  file) is put to both agents **before any code is written**, with a neutral brief: purpose, readers, candidates,
+  the question; not the author's preference. The existing idiom is one of the candidates and not the default: what
+  a broader change would cost is weighed against what it gives (the owner, 21 October 2026, on the fit-quality
+  record, after both agents had answered first "what the framework already does").

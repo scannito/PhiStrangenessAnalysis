@@ -9,7 +9,8 @@
 #include <string>
 #include <string_view>
 
-// The names and the layout of what the correlation tasks write into PhiAssocSpectra.root. The
+// The names and the layout of what the correlation tasks write into PhiAssocSpectra.root, and the
+// names of the files one task writes and another reads (the trigger matrices, the purities). The
 // directories are written by CorrelationTaskBase and read by ComparisonTask; the object names
 // are built here and not where each object is written, so that a reader that looks an object up
 // by what it is builds the same string, and a rename is one change. The names shared by every
@@ -29,6 +30,13 @@ inline const std::string kExtract2D{"Extract2D"};
 inline const std::string kSpectraDir{"Spectra"};
 inline const std::string kTrendsDir{"Trends"};
 inline const std::string kRatiosDir{"Ratios"};
+
+// The files between the fit tasks and CorrelationTask: the name that follows the output prefix.
+// Written once here, since the writer and the reader would otherwise each spell it, and a
+// configuration key for it would be one more copy to keep equal on both sides (it was one, for
+// the purities, until 21 October 2026).
+inline const std::string kPhiDataFile{"PhiDataHistograms.root"}; // PhiFitTask -> CorrelationTask
+inline const std::string kPurityFile{"Purity.root"};             // PurityTask -> CorrelationTask, every particle
 
 
 // A species directory of a section is one that holds per-species results, which is what

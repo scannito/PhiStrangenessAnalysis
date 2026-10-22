@@ -24,20 +24,17 @@
             {
                 "name": "K0S",
                 "purity_key": "k0s",
-                "hist_name": "k0s-reduced-cand-producer/k0sReducedCandidates/h3K0sCandidatesMass",
-                "output_file_suffix": "K0SPurity.root"
+                "hist_name": "k0s-reduced-cand-producer/k0sReducedCandidates/h3K0sCandidatesMass"
             },
             {
                 "name": "Pi",
                 "purity_key": "pi_tpc",
-                "hist_name": "pion-track-producer/pionTracks/h3PionTPCnSigma",
-                "output_file_suffix": "PiPurity.root"
+                "hist_name": "pion-track-producer/pionTracks/h3PionTPCnSigma"
             },
             {
                 "name": "Pi",
                 "purity_key": "pi_tof",
-                "hist_name": "pion-track-producer/pionTracks/h3PionTOFnSigma",
-                "output_file_suffix": "PiPurity.root"
+                "hist_name": "pion-track-producer/pionTracks/h3PionTOFnSigma"
             }
         ]
     },
@@ -116,13 +113,11 @@
         "purity_sources": [
             {
                 "name": "K0S",
-                "purity_key": "k0s",
-                "file_suffix": "K0SPurity.root"
+                "purity_key": "k0s"
             },
             {
                 "name": "Pi",
-                "purity_key": "pi_tpc",
-                "file_suffix": "PiPurity.root"
+                "purity_key": "pi_tpc"
             }
         ],
         "use_projection_cache": true,

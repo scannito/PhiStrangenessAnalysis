@@ -210,7 +210,7 @@ silently ignored.
 | Key | | Notes |
 |---|---|---|
 | `input_data_file`, `fit_config_file`, `output_dir` | required | |
-| `purity_particles` | required | Array of `{name, purity_key, hist_name, output_file_suffix}`. |
+| `purity_particles` | required | Array of `{name, purity_key, hist_name}`. All of them go into one file, `{output_prefix}Purity.root` (`OutputNames::kPurityFile`), the fits of each under `{binning_name}/Fits/{purity_key}`. |
 | `output_prefix` | optional | |
 | ↳ `rebinning_pt` | optional | Per particle. Fits the merged sample, not merged fits. |
 
@@ -238,7 +238,7 @@ silently ignored.
 | `corrections_file` | required | Only when `corrections` is not `null`: the `Corrections` file, with all three corrections. |
 | `extrapolation_config_file` | required | Only when extrapolation is on. |
 | `associated_particles` | required | Array of `{name, dir_name}`. |
-| `purity_sources` | required | Array of `{name, purity_key, file_suffix}`. |
+| `purity_sources` | required | Array of `{name, purity_key}`, read from `{purity_prefix}Purity.root` in `input_dir_purity`. |
 | `delta_y_limits` | optional | Δy windows to integrate. |
 | `yield_ratios` | optional | Array of `{numerator, denominator, label?}`. |
 | `use_signal_cache`, `do_more_qa` | optional | |
@@ -385,6 +385,30 @@ corrections, and nothing yet records which settings produced them: a run that ch
 the previous run's numbers, with no error. Run once with it off after changing any of
 them (`DESIGN_NOTES.md` section 5).
 
+### Fit quality
+
+`PhiFitTask` and `PurityTask` record every fit they run in a `TTree`, `{binning_name}/FitQuality` of their output
+file, one row per fit: the cell (`section`, `binning` analysis or source, `multBin`/`ptBin` and their intervals,
+the `fit_setup.bins` override that applied) and what the fit's result says (`counts` the likelihood saw, `status`,
+`covQual`, `edm`, `minNll`, `numInvalidNLL`, and `atLimit`, the floating parameters within 1e-5 of their range
+from a limit). Raw facts, read from the result the fit already saves: nothing is refitted, and no number changes.
+
+```cpp
+TFile f("Data_2024_Purity.root");
+auto t = (TTree*)f.Get("MoreFullDifferential/FitQuality");
+t->Scan("section:binning:ptLow:ptHigh:covQual:numInvalidNLL", "covQual<3 || numInvalidNLL>0");
+t->Scan("section:multBin:ptBin:atLimit", "section==\"xi\"");   // one line per parameter at a limit
+```
+
+`atLimit` is a list, and `Scan` shows one line per element: a row with no parameter at a limit has none and does
+not appear in a `Scan` that asks for that column. Leave it out to see every row, or ask for `@atLimit.size()`,
+one value per row.
+
+The end-of-run summary gets one warning per section and binning that has flagged fits, with the count per flag:
+an empty cell, `covQual < 3`, invalid likelihood evaluations, a parameter at a limit (by name). The `status` is
+recorded and not flagged: with the fit as it is today most cells end with status 3, good and bad alike
+(RooFitKnowledge, note 09).
+
 ---
 
 ## Map of `Codes/`
@@ -419,6 +443,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | `DynamicRooFitter.h` | The only fitter, used by `PhiFitTask` and `PurityTask`. RooFit engine driven entirely by JSON: builds signal and background PDFs from names (`BkgSourav1/2`, `BkgMattia`, Chebychev, …), owns every `RooAbsArg` it creates. |
 | `SpectrumExtrapolator.h` | Extrapolates the unmeasured parts of a spectrum, below and above the measured bins within `domain_range`, and propagates the uncertainty (*The extrapolated yield*). Replaced the ALICE-standard `YieldMean` (now in `OldCodes/`) after reproducing it number for number. |
 | `ExtrapolationModelFactory.h` | Builds the `TF1` model (Lévy–Tsallis, …) with its initial parameters. |
+| `FitQualityRecorder.h` | The `FitQuality` tree of the two fit tasks and the one rule that flags a fit (*Fit quality*). |
 
 ### Configuration managers
 
@@ -469,7 +494,7 @@ chain and no task depends on them.
 |---|---|
 | `CompareAxes.C` | Axis diagnostic: reports where two inputs disagree, edge by edge. |
 | `ShowProvenance.C` | What produced the files in a directory — reads back the provenance records. |
-| `CompareRootFiles.cpp` | Before/after check of a change that must not move any number: two ROOT files compared object by object, exactly. A compiled program, not a macro (build line in its header), so it does not need Cling. |
+| `CompareRootFiles.cpp` | Before/after check of a change that must not move any number: two ROOT files compared object by object, exactly (histograms, sparse, graphs, trees branch by branch, strings, plain `TNamed`; two NaN count as equal). What it cannot compare it lists as NOT COMPARED, and that fails the check. A compiled program, not a macro (build line in its header), so it does not need Cling. |
 | `convertGraphHist.C` | `TGraphErrors` ↔ `TH1`, in either direction. Feeds a pre-framework result into `comparison_task`. |
 | `copyTFileContent.C` | Recursive copy of a ROOT file, excluding chosen directories. |
 | `TestProjections.C`, `esporta_fit.C` | Ad-hoc checks. |

@@ -5,8 +5,8 @@ tools: Read, Grep, Glob, Bash
 ---
 
 You review one change to the Analysis framework (ALICE phi-strangeness correlations, header-only C++20, ROOT
-6.36). The brief gives you the diff or where to get it (`git diff <range>`, or a sandbox path) and what the
-change is for. You read; you never edit, build, run the analysis or commit. Bash is for `git diff`, `git log`,
+6.36), or a design before it is coded. The brief gives you the diff or where to get it (`git diff <range>`, or a
+sandbox path) and what the change is for, or the design question with its purpose, readers and candidates. You read; you never edit, build, run the analysis or commit. Bash is for `git diff`, `git log`,
 `git show`, `grep` and reading files only.
 
 ## Read first
@@ -46,6 +46,11 @@ This list comes from the reviews the owner of the project has actually made. Che
    `std::string`, its neighbour a `string_view`). Correct is not enough: ask whether it is the plain way to write it.
 10. **The numbers.** Whether the change can move a number, and whether the check that was run (the brief says which)
    is enough to show it did not; if the order of floating-point operations changed, say where.
+11. **"It is what the framework already does" is not a reason.** When a change follows an existing idiom, ask
+   whether the idiom itself is the right one for this case; if it is not, weigh a broader change (its cost included:
+   the code to move, the readers and tools to adapt, the files already produced) against keeping it, and say which
+   weighs more. The same for a design question asked before any code: judge the candidates on their merits, the
+   existing idiom being one of them, not the default.
 
 Besides any specific questions in the brief, always answer the open one: what in this change you would not have
 written this way, even where it is correct. A narrow brief is not a reason to skip the rest of the list.

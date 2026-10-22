@@ -7,6 +7,65 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## Fit quality recorded, the purities in one file, the fit files by UPDATE
+
+**21 October 2026.** Phase 1, item 1 of `RooFitKnowledge/ROADMAP.md`: every fit is now recorded, and nothing it
+records changes a number. Three decisions came before the code, each put to both review agents first; the
+second and third changed on the way.
+
+**The form of the record: a TTree.** Asked first, both agents answered "a `TNamed` with JSON, as the provenance".
+The owner objected that what the framework already does is not a reason, and the question was asked again in
+general, a framework-wide change included. Answer, kept in CLAUDE.md (*Conventions*): a record takes the shape of
+its data. The provenance is a set of named facts and stays one `TNamed` per fact (changing it would leave a second
+reader in every tool, for every file already produced, for nothing). The fit record is a table, rows of the same
+typed fields, and is a `TTree`: queried in one line, a missing column an error. The argument that settled it was
+found by the reviewer: `CompareRootFiles` compared any `TNamed` by its title, and a `TTree` is a `TNamed`, so a
+tree would have passed every before/after check whatever it held. A detached tree with `std::string` and
+`std::vector<std::string>` branches, written into a directory and read back, was measured to work in the compiled
+build before anything was written on it.
+
+**The purity files: one `Purity.root` per block.** `PurityTask` shared a file between the particles whose
+`output_file_suffix` agreed (pi_tpc and pi_tof), which cost a map of files, a raw `TFile*` in `ParticleTask`, the
+two keys written by hand to pick a subdirectory (`task.name == "pi_tpc" || ...`), the stamp and the provenance
+written twice, and a suffix kept equal by hand on the reader's side (`file_suffix`). Of the two agents' options,
+one file per particle or one per block, the owner chose one per block, as `PhiFitTask`, `MCTask` and the
+correlation tasks: `{output_prefix}Purity.root`, the fits of each particle under `Fits/{purity_key}`, the name in
+`OutputNames::kPurityFile` for both sides (with `kPhiDataFile`, which was spelled in two places too). Both keys are
+gone; a configuration that still has `output_file_suffix` stops at `RequireKnownKeys`. `CorrelationTask` opens the
+file, prints its provenance and checks its stamp once, not once per particle.
+
+**The fit files by UPDATE.** Both fit tasks write everything under `{binning_name}/` and opened their file with
+`RECREATE`, so a second scheme into the same file destroyed the first (the reviewer's example: the online-only
+configuration and the base purity block, both with the prefix `Data_`, write the same purity file). They now open it `UPDATE` and clear their own
+binning (`RootIO::ClearPath`), row two of CLAUDE.md's table, as `MCTask` does.
+
+**The record.** `DynamicRooFitter::Diagnostics` reads the saved `RooFitResult` (status, covQual, edm, minNll,
+numInvalidNLL, floating parameters within 1e-5 of their range from a limit, note 09's definition) and the counts
+the likelihood saw (`sumEntries` of the `RooDataHist`). `FitConfig::binOverride` carries the `fit_setup.bins` key
+the manager applied. `FitQualityRecorder` fills the tree, writes it, and gives one warning per section and binning
+with the count per reason; `Reasons` is the one public rule, status not among them (note 09).
+
+**`CompareRootFiles`**: trees compared branch by branch (numbers through their leaves, strings and vectors of
+strings by type); any other class, and any `TNamed` subclass, listed as NOT COMPARED, which fails the check; two
+NaN equal (the empty pi_tof purity is NaN on both sides of any change, and was reported as a difference every
+time); every directory starting with `Provenance` skipped (`ComparisonTask`'s copies were compared, timestamp
+included). In the 742 output files of a sandbox (spectra, caches, corrections, purities, comparisons) the classes are TH1D/F, TH2D/F, TH3D, TCanvas and
+plain TNamed: nothing that passed before fails now.
+
+**Reviewed** after the code by `analysis-reviewer` and `analysis-simplifier`. Taken: an empty cell was also counted
+as "at a limit" (the verdict was half in the classifier and half in `Add`; now one function returns the reasons as
+the labels they are counted under); `Write` and the warnings fused, the place from the directory itself; the cell's
+edges read by the recorder from the binnings, not paired by each caller; `SetDirectory(0)`, the convention; one
+"DoFit first" guard; a guard that could not fire in `PhiFitTask`; the duplicated lookups and loops.
+
+**Checked**, data pp and purity pp, compiled, against main in a sandbox: the purity spectra (83 per year, compared
+path by path from the three old files into the new one) and the eight CCDB maps identical; the six spectra files
+and the four φ-fit files identical but for the new tree; another binning's directory, put into a purity file
+before the run, still there after it; the tree read back and queried; `CompareRootFiles` on trees equal, with one
+value changed and with one branch more. What the first record says is in `DESIGN_NOTES.md` section 3.
+
+---
+
 ## The toy fits and the saved curves: two ROOT globals
 
 **20 October 2026**, both found while checking the second fit of the high side (below).

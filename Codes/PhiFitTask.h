@@ -5,9 +5,11 @@
 #include "CanvasManager.h"
 #include "DynamicRooFitter.h"
 #include "FitConfigManager.h"
+#include "FitQualityRecorder.h"
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
+#include "OutputNames.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 
@@ -73,8 +75,12 @@ class PhiFitTask : public IAnalysisTask
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "output_dir_proj", GetName());
     std::string prefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
 
-    std::string phiDataName = basePathProj + prefix + "PhiDataHistograms.root";
-    filePhiDataOutput = RootIO::OpenOrThrow(phiDataName, "RECREATE", GetName());
+    // UPDATE and this binning's subtree cleared, not RECREATE: the file holds one subtree per
+    // binning_name, and another scheme's must survive this one's run (CLAUDE.md, How a task
+    // opens the file it writes).
+    std::string phiDataName = basePathProj + prefix + OutputNames::kPhiDataFile;
+    filePhiDataOutput = RootIO::OpenOrThrow(phiDataName, "UPDATE", GetName());
+    RootIO::ClearPath(filePhiDataOutput.get(), {globalCfgs.binningName});
 
     // Real bin edges on both axes, not 0..N counters: these matrices cross the
     // boundary to CorrelationTask, and with index axes the association to a pT
@@ -117,6 +123,8 @@ class PhiFitTask : public IAnalysisTask
         // Initialize RooFit Engine
         DynamicRooFitter fitter(h1PhiData.get(), cfg);
         fitter.DoFit();
+        fitQuality.Add(kFitSection, FitQualityRecorder::kAnalysisBinning, multBinning, i, ptPhiBinning, j, cfg.binOverride,
+                       fitter.Diagnostics());
 
         auto res = fitter.ExtractYieldsAndPurity();
 
@@ -166,8 +174,9 @@ class PhiFitTask : public IAnalysisTask
     // stamp is needed here - both axes of the matrices are the real binnings.
     RootIO::WriteProvenance(filePhiDataOutput.get(), globalCfgs.binningName, provenance);
 
-    if (filePhiDataOutput)
-      filePhiDataOutput->Close();
+    fitQuality.Write(RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName}, false), GetName());
+
+    filePhiDataOutput->Close();
 
     Logger::Info("{}: DONE.", GetName());
   }
@@ -185,6 +194,7 @@ class PhiFitTask : public IAnalysisTask
   std::unique_ptr<TH3F> h3PhiData;
 
   std::unique_ptr<TFile> filePhiDataOutput;
+  FitQualityRecorder fitQuality;
 
   // Filled in Init, written into the output file in Terminate
   std::map<std::string, std::string> provenance;

@@ -94,8 +94,34 @@ class DynamicRooFitter
     // Save the result to the class member instead of a local variable
     // reset() releases any previous fitResult and takes ownership of the new one
     fitResult.reset(model->fitTo(dataHist, RooFit::Optimize(1), RooFit::Extended(1), RooFit::Save(1), RooFit::PrintLevel(-1)));
+    fittedCounts = dataHist.sumEntries();
 
     return fitResult->status();
+  }
+
+  // What the last fit was, from the result it saved: nothing here refits or adds an option to the fit.
+  FitDiagnostics Diagnostics() const
+  {
+    RequireFit();
+
+    FitDiagnostics d;
+    d.status = fitResult->status();
+    d.covQual = fitResult->covQual();
+    d.edm = fitResult->edm();
+    d.minNll = fitResult->minNll();
+    d.numInvalidNLL = fitResult->numInvalidNLL();
+    d.counts = fittedCounts;
+    // "At a limit" as in note 09 of RooFitKnowledge: within 1e-5 of the range from either end. The distance there
+    // was bimodal, below 1e-6 or above 1e-4, so the threshold does not split a population.
+    for (const RooAbsArg* arg : fitResult->floatParsFinal()) {
+      const auto* v = dynamic_cast<const RooRealVar*>(arg);
+      if (!v || !v->hasMin() || !v->hasMax())
+        continue;
+      const double tolerance = 1e-5 * (v->getMax() - v->getMin());
+      if (v->getVal() - v->getMin() < tolerance || v->getMax() - v->getVal() < tolerance)
+        d.atLimit.emplace_back(v->GetName());
+    }
+    return d;
   }
 
   // Structure to hold the results of the yield and purity calculations
@@ -109,8 +135,7 @@ class DynamicRooFitter
 
   FitResults ExtractYieldsAndPurity()
   {
-    if (!fitResult)
-      throw std::runtime_error("[FATAL] Call DoFit() first!");
+    RequireFit();
 
     FitResults results;
 
@@ -186,11 +211,34 @@ class DynamicRooFitter
   void DrawFit(const CanvasManager::RatioCanvas& ratio) { DrawFitOnPads(ratio.topPad, ratio.bottomPad, ratio.fontScale); }
 
  private:
+  TH1* h1Data;
+  FitConfig config;
+
+  RooRealVar* obs{nullptr}; // The X-axis observable
+
+  RooAbsPdf* sigPdf{nullptr}; // Pointer to the signal part
+  RooAbsPdf* bkgPdf{nullptr}; // Pointer to the background part
+  RooAbsPdf* model{nullptr};  // The total model (Signal + Background)
+
+  // Keep the fit result alive to use its covariance matrix later
+  std::unique_ptr<RooFitResult> fitResult;
+  double fittedCounts{0.0}; // the sum of the RooDataHist the last fit saw, for Diagnostics
+
+  // Ownership of all dynamically created RooFit args (vars + pdfs).
+  // Insertion order = creation order (leaves first, composites last).
+  // The destructor depends on this invariant to tear down in reverse.
+  std::vector<std::unique_ptr<RooAbsArg>> ownedObjects;
+
+  // Everything that reads the result asks here: there is none before DoFit.
+  void RequireFit() const
+  {
+    if (!fitResult)
+      throw std::runtime_error("[FATAL] DynamicRooFitter: call DoFit() first.");
+  }
+
   void DrawFitOnPads(TPad* mainPad, TPad* pullPad, double fontScale)
   {
-    if (!fitResult) {
-      throw std::runtime_error("[FATAL] You must call DoFit() before drawing the fit!");
-    }
+    RequireFit();
     if (!mainPad) {
       throw std::runtime_error("[FATAL] DynamicRooFitter::DrawFit: no pad to draw on.");
     }
@@ -258,23 +306,6 @@ class DynamicRooFitter
       }
     }
   }
-
-  TH1* h1Data;
-  FitConfig config;
-
-  RooRealVar* obs{nullptr}; // The X-axis observable
-
-  RooAbsPdf* sigPdf{nullptr}; // Pointer to the signal part
-  RooAbsPdf* bkgPdf{nullptr}; // Pointer to the background part
-  RooAbsPdf* model{nullptr};  // The total model (Signal + Background)
-
-  // Keep the fit result alive to use its covariance matrix later
-  std::unique_ptr<RooFitResult> fitResult;
-
-  // Ownership of all dynamically created RooFit args (vars + pdfs).
-  // Insertion order = creation order (leaves first, composites last).
-  // The destructor depends on this invariant to tear down in reverse.
-  std::vector<std::unique_ptr<RooAbsArg>> ownedObjects;
 
   // Helper: creates, stores ownership, returns a non-owning raw pointer for RooFit APIs
   template <typename T, typename... Args>

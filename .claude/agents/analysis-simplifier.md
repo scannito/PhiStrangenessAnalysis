@@ -22,6 +22,9 @@ What to look for:
 - **Code that exists twice** in the change, or that duplicates something the codebase already has.
 - **Names, comments and structure** that make the reader work: a comment that restates the code, a name that says
   less than the line it names, an early return or a flag that hides what happens.
+- **An existing idiom followed only because it exists.** If the change would be simpler with the idiom itself
+  changed, across the framework, say so and what that broader change costs; the current idiom is one candidate, not
+  the default. The same for a design question asked before any code.
 
 For each finding, write the simpler version, not only the complaint. Do not report correctness bugs here unless
 you see one in passing (the other reviewer covers them), nor formatting, nor preferences with no cost you can name.

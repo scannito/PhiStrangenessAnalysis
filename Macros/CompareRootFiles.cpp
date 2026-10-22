@@ -4,8 +4,16 @@
 //
 // Exact equality on purpose, contents, errors and bin edges: a refactoring that changes a
 // number in the last bit has changed something. Histograms (any dimension), THnSparse,
-// TGraph, TObjString and TNamed titles are compared; canvases are skipped (they hold
-// drawn copies of the rest), and so are "Provenance" directories (timestamp, commit).
+// TGraph, TTree (entries, branches, values), TObjString and the titles of plain TNamed are
+// compared; canvases are skipped (they hold drawn copies of the rest), and so is every
+// directory whose name starts with "Provenance" (timestamp, commit; ComparisonTask copies its
+// inputs' into Provenance_numerator and Provenance_denominator).
+//
+// What it cannot compare it says, and counts as a failure: an object of another class, a
+// subclass of TNamed other than those above (a TTree is a TNamed, and so is a RooFitResult:
+// comparing their titles would pass any content), a TTree branch of a type it does not read.
+// A comparison that skipped something in silence would be the "wrong numbers, no error" of
+// CLAUDE.md in the tool meant to catch it.
 //
 // A standalone program and not a macro, so it does not depend on Cling:
 //   clang++ -O1 -std=c++20 Macros/CompareRootFiles.cpp $(root-config --cflags --libs) -o compareRootFiles
@@ -21,14 +29,17 @@
 #include "THnSparse.h"
 #include "TKey.h"
 #include "TNamed.h"
+#include "TLeaf.h"
 #include "TObjString.h"
+#include "TTree.h"
 
+#include <cmath>
 #include <cstdio>
 #include <memory>
 #include <string>
 #include <vector>
 
-static int nDiff = 0, nCompared = 0, nSkipped = 0;
+static int nDiff = 0, nCompared = 0, nSkipped = 0, nNotCompared = 0;
 
 static void report(const std::string& path, const std::string& what)
 {
@@ -36,6 +47,10 @@ static void report(const std::string& path, const std::string& what)
     std::printf("DIFF %s: %s\n", path.c_str(), what.c_str());
   ++nDiff;
 }
+
+// Equal, with two NaN equal: a cell that cannot be computed is NaN on both sides of a refactoring that did not
+// touch it (the purity of an empty pi_tof bin, for one), and NaN != NaN would report it as changed every time.
+static bool same(double a, double b) { return a == b || (std::isnan(a) && std::isnan(b)); }
 
 static bool sameAxis(const TAxis* a, const TAxis* b)
 {
@@ -60,11 +75,11 @@ static void compareTH1(const std::string& path, TH1* a, TH1* b)
   for (int i = 0; i < n; ++i) {
     const double ca = a->GetBinContent(i), cb = b->GetBinContent(i);
     const double ea = a->GetBinError(i), eb = b->GetBinError(i);
-    if (ca != cb || ea != eb) {
+    if (!same(ca, cb) || !same(ea, eb)) {
       ++bad;
-      if (ca != cb)
+      if (!same(ca, cb))
         worst = std::max(worst, std::abs(ca - cb) / std::max(std::abs(ca), 1e-300));
-      if (ea != eb)
+      if (!same(ea, eb))
         worstErr = std::max(worstErr, std::abs(ea - eb) / std::max(std::abs(ea), 1e-300));
     }
   }
@@ -88,11 +103,101 @@ static void compareSparse(const std::string& path, THnSparse* a, THnSparse* b)
   for (Long64_t i = 0; i < a->GetNbins(); ++i) {
     const double ca = a->GetBinContent(i, idx.data());
     const Long64_t j = b->GetBin(idx.data(), false);
-    if (j < 0 || b->GetBinContent(j) != ca || b->GetBinError(j) != a->GetBinError(i))
+    if (j < 0 || !same(b->GetBinContent(j), ca) || !same(b->GetBinError(j), a->GetBinError(i)))
       ++bad;
   }
   if (bad)
     report(path, std::to_string(bad) + " filled bins differ");
+}
+
+static void notCompared(const std::string& path, const std::string& what)
+{
+  std::printf("NOT COMPARED %s: %s\n", path.c_str(), what.c_str());
+  ++nNotCompared;
+}
+
+static bool isProvenance(const std::string& name) { return name.rfind("Provenance", 0) == 0; }
+
+// One branch, entry by entry: the values a branch of type T holds, read into the same type on both sides.
+template <typename T>
+static void compareObjectBranch(const std::string& path, TTree* a, TTree* b, const char* name)
+{
+  T* va = nullptr;
+  T* vb = nullptr;
+  a->SetBranchAddress(name, &va);
+  b->SetBranchAddress(name, &vb);
+  for (Long64_t i = 0; i < a->GetEntries(); ++i) {
+    a->GetBranch(name)->GetEntry(i);
+    b->GetBranch(name)->GetEntry(i);
+    if (*va != *vb) {
+      report(path + "/" + name, "entry " + std::to_string(i) + " differs");
+      break;
+    }
+  }
+  a->ResetBranchAddresses();
+  b->ResetBranchAddresses();
+}
+
+// The leaves of one entry of a branch of plain numbers: same number, same types, same values.
+static bool sameLeaves(TObjArray* leavesA, TObjArray* leavesB)
+{
+  if (leavesA->GetEntries() != leavesB->GetEntries())
+    return false;
+  for (int l = 0; l < leavesA->GetEntries(); ++l) {
+    auto* la = static_cast<TLeaf*>(leavesA->At(l));
+    auto* lb = static_cast<TLeaf*>(leavesB->At(l));
+    if (la->GetLen() != lb->GetLen() || std::string(la->GetTypeName()) != lb->GetTypeName())
+      return false;
+    for (int k = 0; k < la->GetLen(); ++k)
+      if (!same(la->GetValue(k), lb->GetValue(k)))
+        return false;
+  }
+  return true;
+}
+
+// Entries, the set of branches with their types, and every value. Branches of plain numbers are read through their
+// leaves; strings and vectors of strings through their own type; any other type is said, not passed.
+static void compareTree(const std::string& path, TTree* a, TTree* b)
+{
+  if (a->GetEntries() != b->GetEntries()) {
+    report(path, "entries differ");
+    return;
+  }
+  for (auto* obj : *a->GetListOfBranches()) {
+    auto* ba = static_cast<TBranch*>(obj);
+    const char* name = ba->GetName();
+    TBranch* bb = b->GetBranch(name);
+    if (!bb) {
+      report(path + "/" + name, "branch missing in B");
+      continue;
+    }
+    const std::string type = ba->GetClassName();
+    if (type != bb->GetClassName()) {
+      report(path + "/" + name, "branch type " + type + " vs " + bb->GetClassName());
+      continue;
+    }
+    if (type == "string") {
+      compareObjectBranch<std::string>(path, a, b, name);
+    } else if (type == "vector<string>") {
+      compareObjectBranch<std::vector<std::string>>(path, a, b, name);
+    } else if (type.empty()) {
+      auto* leavesA = ba->GetListOfLeaves();
+      auto* leavesB = bb->GetListOfLeaves();
+      for (Long64_t i = 0; i < a->GetEntries(); ++i) {
+        ba->GetEntry(i);
+        bb->GetEntry(i);
+        if (!sameLeaves(leavesA, leavesB)) {
+          report(path + "/" + name, "entry " + std::to_string(i) + " differs");
+          break;
+        }
+      }
+    } else {
+      notCompared(path + "/" + name, "a branch of type " + type);
+    }
+  }
+  for (auto* obj : *b->GetListOfBranches())
+    if (!a->GetBranch(obj->GetName()))
+      report(path + "/" + obj->GetName(), "branch missing in A");
 }
 
 static void compareGraph(const std::string& path, TGraph* a, TGraph* b)
@@ -102,7 +207,7 @@ static void compareGraph(const std::string& path, TGraph* a, TGraph* b)
     return;
   }
   for (int i = 0; i < a->GetN(); ++i)
-    if (a->GetX()[i] != b->GetX()[i] || a->GetY()[i] != b->GetY()[i] || a->GetErrorY(i) != b->GetErrorY(i)) {
+    if (!same(a->GetX()[i], b->GetX()[i]) || !same(a->GetY()[i], b->GetY()[i]) || !same(a->GetErrorY(i), b->GetErrorY(i))) {
       report(path, "point " + std::to_string(i) + " differs");
       return;
     }
@@ -116,7 +221,7 @@ static void walk(TDirectory* da, TDirectory* db, const std::string& prefix)
       continue; // only the highest cycle
     const std::string name = key->GetName();
     const std::string path = prefix + "/" + name;
-    if (name == "Provenance")
+    if (isProvenance(name))
       continue;
 
     TKey* kb = db->GetKey(name.c_str());
@@ -142,15 +247,20 @@ static void walk(TDirectory* da, TDirectory* db, const std::string& prefix)
       compareSparse(path, sa, static_cast<THnSparse*>(ob));
     else if (auto* ga = dynamic_cast<TGraph*>(oa))
       compareGraph(path, ga, static_cast<TGraph*>(ob));
+    else if (auto* ta = dynamic_cast<TTree*>(oa))
+      compareTree(path, ta, static_cast<TTree*>(ob));
     else if (auto* osa = dynamic_cast<TObjString*>(oa)) {
       if (osa->GetString() != static_cast<TObjString*>(ob)->GetString())
         report(path, "string differs");
     } else if (dynamic_cast<TCanvas*>(oa)) {
       --nCompared;
       ++nSkipped; // drawn copies of what is compared above
-    } else if (auto* na = dynamic_cast<TNamed*>(oa)) {
-      if (std::string(na->GetTitle()) != static_cast<TNamed*>(ob)->GetTitle())
+    } else if (oa->IsA() == TNamed::Class()) {
+      if (std::string(oa->GetTitle()) != ob->GetTitle())
         report(path, "title differs");
+    } else {
+      --nCompared;
+      notCompared(path, std::string("an object of class ") + oa->ClassName());
     }
     delete oa;
     delete ob;
@@ -158,7 +268,7 @@ static void walk(TDirectory* da, TDirectory* db, const std::string& prefix)
   // keys only in B
   for (auto* obj : *db->GetListOfKeys()) {
     const std::string name = obj->GetName();
-    if (name != "Provenance" && !da->GetKey(name.c_str()))
+    if (!isProvenance(name) && !da->GetKey(name.c_str()))
       report(prefix + "/" + name, "missing in A");
   }
 }
@@ -175,6 +285,8 @@ int main(int argc, char** argv)
     return 2;
   }
   walk(a.get(), b.get(), "");
-  std::printf("compared %d objects (%d canvases skipped), %d differences\n", nCompared, nSkipped, nDiff);
-  return nDiff ? 1 : 0;
+  // "N NOT COMPARED" only when there are some, so that a check written for the old line still reads it.
+  const std::string notComparedNote = nNotCompared ? ", " + std::to_string(nNotCompared) + " NOT COMPARED" : "";
+  std::printf("compared %d objects (%d canvases skipped%s), %d differences\n", nCompared, nSkipped, notComparedNote.c_str(), nDiff);
+  return nDiff || nNotCompared ? 1 : 0;
 }

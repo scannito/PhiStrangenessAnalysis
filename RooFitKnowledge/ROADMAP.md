@@ -1,6 +1,6 @@
 # Roadmap: cosa fare nel progetto dopo la ricerca RooFit
 
-15 ottobre 2026. Scritta dalle conclusioni di `00-summary.md` (sezioni 1-3) e delle note finali 09, 11, 12. Ogni voce rimanda alla nota con le prove; nessuna voce è stata implementata.
+15 ottobre 2026. Scritta dalle conclusioni di `00-summary.md` (sezioni 1-3) e delle note finali 09, 11, 12. Ogni voce rimanda alla nota con le prove. Implementata finora: la 1.1 (21 ottobre 2026, `FitQualityRecorder`, README *Fit quality*).
 
 Ordine: prima ciò che non cambia la fisica (bug, visibilità), poi le tue decisioni di fisica, poi la nuova procedura di fit, infine la
 rigenerazione e il confronto a valle. Le fasi 0 e 1 si possono fare subito e in qualsiasi ordine.
@@ -20,7 +20,7 @@ rigenerazione e il confronto a valle. Le fasi 0 e 1 si possono fare subito e in 
 
 ## Fase 1 - Rendere visibile la qualità dei fit (i risultati non cambiano)
 
-1. **Leggere e registrare lo stato del fit per cella:** `status`, `covQual`, `edm`, `minNll`, parametri al limite. Oggi nessuno li legge.
+1. **Leggere e registrare lo stato del fit per cella:** `status`, `covQual`, `edm`, `minNll`, parametri al limite. **Fatto il 21 ottobre 2026**: un `TTree` `{binning}/FitQuality` per file, e un warning per sezione con i segnali affidabili (cella vuota, `covQual<3`, valutazioni NaN, parametri al limite); lo status non è segnalato.
    Lo status 3 da solo non è un indicatore (nota 09 sezione 2): segnalare con il test `covQual==3 && edm<0.01` dopo `Offset(true)` (vedi fase 3).
 2. **Validatore del modello prima di `fitTo`:** limiti, start dentro i limiti, pdf finita e non negativa ai valori iniziali. Circa 30 righe,
    codice in nota 10 sezione 6. Indipendente da parser, factory o HS3.

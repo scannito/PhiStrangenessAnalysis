@@ -106,7 +106,6 @@ struct ParticleTask {
                                                         // analysis edge is not an edge of the source - a
                                                         // diagnostic that belongs to construction, before
                                                         // any fit has run
-  TFile* outputFile{nullptr};                           // Output file for this particle
   std::unique_ptr<TH2F> h2PurityCCDB;                   // (multiplicity, pT) purity at the source binning,
                                                         // written on its own as "ccdb_object" so O2 can
                                                         // apply it candidate by candidate
@@ -116,14 +115,12 @@ struct ParticleTask {
   // half-built. Note that member initialisers run in declaration order, which is why
   // it is declared after what it reads.
   ParticleTask(std::string name_, std::unique_ptr<TH3F> h3Source_, std::vector<double> sourceBinning_,
-               std::optional<std::vector<double>> rebinningPt_, TFile* outputFile_,
-               std::unique_ptr<TH2F> h2PurityCCDB_)
+               std::optional<std::vector<double>> rebinningPt_, std::unique_ptr<TH2F> h2PurityCCDB_)
     : name(std::move(name_)),
       h3Source(std::move(h3Source_)),
       sourceBinning(std::move(sourceBinning_)),
       rebinningPt(std::move(rebinningPt_)),
       mappedSourceBins(BinningUtils::MapToSourceBins(sourceBinning, AnalysisBinning())),
-      outputFile(outputFile_),
       h2PurityCCDB(std::move(h2PurityCCDB_))
   {
   }
@@ -211,6 +208,21 @@ struct FitConfig {
   ObservableConfig obs;
   ModelConfig model;
   IntegrationConfig integration;
+  // The fit_setup.bins key that was applied over "default", empty for none: said by the manager that applied it, so
+  // that a record of the fit names what was really used instead of rebuilding the key from indices.
+  std::string binOverride;
+};
+
+// The raw facts of one fit, read from the RooFitResult it saved (DynamicRooFitter::Diagnostics). No verdict: what
+// counts as a bad fit is FitQualityRecorder's, in one place.
+struct FitDiagnostics {
+  int status{-1};
+  int covQual{-1};
+  double edm{0.0};
+  double minNll{0.0};
+  int numInvalidNLL{0};
+  double counts{0.0};               // what the likelihood saw: the sum of the binned data over the observable range
+  std::vector<std::string> atLimit; // floating parameters within 1e-5 of their range from a limit (RooFitKnowledge, note 09)
 };
 
 // ============================================================================

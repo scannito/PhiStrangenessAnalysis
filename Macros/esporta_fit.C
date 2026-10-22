@@ -1,6 +1,6 @@
 #include "../Codes/CanvasManager.h"
 
-void esporta_fit(const char* rootFilePath = "../DataFile/pp/DeltaY/Purities/Data_K0SPurity.root",
+void esporta_fit(const char* rootFilePath = "../DataFile/pp/DeltaY/Purities/Data_Purity.root",
                  const char* pdfOutPath = "tutti_i_fit.pdf")
 {
   std::unique_ptr<TFile> f(TFile::Open(rootFilePath));

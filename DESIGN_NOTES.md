@@ -212,6 +212,16 @@ bad fit here or the usual outcome of this setup. The number says only that the s
 cannot be left unread: if it is the usual outcome, the audit described below has to be
 tuned so that it does not flag 90% of the fits.
 
+**Recorded since 21 October 2026.** Every fit of `PhiFitTask` and `PurityTask` now leaves a row in
+`{binning_name}/FitQuality` (README, *Fit quality*): the raw status, covQual, edm, minNll, invalid evaluations and
+parameters at a limit, and one warning per section and binning with what is flagged. Nothing reads it yet to decide
+anything; what follows is still open, and the first run says how much there is. Purity 2024, analysis binning:
+flagged 31 of 100 k0s fits (20 with invalid NLL evaluations; note 09 traced those to the Chebychev2 background), 54 of 70 xi (all
+`sigma_sig` at its lower limit: 188 of 260 at the source binning, as note 09 found), 83 of 100 pi_tpc (67 with
+covQual < 3), 70 of 100 pi_tof (58 with `slope_bkg` at a limit); 2026 alike, plus 3 empty pi_tof cells. φ fits:
+56-60 of 70 per file, `c1_bkg`/`c2_bkg` at a limit in 25-47 of them and covQual < 3 in 26-38. Not every flag is a bad fit
+(a limit can be a physical bound): that is the judgement the record exists to make possible.
+
 **1. Convergence and covariance matrix diagnostics:**
 - In RooFit/MINUIT, a converged fit with full covariance error propagation satisfies `status == 0`
   and `covQual == 3` (accurate covariance matrix).

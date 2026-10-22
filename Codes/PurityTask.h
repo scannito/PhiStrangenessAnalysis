@@ -6,9 +6,11 @@
 #include "CanvasManager.h"
 #include "DynamicRooFitter.h"
 #include "FitConfigManager.h"
+#include "FitQualityRecorder.h"
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
+#include "OutputNames.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 
@@ -52,11 +54,15 @@ class PurityTask : public IAnalysisTask
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
     std::unique_ptr<TFile> fileInput = RootIO::OpenOrThrow(inputFile, "READ", GetName());
 
-    // 2. Open Output files
+    // 2. Open the output file: one for every particle of the block. UPDATE and this binning's
+    // subtree cleared, not RECREATE: the file holds one subtree per binning_name, and another
+    // scheme's must survive this one's run (CLAUDE.md, How a task opens the file it writes).
     std::string outputDir = JsonConfig::RequireString(taskConfig, "output_dir", GetName());
 
     // Prefix to specify the type of analysis (Data vs MCClosure)
     outputPrefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
+    outputFile = RootIO::OpenOrThrow(outputDir + outputPrefix + OutputNames::kPurityFile, "UPDATE", GetName());
+    RootIO::ClearPath(outputFile.get(), {globalCfgs.binningName});
 
     // CCDB-ready maps live under outputDir/{binningName}/ on disk, since the ROOT
     // object inside must be named literally "ccdb_object" with no subfolder.
@@ -72,11 +78,10 @@ class PurityTask : public IAnalysisTask
     int pIdx = 0;
     for (const auto& particle : particles) {
       const std::string ctx = std::format("{} purity_particles[{}]", GetName(), pIdx++);
-      JsonConfig::RequireKnownKeys(particle, {"name", "purity_key", "hist_name", "output_file_suffix", "rebinning_pt"}, ctx);
+      JsonConfig::RequireKnownKeys(particle, {"name", "purity_key", "hist_name", "rebinning_pt"}, ctx);
       std::string name = JsonConfig::RequireString(particle, "name", ctx);
       std::string purityKey = JsonConfig::RequireString(particle, "purity_key", ctx);
       std::string histName = JsonConfig::RequireString(particle, "hist_name", ctx);
-      std::string outputFileSuffix = JsonConfig::RequireString(particle, "output_file_suffix", ctx);
 
       std::unique_ptr<TH3F> h3Source = RootIO::GetUniqueOrThrow<TH3F>(fileInput.get(), histName, GetName());
 
@@ -99,20 +104,6 @@ class PurityTask : public IAnalysisTask
         rebinningPt = std::move(bins);
       }
 
-      std::string outputFileName = outputDir + outputPrefix + outputFileSuffix;
-
-      // Reuse an already-open file if another particle points to the same suffix
-      TFile* outputFilePtr{nullptr};
-
-      auto it = outputFiles.find(outputFileName);
-      if (it != outputFiles.end()) {
-        outputFilePtr = it->second.get();
-      } else {
-        std::unique_ptr<TFile> outputFile = RootIO::OpenOrThrow(outputFileName, "RECREATE", GetName());
-        outputFiles[outputFileName] = std::move(outputFile);
-        outputFilePtr = outputFiles[outputFileName].get();
-      }
-
       // Real bin edges on both axes: the map leaves this framework, so the pT
       // interval a bin stands for must be readable from the object itself.
       std::string ccdbName = "h2" + purityKey + "Purity";
@@ -125,7 +116,7 @@ class PurityTask : public IAnalysisTask
       // is not passed here: an analysis edge that is not an edge of the source
       // makes this line throw, before any fit has run.
       particleTasks.emplace_back(purityKey, std::move(h3Source), std::move(sourceBinning),
-                                 std::move(rebinningPt), outputFilePtr, std::move(h2CCDB));
+                                 std::move(rebinningPt), std::move(h2CCDB));
 
       // Each summary canvas declares its Y range here; the manager applies it when it writes.
       canvasManager.SetAutoYRange(canvasManager.CreateCanvas("canvas" + purityKey + "Purity", purityKey + " Purity",
@@ -157,12 +148,11 @@ class PurityTask : public IAnalysisTask
 
     for (int i{0}; i < BinningUtils::NBins(multBinning); i++) {
       for (auto& task : particleTasks) {
-        std::vector<std::string> fitPath = {globalCfgs.binningName, "Fits"};
-        if (task.name == "pi_tpc" || task.name == "pi_tof")
-          fitPath.push_back(task.name);
+        // Every particle's fits in a directory of its own: they share the file.
+        std::vector<std::string> fitPath = {globalCfgs.binningName, "Fits", task.name};
 
-        TDirectory* summaryDir = RootIO::GetOrCreatePath(task.outputFile, summaryPath, false);
-        TDirectory* fitDir = RootIO::GetOrCreatePath(task.outputFile, fitPath, false);
+        TDirectory* summaryDir = RootIO::GetOrCreatePath(outputFile.get(), summaryPath, false);
+        TDirectory* fitDir = RootIO::GetOrCreatePath(outputFile.get(), fitPath, false);
 
         std::unique_ptr<TH1> h1PurityAnalysis = FitPuritySpectrum(task, i, SpectrumBinning::Analysis, fitDir);
 
@@ -189,7 +179,7 @@ class PurityTask : public IAnalysisTask
           std::vector<std::string> sourceFitPath = fitPath;
           sourceFitPath.push_back("SourceBinning");
 
-          TDirectory* fitDirSource = RootIO::GetOrCreatePath(task.outputFile, sourceFitPath, false);
+          TDirectory* fitDirSource = RootIO::GetOrCreatePath(outputFile.get(), sourceFitPath, false);
           h1PuritySeparateSource = FitPuritySpectrum(task, i, SpectrumBinning::Source, fitDirSource);
 
           CanvasManager::SetHistogramStyle(h1PuritySeparateSource.get(), globalCfgs.GetSpectraColor(i));
@@ -201,7 +191,7 @@ class PurityTask : public IAnalysisTask
           // exists if and only if something was written into it.
           std::vector<std::string> sourceSummaryPath = summaryPath;
           sourceSummaryPath.push_back("SourceBinning");
-          if (TDirectory* sourceDir = RootIO::GetOrCreatePath(task.outputFile, sourceSummaryPath, false)) {
+          if (TDirectory* sourceDir = RootIO::GetOrCreatePath(outputFile.get(), sourceSummaryPath, false)) {
             sourceDir->cd();
             h1PuritySeparateSource->Write(nullptr, TObject::kOverwrite);
           }
@@ -222,22 +212,19 @@ class PurityTask : public IAnalysisTask
   {
     Logger::Info("{}: TERMINATING AND SAVING...", GetName());
 
-    // 1. Save each particle's summary canvas into its own output file
-    for (auto& task : particleTasks) {
-      canvasManager.WriteCanvas("canvas" + task.name + "Purity", task.outputFile);
-      if (task.rebinningPt) {
-        canvasManager.WriteCanvas("canvas" + task.name + "Purity_sourceBinning", task.outputFile);
-      }
+    // 1. The summary canvases, the provenance, the stamp and the fit quality
+    canvasManager.WriteAll(outputFile.get());
+    RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
 
-      // The pT binning is the axis of each purity spectrum, so the consumer can
-      // read it. The multiplicity binning is only an index in the names
-      // ("..._multBin3") and would otherwise be unverifiable.
-      if (TDirectory* schemeDir = RootIO::GetOrCreatePath(task.outputFile, {globalCfgs.binningName}, false))
-        RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
-
-      // Written per file because several particles can share one, e.g. pi_tpc and pi_tof.
-      RootIO::WriteProvenance(task.outputFile, globalCfgs.binningName, provenance);
-    }
+    // The pT binning is the axis of each purity spectrum, so the consumer can
+    // read it. The multiplicity binning is only an index in the names
+    // ("..._multBin3") and would otherwise be unverifiable.
+    TDirectory* schemeDir = RootIO::GetOrCreatePath(outputFile.get(), {globalCfgs.binningName}, false);
+    if (!schemeDir)
+      throw std::runtime_error(std::format("[FATAL] {}: cannot create '{}' in {}: the binning stamp and the fit quality would be lost.",
+                                           GetName(), globalCfgs.binningName, outputFile->GetName()));
+    RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
+    fitQuality.Write(schemeDir, GetName());
 
     // 2. Write the CCDB-ready maps, one file per particle, object named "ccdb_object"
     for (auto& task : particleTasks) {
@@ -252,12 +239,8 @@ class PurityTask : public IAnalysisTask
       ccdbFile->Close();
     }
 
-    // 3. Close output files
-    for (auto& [name, file] : outputFiles) {
-      if (file) {
-        file->Close();
-      }
-    }
+    // 3. Close the output file
+    outputFile->Close();
 
     Logger::Info("{}: DONE.", GetName());
   }
@@ -273,10 +256,9 @@ class PurityTask : public IAnalysisTask
   // Filled in Init, written into the output file in Terminate
   std::map<std::string, std::string> provenance;
 
-  // outputFiles must be declared before particleTasks to ensure proper destruction order:
-  // particleTasks holds raw pointers to TFile objects managed by outputFiles, so outputFiles must outlive particleTasks.
-  std::map<std::string, std::unique_ptr<TFile>> outputFiles;
+  std::unique_ptr<TFile> outputFile;
   std::vector<ParticleTask> particleTasks;
+  FitQualityRecorder fitQuality; // every fit of every particle, both binnings
 
   // Read from the input file in Init(), never from the configuration
   std::vector<double> multBinning;
@@ -316,15 +298,16 @@ class PurityTask : public IAnalysisTask
       DynamicRooFitter fitter(h1Data.get(), cfg);
 
       fitter.DoFit();
+      fitQuality.Add(task.name, atSource ? FitQualityRecorder::kSourceBinning : FitQualityRecorder::kAnalysisBinning, multBinning,
+                     multBin, binning, k, cfg.binOverride, fitter.Diagnostics());
 
       auto res = fitter.ExtractYieldsAndPurity();
       h1PuritySpectrum->SetBinContent(k + 1, res.purityAndError.first);
       h1PuritySpectrum->SetBinError(k + 1, res.purityAndError.second);
 
-      // The fit's diagnostic canvas, written into this particle's output file and
-      // destroyed per fit, as in PhiFitTask. Not a WriteAll in Terminate
-      // here either - and that one could not work anyway: particles write into
-      // different files, while WriteAll sends every canvas to the one it is given.
+      // The fit's diagnostic canvas, written into the particle's directory and destroyed
+      // per fit, as in PhiFitTask: holding them all for the WriteAll in Terminate would
+      // only cost memory, since nothing reads a fit canvas back.
       const std::string cName = std::format("cFit_{}_m{}_p{}{}", task.name, multBin, k, nameSuffix);
       TCanvas* cFit = canvasManager.CreateCanvas(cName, "Fit Canvas", 800, 800);
       fitter.DrawFit(cFit);

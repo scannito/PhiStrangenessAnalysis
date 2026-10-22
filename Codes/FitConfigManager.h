@@ -103,6 +103,7 @@ class FitConfigManager : public BaseConfigManager
       if (bins && bins->HasMember(binKey.c_str())) {
         Logger::Debug("{}: Found custom parameters for bin: {}", managerName, binKey);
         loadNodeIntoModel((*bins)[binKey.c_str()]);
+        config.binOverride = binKey;
       }
     }
 
