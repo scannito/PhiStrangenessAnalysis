@@ -56,6 +56,14 @@
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
   output_name: "AnalysisResults_136_2026_HighIRac_PtMod_22settembre.root"
 
+############################################################
+# Added (Anti-)Lambda and Omega
+
+# LHC26ac_pass1_Thin_medium (pp) Data
+- train_id: 786384
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root"
+
 
 
 

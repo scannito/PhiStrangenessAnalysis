@@ -65,7 +65,7 @@ For the project owner. These supersede item 3 below where they disagree.
   - CCDB maps `Purities/MoreFullDifferential/Data_<year>_h2PurityMap<key>.root`: object `ccdb_object`, a TH2F (multiplicity, pT) at the source binning.
 - **Consumer in this project:** `CorrelationTask::LoadPurities` reads `h1<key>Purity_multBin<i>` for k0s, xi and pi_tpc. pi_tof is never read.
   `CorrelationTaskBase::GenerateSpectraAndTrends` then does `h1Spectrum->Multiply(hPurity)`: after the 1/N_trig and 1/(2 dy) normalisation, before the extrapolation, the trends and the ratios.
-  This happens only if `apply_purity` is true. It is false in `correlation_base_settings` (`globalConfigBasepp.json`), and only the older `globalConfigDatapp_OnlineEffonly.json` sets it true.
+  This happens only if `apply_purity` is true. It is false in `correlation_base_settings` (`globalConfigBasepp.json`), and no configuration sets it true since the older `globalConfigDatapp_OnlineEffonly.json`, the only one that did, was deleted (22 October 2026).
 - **Consumer outside:** the CCDB maps are meant for O2 (comment in PurityTask: "O2 applies it to single candidates"). Section 5 shows that no O2Physics code reads them.
 
 ## 2. The scratch copy and how to rerun [verified]

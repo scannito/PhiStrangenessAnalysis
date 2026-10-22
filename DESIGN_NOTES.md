@@ -314,7 +314,8 @@ recorded as a deliberate departure from `YieldMean`.
 
 **Unknown keys are not rejected.** A key that no task reads passes in silence.
 `use_legacy_extrapolation` showed the cost: after the legacy branch was removed it
-stayed in `globalConfigDatapp_OnlineEffonly.json`, set to `true` in three blocks,
+stayed in `globalConfigDatapp_OnlineEffonly.json` (a coarser-binning configuration, deleted on
+22 October 2026), set to `true` in three blocks,
 which then ran `SpectrumExtrapolator` while declaring the opposite - the
 configuration-that-lies case from `CLAUDE.md`. The key has been removed from that
 file (13 October); nothing would catch the next one. Rejecting unknown keys needs
@@ -919,6 +920,15 @@ whoever writes it:
 ---
 
 ## 10. Engineering
+
+**`workflow.inactive_tasks` is not checked (22 October 2026).** The list was added to every configuration
+with a `workflow` block as bookkeeping, at the owner's choice, instead of deleting the blocks of older
+productions; nothing reads it. A list nobody reads goes stale silently: a block renamed or deleted, a typo,
+a task left in both lists. The check, if wanted, is a few lines in `WorkflowManager`, next to where
+`active_tasks` is read: read the list with `JsonConfig::TryArray` (absent stays legal), and throw `[FATAL]`
+for a name that is not a block of the file, or that is also in `active_tasks`. It changes no number and does
+not belong in the provenance. Not done because the list is documentation; the signal to do it is the first
+time a stale entry misleads someone.
 
 **Splitting RootIOHelpers further — a suggestion, not a decision.** The header now
 holds two families: file access (open, get, navigate) and the records written into

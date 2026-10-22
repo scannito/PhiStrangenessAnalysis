@@ -80,7 +80,8 @@
             "correlation_task_offline_efficiency_strinj",
             "correlation_task_online_efficiency_strinj",
             "correlation_task_online_efficiency_no_phi_strinj"
-        ]
+        ],
+        "inactive_tasks": []
     },
     "phi_fit_task_offline_efficiency_Bneg": {},
     "phi_fit_task_online_efficiency_Bneg": {},

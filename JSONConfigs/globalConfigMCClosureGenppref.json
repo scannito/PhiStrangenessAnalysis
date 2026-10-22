@@ -75,7 +75,8 @@
             "correlation_wpdg_task_gen_bypass_ptcut_Bpos",
             "correlation_wpdg_task_gen_strinj",
             "correlation_wpdg_task_gen_bypass_ptcut_strinj"
-        ]
+        ],
+        "inactive_tasks": []
     },
     "correlation_wpdg_task_gen_Bneg": {
         "inherits": "correlation_wpdg_task_gen",

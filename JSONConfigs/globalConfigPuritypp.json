@@ -109,6 +109,35 @@
                     "5.9",
                     "6.5"
                 ],
+                "Omega": [
+                    "0.8",
+                    "0.9",
+                    "1",
+                    "1.1",
+                    "1.2",
+                    "1.3",
+                    "1.4",
+                    "1.5",
+                    "1.6",
+                    "1.7",
+                    "1.8",
+                    "1.9",
+                    "2",
+                    "2.2",
+                    "2.4",
+                    "2.6",
+                    "2.8",
+                    "3",
+                    "3.3",
+                    "3.6",
+                    "3.9",
+                    "4.2",
+                    "4.6",
+                    "5",
+                    "5.4",
+                    "5.9",
+                    "6.5"
+                ],
                 "Pi": [
                     "0.2",
                     "0.25",
@@ -151,6 +180,9 @@
             }
         },
         "active_tasks": [
+            "purity_task_2026_highIR_updated"
+        ],
+        "inactive_tasks": [
             "purity_task_2024",
             "purity_task_2026"
         ]
@@ -164,5 +196,10 @@
         "inherits": "purity_base_settings",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_6agosto.root",
         "output_prefix": "Data_2026_"
+    },
+    "purity_task_2026_highIR_updated": {
+        "inherits": "purity_base_settings_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
+        "output_prefix": "Data_2026_HighIR_updated_"
     }
 }

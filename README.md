@@ -146,6 +146,15 @@ Six task types are registered: `purity_task`, `mc_task`, `phi_fit_task`,
 `correlation_wpdg_task`, `correlation_task`, `comparison_task`. An unknown prefix is a
 fatal error that lists the ones that exist.
 
+### `workflow.inactive_tasks`
+
+The blocks of the file that are no longer run, kept instead of deleted so that the
+configuration of an older production stays readable: a task is retired by moving its name
+from `active_tasks` to `inactive_tasks`, and brought back the same way. Bookkeeping only:
+**nothing reads this list**, so nothing checks it either (a misspelled name, or a name in
+both lists, goes unnoticed). The check that would close that is described in
+`DESIGN_NOTES.md`, section 10.
+
 ### `inherits`
 
 A block may inherit from another and override individual keys:

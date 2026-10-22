@@ -5,7 +5,8 @@
         },
         "active_tasks": [
             "comparison_task_closure"
-        ]
+        ],
+        "inactive_tasks": []
     },
     "comparison_task_closure": {
         "target": "trends",

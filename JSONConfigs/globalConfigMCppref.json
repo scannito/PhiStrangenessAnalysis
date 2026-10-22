@@ -157,7 +157,8 @@
             "mc_task_Bneg_wtrigger",
             "mc_task_strange_injected",
             "mc_task_strange_injected_wtrigger"
-        ]
+        ],
+        "inactive_tasks": []
     },
     "mc_task_Bpos": {
         "inherits": "mc_base_settings",

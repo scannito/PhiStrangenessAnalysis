@@ -76,6 +76,95 @@
             }
         ]
     },
+    "purity_base_settings_updated": {
+        "inherits": "purity_base_settings",
+        "purity_particles": [
+            {
+                "name": "K0S",
+                "purity_key": "k0s",
+                "hist_name": "v0-reduced-cand-producer/k0sReducedCandidates/h3K0sCandidatesMass",
+                "rebinning_pt": [
+                    "0.0",
+                    "0.3",
+                    "0.5",
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2.0",
+                    "2.4",
+                    "3.0",
+                    "4.2",
+                    "6.4"
+                ]
+            },
+            {
+                "name": "Xi",
+                "purity_key": "xi",
+                "hist_name": "cascade-reduced-cand-producer/xiReducedCandidates/h3XiCandidatesMass",
+                "rebinning_pt": [
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2.0",
+                    "2.4",
+                    "3.0",
+                    "4.2",
+                    "6.5"
+                ]
+            },
+            {
+                "name": "Omega",
+                "purity_key": "omega",
+                "hist_name": "cascade-reduced-cand-producer/xiReducedCandidates/h3OmegaCandidatesMass",
+                "rebinning_pt": [
+                    "0.8",
+                    "1.2",
+                    "1.6",
+                    "2.0",
+                    "2.4",
+                    "3.0",
+                    "4.2",
+                    "6.5"
+                ]
+            },
+            {
+                "name": "Pi",
+                "purity_key": "pi_tpc",
+                "hist_name": "pion-track-producer/pionTracks/h3PionTPCnSigma",
+                "rebinning_pt": [
+                    "0.2",
+                    "0.3",
+                    "0.4",
+                    "0.5",
+                    "0.6",
+                    "0.8",
+                    "1.0",
+                    "1.2",
+                    "1.5",
+                    "2.0",
+                    "3.0"
+                ]
+            },
+            {
+                "name": "Pi",
+                "purity_key": "pi_tof",
+                "hist_name": "pion-track-producer/pionTracks/h3PionTOFnSigma",
+                "rebinning_pt": [
+                    "0.2",
+                    "0.3",
+                    "0.4",
+                    "0.5",
+                    "0.6",
+                    "0.8",
+                    "1.0",
+                    "1.2",
+                    "1.5",
+                    "2.0",
+                    "3.0"
+                ]
+            }
+        ]
+    },
     "mc_base_settings": {
         "input_mc_file": "../DataFile/pp/DeltaY/MC/AnalysisResultsMC_136_PtMod_6luglio.root",
         "mc_base_path": "phi-strange-correlation/phiStrangenessCorrelation/",
@@ -321,6 +410,89 @@
             }
         ]
     },
+    "correlation_base_settings_updated": {
+        "inherits": "correlation_base_settings",
+        "use_projection_cache": false,
+        "associated_particles": [
+            {
+                "name": "K0S"
+            },
+            {
+                "name": "Xi"
+            },
+            {
+                "name": "Omega"
+            },
+            {
+                "name": "Pi"
+            }
+        ],
+        "corrections": {
+            "event_loss": false,
+            "particles": {
+                "Phi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "K0S": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "Xi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "Omega": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "Pi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                }
+            }
+        },
+        "purity_sources": [
+            {
+                "name": "K0S",
+                "purity_key": "k0s"
+            },
+            {
+                "name": "Xi",
+                "purity_key": "xi"
+            },
+            {
+                "name": "Omega",
+                "purity_key": "omega"
+            },
+            {
+                "name": "Pi",
+                "purity_key": "pi_tpc"
+            }
+        ],
+        "yield_ratios": [
+            {
+                "numerator": "K0S",
+                "denominator": "Pi",
+                "label": "2K^{0}_{S}/(#pi^{+}+#pi^{-})"
+            },
+            {
+                "numerator": "Xi",
+                "denominator": "Pi",
+                "label": "(#Xi^{-}+#bar{#Xi}^{+})/(#pi^{+}+#pi^{-})"
+            },
+            {
+                "numerator": "Omega",
+                "denominator": "Pi",
+                "label": "(#Omega^{-}+#bar{#Omega}^{+})/(#pi^{+}+#pi^{-})"
+            }
+        ]
+    },
     "correlation_task_offline_efficiency": {
         "inherits": "correlation_base_settings",
         "corrections": {
@@ -368,6 +540,30 @@
                     "signal_loss": true
                 },
                 "Xi": {
+                    "signal_loss": true
+                },
+                "Pi": {
+                    "signal_loss": true
+                }
+            }
+        }
+    },
+    "correlation_task_online_efficiency_updated": {
+        "inherits": "correlation_base_settings_updated",
+        "corrections": null
+    },
+    "correlation_task_online_efficiency_no_phi_updated": {
+        "inherits": "correlation_base_settings_updated",
+        "corrections": {
+            "event_loss": true,
+            "particles": {
+                "K0S": {
+                    "signal_loss": true
+                },
+                "Xi": {
+                    "signal_loss": true
+                },
+                "Omega": {
                     "signal_loss": true
                 },
                 "Pi": {

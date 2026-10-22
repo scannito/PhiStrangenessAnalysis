@@ -156,7 +156,8 @@
             "purity_task_Bneg_strinj",
             "purity_task_Bpos_strinj",
             "purity_task_strinj"
-        ]
+        ],
+        "inactive_tasks": []
     },
     "purity_task_Bneg": {
         "inherits": "purity_base_settings",

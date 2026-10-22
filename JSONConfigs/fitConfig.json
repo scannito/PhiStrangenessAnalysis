@@ -500,6 +500,73 @@
             }
         }
     },
+    "omega": {
+        "observable": {
+            "name": "mass",
+            "title": "M(p#piK) (GeV/c^{2})",
+            "min": 1.65,
+            "max": 1.71
+        },
+        "fit_setup": {
+            "default": {
+                "sig_model": "DSCB",
+                "bkg_model": "Chebychev1",
+                "snap_to_bin": false,
+                "integration_range": [
+                    1.655,
+                    1.685
+                ],
+                "calculate_purity": true,
+                "params": {
+                    "mean_sig": [
+                        1.6725,
+                        1.665,
+                        1.680
+                    ],
+                    "sigma_sig": [
+                        0.002,
+                        0.001,
+                        0.005
+                    ],
+                    "alpha1_sig": [
+                        1.2,
+                        0.5,
+                        5.0
+                    ],
+                    "n1_sig": [
+                        5.0,
+                        1.0,
+                        150.0
+                    ],
+                    "alpha2_sig": [
+                        1.2,
+                        0.5,
+                        5.0
+                    ],
+                    "n2_sig": [
+                        5.0,
+                        1.0,
+                        150.0
+                    ],
+                    "c1_bkg": [
+                        -0.8,
+                        -1.0,
+                        1.0
+                    ],
+                    "nsig": [
+                        10000.0,
+                        0.0,
+                        1e7
+                    ],
+                    "nbkg": [
+                        50000.0,
+                        0.0,
+                        2.5e7
+                    ]
+                }
+            }
+        }
+    },
     "pi_tpc": {
         "observable": {
             "name": "nsigma",
