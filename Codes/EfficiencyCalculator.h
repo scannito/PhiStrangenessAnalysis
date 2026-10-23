@@ -2,6 +2,8 @@
 
 #include "AnalysisConstants.h"
 #include "AnalysisDataStructures.h"
+#include "BinningUtils.h"
+#include "OutputNames.h"
 #include "CanvasManager.h"
 #include "HistogramUtils.h"
 
@@ -14,6 +16,7 @@
 #include <array>
 #include <format>
 #include <memory>
+#include <span>
 #include <string>
 #include <utility>
 #include <vector>
@@ -222,17 +225,17 @@ class EfficiencyCalculator
   // Takes the counts by raw pointer because it only reads them.
   static std::pair<std::unique_ptr<TH1>, std::unique_ptr<TH1>>
     DivideCounts(TH1* h1MCGen, TH1* h1MCGenAssocReco, TH1* h1MCReco,
-                 const std::string& particle, const std::string& suffix, int color)
+                 const std::string& particle, const std::string& multTag, int color)
   {
     // "B" on both: the reconstructed are a subset of the generated-associated,
     // which are a subset of the generated, so the two ratios are binomial.
     std::unique_ptr<TH1> efficiency = HistogramUtils::MakeRatioHist(
-      h1MCReco, h1MCGenAssocReco, "h1" + particle + "Efficiency" + suffix,
+      h1MCReco, h1MCGenAssocReco, OutputNames::Efficiency(particle, multTag),
       ";p_{T} (GeV/#it{c});Acc #times #epsilon", 1.0, 1.0, "B");
     CanvasManager::SetHistogramStyle(efficiency.get(), color);
 
     std::unique_ptr<TH1> signalLoss = HistogramUtils::MakeRatioHist(
-      h1MCGenAssocReco, h1MCGen, "h1" + particle + "SigLoss" + suffix,
+      h1MCGenAssocReco, h1MCGen, OutputNames::SignalLoss(particle, multTag),
       ";p_{T} (GeV/#it{c});Signal loss", 1.0, 1.0, "B");
     CanvasManager::SetHistogramStyle(signalLoss.get(), color);
 
@@ -244,13 +247,13 @@ class EfficiencyCalculator
   // RebinCountsIfRequested replaces the histograms.
   static Maps1D BuildMaps1D(const LoadedMC& data, std::unique_ptr<TH1>& h1MCGen,
                             std::unique_ptr<TH1>& h1MCGenAssocReco, std::unique_ptr<TH1>& h1MCReco,
-                            const std::string& suffix, int color)
+                            const std::string& multTag, int color)
   {
     Maps1D maps;
 
     if (data.rebinningPt) {
       auto [effFine, lossFine] = DivideCounts(h1MCGen.get(), h1MCGenAssocReco.get(), h1MCReco.get(),
-                                              data.name, suffix + "_sourceBinning", color);
+                                              data.name, multTag + "_sourceBinning", color);
       maps.efficiencySourceBinning = std::move(effFine);
       maps.signalLossSourceBinning = std::move(lossFine);
     }
@@ -258,22 +261,24 @@ class EfficiencyCalculator
     RebinCountsIfRequested(data, h1MCGen, h1MCGenAssocReco, h1MCReco);
 
     auto [efficiency, signalLoss] = DivideCounts(h1MCGen.get(), h1MCGenAssocReco.get(), h1MCReco.get(),
-                                                 data.name, suffix, color);
+                                                 data.name, multTag, color);
     maps.efficiency = std::move(efficiency);
     maps.signalLoss = std::move(signalLoss);
 
     return maps;
   }
 
-  // Returns the maps for one multiplicity bin.
-  static Maps1D Compute1DMaps(const LoadedMC& data, int multBin, int color)
+  // Returns the maps for one multiplicity bin, named by its interval in 'multBinning':
+  // CorrelationTaskBase::LoadCorrections reads them back by that name.
+  static Maps1D Compute1DMaps(const LoadedMC& data, std::span<const double> multBinning, int multBin, int color)
   {
     HistogramUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
     HistogramUtils::AxisToCut axisToCutMult{.axis = 1, .bins = {multBin + 1, multBin + 1}};
     HistogramUtils::AxisToCut axisToCutY{.axis = 3, .bins = {1, data.h4MCReco->GetAxis(3)->GetNbins()}};
 
     // Project Generator level 1D
-    std::string h1GenName = std::format("h1{}MCGen_multBin{}_temp", data.name, multBin);
+    const std::string multTag = OutputNames::MultTag(multBinning, multBin);
+    std::string h1GenName = std::format("h1{}MCGen_{}_temp", data.name, multTag);
     std::unique_ptr<TH1> h1MCGen(data.h3MCGen->ProjectionY(h1GenName.c_str(), multBin + 1, multBin + 1, 1, data.h3MCGen->GetZaxis()->GetNbins()));
     h1MCGen->SetDirectory(0);
 
@@ -281,7 +286,7 @@ class EfficiencyCalculator
     std::unique_ptr<TH1> h1MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp");
     std::unique_ptr<TH1> h1MCReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp");
 
-    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, std::format("_multBin{}", multBin), color);
+    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, multTag, color);
   }
 
   // Same, integrated over ALL multiplicity bins.
@@ -303,6 +308,6 @@ class EfficiencyCalculator
     std::unique_ptr<TH1> h1MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1AssocTemp_Int");
     std::unique_ptr<TH1> h1MCReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), {axisToCutZVtx, axisToCutMult, axisToCutY}, {2}, "h1RecoTemp_Int");
 
-    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, "_multIntegrated", kBlack);
+    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, OutputNames::kMultIntegrated, kBlack);
   }
 };

@@ -138,6 +138,8 @@ class PurityTask : public IAnalysisTask
 
     // 4. Initialize specific mathematical tools
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
+    for (const ParticleTask& task : particleTasks)
+      fitConfigManager->DeclareCells(task.name, multBinning, {task.sourceBinning, task.AnalysisBinning()});
   }
 
   void Run() override
@@ -216,9 +218,8 @@ class PurityTask : public IAnalysisTask
     canvasManager.WriteAll(outputFile.get());
     RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
 
-    // The pT binning is the axis of each purity spectrum, so the consumer can
-    // read it. The multiplicity binning is only an index in the names
-    // ("..._multBin3") and would otherwise be unverifiable.
+    // The pT binning is the axis of each purity spectrum; the multiplicity binning is
+    // in the names, and stamped (RootIO::RequireMatchingBinningStamp).
     TDirectory* schemeDir = RootIO::GetOrCreatePath(outputFile.get(), {globalCfgs.binningName}, false);
     if (!schemeDir)
       throw std::runtime_error(std::format("[FATAL] {}: cannot create '{}' in {}: the binning stamp and the fit quality would be lost.",
@@ -280,13 +281,14 @@ class PurityTask : public IAnalysisTask
     const std::vector<double>& binning = atSource ? task.sourceBinning : task.AnalysisBinning();
     const std::string nameSuffix = atSource ? "_sourceBinning" : "";
 
-    std::string hName = std::format("h1{}Purity_multBin{}{}", task.name, multBin, nameSuffix);
+    std::string hName = OutputNames::Purity(task.name, OutputNames::MultTag(multBinning, multBin)) + nameSuffix;
     std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
                                                                    BinningUtils::NBins(binning), binning.data());
     h1PuritySpectrum->SetDirectory(0);
 
     for (int k{0}; k < BinningUtils::NBins(binning); k++) {
-      std::string histName = std::format("h1{}_multBin{}_ptBin{}{}", task.name, multBin, k, nameSuffix);
+      const std::string cell = OutputNames::CellTag(multBinning, multBin, binning, k);
+      std::string histName = std::format("h1{}_{}{}", task.name, cell, nameSuffix);
 
       const BinningUtils::BinRange range = atSource ? BinningUtils::BinRange{k + 1, k + 1} : task.mappedSourceBins[k];
       std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), multBin + 1, multBin + 1,
@@ -294,7 +296,7 @@ class PurityTask : public IAnalysisTask
       h1Data->SetDirectory(0);
 
       // Run Fitter using JSON-based configuration
-      FitConfig cfg = fitConfigManager->GetConfig(task.name, multBin, k);
+      FitConfig cfg = fitConfigManager->GetConfig(task.name, cell);
       DynamicRooFitter fitter(h1Data.get(), cfg);
 
       fitter.DoFit();
@@ -308,7 +310,7 @@ class PurityTask : public IAnalysisTask
       // The fit's diagnostic canvas, written into the particle's directory and destroyed
       // per fit, as in PhiFitTask: holding them all for the WriteAll in Terminate would
       // only cost memory, since nothing reads a fit canvas back.
-      const std::string cName = std::format("cFit_{}_m{}_p{}{}", task.name, multBin, k, nameSuffix);
+      const std::string cName = std::format("cFit_{}_{}{}", task.name, cell, nameSuffix);
       TCanvas* cFit = canvasManager.CreateCanvas(cName, "Fit Canvas", 800, 800);
       fitter.DrawFit(cFit);
       CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);

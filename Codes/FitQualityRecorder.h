@@ -41,8 +41,6 @@ class FitQualityRecorder
     fTree->SetDirectory(0);
     fTree->Branch("section", &fRow.section);
     fTree->Branch("binning", &fRow.binning);
-    fTree->Branch("multBin", &fRow.multBin);
-    fTree->Branch("ptBin", &fRow.ptBin);
     fTree->Branch("multLow", &fRow.multLow);
     fTree->Branch("multHigh", &fRow.multHigh);
     fTree->Branch("ptLow", &fRow.ptLow);
@@ -63,12 +61,12 @@ class FitQualityRecorder
 
   // One fit: the fitConfig.json section, the binning (kAnalysisBinning or kSourceBinning), the cell as indices into
   // the two binnings, whose edges are read here so that no caller pairs an index with the wrong vector, and the
-  // fit_setup.bins override that applied. The indices find the canvas and the override; the edges let a reader check
-  // the row against its own binning instead of trusting the index (CLAUDE.md, the rule the framework is built on).
+  // fit_setup.bins override that applied. Only the edges are recorded: the canvas and the override are named by
+  // them, and a cut on an index across two productions is the mismatch the framework is built against.
   void Add(const std::string& section, const std::string& binning, const std::vector<double>& multBinning, int multBin,
            const std::vector<double>& ptBinning, int ptBin, const std::string& binOverride, const FitDiagnostics& fit)
   {
-    fRow = {.section = section, .binning = binning, .multBin = multBin, .ptBin = ptBin, .multLow = multBinning[multBin],
+    fRow = {.section = section, .binning = binning, .multLow = multBinning[multBin],
             .multHigh = multBinning[multBin + 1], .ptLow = ptBinning[ptBin], .ptHigh = ptBinning[ptBin + 1],
             .binOverride = binOverride, .fit = fit};
     fTree->Fill();
@@ -126,7 +124,6 @@ class FitQualityRecorder
   struct Row {
     std::string section; // the fitConfig.json section: "phi", or the purity_key
     std::string binning;
-    int multBin{-1}, ptBin{-1};
     double multLow{0.0}, multHigh{0.0}, ptLow{0.0}, ptHigh{0.0};
     std::string binOverride; // empty for none
     FitDiagnostics fit;

@@ -33,12 +33,8 @@
 // everything here divides the SAME quantity produced APART.
 //
 // That difference is the whole reason this needs care. Two files produced apart can
-// disagree about what their bins mean, and the objects are named by multiplicity
-// INDEX: "_multBin3" is present on both sides whatever the two productions meant by
-// it. Comparing the axes of the two histograms would not help either, because
-// multiplicity is not one of their axes - it is in the name. So the binning stamps
-// written by CorrelationTaskBase are not a formality here, they are the only thing
-// standing between a name that matches and an interval that does not.
+// disagree about what their bins mean. Multiplicity is not an axis of the spectra, it
+// is in their names: the stamps are compared first (RootIO::RequireMatchingBinningStamp).
 //
 // The trends have the mirror problem: multiplicity IS their axis, but they are
 // integrals over pT, so a disagreement in the associated-pT binning leaves their axes
@@ -390,8 +386,8 @@ class ComparisonTask : public IAnalysisTask
   // actually holds and divide whatever the denominator holds under the same name,
   // which has three consequences worth stating: the delta-y tags and multiplicity
   // bins need not be reconstructed, the same three lines serve all three targets,
-  // and the task is unaffected by how the producer spells its bins - "_multBin3" or
-  // "_mult10-15" alike, since it never writes a name, only reads one.
+  // and the task is unaffected by how the producer spells its bins, since it never
+  // writes a name, only reads one.
   // ---------------------------------------------------------------------------
   void RunSpectra()
   {

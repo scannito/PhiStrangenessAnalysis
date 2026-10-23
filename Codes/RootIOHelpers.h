@@ -231,27 +231,28 @@ inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& 
   return BinningUtils::AxisEdges(stamp->GetXaxis());
 }
 
-// Cached histograms are addressed by bin INDEX (they are named ..._ptBin7), so
-// reusing a cache built with a different binning silently mixes two
-// segmentations: index 31 stops meaning the same pT interval.
+// Was the file this directory belongs to produced with the binning of the run reading it? Used for the
+// corrections, the purities and the files ComparisonTask divides, so the messages name none of them and
+// errCtx says which. The objects are named by interval, so a mismatch would also show up as a missing object; the
+// stamp stops the run earlier and better, before anything is read, with the edge that differs and both
+// values, where a missing object says only what was expected.
 inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name,
                                         std::span<const double> current, std::string_view errCtx)
 {
-  const std::vector<double> cached = ReadBinningStamp(dir, name);
+  const std::vector<double> stamped = ReadBinningStamp(dir, name);
 
-  if (cached.empty()) {
-    Logger::Warn("{}: the cache carries no '{}' stamp, so the binning it was built with cannot be verified. Delete "
-                 "the cache files if the input production has changed since they were produced.",
+  if (stamped.empty()) {
+    Logger::Warn("{}: no '{}' stamp, so the binning it was produced with cannot be verified. Re-produce it "
+                 "if the input production has changed since.",
                  errCtx, name);
     return;
   }
 
-  const std::string diff = BinningUtils::Compare(cached, current, "cache", "current run");
+  const std::string diff = BinningUtils::Compare(stamped, current, "that file", "current run");
   if (!diff.empty()) {
     throw std::runtime_error(std::format(
-      "[FATAL] {}: the cached projections were built with a different '{}':\n{}"
-      "Cached histograms are addressed by bin index, so reusing them would mix "
-      "two binnings. Re-run with the cache disabled to rebuild them.",
+      "[FATAL] {}: it was produced with a different '{}':\n{}"
+      "The two do not describe the same intervals: re-run the task that produced it with this binning.",
       errCtx, name, diff));
   }
 }

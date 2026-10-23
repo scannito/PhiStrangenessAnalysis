@@ -7,6 +7,53 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## Objects and overrides named by interval
+
+**23 October 2026.** What was section 4 of `DESIGN_NOTES.md`. The producers and readers that still named a cell by
+its index (`_multBin3`, `_ptBin7`) name it by its interval, as `CorrelationTaskBase::CellSuffix` already did:
+the efficiency and signal-loss maps of `MCTask` and their reader, the purity spectra and their reader, the spectra
+of `PhiAssocSpectra.root` (`OutputNames::Spectrum`), the projections and fit canvases of `PhiFitTask` and
+`PurityTask`. `BinLabel` moved to `BinningUtils`; the tags built on it (`OutputNames::MultTag`, `mult10-15`, and
+`CellTag`, `mult10-15_pt1.2-1.6`) and the names one task writes and another looks up (`Efficiency`, `SignalLoss`,
+`Purity`) are in `OutputNames`, so that the producer and the reader cannot spell them differently: the first
+version of this change wrote `"_mult" + BinLabel(...)` by hand in about ten places, both sides of two task
+boundaries included, and both review agents found it. The remote branch `naming` (13 August) had done most of the
+renaming; 90 commits later it was redone on `main` with that branch as a guide.
+
+**The overrides.** `fitConfig.json` keyed its `bins` by `mult<i>_pt<k>`, and `extrapConfig.json` by `multBin<i>`.
+Since `rebinning_pt` the purity task fits two binnings with the same configuration, and the twenty K0S overrides
+(`mult*_pt4`, `mult*_pt5`, a Chebychev2 background) applied to 1.2-1.6 and 1.6-2.0 GeV/c in the analysis fits and
+to 0.7-0.8 and 0.8-0.9 in the source fits; nobody remembered which was meant. The keys are now the intervals
+(`mult10-15_pt1.2-1.6`, `mult10-15`), decided with the owner, and a multiplicity-integrated fit writes
+`mult0-100`; a key without multiplicity, valid for every class, was considered and not wanted. The key is the
+`CellTag`, so it is also the suffix of the canvas of the fit it acts on. The twenty keys became the forty that
+reproduce what ran, both readings, to be replaced by the outcome of the model study (`RooFitKnowledge/ROADMAP.md`;
+the source-binning fits stay, the owner may apply the fine purity maps from CCDB). **A key that names no cell stops
+the run**, agreed with the owner: with interval keys a typo, or a key written for another binning, is no longer an
+index that happens to exist, it is an override never applied. The task declares the cells it fits
+(`FitConfigManager::DeclareCells`, `ExtrapConfigManager::DeclareCells`), which checks the overrides, and
+`GetConfig` takes the cell's tag and refuses one that was not declared: a first version had the check as a call
+each task had to remember, with the binnings listed a second time, and the reviewer pointed out that forgetting it
+would bring the silence back. The keys are checked with an overload of `JsonConfig::RequireKnownKeys` for a set
+built at run time. One consequence, written in the README: a scheme with its own edges needs its own fit and
+extrapolation configuration files.
+
+**What stayed.** The binning stamps: with interval names a mismatch is a missing object, but the stamp stops the
+run before anything is read and names the edge. Its message, which spoke of "cached projections" to the readers of
+the corrections and the purities, now names neither. `_multIntegrated` is not an index and kept its name
+(`OutputNames::kMultIntegrated`). The `FitQuality` columns `multBin`/`ptBin` were dropped: the canvas and the
+override are named by the intervals, which the tree has, and a cut on an index across two productions is the
+mismatch this change removes. Every file produced before this change is unreadable to the code after it, so the
+chain is re-run once, in order.
+
+**How it was checked.** The same chain (MC for the two HighIR `_updated` blocks, purity, and the five data tasks
+on the production of 22 October) in a copy of `main` and in the changed copy: every object of the 55 files equal
+bin by bin through a map from `_multBin<i>` to the interval, nothing missing or extra, the `FitQuality` rows equal
+and the 40 overridden rows carrying the expected keys. A wrong key put on purpose in each configuration stops the run
+at `Init`, with the message expected (test configurations kept outside the repository).
+
+---
+
 ## Fit quality recorded, the purities in one file, the fit files by UPDATE
 
 **21 October 2026.** Phase 1, item 1 of `RooFitKnowledge/ROADMAP.md`: every fit is now recorded, and nothing it

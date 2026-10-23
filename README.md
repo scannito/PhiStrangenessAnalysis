@@ -194,6 +194,19 @@ the value is matched against, so it cannot go stale.
 | `run_mode` | `correlation_task` | `legacy`, `optimized` | `legacy` |
 | `target` | `comparison_task` | `spectra`, `trends`, `ratios` | `ratios` |
 
+### Per-cell overrides in `fitConfig.json` and `extrapConfig.json`
+
+A section's `default` applies to every cell; an entry of its `bins` changes one cell, and
+carries only what it changes. The key is the cell's intervals, written as in the object
+names: `"mult10-15_pt1.2-1.6"` in `fitConfig.json` (`"mult0-100_..."` for a
+multiplicity-integrated fit), `"mult10-15"` in `extrapConfig.json`. An override therefore
+means one cell whatever binning the task runs with: `PurityTask` fits both the analysis and
+the source binning, and a key for 0.7-0.8 GeV/c applies only where a cell is 0.7-0.8. The key
+is also the suffix of the fit's canvas (`cFit_k0s_mult0-1_pt0.7-0.8`), so it can be copied from
+the output. A key that names no cell of the binnings the task fits stops the run before any
+fit, since it would never be applied; so a binning scheme with its own edges, sharing these
+files with another, needs its own `fit_config_file` and `extrapolation_config_file`.
+
 ### Keys per task
 
 Required keys stop the run when missing. Optional keys fall back to a default, but a
@@ -381,10 +394,10 @@ starts, the high one dashed.
 ### Cache and provenance
 
 `use_projection_cache` reuses projections written by a previous run instead of
-re-projecting the `THnSparse`. Since cached histograms are addressed by bin **index**,
-each cache carries a *binning stamp* — an empty histogram whose axis is the binning it
+re-projecting the `THnSparse`. The cached histograms are named by interval, and each
+cache also carries a *binning stamp* — an empty histogram whose axis is the binning it
 was built with. On reuse the stamp is compared with the current run and a mismatch is
-fatal, because reusing the cache would silently mix two segmentations.
+fatal before anything is read, naming the edge that differs.
 
 `use_signal_cache` (`run_mode: "optimized"` only) goes further: it reads back the final
 signals of every cell, written by a previous run in the same files, and skips the
@@ -397,8 +410,8 @@ them (`DESIGN_NOTES.md` section 5).
 ### Fit quality
 
 `PhiFitTask` and `PurityTask` record every fit they run in a `TTree`, `{binning_name}/FitQuality` of their output
-file, one row per fit: the cell (`section`, `binning` analysis or source, `multBin`/`ptBin` and their intervals,
-the `fit_setup.bins` override that applied) and what the fit's result says (`counts` the likelihood saw, `status`,
+file, one row per fit: the cell (`section`, `binning` analysis or source, the intervals `multLow`/`multHigh` and
+`ptLow`/`ptHigh`, the `fit_setup.bins` override that applied) and what the fit's result says (`counts` the likelihood saw, `status`,
 `covQual`, `edm`, `minNll`, `numInvalidNLL`, and `atLimit`, the floating parameters within 1e-5 of their range
 from a limit). Raw facts, read from the result the fit already saves: nothing is refitted, and no number changes.
 
@@ -406,7 +419,7 @@ from a limit). Raw facts, read from the result the fit already saves: nothing is
 TFile f("Data_2024_Purity.root");
 auto t = (TTree*)f.Get("MoreFullDifferential/FitQuality");
 t->Scan("section:binning:ptLow:ptHigh:covQual:numInvalidNLL", "covQual<3 || numInvalidNLL>0");
-t->Scan("section:multBin:ptBin:atLimit", "section==\"xi\"");   // one line per parameter at a limit
+t->Scan("section:multLow:ptLow:atLimit", "section==\"xi\"");   // one line per parameter at a limit
 ```
 
 `atLimit` is a list, and `Scan` shows one line per element: a row with no parameter at a limit has none and does
@@ -547,9 +560,11 @@ PhiAssocSpectra.root
     └── binning_ptPhi               stamp: the trigger pT binning
 ```
 
-The stamps are there because objects are addressed by bin **index**: a name that matches
-does not by itself mean an interval that matches, and the stamp is what turns that into
-an error instead of a wrong number. They sit at the level whose binning they describe —
+Everything that carries a cell in its name names it by its **interval**, never by its
+index: `_mult10-15`, `_ptPhi0.8-1`, `_pt1.2-1.6` (`BinningUtils::BinLabel`). A reader with
+another binning then does not find the object, where an index would find it and read
+another interval. The stamps stop such a run earlier and better: before anything is read,
+naming the edge that differs and both values. They sit at the level whose binning they describe —
 multiplicity and trigger pT are common to the scheme, the associated pT belongs to the
 species — and `comparison_task` is the main consumer.
 

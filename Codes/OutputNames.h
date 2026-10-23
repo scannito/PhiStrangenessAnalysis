@@ -6,20 +6,22 @@
 
 #include <algorithm>
 #include <format>
+#include <span>
 #include <string>
 #include <string_view>
 
-// The names and the layout of what the correlation tasks write into PhiAssocSpectra.root, and the
-// names of the files one task writes and another reads (the trigger matrices, the purities). The
+// The names and the layout of what the correlation tasks write into PhiAssocSpectra.root, the
+// names of the files one task writes and another reads (the trigger matrices, the purities), and
+// of the objects in them that another task looks up (the corrections, the purity spectra). The
 // directories are written by CorrelationTaskBase and read by ComparisonTask; the object names
 // are built here and not where each object is written, so that a reader that looks an object up
 // by what it is builds the same string, and a rename is one change. The names shared by every
 // file the framework writes - the binning stamps and the provenance directory - are RootIO's,
 // next to the functions that write them.
 //
-// What an object name does NOT carry is the meaning of its multiplicity index: "multBin3"
-// is the fourth interval of the binning_mult stamp of its scheme, and only the stamp says
-// which interval that is (CLAUDE.md, the rule the framework is built on).
+// A multiplicity class is named by its interval ("mult10-15", BinningUtils::BinLabel), never by
+// its index: two productions with different binnings then miss each other's objects instead of
+// matching on an index that means two intervals (CLAUDE.md, the rule the framework is built on).
 namespace OutputNames
 {
 
@@ -58,11 +60,39 @@ inline std::string DyTag(double dyLimit)
 }
 
 // ---------------------------------------------------------------------------
+// Cells, by interval
+// ---------------------------------------------------------------------------
+// A multiplicity class, "mult10-15": in object names and as the key of an extrapConfig.json override.
+inline std::string MultTag(std::span<const double> multBinning, int multBin)
+{
+  return "mult" + BinningUtils::BinLabel(multBinning, multBin);
+}
+// The tag of what is integrated over every class, where a MultTag would stand.
+inline const std::string kMultIntegrated{"multIntegrated"};
+// A pT interval, "pt1.2-1.6"; the trigger's is "ptPhi" + BinLabel, where both appear in one name.
+inline std::string PtTag(std::span<const double> ptBinning, int ptBin)
+{
+  return "pt" + BinningUtils::BinLabel(ptBinning, ptBin);
+}
+// A (multiplicity, pT) cell, "mult10-15_pt1.2-1.6": the fit projections and canvases, and the key of a
+// fitConfig.json override, which is therefore the suffix of the canvas of the fit it acts on.
+inline std::string CellTag(std::span<const double> multBinning, int multBin, std::span<const double> ptBinning, int ptBin)
+{
+  return MultTag(multBinning, multBin) + "_" + PtTag(ptBinning, ptBin);
+}
+
+// ---------------------------------------------------------------------------
 // Builders, one per kind of object
 // ---------------------------------------------------------------------------
-inline std::string Spectrum(std::string_view species, double dy, int multBin)
+// MCTask -> CorrelationTask: the maps of one class (MultTag) or integrated (kMultIntegrated).
+inline std::string Efficiency(std::string_view particle, std::string_view multTag) { return std::format("h1{}Efficiency_{}", particle, multTag); }
+inline std::string SignalLoss(std::string_view particle, std::string_view multTag) { return std::format("h1{}SigLoss_{}", particle, multTag); }
+// PurityTask -> CorrelationTask, by purity_key.
+inline std::string Purity(std::string_view purityKey, std::string_view multTag) { return std::format("h1{}Purity_{}", purityKey, multTag); }
+
+inline std::string Spectrum(std::string_view species, double dy, std::span<const double> multBinning, int multBin)
 {
-  return std::format("h1SpectrumPhi{}_dy{}_multBin{}", species, DyTag(dy), multBin);
+  return std::format("h1SpectrumPhi{}_dy{}_{}", species, DyTag(dy), MultTag(multBinning, multBin));
 }
 // The spectrum with the extrapolated bin down to pT = 0 in front of the measured ones.
 inline std::string SpectrumExtended(std::string_view spectrumName) { return std::format("{}_extended", spectrumName); }

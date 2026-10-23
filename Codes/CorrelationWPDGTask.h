@@ -161,7 +161,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
   // the consumer assumed, which is the one thing this framework exists to prevent.
   double GetTriggerSignal(int multBin, int ptPhiBin) override
   {
-    std::string phiHistName = std::format("h1PhiTrigger_multBin{}_ptBin{}", multBin, ptPhiBin);
+    std::string phiHistName = "h1PhiTrigger_" + OutputNames::CellTag(multBinning, multBin, ptPhiBinning, ptPhiBin);
     std::unique_ptr<TH1D> h1PhiTrigger(static_cast<TH1D*>(h3PhiData->ProjectionZ(
       phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
     h1PhiTrigger->SetDirectory(0);

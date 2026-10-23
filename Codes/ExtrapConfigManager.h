@@ -1,9 +1,14 @@
 #pragma once
 
 #include "BaseConfigManager.h"
+#include "BinningUtils.h"
 #include "Logger.h"
+#include "OutputNames.h"
 
 #include <format>
+#include <map>
+#include <set>
+#include <span>
 
 class ExtrapConfigManager : public BaseConfigManager
 {
@@ -16,22 +21,29 @@ class ExtrapConfigManager : public BaseConfigManager
     return isLoaded && document.HasMember(particle.c_str());
   }
 
-  // Queries the RAM to get the configuration for a specific bin
-  ExtrapConfig GetConfig(const std::string& particle, int multBin) const
+  // The multiplicity classes a task extrapolates for a particle that HasConfig, each by OutputNames::MultTag.
+  // Declared once, before the extrapolations: an override of 'bins' that names none of them stops the run, since
+  // it would never be applied; GetConfig refuses a class that was not declared, as in FitConfigManager.
+  void DeclareCells(const std::string& particle, std::span<const double> multBinning)
   {
+    std::set<std::string>& classes = declaredCells[particle];
+    for (int i = 0; i < BinningUtils::NBins(multBinning); i++)
+      classes.insert(OutputNames::MultTag(multBinning, i));
+    if (const rapidjson::Value* bins = JsonConfig::TryObject(Section(particle), "bins", managerName))
+      JsonConfig::RequireKnownKeys(*bins, classes, std::format("{}: section '{}'.bins (the keys are the multiplicity classes)", managerName, particle));
+  }
+
+  // The configuration of one class, 'multTag' as OutputNames::MultTag gives it.
+  ExtrapConfig GetConfig(const std::string& particle, const std::string& multTag) const
+  {
+    const auto declared = declaredCells.find(particle);
+    if (declared == declaredCells.end() || !declared->second.contains(multTag))
+      throw std::runtime_error(std::format("[FATAL] {}: GetConfig('{}', '{}') for a class that was not declared with DeclareCells, "
+                                           "so the overrides were not checked against it.",
+                                           managerName, particle, multTag));
+
     ExtrapConfig config;
-
-    // A missing section is a legitimate state, and HasConfig is how a caller asks: it
-    // skips the particle. GetConfig is for particles that passed that test, so arriving
-    // here means a caller skipped it - and an empty ExtrapConfig would only fail later,
-    // with a message about a model that was never the problem.
-    if (!isLoaded || !document.HasMember(particle.c_str())) {
-      throw std::runtime_error(std::format(
-        "[FATAL] {}: GetConfig('{}') called for a particle with no section in the JSON: check HasConfig first.",
-        managerName, particle));
-    }
-
-    const rapidjson::Value& partNode = document[particle.c_str()];
+    const rapidjson::Value& partNode = Section(particle);
     // Closed sets of keys, as in FitConfigManager: a misspelled key is refused, not skipped.
     // Every error inside the section names it, the high fit included.
     const std::string sectionCtx = std::format("{}: section '{}'", managerName, particle);
@@ -78,15 +90,30 @@ class ExtrapConfigManager : public BaseConfigManager
     }
 
     // 2. Override with specific bin settings if they exist
-    std::string binKey = std::format("multBin{}", multBin);
-    // The outer key is fixed and must be an object; the inner one is built from the
-    // bin index, so its absence is the normal case and HasMember is the right tool.
+    // The outer key is fixed and must be an object; the inner one is the class, so
+    // its absence is the normal case and HasMember is the right tool.
     const rapidjson::Value* bins = JsonConfig::TryObject(partNode, "bins", managerName);
-    if (bins && bins->HasMember(binKey.c_str())) {
-      Logger::Debug("{}: Found custom parameters for bin: {}", managerName, binKey);
-      loadNodeIntoConfig((*bins)[binKey.c_str()]);
+    if (bins && bins->HasMember(multTag.c_str())) {
+      Logger::Debug("{}: Found custom parameters for bin: {}", managerName, multTag);
+      loadNodeIntoConfig((*bins)[multTag.c_str()]);
     }
 
     return config;
   }
+
+ private:
+  // A missing section is a legitimate state, and HasConfig is how a caller asks: it
+  // skips the particle. Arriving here means a caller skipped that test - and an empty
+  // ExtrapConfig would only fail later, with a message about a model that was never the
+  // problem. Checked before the lookup: rapidjson's operator[] on a missing key asserts.
+  const rapidjson::Value& Section(const std::string& particle) const
+  {
+    if (!HasConfig(particle))
+      throw std::runtime_error(std::format("[FATAL] {}: section '{}' asked for, but the JSON has none: check HasConfig first.",
+                                           managerName, particle));
+    return document[particle.c_str()];
+  }
+
+  // section -> the MultTags its task extrapolates ("mult10-15"); filled by DeclareCells
+  std::map<std::string, std::set<std::string>> declaredCells;
 };

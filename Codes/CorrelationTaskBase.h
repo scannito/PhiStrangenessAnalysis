@@ -154,11 +154,10 @@ class CorrelationTaskBase : public IAnalysisTask
     // The binnings this file was produced with. Unlike the provenance below, these
     // ARE a check, and each is here for a reason that comparing axes would not cover.
     //
-    // Multiplicity is in the NAME of the spectra ("_multBin3"), so two files produced
-    // apart match on it whatever they meant by it, and it is not an axis of anything
-    // being divided. Trigger pT is integrated away everywhere, so it is not an axis
-    // either: two productions summing over different trigger ranges would compare
-    // cleanly and mean different things.
+    // Multiplicity is in the NAMES of the spectra, not an axis of anything being divided
+    // (RootIO::RequireMatchingBinningStamp). Trigger pT is integrated away everywhere, so it
+    // is not an axis either: two productions summing over different trigger ranges would
+    // compare cleanly and mean different things.
     //
     // The associated pT is stamped per particle, next to that particle's objects -
     // see the loop in the section above. It is NOT here, and it is not redundant with
@@ -524,7 +523,9 @@ class CorrelationTaskBase : public IAnalysisTask
       for (const auto& p : assocParticles) {
         bool hasCfg = extrapConfigManager->HasConfig(p.name);
         doExtrapolationPerParticle[p.name] = hasCfg;
-        if (!hasCfg)
+        if (hasCfg)
+          extrapConfigManager->DeclareCells(p.name, multBinning);
+        else
           Logger::Info("{}: No extrapolation config found for '{}'. Skipping.", GetName(), p.name);
       }
     }
@@ -638,9 +639,6 @@ class CorrelationTaskBase : public IAnalysisTask
     RootIO::PrintProvenance(fileEffInput.get(), globalCfgs.binningName,
                             std::format("corrections file '{}'", inputEffFile));
 
-    // The corrections are addressed by multiplicity INDEX ("..._multBin3"), with
-    // indices that come from the data. The stamp MCTask leaves behind is the only
-    // way to know the intervals those indices meant in the MC production.
     RootIO::RequireMatchingBinningStamp(
       RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName}, true),
       RootIO::kStampMult, multBinning, std::format("efficiency map '{}'", inputEffFile));
@@ -721,26 +719,21 @@ class CorrelationTaskBase : public IAnalysisTask
         targetBinning = it->binning;
       }
 
-      // Naming convention for histograms based on particle name
-      std::string effHistBase = std::format("h1{}Efficiency", name);
-      std::string sigLossHistBase = std::format("h1{}SigLoss", name);
 
       const bool effBinned = pc.accEff && pc.accEff->mult == MultDependence::Binned;
       const bool effIntegrated = pc.accEff && pc.accEff->mult == MultDependence::Integrated;
       // The signal loss is always per multiplicity class, whatever the efficiency uses.
       const bool sigLoss = pc.sigLoss.has_value();
 
-      std::unique_ptr<TH1> hEffInt = fetchHist(accEffDir, std::format("{}_multIntegrated", effHistBase), effIntegrated, targetBinning);
+      std::unique_ptr<TH1> hEffInt = fetchHist(accEffDir, OutputNames::Efficiency(name, OutputNames::kMultIntegrated), effIntegrated, targetBinning);
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-        std::unique_ptr<TH1> hEffBin = fetchHist(accEffDir, std::format("{}_multBin{}", effHistBase, i), effBinned, targetBinning);
-        std::unique_ptr<TH1> hLossBin = fetchHist(sigLossDir, std::format("{}_multBin{}", sigLossHistBase, i), sigLoss, targetBinning);
+        const std::string multTag = OutputNames::MultTag(multBinning, i);
+        std::unique_ptr<TH1> hEffBin = fetchHist(accEffDir, OutputNames::Efficiency(name, multTag), effBinned, targetBinning);
+        std::unique_ptr<TH1> hLossBin = fetchHist(sigLossDir, OutputNames::SignalLoss(name, multTag), sigLoss, targetBinning);
 
-        // The names are the ones the two former vectors used, "_multInt" for the
-        // integrated variant, so the in-memory objects are unchanged.
-        corr.h1Corrections[i] = effIntegrated
-                                  ? combineHists(hEffInt.get(), hLossBin.get(), std::format("h1Corrected_{}_multInt{}", name, i))
-                                  : combineHists(hEffBin.get(), hLossBin.get(), std::format("h1Corrected_{}_multBin{}", name, i));
+        corr.h1Corrections[i] = combineHists(effIntegrated ? hEffInt.get() : hEffBin.get(), hLossBin.get(),
+                                             std::format("h1Corrected_{}_{}", name, multTag));
       }
 
       correctionCollection[name] = std::move(corr);
@@ -753,7 +746,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // Object naming for the cached projections.
   //
   // Bin RANGES are spelled out instead of bin indices. With an index, a cache
-  // built from a different production still contains "_ptBin7" and is read back
+  // built from a different production would still contain "_ptBin7" and be read back
   // happily while meaning another pT interval; with the range in the name, the
   // lookup simply misses and the run stops. The name is the primary defence,
   // the binning stamp below only explains what went wrong.
@@ -762,26 +755,19 @@ class CorrelationTaskBase : public IAnalysisTask
   // separately, with different conventions, so a cache produced by one was not
   // readable by the other.
   // -------------------------------------------------------------------------
-  static std::string BinLabel(std::span<const double> edges, int bin)
-  {
-    return BinningUtils::FormatEdge(edges[bin]) + "-" + BinningUtils::FormatEdge(edges[bin + 1]);
-  }
-
   // Per (multiplicity, trigger pT, associated pT) cell.
   std::string CellSuffix(const AssocParticleConfig& particle, int multBin, int ptPhiBin, int ptAssocBin) const
   {
-    return std::format("_mult{}_ptPhi{}_pt{}",
-                       BinLabel(multBinning, multBin),
-                       BinLabel(ptPhiBinning, ptPhiBin),
-                       BinLabel(particle.binning, ptAssocBin));
+    return std::format("_{}_ptPhi{}_{}",
+                       OutputNames::MultTag(multBinning, multBin),
+                       BinningUtils::BinLabel(ptPhiBinning, ptPhiBin),
+                       OutputNames::PtTag(particle.binning, ptAssocBin));
   }
 
   // For the objects accumulated over the trigger pT bins.
   std::string CellSuffix(const AssocParticleConfig& particle, int multBin, int ptAssocBin) const
   {
-    return std::format("_mult{}_pt{}",
-                       BinLabel(multBinning, multBin),
-                       BinLabel(particle.binning, ptAssocBin));
+    return std::format("_{}", OutputNames::CellTag(multBinning, multBin, particle.binning, ptAssocBin));
   }
 
   // -------------------------------------------------------------------------
@@ -1029,7 +1015,7 @@ class CorrelationTaskBase : public IAnalysisTask
                                           TDirectory* targetDir, TCanvas* overlay)
   {
     // 1. Fetch configuration for THIS particle and THIS multBin from JSON
-    ExtrapConfig eCfg = extrapConfigManager->GetConfig(config.name, multBin);
+    ExtrapConfig eCfg = extrapConfigManager->GetConfig(config.name, OutputNames::MultTag(multBinning, multBin));
     eCfg.mass = config.mass; // Inject physical mass
 
     // 2. Generate configured TF1 model
@@ -1056,7 +1042,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
     /*{
       // std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}", hSpec->GetName(), extrapFunction);
-      std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}_multBin{}", hSpec->GetName(), eCfg.model, multBin);
+      std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}_{}", hSpec->GetName(), eCfg.model, OutputNames::MultTag(multBinning, multBin));
       std::unique_ptr<TCanvas> cDebug = std::make_unique<TCanvas>(debugCanvasName.c_str(), "Debug Guesses", 800, 600);
       // cDebug->SetLogy();
 
@@ -1267,7 +1253,7 @@ class CorrelationTaskBase : public IAnalysisTask
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
 
-        std::string spectraName = OutputNames::Spectrum(config.name, dyLimit, multBin);
+        std::string spectraName = OutputNames::Spectrum(config.name, dyLimit, multBinning, multBin);
 
         std::vector<TH1*> views;
         views.reserve(h1PhiAssocNoPtPhi[pIdx][multBin].size());
@@ -1309,7 +1295,7 @@ class CorrelationTaskBase : public IAnalysisTask
             "two containers contradict each other - the trigger yields are being read from the "
             "wrong cells. Check that the trigger container and the associated data share the "
             "multiplicity and trigger-pT binnings.",
-            GetName(), spectraName, BinLabel(multBinning, multBin)));
+            GetName(), spectraName, BinningUtils::BinLabel(multBinning, multBin)));
         }
         // Both empty: nothing happened in this class, and nothing to say about it.
 
@@ -1422,7 +1408,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Two classes sharing a value is the signature of trigger cells being read by the
       // wrong index; a value that does not fall with the multiplicity percentile is the
       // signature of the wrong container.
-      Logger::Info("{}: mult {} -> triggers = {:g}", GetName(), BinLabel(multBinning, i), totalTriggerSignalPerMult);
+      Logger::Info("{}: mult {} -> triggers = {:g}", GetName(), BinningUtils::BinLabel(multBinning, i), totalTriggerSignalPerMult);
 
       GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
     }

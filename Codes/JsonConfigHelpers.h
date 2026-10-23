@@ -12,6 +12,7 @@
 #include <iterator>
 #include <initializer_list>
 #include <optional>
+#include <set>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -408,6 +409,18 @@ inline void RequireKnownKeys(const rapidjson::Value& node, std::initializer_list
     }
     throw std::runtime_error(std::format("[FATAL] {}: unknown key '{}', it would be silently ignored. Known: {}",
                                          errCtx, name, available));
+  }
+}
+
+// The same, for a set of keys built at run time, the cells of a binning: the message gives the count and
+// one example, since the set can be hundreds of keys long.
+inline void RequireKnownKeys(const rapidjson::Value& node, const std::set<std::string>& known, std::string_view errCtx)
+{
+  for (const auto& member : node.GetObject()) {
+    const std::string name(member.name.GetString(), member.name.GetStringLength());
+    if (!known.contains(name))
+      throw std::runtime_error(std::format("[FATAL] {}: unknown key '{}', it would be silently ignored. Known: {} keys, e.g. '{}'.",
+                                           errCtx, name, known.size(), known.empty() ? std::string{} : *known.begin()));
   }
 }
 

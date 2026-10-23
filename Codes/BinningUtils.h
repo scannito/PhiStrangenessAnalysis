@@ -53,6 +53,15 @@ inline std::string FormatEdge(double value)
   return buffer;
 }
 
+// A bin named by its interval, "10-15", never by its index. An object that crosses a task boundary is
+// found by name, and an index matches whatever binning the reader has: "_multBin3" exists on both sides
+// and means two intervals. "_mult10-15" is simply absent when the two disagree, so the mismatch is a
+// missing object instead of a wrong number (CLAUDE.md, the rule the framework is built on).
+inline std::string BinLabel(std::span<const double> edges, int bin)
+{
+  return FormatEdge(edges[bin]) + "-" + FormatEdge(edges[bin + 1]);
+}
+
 // A delta-y limit as written in titles and messages, to two decimals ("0.80"). The form used
 // in object names is OutputNames::DyTag.
 inline std::string FormatDeltaY(double dyLimit)

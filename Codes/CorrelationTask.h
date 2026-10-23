@@ -223,8 +223,6 @@ class CorrelationTask : public CorrelationTaskBase
     std::unique_ptr<TFile> filePurity = RootIO::OpenOrThrow(purityFilePath, "READ", GetName());
     RootIO::PrintProvenance(filePurity.get(), globalCfgs.binningName, std::format("purity file '{}'", purityFilePath));
 
-    // Same as for the corrections: the purities are addressed by multiplicity
-    // index, and only the stamp says what those indices meant when they were fitted.
     RootIO::RequireMatchingBinningStamp(RootIO::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName}, true), RootIO::kStampMult,
                                         multBinning, std::format("purity file '{}'", purityFilePath));
 
@@ -250,7 +248,7 @@ class CorrelationTask : public CorrelationTaskBase
 
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-        std::string hName = std::format("{}h1{}Purity_multBin{}", folderPath, purityKey, i);
+        std::string hName = folderPath + OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, i));
         std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(filePurity.get(), hName, GetName());
 
         // Verified, NOT rebinned: a purity is a ratio, and merging its bins would

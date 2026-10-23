@@ -130,7 +130,7 @@
                 }
             },
             "bins": {
-                "mult0_pt4": {
+                "mult0-1_pt1.2-1.6": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -145,7 +145,7 @@
                         ]
                     }
                 },
-                "mult0_pt5": {
+                "mult0-1_pt1.6-2": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -160,7 +160,7 @@
                         ]
                     }
                 },
-                "mult1_pt4": {
+                "mult0-1_pt0.7-0.8": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -175,7 +175,7 @@
                         ]
                     }
                 },
-                "mult1_pt5": {
+                "mult0-1_pt0.8-0.9": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -190,7 +190,7 @@
                         ]
                     }
                 },
-                "mult2_pt4": {
+                "mult1-5_pt1.2-1.6": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -205,7 +205,7 @@
                         ]
                     }
                 },
-                "mult2_pt5": {
+                "mult1-5_pt1.6-2": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -220,7 +220,7 @@
                         ]
                     }
                 },
-                "mult3_pt4": {
+                "mult1-5_pt0.7-0.8": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -235,7 +235,7 @@
                         ]
                     }
                 },
-                "mult3_pt5": {
+                "mult1-5_pt0.8-0.9": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -250,7 +250,7 @@
                         ]
                     }
                 },
-                "mult4_pt4": {
+                "mult5-10_pt1.2-1.6": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -265,7 +265,7 @@
                         ]
                     }
                 },
-                "mult4_pt5": {
+                "mult5-10_pt1.6-2": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -280,7 +280,7 @@
                         ]
                     }
                 },
-                "mult5_pt4": {
+                "mult5-10_pt0.7-0.8": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -295,7 +295,7 @@
                         ]
                     }
                 },
-                "mult5_pt5": {
+                "mult5-10_pt0.8-0.9": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -310,7 +310,7 @@
                         ]
                     }
                 },
-                "mult6_pt4": {
+                "mult10-15_pt1.2-1.6": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -325,7 +325,7 @@
                         ]
                     }
                 },
-                "mult6_pt5": {
+                "mult10-15_pt1.6-2": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -340,7 +340,7 @@
                         ]
                     }
                 },
-                "mult7_pt4": {
+                "mult10-15_pt0.7-0.8": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -355,7 +355,7 @@
                         ]
                     }
                 },
-                "mult7_pt5": {
+                "mult10-15_pt0.8-0.9": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -370,7 +370,7 @@
                         ]
                     }
                 },
-                "mult8_pt4": {
+                "mult15-20_pt1.2-1.6": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -385,7 +385,7 @@
                         ]
                     }
                 },
-                "mult8_pt5": {
+                "mult15-20_pt1.6-2": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -400,7 +400,7 @@
                         ]
                     }
                 },
-                "mult9_pt4": {
+                "mult15-20_pt0.7-0.8": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [
@@ -415,7 +415,307 @@
                         ]
                     }
                 },
-                "mult9_pt5": {
+                "mult15-20_pt0.8-0.9": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult20-30_pt1.2-1.6": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult20-30_pt1.6-2": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult20-30_pt0.7-0.8": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult20-30_pt0.8-0.9": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult30-40_pt1.2-1.6": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult30-40_pt1.6-2": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult30-40_pt0.7-0.8": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult30-40_pt0.8-0.9": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult40-50_pt1.2-1.6": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult40-50_pt1.6-2": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult40-50_pt0.7-0.8": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult40-50_pt0.8-0.9": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult50-70_pt1.2-1.6": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult50-70_pt1.6-2": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult50-70_pt0.7-0.8": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult50-70_pt0.8-0.9": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult70-100_pt1.2-1.6": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult70-100_pt1.6-2": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult70-100_pt0.7-0.8": {
+                    "bkg_model": "Chebychev2",
+                    "params": {
+                        "c1_bkg": [
+                            -0.5,
+                            -1.0,
+                            1.0
+                        ],
+                        "c2_bkg": [
+                            0.05,
+                            -1.0,
+                            1.0
+                        ]
+                    }
+                },
+                "mult70-100_pt0.8-0.9": {
                     "bkg_model": "Chebychev2",
                     "params": {
                         "c1_bkg": [

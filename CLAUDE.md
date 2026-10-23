@@ -46,14 +46,18 @@ What the JSON declares is compared against what the file contains, and a mismatc
 stops the run with the index and both values. `AnalysisSettings::ResolvePtBinning`
 and `ResolveMultBinning` do both steps in one call.
 
-This exists because histograms are addressed by bin **index** across task
-boundaries: `..._multBin3` means whatever the producer's binning said, and a
-consumer with a different binning finds that object and reads the wrong interval.
-Every check in the codebase is a version of closing that hole:
+This exists because objects are looked up by name across task boundaries, and a
+name that carries a bin index means whatever the producer's binning said:
+`..._multBin3`, as every name was until 23 October 2026, is found by a consumer
+with a different binning, which then reads the wrong interval. Names now carry the
+interval (`OutputNames::MultTag`, `CellTag`), so such an object is missing instead;
+what is still addressed by index is the bins of the containers themselves (the
+projections of the `THnSparse` and `TH3`, the trigger matrices). Every check in the
+codebase is a version of closing that hole:
 
 - `BinningUtils::RequireSameAxis` between containers that get divided
-- binning stamps (`RootIO::WriteBinningStamp`) in files whose objects are
-  index-addressed, verified by `RequireMatchingBinningStamp`
+- binning stamps (`RootIO::WriteBinningStamp`) in files whose objects another task
+  looks up, verified by `RequireMatchingBinningStamp` before anything is read
 - `CorrelationTaskBase::VerifyTriggerAxes` between the trigger matrices and the
   associated-particle data
 - real bin edges on the axes of anything that crosses a task boundary, instead of
@@ -224,7 +228,9 @@ strings.
   that passes the null check and fails on first use.
 - **The names and layout of `PhiAssocSpectra` come from `OutputNames`**, in the task that writes
   them and in every reader (`comparison_task`): object names, the `Spectra`/`Trends`/`Ratios`
-  directories, the section names. The binning stamps' names, the same in every file that carries
+  directories, the section names. So do the other names one task writes and another looks up (the
+  correction maps, the purity spectra) and the cell tags (`MultTag`, `CellTag`), which are also the
+  keys of the per-cell overrides of `fitConfig.json` and `extrapConfig.json`. The binning stamps' names, the same in every file that carries
   one, come from `RootIO` (`kStampMult`, `kStampPtPhi`, `kStampPtAssoc`), and its provenance
   functions find the provenance directory themselves. One spelled by hand anywhere is a second
   copy of the rule.

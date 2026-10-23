@@ -440,7 +440,7 @@ class MCTask : public IAnalysisTask
       for (int i{0}; i < BinningUtils::NBins(multBinning); i++) {
         // 'rebinning_pt' is applied inside the calculator, on the counts, before
         // they are divided: rebinning the ratio afterwards would sum efficiencies.
-        EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, i, globalCfgs.GetSpectraColor(i));
+        EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, multBinning, i, globalCfgs.GetSpectraColor(i));
 
         drawMaps(maps, i == 0 ? "" : "SAME");
         drawOverEvLoss(maps, i == 0 ? "" : "SAME", i);
@@ -459,11 +459,8 @@ class MCTask : public IAnalysisTask
   {
     Logger::Info("{}: TERMINATING AND CLEANING UP...", GetName());
 
-    // The pT binning of every correction is carried by its own axis, so the
-    // consumer can verify it by reading it. The multiplicity binning is not: it
-    // survives only as an index in the names ("..._multBin3"), and the correlation
-    // task addresses those names with the bin indices of the DATA. Record it, so
-    // that a mismatch between the two productions is detectable instead of silent.
+    // The pT binning of every correction is its own axis; the multiplicity binning is
+    // in the names, and stamped (RootIO::RequireMatchingBinningStamp).
     if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName}, false))
       RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
 

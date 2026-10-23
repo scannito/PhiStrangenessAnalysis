@@ -1,9 +1,15 @@
 #pragma once
 
 #include "BaseConfigManager.h"
+#include "BinningUtils.h"
 #include "Logger.h"
+#include "OutputNames.h"
 
 #include <format>
+#include <initializer_list>
+#include <map>
+#include <set>
+#include <span>
 
 class FitConfigManager : public BaseConfigManager
 {
@@ -11,23 +17,38 @@ class FitConfigManager : public BaseConfigManager
   // Calls the Base constructor to handle file I/O
   FitConfigManager(const std::string& jsonPath = "fitConfig.json") : BaseConfigManager(jsonPath, "FitConfigManager") {}
 
-  // Queries the RAM to get the configuration for a specific bin
-  FitConfig GetConfig(const std::string& particle, int multBin, int ptBin) const
+  // The cells a task fits in a section, each by OutputNames::CellTag: every pT binning in 'ptBinnings' (PurityTask
+  // fits the source and the analysis one) crossed with 'multBinning'. Declared once per section, before the fits,
+  // every binning in the same call: the overrides are checked against the union of their cells, and a call per
+  // binning would refuse a key valid only for a binning not declared yet.
+  // An override of fit_setup.bins that names none of them stops the run, since it would never be applied (a typo,
+  // or a key written for another binning); GetConfig refuses a cell that was not declared, so a task cannot skip
+  // the check, nor fit a binning it did not declare.
+  void DeclareCells(const std::string& particle, std::span<const double> multBinning,
+                    std::initializer_list<std::span<const double>> ptBinnings)
   {
+    std::set<std::string>& cells = declaredCells[particle];
+    for (std::span<const double> ptBinning : ptBinnings)
+      for (int i = 0; i < BinningUtils::NBins(multBinning); i++)
+        for (int k = 0; k < BinningUtils::NBins(ptBinning); k++)
+          cells.insert(OutputNames::CellTag(multBinning, i, ptBinning, k));
+    if (const rapidjson::Value* bins = Bins(particle))
+      JsonConfig::RequireKnownKeys(*bins, cells, std::format("{}: section '{}'.fit_setup.bins (the keys are the cells this task fits)", managerName, particle));
+  }
+
+  // The configuration of one cell, 'cell' as OutputNames::CellTag gives it: the section's default, then the
+  // override of that cell if there is one.
+  FitConfig GetConfig(const std::string& particle, const std::string& cell) const
+  {
+    const auto declared = declaredCells.find(particle);
+    if (declared == declaredCells.end() || !declared->second.contains(cell))
+      throw std::runtime_error(std::format("[FATAL] {}: GetConfig('{}', '{}') for a cell that was not declared with DeclareCells, "
+                                           "so the overrides were not checked against it.",
+                                           managerName, particle, cell));
+
     FitConfig config;
+    const rapidjson::Value& partNode = Section(particle);
 
-    // The sections of this file are asked for by name, by tasks whose own configuration
-    // decides which ones: the purity task by each particle's 'purity_key', the trigger
-    // fit by "phi". A section cannot be defaulted - there is no sensible model,
-    // observable or range to invent - so its absence is always an error, unlike for
-    // ExtrapConfigManager, where it means "skip this particle". Checked before the
-    // lookup below: rapidjson's operator[] on a missing key asserts, and in a Release
-    // build (where asserts are compiled out) returns a null value in silence.
-    if (!isLoaded || !document.HasMember(particle.c_str()))
-      throw std::runtime_error(std::format("[FATAL] {}: no section '{}' in the fit configuration.",
-                                           managerName, particle));
-
-    const rapidjson::Value& partNode = document[particle.c_str()];
     // Every block below has a closed set of keys, so a misspelled one is refused instead
     // of skipped: a typo in n_sigma_integration would otherwise leave the previous window
     // in force and change the fit with no word (CLAUDE.md, Configuration).
@@ -96,17 +117,42 @@ class FitConfigManager : public BaseConfigManager
         loadNodeIntoModel(*defaults);
 
       // 2. Override with specific bin settings if they exist
-      std::string binKey = std::format("mult{}_pt{}", multBin, ptBin);
-      // The outer key is fixed and must be an object; the inner one is built from
-      // the bin indices, so its absence is normal and HasMember is the right tool.
-      const rapidjson::Value* bins = JsonConfig::TryObject(fitNode, "bins", managerName);
-      if (bins && bins->HasMember(binKey.c_str())) {
-        Logger::Debug("{}: Found custom parameters for bin: {}", managerName, binKey);
-        loadNodeIntoModel((*bins)[binKey.c_str()]);
-        config.binOverride = binKey;
+      // The outer key is fixed and must be an object; the inner one is the cell, so
+      // its absence is normal and HasMember is the right tool.
+      const rapidjson::Value* bins = Bins(particle);
+      if (bins && bins->HasMember(cell.c_str())) {
+        Logger::Debug("{}: Found custom parameters for bin: {}", managerName, cell);
+        loadNodeIntoModel((*bins)[cell.c_str()]);
+        config.binOverride = cell;
       }
     }
 
     return config;
   }
+
+ private:
+  // The sections of this file are asked for by name, by tasks whose own configuration
+  // decides which ones: the purity task by each particle's 'purity_key', the trigger
+  // fit by "phi". A section cannot be defaulted - there is no sensible model,
+  // observable or range to invent - so its absence is always an error, unlike for
+  // ExtrapConfigManager, where it means "skip this particle". Checked before the
+  // lookup: rapidjson's operator[] on a missing key asserts, and in a Release
+  // build (where asserts are compiled out) returns a null value in silence.
+  const rapidjson::Value& Section(const std::string& particle) const
+  {
+    if (!isLoaded || !document.HasMember(particle.c_str()))
+      throw std::runtime_error(std::format("[FATAL] {}: no section '{}' in the fit configuration.",
+                                           managerName, particle));
+    return document[particle.c_str()];
+  }
+
+  // The section's fit_setup.bins, or null if it has none.
+  const rapidjson::Value* Bins(const std::string& particle) const
+  {
+    const rapidjson::Value* fitSetup = JsonConfig::TryObject(Section(particle), "fit_setup", managerName);
+    return fitSetup ? JsonConfig::TryObject(*fitSetup, "bins", managerName) : nullptr;
+  }
+
+  // section -> the CellTags its task fits ("mult0-1_pt0.7-0.8"), every declared binning together; filled by DeclareCells
+  std::map<std::string, std::set<std::string>> declaredCells;
 };

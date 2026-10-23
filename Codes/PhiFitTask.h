@@ -66,6 +66,7 @@ class PhiFitTask : public IAnalysisTask
     // 2. Fit Configuration
     std::string fitCfgPath = JsonConfig::RequireString(taskConfig, "fit_config_file", GetName());
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
+    fitConfigManager->DeclareCells(kFitSection, multBinning, {ptPhiBinning});
 
     // A snapshot, not a path: this is the file being edited while the fits are
     // tuned, so knowing which one it was says nothing about what was in it.
@@ -113,12 +114,13 @@ class PhiFitTask : public IAnalysisTask
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-        std::string phiHistName = std::format("h1PhiData_multBin{}_ptBin{}", i, j);
+        const std::string cell = OutputNames::CellTag(multBinning, i, ptPhiBinning, j);
+        std::string phiHistName = "h1PhiData_" + cell;
         std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), i + 1, i + 1, j + 1, j + 1)));
         h1PhiData->SetDirectory(0);
 
         // Fetch configuration dynamically from JSON
-        FitConfig cfg = fitConfigManager->GetConfig(kFitSection, i, j);
+        FitConfig cfg = fitConfigManager->GetConfig(kFitSection, cell);
 
         // Initialize RooFit Engine
         DynamicRooFitter fitter(h1PhiData.get(), cfg);
@@ -132,7 +134,7 @@ class PhiFitTask : public IAnalysisTask
         // task's. Written and destroyed here, per cell, and not left to a WriteAll in
         // Terminate: nothing reads a fit canvas back, and holding all of them until
         // the end would only cost memory.
-        const std::string canvasName = std::format("cFit_Phi_mult{}_pt{}", i, j);
+        const std::string canvasName = "cFit_Phi_" + cell;
         TCanvas* cFit = canvasManager.CreateCanvas(canvasName, "Fit Canvas", 800, 800);
         fitter.DrawFit(cFit);
         CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);

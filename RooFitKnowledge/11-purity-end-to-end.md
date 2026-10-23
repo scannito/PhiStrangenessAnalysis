@@ -56,14 +56,25 @@ For the project owner. These supersede item 3 below where they disagree.
 
 ## 1. What the purity step writes and who consumes it [source: PurityTask.h, WorkflowManager.h, CorrelationTask.h, CorrelationTaskBase.h, globalConfig*pp.json]
 
-- **Tasks.** `globalConfigPuritypp.json` runs `purity_task_2024` and `purity_task_2026` (inputs `AnalysisResults_136_2024_PtMod_5agosto.root` and `..._2026_PtMod_6agosto.root`). Particles: k0s, xi, pi_tpc, pi_tof. Each cell runs `DynamicRooFitter(...).DoFit()` and then `ExtractYieldsAndPurity()`, and only `purityAndError` is stored. The status, covQual, EDM and NLL are not stored.
+Updated on 23 October 2026 to the chain as it is; the study in the sections below ran on the state of mid-October
+(one purity file per `output_file_suffix`, objects named by bin index, nothing of the fit stored), and its file and
+object names are those of that state.
+
+- **Tasks.** `globalConfigPuritypp.json` runs `purity_task_2026_highIR_updated` (input
+  `AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root`); `purity_task_2024` and `purity_task_2026` are in
+  `inactive_tasks`. Particles: k0s, xi, omega, pi_tpc, pi_tof. Each cell runs `DynamicRooFitter(...).DoFit()` and then
+  `ExtractYieldsAndPurity()`; `purityAndError` is the spectrum, and the status, covQual, EDM, NLL, counts and the
+  parameters at a limit of every fit are in the `FitQuality` tree (`FitQualityRecorder`, README *Fit quality*).
 - **Outputs** (`output_dir ../DataFile/pp/DeltaY/Purities/`):
-  - `Data_<year>_{K0S,Xi,Pi}Purity.root` (pi_tpc and pi_tof share the Pi file), containing:
-    - `<binning>/Summary/h1<key>Purity_multBin<i>`: analysis binning, from fits of the MERGED source bins.
+  - `<prefix>Purity.root`, one file for every particle of the block (`OutputNames::kPurityFile`), containing:
+    - `<binning>/Summary/h1<key>Purity_mult<lo>-<hi>`: analysis binning, from fits of the MERGED source bins
+      (`OutputNames::Purity`).
     - `.../Summary/SourceBinning/..._sourceBinning`.
-    - fit canvases, summary canvases, binning stamp, Provenance.
-  - CCDB maps `Purities/MoreFullDifferential/Data_<year>_h2PurityMap<key>.root`: object `ccdb_object`, a TH2F (multiplicity, pT) at the source binning.
-- **Consumer in this project:** `CorrelationTask::LoadPurities` reads `h1<key>Purity_multBin<i>` for k0s, xi and pi_tpc. pi_tof is never read.
+    - `<binning>/Fits/<key>/` the fit canvases (`SourceBinning/` below for the source fits), the summary canvases,
+      `<binning>/FitQuality`, the binning stamp, Provenance.
+  - CCDB maps `Purities/MoreFullDifferential/<prefix>h2PurityMap<key>.root`: object `ccdb_object`, a TH2F (multiplicity, pT) at the source binning.
+- **Consumer in this project:** `CorrelationTask::LoadPurities` reads `h1<key>Purity_mult<lo>-<hi>` for the
+  `purity_sources` (k0s, xi, omega, pi_tpc). pi_tof is never read.
   `CorrelationTaskBase::GenerateSpectraAndTrends` then does `h1Spectrum->Multiply(hPurity)`: after the 1/N_trig and 1/(2 dy) normalisation, before the extrapolation, the trends and the ratios.
   This happens only if `apply_purity` is true. It is false in `correlation_base_settings` (`globalConfigBasepp.json`), and no configuration sets it true since the older `globalConfigDatapp_OnlineEffonly.json`, the only one that did, was deleted (22 October 2026).
 - **Consumer outside:** the CCDB maps are meant for O2 (comment in PurityTask: "O2 applies it to single candidates"). Section 5 shows that no O2Physics code reads them.
