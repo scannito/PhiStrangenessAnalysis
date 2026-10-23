@@ -110,6 +110,26 @@ a comment in `DoFit` says why and points at the measurement):
   Not worth restructuring on its own, since the object has to stay alive for `DrawFit`
   anyway.
 
+### The n-sigma window is defined only for a Gaussian signal (23 October 2026)
+
+`n_sigma_integration` sets the integration window to `mean_sig ± n·sigma_sig` (`CalculateIntegrationLimits`; with a
+composite signal, `"DSCB+Gaussian"`, it falls back to `mean_sig_0` and `sigma_sig_0`, the core). "±3σ" means a fraction
+of the signal, 99.73%, only for a Gaussian. With a DSCB, ±3σ of its core holds less than that, because the tails take
+more signal out than a Gaussian's would; with DSCB+Gaussian, the core's σ does not describe the whole, and the fraction
+inside ±3σ_core changes from cell to cell with the weight of the wide component. The window would then hold a
+different fraction of the signal in each cell, and nothing would say so.
+
+The correct definitions both come from the fitted signal pdf: by coverage, the central interval holding the fraction
+±nσ holds for a Gaussian (equal tails, by inverting the signal's cumulative integral); or with an effective width,
+σ_eff = half the shortest interval holding 68.3%, and the window mean ± n·σ_eff (which does not fix the fraction at
+±3σ_eff when the tails are heavy). The coverage one is the one that keeps "n sigma" meaning the same fraction.
+
+Nothing to correct today: every purity section uses a fixed `integration_range`, and it must, because the purity is
+the fraction of signal among the candidates the online selection kept, in its fixed mass window (O2Physics,
+`rangeM*Signal`). An n-sigma window would make sense only if the online selection used one too; then the coverage
+definition above is the one to implement, and the mode as it is should be refused for a signal that is not a single
+Gaussian.
+
 ### One range for everything: the observable's range is also the fit range and the plot range
 
 Today `observable.min`/`max` in `fitConfig.json` builds the `RooRealVar` (`DynamicRooFitter.h:62`), and that
