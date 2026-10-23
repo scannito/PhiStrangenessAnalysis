@@ -413,7 +413,10 @@ them (`DESIGN_NOTES.md` section 5).
 file, one row per fit: the cell (`section`, `binning` analysis or source, the intervals `multLow`/`multHigh` and
 `ptLow`/`ptHigh`, the `fit_setup.bins` override that applied) and what the fit's result says (`counts` the likelihood saw, `status`,
 `covQual`, `edm`, `minNll`, `numInvalidNLL`, and `atLimit`, the floating parameters within 1e-5 of their range
-from a limit). Raw facts, read from the result the fit already saves: nothing is refitted, and no number changes.
+from a limit). `DoFit` fits every cell from several starts and keeps the best (`DESIGN_HISTORY.md`, *Several starts
+per fit*): `start` is the one that won (`config`, `yields`, `staged`), `minNll` its likelihood without offset, and
+`nllConfig` the one the `config` start reached, the fit as it was made before there were several starts. Raw facts,
+from what the fit already records: recording them refits nothing and changes no number.
 
 ```cpp
 TFile f("Data_2024_Purity.root");

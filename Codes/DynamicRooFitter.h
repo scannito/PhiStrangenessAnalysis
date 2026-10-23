@@ -61,10 +61,15 @@ class DynamicRooFitter
     sigPdf = ParseModelString(cfg.model.sigModel, "sig");
     bkgPdf = ParseModelString(cfg.model.bkgModel, "bkg");
 
-    RooRealVar* nsig = CreateVar("nsig");
-    RooRealVar* nbkg = CreateVar("nbkg");
+    nsig = CreateVar("nsig");
+    nbkg = CreateVar("nbkg");
 
     model = Own<RooAddPdf>("model", "Total Model", RooArgList(*sigPdf, *bkgPdf), RooArgList(*nsig, *nbkg));
+
+    // The configured values of every parameter, which every start of DoFit begins from: taken here, where they are
+    // the configuration's, so that a second DoFit on this fitter could not begin from the first one's result.
+    parameters.reset(model->getParameters(RooArgSet(*obs)));
+    configured.reset(parameters->snapshot());
   }
 
   // Tear down the owned RooFit objects in strict reverse creation order:
@@ -75,53 +80,70 @@ class DynamicRooFitter
   // pop_back() always destroys the last element, so this is portable.
   ~DynamicRooFitter()
   {
+    configured.reset(); // the sets refer to the owned variables: gone before them
+    parameters.reset();
     while (!ownedObjects.empty())
       ownedObjects.pop_back();
   }
 
+  // Fits the model from several starts and keeps the lowest minimum (RooFitKnowledge/ROADMAP.md, phase 3). A single
+  // fit from the configuration was measured to stop far from the minimum with every flag clean (DESIGN_HISTORY.md,
+  // "Several starts per fit": on the 22 October production, a median 2.4e5 of NLL above it for pi_tpc). Every start
+  // begins from the configured values and from the cell itself, so a cell's result depends on nothing that ran
+  // before it:
+  //   "config"  the configured values, fitted as DoFit fitted before there were several starts (fitTo without
+  //             offset): the winner is never worse than that fit, and where it wins the result is that fit's;
+  //   "yields"  each free yield at half the cell's counts (from one configuration for every cell they start up to
+  //             10000 times off);
+  //   "staged"  the yields as above, and a first fit with the parameters the model declared with Stage held (the
+  //             highest Chebychev term at 0, so a background one order lower; the DSCB tails at their configured
+  //             values), then released. Only for a model that declares any.
+  // The derived starts are an Offset("bin") fit and a refit from its result. Offset("bin") because the likelihood of
+  // these cells is of order 1e7 to 1e10 while the minimum is resolved to 1e-3: in RooFitKnowledge note 09 (section
+  // 9.9) it gave the yields of Offset(true) with the edm test passing in 96% of the cells instead of 88%.
+  // The winner is the lowest NLL, the likelihood itself without offset (an offset fit reports its minimum relative to
+  // its own reference), among the starts where it is finite; a later start wins only when lower by more than 0.01.
+  // Nothing else decides it: invalid evaluations count Minuit's path, not the point it ends at, and the covariance
+  // is the estimate of the errors, not the place of the minimum. Both stay flags on the winner.
   int DoFit()
   {
     RooDataHist dataHist("dataHist", "Data", *obs, RooFit::Import(*h1Data));
+    const double counts = dataHist.sumEntries();
+    const std::unique_ptr<RooAbsReal> nll(model->createNLL(dataHist, RooFit::Extended(true)));
+    std::vector<Start> starts;
 
-    // No NumCPU here, on purpose. It was NumCPU(4), and it did nothing: with the default
-    // 'cpu' evaluation backend RooFit ignores it (RooAbsPdf.cxx says so), and the two ways
-    // to make a parallel setting count are worse - EvalBackend("legacy") made these fits
-    // 50 to 100 times slower and changed the result, RooFit::Parallelize throws in this
-    // ROOT build (no multiprocessing). Measured on all 960 cells of the real K0S, Xi and
-    // pion spectra: same time, same results to 12 digits, with and without it. The numbers
-    // are in DESIGN_HISTORY.md, "The fitter is built once per configuration".
+    // One start: the parameters back to their configured values, 'fits' run from there, and the result they return
+    // recorded with the NLL at its minimum (where the last fit left the parameters).
+    auto start = [&](std::string label, auto fits) {
+      parameters->assign(*configured);
+      std::unique_ptr<RooFitResult> result = fits();
+      FitDiagnostics d = DiagnosticsOf(*result, counts);
+      d.minNll = nll->getVal();
+      d.start = std::move(label);
+      starts.push_back({std::move(result), std::move(d)});
+    };
 
-    // Save the result to the class member instead of a local variable
-    // reset() releases any previous fitResult and takes ownership of the new one
-    fitResult.reset(model->fitTo(dataHist, RooFit::Optimize(1), RooFit::Extended(1), RooFit::Save(1), RooFit::PrintLevel(-1)));
-    fittedCounts = dataHist.sumEntries();
+    start("config", [&] { return Fit(dataHist, false); });
+    start("yields", [&] {
+      ScaleYields(counts);
+      return FitAndRefit(dataHist);
+    });
+    if (!staged.empty())
+      start("staged", [&] {
+        ScaleYields(counts);
+        FitWithStagedHeld(dataHist);
+        return FitAndRefit(dataHist);
+      });
 
+    KeepLowest(starts);
     return fitResult->status();
   }
 
-  // What the last fit was, from the result it saved: nothing here refits or adds an option to the fit.
+  // What the last fit was: the winning start's facts, and the NLL the "config" start reached next to its.
   FitDiagnostics Diagnostics() const
   {
     RequireFit();
-
-    FitDiagnostics d;
-    d.status = fitResult->status();
-    d.covQual = fitResult->covQual();
-    d.edm = fitResult->edm();
-    d.minNll = fitResult->minNll();
-    d.numInvalidNLL = fitResult->numInvalidNLL();
-    d.counts = fittedCounts;
-    // "At a limit" as in note 09 of RooFitKnowledge: within 1e-5 of the range from either end. The distance there
-    // was bimodal, below 1e-6 or above 1e-4, so the threshold does not split a population.
-    for (const RooAbsArg* arg : fitResult->floatParsFinal()) {
-      const auto* v = dynamic_cast<const RooRealVar*>(arg);
-      if (!v || !v->hasMin() || !v->hasMax())
-        continue;
-      const double tolerance = 1e-5 * (v->getMax() - v->getMin());
-      if (v->getVal() - v->getMin() < tolerance || v->getMax() - v->getVal() < tolerance)
-        d.atLimit.emplace_back(v->GetName());
-    }
-    return d;
+    return diagnostics;
   }
 
   // Structure to hold the results of the yield and purity calculations
@@ -147,18 +169,14 @@ class DynamicRooFitter
 
     obs->setRange("signalRegion", minRange, maxRange);
 
-    std::unique_ptr<RooArgSet> modelVars(model->getVariables());
-    RooRealVar* nsigVar = FindVar(*modelVars, "nsig");
-    RooRealVar* nbkgVar = FindVar(*modelVars, "nbkg");
-
     // --- 1. SIGNAL YIELD & ERROR ---
     std::unique_ptr<RooAbsReal> sigInt(sigPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("signalRegion")));
-    RooProduct signalYield("signalYield", "Signal Yield", RooArgList(*nsigVar, *sigInt));
+    RooProduct signalYield("signalYield", "Signal Yield", RooArgList(*nsig, *sigInt));
     results.signalAndError = {signalYield.getVal(), signalYield.getPropagatedError(*fitResult, RooArgSet(*obs))};
 
     // --- 2. BACKGROUND YIELD & ERROR ---
     std::unique_ptr<RooAbsReal> bkgInt(bkgPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("signalRegion")));
-    RooProduct bkgYield("bkgYield", "Background Yield", RooArgList(*nbkgVar, *bkgInt));
+    RooProduct bkgYield("bkgYield", "Background Yield", RooArgList(*nbkg, *bkgInt));
     results.backgroundAndError = {bkgYield.getVal(), bkgYield.getPropagatedError(*fitResult, RooArgSet(*obs))};
 
     // --- 3. OPTIONAL PURITY & ERROR (S / S+B) ---
@@ -175,7 +193,7 @@ class DynamicRooFitter
 
       if (config.integration.sideband->fromFit) {
         std::unique_ptr<RooAbsReal> bkgIntSB(bkgPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("sidebandRegion")));
-        RooProduct bkgYieldSB("bkgYieldSB", "Bkg in Sideband", RooArgList(*nbkgVar, *bkgIntSB));
+        RooProduct bkgYieldSB("bkgYieldSB", "Bkg in Sideband", RooArgList(*nbkg, *bkgIntSB));
         results.bkgInSidebandAndError = {bkgYieldSB.getVal(), bkgYieldSB.getPropagatedError(*fitResult, RooArgSet(*obs))};
 
         RooFormulaVar bkgRatio("bkgRatio", "Bkg(signal)/Bkg(sideband)", "@0 / @1", RooArgList(*bkgInt, *bkgIntSB));
@@ -204,11 +222,15 @@ class DynamicRooFitter
   // components, the integration and sideband windows, the names inside the RooPlot -
   // and nothing about where it ends up: creating the canvas, choosing whether it has
   // a pull pad, labelling it, writing it and deciding how long it lives belong to the
-  // task, which owns the output file.
-  void DrawFit(TPad* pad) { DrawFitOnPads(pad, nullptr, 1.0); }
+  // task, which owns the output file. The title is the task's too, since only the task knows which cell this is: it
+  // must say so, and must not be empty (RooFit::Title("") gives RooFit's default, "A RooPlot of ...").
+  void DrawFit(TPad* pad, const std::string& title) { DrawFitOnPads(pad, nullptr, 1.0, title); }
 
   // Same, with the pulls on the bottom pad of a ratio canvas.
-  void DrawFit(const CanvasManager::RatioCanvas& ratio) { DrawFitOnPads(ratio.topPad, ratio.bottomPad, ratio.fontScale); }
+  void DrawFit(const CanvasManager::RatioCanvas& ratio, const std::string& title)
+  {
+    DrawFitOnPads(ratio.topPad, ratio.bottomPad, ratio.fontScale, title);
+  }
 
  private:
   TH1* h1Data;
@@ -220,14 +242,114 @@ class DynamicRooFitter
   RooAbsPdf* bkgPdf{nullptr}; // Pointer to the background part
   RooAbsPdf* model{nullptr};  // The total model (Signal + Background)
 
-  // Keep the fit result alive to use its covariance matrix later
+  RooRealVar* nsig{nullptr};
+  RooRealVar* nbkg{nullptr};
+
+  // A parameter held at 'at' for the first fit of the "staged" start.
+  struct Held {
+    RooRealVar* var;
+    double at;
+  };
+  std::vector<Held> staged;
+
+  std::unique_ptr<RooArgSet> parameters; // every parameter of the model
+  std::unique_ptr<RooArgSet> configured; // their configured values, which every start begins from
+
+  // The winning start's result, kept alive to use its covariance matrix later, and its facts
   std::unique_ptr<RooFitResult> fitResult;
-  double fittedCounts{0.0}; // the sum of the RooDataHist the last fit saw, for Diagnostics
+  FitDiagnostics diagnostics;
+
+  // One start of DoFit: its result, and its facts with the NLL it reached.
+  struct Start {
+    std::unique_ptr<RooFitResult> result;
+    FitDiagnostics diagnostics;
+  };
+
+  // One fit of the model to 'data', from wherever the parameters are; it leaves them at its minimum.
+  //
+  // No NumCPU here, on purpose. It was NumCPU(4), and it did nothing: with the default
+  // 'cpu' evaluation backend RooFit ignores it (RooAbsPdf.cxx says so), and the two ways
+  // to make a parallel setting count are worse - EvalBackend("legacy") made these fits
+  // 50 to 100 times slower and changed the result, RooFit::Parallelize throws in this
+  // ROOT build (no multiprocessing). Measured on all 960 cells of the real K0S, Xi and
+  // pion spectra: same time, same results to 12 digits, with and without it. The numbers
+  // are in DESIGN_HISTORY.md, "The fitter is built once per configuration".
+  std::unique_ptr<RooFitResult> Fit(RooDataHist& data, bool offset)
+  {
+    if (!offset)
+      return std::unique_ptr<RooFitResult>(model->fitTo(data, RooFit::Optimize(1), RooFit::Extended(1), RooFit::Save(1), RooFit::PrintLevel(-1)));
+    return std::unique_ptr<RooFitResult>(model->fitTo(data, RooFit::Optimize(1), RooFit::Extended(1), RooFit::Save(1),
+                                                      RooFit::PrintLevel(-1), RooFit::Offset("bin")));
+  }
+
+  // An Offset("bin") fit, whose result is dropped, and the refit from its minimum, whose result is returned.
+  std::unique_ptr<RooFitResult> FitAndRefit(RooDataHist& data)
+  {
+    Fit(data, true);
+    return Fit(data, true);
+  }
+
+  void ScaleYields(double counts)
+  {
+    for (RooRealVar* y : {nsig, nbkg})
+      if (!y->isConstant())
+        y->setVal(std::clamp(0.5 * counts, y->getMin(), y->getMax()));
+  }
+
+  // The staged parameters held, one fit, then released: its result is dropped, the parameters stay at its minimum.
+  void FitWithStagedHeld(RooDataHist& data)
+  {
+    for (const Held& h : staged) {
+      h.var->setVal(h.at);
+      h.var->setConstant(true);
+    }
+    Fit(data, true);
+    for (const Held& h : staged)
+      h.var->setConstant(false);
+  }
+
+  // The rule is DoFit's. The parameters are set back to the winner's minimum because the last fit run may not be the
+  // winner's, and ExtractYieldsAndPurity reads them.
+  void KeepLowest(std::vector<Start>& starts)
+  {
+    Start* winner = &starts.front();
+    for (Start& st : starts) {
+      const double value = st.diagnostics.minNll;
+      if (std::isfinite(value) && (!std::isfinite(winner->diagnostics.minNll) || value < winner->diagnostics.minNll - 0.01))
+        winner = &st;
+    }
+    parameters->assign(winner->result->floatParsFinal());
+    fitResult = std::move(winner->result);
+    diagnostics = std::move(winner->diagnostics);
+    diagnostics.nllConfig = starts.front().diagnostics.minNll;
+  }
 
   // Ownership of all dynamically created RooFit args (vars + pdfs).
   // Insertion order = creation order (leaves first, composites last).
   // The destructor depends on this invariant to tear down in reverse.
   std::vector<std::unique_ptr<RooAbsArg>> ownedObjects;
+
+  // The facts of one fit result and of the data it saw (the NLL and the start are DoFit's). "At a limit" as in note
+  // 09 of RooFitKnowledge: within 1e-5 of the range from either end. The distance there was bimodal, below 1e-6 or
+  // above 1e-4, so the threshold does not split a population.
+  static FitDiagnostics DiagnosticsOf(const RooFitResult& result, double counts)
+  {
+    FitDiagnostics d;
+    d.status = result.status();
+    d.covQual = result.covQual();
+    d.edm = result.edm();
+    d.numInvalidNLL = result.numInvalidNLL();
+    d.counts = counts;
+    for (const RooAbsArg* arg : result.floatParsFinal()) {
+      const auto* v = dynamic_cast<const RooRealVar*>(arg);
+      if (!v || !v->hasMin() || !v->hasMax())
+        continue;
+      const double tolerance = 1e-5 * (v->getMax() - v->getMin());
+      if (v->getVal() - v->getMin() < tolerance || v->getMax() - v->getVal() < tolerance)
+        d.atLimit.emplace_back(v->GetName());
+    }
+    return d;
+  }
 
   // Everything that reads the result asks here: there is none before DoFit.
   void RequireFit() const
@@ -236,7 +358,7 @@ class DynamicRooFitter
       throw std::runtime_error("[FATAL] DynamicRooFitter: call DoFit() first.");
   }
 
-  void DrawFitOnPads(TPad* mainPad, TPad* pullPad, double fontScale)
+  void DrawFitOnPads(TPad* mainPad, TPad* pullPad, double fontScale, const std::string& title)
   {
     RequireFit();
     if (!mainPad) {
@@ -251,7 +373,7 @@ class DynamicRooFitter
     RooDataHist dataHist("dataHist", "Data", *obs, RooFit::Import(*h1Data));
 
     // Create a RooPlot frame using the observable's range
-    RooPlot* frame = obs->frame(RooFit::Title(""));
+    RooPlot* frame = obs->frame(RooFit::Title(title.c_str()));
     frame->SetBit(kCanDelete);
 
     dataHist.plotOn(frame, RooFit::Name("Data_Plot"), RooFit::MarkerStyle(20));
@@ -294,7 +416,8 @@ class DynamicRooFitter
       pullPad->SetGridy(1);
 
       if (RooHist* hpull = frame->pullHist("Data_Plot", "Model_Plot")) {
-        RooPlot* pullFrame = obs->frame(RooFit::Title(""));
+        RooPlot* pullFrame = obs->frame();
+        pullFrame->SetTitle(""); // no title on the pulls; SetTitle keeps an empty one, RooFit::Title("") would not
         pullFrame->SetBit(kCanDelete);
         pullFrame->addPlotable(hpull, "P");
 
@@ -317,6 +440,16 @@ class DynamicRooFitter
     return raw;
   }
 
+  // The parameters a model holds for the first fit of the "staged" start (DoFit), each at the value given: declared
+  // here where the model is built, the one place that knows its parameters. A constant one is skipped: the
+  // configuration fixed it, and it stays fixed.
+  void Stage(std::initializer_list<Held> held)
+  {
+    for (const Held& h : held)
+      if (!h.var->isConstant())
+        staged.push_back(h);
+  }
+
   // Creates ROOT variables(RooRealVar) starting from the configuration.
   // This function centralizes error checking and memory management.
   RooRealVar* CreateVar(const std::string& name)
@@ -330,8 +463,9 @@ class DynamicRooFitter
     // Extract the [val, min, max, isConstant] struct from the map
     const MathParam& p = config.model.params.at(name);
 
-    // No setConstant() anywhere in this class, and none is needed: which RooRealVar
-    // constructor is called IS the choice. Three arguments builds a constant - that
+    // No setConstant() here, and none is needed: which RooRealVar
+    // constructor is called IS the choice (DoFit holds the staged parameters for one
+    // fit and releases them, which leaves this choice as it was). Three arguments builds a constant - that
     // overload exists for exactly this and calls setConstant(true) itself - while
     // adding min and max builds a free parameter with those limits. So a scalar in the
     // JSON ("width_sig": 0.00426) is fixed and an array is fitted, which is the whole
@@ -404,6 +538,7 @@ class DynamicRooFitter
       RooRealVar* n1 = CreateVar("n1" + suffix);
       RooRealVar* a2 = CreateVar("alpha2" + suffix);
       RooRealVar* n2 = CreateVar("n2" + suffix);
+      Stage({{a1, a1->getVal()}, {n1, n1->getVal()}, {a2, a2->getVal()}, {n2, n2->getVal()}}); // the tails as configured
       pdf = Own<RooCrystalBall>(name.c_str(), "DSCB", *obs, *m, *s, *a1, *n1, *a2, *n2);
     } else if (modelType == "Gaussian") {
       RooRealVar* m = CreateVar("mean" + suffix);
@@ -423,11 +558,13 @@ class DynamicRooFitter
     } else if (modelType == "Chebychev2") {
       RooRealVar* c1 = CreateVar("c1" + suffix);
       RooRealVar* c2 = CreateVar("c2" + suffix);
+      Stage({{c2, 0.0}}); // a Chebychev1 first
       pdf = Own<RooChebychev>(name.c_str(), "Chebychev2", *obs, RooArgList(*c1, *c2));
     } else if (modelType == "Chebychev3") {
       RooRealVar* c1 = CreateVar("c1" + suffix);
       RooRealVar* c2 = CreateVar("c2" + suffix);
       RooRealVar* c3 = CreateVar("c3" + suffix);
+      Stage({{c3, 0.0}}); // a Chebychev2 first
       pdf = Own<RooChebychev>(name.c_str(), "Chebychev3", *obs, RooArgList(*c1, *c2, *c3));
     } else if (modelType == "Exponential") {
       RooRealVar* slope = CreateVar("slope" + suffix);

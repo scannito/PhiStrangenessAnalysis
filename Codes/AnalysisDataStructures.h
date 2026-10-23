@@ -213,8 +213,9 @@ struct FitConfig {
   std::string binOverride;
 };
 
-// The raw facts of one fit, read from the RooFitResult it saved (DynamicRooFitter::Diagnostics). No verdict: what
-// counts as a bad fit is FitQualityRecorder's, in one place.
+// The raw facts of one fit (DynamicRooFitter::Diagnostics): from the RooFitResult of the winning start, and from
+// DoFit the likelihood without offset and which start won. No verdict: what counts as a bad fit is
+// FitQualityRecorder's, in one place.
 struct FitDiagnostics {
   int status{-1};
   int covQual{-1};
@@ -223,6 +224,8 @@ struct FitDiagnostics {
   int numInvalidNLL{0};
   double counts{0.0};               // what the likelihood saw: the sum of the binned data over the observable range
   std::vector<std::string> atLimit; // floating parameters within 1e-5 of their range from a limit (RooFitKnowledge, note 09)
+  std::string start;                // the DoFit start that won: "config", "yields" or "staged"
+  double nllConfig{0.0};            // the NLL the "config" start reached (minNll is the winner's): never below it
 };
 
 // ============================================================================

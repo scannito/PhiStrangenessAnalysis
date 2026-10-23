@@ -7,6 +7,67 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## Several starts per fit
+
+**23 October 2026.** Phase 3 of `RooFitKnowledge/ROADMAP.md`, in a smaller form. `DynamicRooFitter::DoFit` fitted
+each cell once, from the values in `fitConfig.json`. A study of the purity models on every cell of the production
+of 22 October (13 candidate models per cell, each restarted from the best fits of the others) found that this
+single fit stops far from the minimum with every flag clean, and that a configuration selected on the study's
+minima is not reproduced by the task: with the selected models the task's NLL was above the study's by a median of
+161 for the Xi and 2.4e5 for pi_tpc, and the purities differed by more than 0.002 in 154 of 440 K0S cells and 198 of
+330 Xi cells. A more precise `fitConfig.json` was worth nothing until the fit reached the minimum of the model it
+is given, and the study has to call the same `DoFit` the tasks call (the design point both review agents made
+first).
+
+**What it does.** Three starts, every one from the configured values (a snapshot taken when the fitter is built)
+and from the cell itself, and the lowest NLL wins:
+
+- `config`: the configured values, fitted exactly as before (`fitTo` without offset). The winner can therefore
+  never be worse than the old fit, and where `config` wins the result is the old one to the last digit. A first
+  version made this start an `Offset("bin")` fit too, and it lost the old minimum in a few cells, by up to 1.6e7 of
+  NLL in the phi: the plain fit follows another path, sometimes the better one.
+- `yields`: the free yields at half the cell's counts. They come from one configuration for every cell and start
+  100 to 10000 times off (the simplifier's finding: `nsig` 1e6 for pi_tpc cells of 3e8 counts).
+- `staged`: the yields as above, and a first fit with the parameters the model declares with `Stage` held: the
+  highest Chebychev term at 0 (a background one order lower), the DSCB tails at their configured values. Declared
+  where each model is built, the one place that knows its parameters, so no list of names can go stale.
+
+The two derived starts are an `Offset("bin")` fit and a refit from its result. The winner is the lowest NLL, the
+likelihood itself without offset (`createNLL`), among the starts where it is finite, a later start winning only when
+lower by more than 0.01. Nothing else decides it, and both alternatives were tried. Requiring an accurate covariance,
+as first designed, picked in the phi a start far worse than one whose matrix had been forced positive: the covariance
+is the estimate of the errors, not the place of the minimum. Requiring no invalid evaluation of the likelihood, as
+the second version did, could throw away the lowest minimum, since those evaluations count Minuit's path and not the
+point it ends at (the second review found it), and made "never worse than the old fit" false. Both stay flags on the
+winner. The `FitQuality` tree records the start that won (`start`) and the NLL the `config` start reached
+(`nllConfig`), next to `minNll`, which is now the winner's.
+
+**Left out, on purpose.** Random starts, seeding from a neighbouring cell, an escalation to xRooFit and fitting
+several models inside the run were all candidates (ROADMAP phase 3 and the two agents). Neighbour seeding makes a
+cell depend on the order of the loop; several models make the model an output instead of a declared input; xRooFit
+needs a library and a `gDirectory` workaround; random starts need a seed and a count per family, both numbers to
+declare. Measured against the study's best minima, the three derived starts were enough: among the models that
+compete in a cell (AIC within 20 of the best), the new `DoFit` stayed above the best known minimum by more than 1 in
+13 of 653 K0S fits, 36 of 844 Xi, 110 of 2155 Omega, 9 of 460 pi_tpc and 21 of 698 pi_tof, against 138, 52, 392, 362
+and 272 for the study's own cross-model search. Random starts come back if a measurement asks for them.
+
+**Checked.** MC (the two HighIR `_updated` blocks), purity and the five data tasks on the 22 October production,
+against `main`: no fit has a higher NLL than before (purity and both phi fits), and lower by more than 0.1 in 368
+of 440 K0S fits, 157 of 330 Omega, 43 of 330 Xi, 430 of 460 pi_tpc, 45 of 460 pi_tof, 26 and 58 of 70 phi fits. The
+670 purity cells won by `config` are identical to `main`. The analysis purities move by more than 0.002 in 47 of 100
+K0S cells (up to 0.051), 12 of 70 Omega, 6 of 70 Xi, 16 of 100 pi_tpc and 3 of 100 pi_tof. Winning starts in the
+purity pass: K0S yields 410, config 19, staged 11; Xi yields 189, config 122, staged 19; Omega config 140, staged 104,
+yields 86; pi_tpc staged 238, yields 218, config 4; pi_tof config 385, yields 75. The purity pass takes about 18 s
+instead of 6-13 s. `minNll` is now the likelihood evaluated by `createNLL`, no longer `RooFitResult::minNll()`: at
+the same fit (the `config` start against `main`'s single fit, all 2020 purity cells) the two differ by a median of
+1e-4 and at most 0.49 on values of order 1e8, the order of the sums; a comparison of `FitQuality` across this change
+sees that, and nothing else, where `config` won.
+
+**Not solved here.** The pi_tof cells at pT 0.2-0.3, where no start converges (covQual 0 before and after). The
+at-limit test flags small yields as at their lower limit (`DESIGN_NOTES.md` section 5).
+
+---
+
 ## Objects and overrides named by interval
 
 **23 October 2026.** What was section 4 of `DESIGN_NOTES.md`. The producers and readers that still named a cell by

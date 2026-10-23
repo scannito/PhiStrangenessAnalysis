@@ -21,8 +21,8 @@
 // column is an error instead of a key absent from one row. Raw facts only, no verdict: what counts as a bad fit is
 // Reasons below, one public function, used by the warnings now and by any reader that excludes cells later.
 //
-// Nothing here touches a fit: everything comes from the RooFitResult the fit already saves
-// (DynamicRooFitter::Diagnostics). The tree is detached, filled in memory and written like a histogram, so it is
+// Nothing here touches a fit: everything comes from what the fit already records (DynamicRooFitter::Diagnostics, its
+// RooFitResult and, for the NLL and the start, DoFit). The tree is detached, filled in memory and written like a histogram, so it is
 // owned here and not by whatever gDirectory was when it was made; a few thousand rows cost nothing.
 //
 // atLimit is a list, and TTree::Scan shows one line per element: a row with no parameter at a limit has none, and
@@ -53,6 +53,8 @@ class FitQualityRecorder
     fTree->Branch("minNll", &fRow.fit.minNll);
     fTree->Branch("numInvalidNLL", &fRow.fit.numInvalidNLL);
     fTree->Branch("atLimit", &fRow.fit.atLimit);
+    fTree->Branch("start", &fRow.fit.start);
+    fTree->Branch("nllConfig", &fRow.fit.nllConfig);
   }
 
   // The branches point into this object.

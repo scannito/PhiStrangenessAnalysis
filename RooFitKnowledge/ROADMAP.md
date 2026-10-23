@@ -1,6 +1,8 @@
 # Roadmap: cosa fare nel progetto dopo la ricerca RooFit
 
-15 ottobre 2026. Scritta dalle conclusioni di `00-summary.md` (sezioni 1-3) e delle note finali 09, 11, 12. Ogni voce rimanda alla nota con le prove. Implementata finora: la 1.1 (21 ottobre 2026, `FitQualityRecorder`, README *Fit quality*).
+15 ottobre 2026. Scritta dalle conclusioni di `00-summary.md` (sezioni 1-3) e delle note finali 09, 11, 12. Ogni voce rimanda alla nota con le prove. Implementata finora: la 1.1 (21 ottobre 2026, `FitQualityRecorder`, README *Fit quality*); della fase 3, in forma ridotta, le partenze
+multiple di `DoFit` (23 ottobre 2026: config, rese scalate, a stadi; senza partenze casuali né xRooFit; `DESIGN_HISTORY.md`, *Several
+starts per fit*).
 
 Ordine: prima ciò che non cambia la fisica (bug, visibilità), poi le tue decisioni di fisica, poi la nuova procedura di fit, infine la
 rigenerazione e il confronto a valle. Le fasi 0 e 1 si possono fare subito e in qualsiasi ordine.

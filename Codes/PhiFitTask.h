@@ -135,8 +135,9 @@ class PhiFitTask : public IAnalysisTask
         // Terminate: nothing reads a fit canvas back, and holding all of them until
         // the end would only cost memory.
         const std::string canvasName = "cFit_Phi_" + cell;
-        TCanvas* cFit = canvasManager.CreateCanvas(canvasName, "Fit Canvas", 800, 800);
-        fitter.DrawFit(cFit);
+        const std::string title = OutputNames::CellTitle("#phi", multBinning, i, ptPhiBinning, j);
+        TCanvas* cFit = canvasManager.CreateCanvas(canvasName, title, 800, 800);
+        fitter.DrawFit(cFit, title);
         CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
         canvasManager.WriteAndDestroy(canvasName, fitDir);
 

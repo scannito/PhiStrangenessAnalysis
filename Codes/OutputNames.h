@@ -12,7 +12,8 @@
 
 // The names and the layout of what the correlation tasks write into PhiAssocSpectra.root, the
 // names of the files one task writes and another reads (the trigger matrices, the purities), and
-// of the objects in them that another task looks up (the corrections, the purity spectra). The
+// of the objects in them that another task looks up (the corrections, the purity spectra), with the cell tags they are
+// built from and the title form of a cell (CellTitle). The
 // directories are written by CorrelationTaskBase and read by ComparisonTask; the object names
 // are built here and not where each object is written, so that a reader that looks an object up
 // by what it is builds the same string, and a rename is one change. The names shared by every
@@ -79,6 +80,15 @@ inline std::string PtTag(std::span<const double> ptBinning, int ptBin)
 inline std::string CellTag(std::span<const double> multBinning, int multBin, std::span<const double> ptBinning, int ptBin)
 {
   return MultTag(multBinning, multBin) + "_" + PtTag(ptBinning, ptBin);
+}
+
+// The same cell as a title, for a reader: "K0S, mult 10-15%, p_{T} 1.2-1.6 GeV/#it{c}" (TLatex). Not a name: it is
+// here because it says the cell with the same intervals as CellTag.
+inline std::string CellTitle(std::string_view particle, std::span<const double> multBinning, int multBin,
+                             std::span<const double> ptBinning, int ptBin)
+{
+  return std::format("{}, mult {}%, p_{{T}} {} GeV/#it{{c}}", particle, BinningUtils::BinLabel(multBinning, multBin),
+                     BinningUtils::BinLabel(ptBinning, ptBin));
 }
 
 // ---------------------------------------------------------------------------

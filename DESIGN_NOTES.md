@@ -261,6 +261,15 @@ overrides named by interval*. The number is kept so that references to the secti
 
 ## 5. Known bugs, not yet fixed
 
+**The at-limit flag fires on every small yield.** `DynamicRooFitter::DiagnosticsOf` calls a parameter at a limit
+when it is within 1e-5 of its range from an end (note 09). A yield's range is 0 to 1e7-1e10, so 1e-5 of it is 1e2
+to 1e5 counts, and any yield below that is "at its lower limit": the Omega source cells at pT 0.8-0.9 have a
+background of about 60 against a tolerance of 250, and `FitQuality` and the end-of-run warning report "nbkg at a
+limit" for them. The flag changes no number, but it hides the yields that do sit on a limit (the K0S `nsig` cut by
+its maximum of 1e8 in cells of up to 1.8e8 counts, ROADMAP phase 2.1). Found by the model study on 23 October 2026;
+the threshold for a yield's lower end wants its own rule (an absolute one, or one relative to the value), to be
+decided with the yields' ranges themselves.
+
 **`hIntegral_tmp` in `SpectrumExtrapolator` is degenerate when the integral is
 ≤ 0.** It was left alone while the class had to match `YieldMean` number for
 number, because the reference behaves the same way. The reference left the chain

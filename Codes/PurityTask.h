@@ -20,6 +20,7 @@
 #include "TH3F.h"
 
 #include <filesystem>
+#include <algorithm>
 #include <format>
 #include <iostream>
 #include <map>
@@ -280,6 +281,10 @@ class PurityTask : public IAnalysisTask
     const bool atSource = (which == SpectrumBinning::Source);
     const std::vector<double>& binning = atSource ? task.sourceBinning : task.AnalysisBinning();
     const std::string nameSuffix = atSource ? "_sourceBinning" : "";
+    const std::string titleSuffix = atSource ? ", source binning" : "";
+    // The purity_key as a TLatex label: an underscore would make the rest a subscript ("pi_tpc").
+    std::string label = task.name;
+    std::ranges::replace(label, '_', ' ');
 
     std::string hName = OutputNames::Purity(task.name, OutputNames::MultTag(multBinning, multBin)) + nameSuffix;
     std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
@@ -311,8 +316,9 @@ class PurityTask : public IAnalysisTask
       // per fit, as in PhiFitTask: holding them all for the WriteAll in Terminate would
       // only cost memory, since nothing reads a fit canvas back.
       const std::string cName = std::format("cFit_{}_{}{}", task.name, cell, nameSuffix);
-      TCanvas* cFit = canvasManager.CreateCanvas(cName, "Fit Canvas", 800, 800);
-      fitter.DrawFit(cFit);
+      const std::string title = OutputNames::CellTitle(label, multBinning, multBin, binning, k) + titleSuffix;
+      TCanvas* cFit = canvasManager.CreateCanvas(cName, title, 800, 800);
+      fitter.DrawFit(cFit, title);
       CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
       canvasManager.WriteAndDestroy(cName, fitDir);
     }
