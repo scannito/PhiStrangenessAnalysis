@@ -445,6 +445,34 @@ treated as a systematic. Decision pending.
 
 ## 6. Physics questions still open
 
+**The background of the π TOF purity fit assumes where the kaons are (24 October 2026).** Measured on the
+production of 22 October (model study in the sandbox, `RooFitKnowledge/ROADMAP.md` phase 3 follow-up). In nσ_TOF(π)
+a slower particle sits on the right (positive), a faster one on the left. The background of the π TOF fit is a
+Gaussian for the kaons plus an exponential for the mismatched tracks, and the Gaussian is held at least 5σ from the
+pions with a width of at most 2.5. What that rests on:
+
+- **Where the kaons are.** Where their peak is in the range, its free position falls smoothly with pT: 8.9σ at
+  2.0 GeV/c, 8.1 at 2.2, 7.5 at 2.4, 6.8 at 2.6, 6.2 at 2.8, about 5.9 at 3.0, 5.8 at 3.6, 5.4 at 3.8 (source bins,
+  width 0.5-1.5). Up to the last π TOF bin (4 GeV/c) the kaons stay beyond the 5σ limit, which there does not bind:
+  with the limit at 3σ the fits find the same position and purity. **Above about 4 GeV/c the kaons come within 5σ,
+  and the limit has to be revisited (pT dependent), or it would push them out of the window and overstate the
+  purity.**
+- **What the limit stops.** At 1.5-1.6 GeV/c, with the limit at 3σ, the fit put a narrow Gaussian (width about 1) at
+  +3σ, ΔAIC 5e4-6e4 better, purity 0.011-0.026 lower. Not the kaons: on the trend above they are beyond 10σ there,
+  out of the range. Taken to be the late tail of the TOF response of the pions themselves (time walk, mismatch),
+  which the signal's right tail (DSCB alpha2/n2) also describes: the two compete for it, and the limit keeps it in
+  the signal. Below 1.5 GeV/c the Gaussian sits on the 5σ limit in most fits for the same reason. Not verified with
+  an independent reference (MC, or TPC and TOF combined).
+- **Electrons.** Faster than pions, so on the left: scaled from the kaons' separation, about −1.4σ at 1.6 GeV/c, inside
+  the [−3, 3] window. Today they would count as pions. The fits show no left-side component that the signal does not
+  describe; their weight is assumed negligible (below 1e-3 on the purity) and was not measured. A check: a small
+  Gaussian at the expected electron position, and the fraction the fit gives it.
+
+The same pattern - a flexible background taking the tail of a signal shape that does not describe the peak - was
+found for the K0S below 1.2 GeV/c (purity 0.008-0.010 under the sideband estimate with Chebychev3/Bernstein and a
+single DSCB; within 0.002 with a DSCB + Gaussian signal). The physics constraint, or a better signal shape, is what
+decides between a background and a tail; the fit's likelihood cannot.
+
 **Cells where the mixed event is empty at zero. To decide.** Since 19 October 2026 a mixed event that
 cannot be normalised goes through `Logger::Warn` instead of passing in silence, and the first `data pp`
 run showed where: the **sideband** mixed event of the **Ξ**, multiplicity **70-100%**, associated pT
