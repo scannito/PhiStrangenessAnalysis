@@ -11,10 +11,12 @@
 #include "RooAddPdf.h"
 #include "RooArgList.h"
 #include "RooChebychev.h"
+#include "RooConstVar.h"
 #include "RooCrystalBall.h"
 #include "RooDataHist.h"
 #include "RooDataSet.h"
 #include "RooExponential.h"
+#include "RooFFTConvPdf.h"
 #include "RooFitResult.h"
 #include "RooFormulaVar.h"
 #include "RooGaussian.h"
@@ -57,6 +59,11 @@ class DynamicRooFitter
     RooMsgService::instance().setGlobalKillBelow(RooFit::WARNING);
 
     obs = Own<RooRealVar>(cfg.obs.name.c_str(), cfg.obs.title.c_str(), cfg.obs.min, cfg.obs.max);
+    // The data before the model: the import moves the observable's range outwards onto the histogram's bin edges
+    // (0.995-1.1 became 0.9945-1.101 for the phi), and a model built before that keeps what it took from the old range.
+    // The FFT grid of RelBWKK stayed on 0.995-1.1 and the signal came out normalised 22% high in every point (pp 2026,
+    // phi mult 15-20%, pT 1.4-2: nsig 1.31e6 instead of 1.10e6, the curve 35% above the peak).
+    data = std::make_unique<RooDataHist>("dataHist", "Data", *obs, RooFit::Import(*h1Data));
 
     // Dynamic model parsing for both signal and background
     sigPdf = ParseModelString(cfg.model.sigModel, "sig");
@@ -81,7 +88,8 @@ class DynamicRooFitter
   // pop_back() always destroys the last element, so this is portable.
   ~DynamicRooFitter()
   {
-    configured.reset(); // the sets refer to the owned variables: gone before them
+    configured.reset(); // the sets and the data refer to the owned variables: gone before them
+    data.reset();
     parameters.reset();
     while (!ownedObjects.empty())
       ownedObjects.pop_back();
@@ -108,7 +116,7 @@ class DynamicRooFitter
   // is the estimate of the errors, not the place of the minimum. Both stay flags on the winner.
   int DoFit()
   {
-    RooDataHist dataHist("dataHist", "Data", *obs, RooFit::Import(*h1Data));
+    RooDataHist& dataHist = *data;
     const double counts = dataHist.sumEntries();
     const std::unique_ptr<RooAbsReal> nll(model->createNLL(dataHist, RooFit::Extended(true)));
     std::vector<Start> starts;
@@ -256,6 +264,7 @@ class DynamicRooFitter
 
   std::unique_ptr<RooArgSet> parameters; // every parameter of the model
   std::unique_ptr<RooArgSet> configured; // their configured values, which every start begins from
+  std::unique_ptr<RooDataHist> data;     // h1Data, imported once, before the model is built (see the constructor)
 
   // The winning start's result, kept alive to use its covariance matrix later, and its facts
   std::unique_ptr<RooFitResult> fitResult;
@@ -372,7 +381,7 @@ class DynamicRooFitter
     mainPad->cd();
     mainPad->SetLogy(logY);
 
-    RooDataHist dataHist("dataHist", "Data", *obs, RooFit::Import(*h1Data));
+    RooDataHist& dataHist = *data;
 
     // Create a RooPlot frame using the observable's range
     RooPlot* frame = obs->frame(RooFit::Title(title.c_str()));
@@ -517,6 +526,52 @@ class DynamicRooFitter
   // AnalysisConstants in the sixth decimal because the constant had a digit missing.
   static double TwoKaonThreshold() { return 2.0 * AnalysisConstants::GetMass("K"); }
 
+  // The P-wave Breit-Wigner of RelBWKK, convolved by FFT with the resolution. With q the kaon momentum in the pair frame,
+  // Gamma(m) = Gamma0 (M/m) (q/q0)^3 (1 + (q0 R)^2)/(1 + (q R)^2) and dN/dm ~ m M Gamma(m) / ((m^2 - M^2)^2 + M^2 Gamma(m)^2).
+  //
+  // The FFT samples the Breit-Wigner on a cache grid that extends past the observable's range by a buffer, and both set
+  // how exact the convolution is: they are derived from the declared limits of the resolution, not left to RooFit's
+  // defaults (100 bins of 1.05 MeV for the phi, about one sigma; a buffer of 10% of the range, about one sigma at its
+  // upper limit, where the convolution wraps around). The buffer reaches below the KK threshold, so q^2 is clamped at 0
+  // there and the Breit-Wigner is 0 instead of NaN. The kaon mass is AnalysisConstants', as for the threshold.
+  // Measured with this grid on a Breit-Wigner of constant width against RooVoigtian (24 October 2026, sigma 0.8-2 MeV,
+  // its limits 0.1-10 MeV): the fraction in [1.0, 1.05] agrees within 2e-6, and the shape is the Voigtian's moved by
+  // 25 keV to lower mass, within 3e-5 once moved. mean_sig takes the shift; no yield does.
+  RooAbsPdf* BuildRelBWKK(const std::string& name, RooRealVar& m, RooRealVar& w, RooRealVar& s, RooRealVar& r)
+  {
+    // The values a parameter can take: a constant has no range (CreateVar builds it without one, limits +-inf).
+    auto lowest = [](const RooRealVar& v) { return v.isConstant() ? v.getVal() : v.getMin(); };
+    auto highest = [](const RooRealVar& v) { return v.isConstant() ? v.getVal() : v.getMax(); };
+    if (lowest(m) <= TwoKaonThreshold()) {
+      throw std::runtime_error(std::format("[FATAL] DynamicRooFitter: RelBWKK needs the lower limit of '{}' above the KK "
+                                           "threshold {} GeV/c^2 (it is {}): below it the pole momentum is imaginary.",
+                                           m.GetName(), TwoKaonThreshold(), lowest(m)));
+    }
+    if (lowest(s) <= 0.0) {
+      throw std::runtime_error(std::format("[FATAL] DynamicRooFitter: RelBWKK needs a positive lower limit for the "
+                                           "resolution '{}' (it is {}): the FFT grid is derived from it.",
+                                           s.GetName(), lowest(s)));
+    }
+    const double kaonMass2 = std::pow(AnalysisConstants::GetMass("K"), 2);
+    const std::string q2 = std::format("TMath::Max(@0*@0/4-{},0.)", kaonMass2);
+    const std::string q02 = std::format("(@1*@1/4-{})", kaonMass2);
+    const std::string width = std::format("(@2*(@1/@0)*pow({}/{},1.5)*(1+{}*@3*@3)/(1+{}*@3*@3))", q2, q02, q02, q2);
+    auto* bw = Own<RooGenericPdf>((name + "_bw").c_str(), "P-wave Breit-Wigner",
+                                  std::format("@0*@1*{0}/(pow(@0*@0-@1*@1,2)+@1*@1*{0}*{0})", width).c_str(),
+                                  RooArgList(*obs, m, w, r));
+    auto* resolution = Own<RooGaussian>((name + "_res").c_str(), "resolution", *obs, RooFit::RooConst(0.0), s);
+
+    // Four cache bins per sigma at its lowest, and a buffer of five sigmas at its highest on each side: the limits of
+    // sigma_sig set the grid, so a cell that overrides them also changes its precision (and its cost: a lower limit of
+    // 1e-5 would mean some 40000 bins). On obs's range as the data import left it, which the constructor makes final
+    // before any model is built.
+    const double range = obs->getMax() - obs->getMin();
+    obs->setBins(static_cast<int>(std::ceil(4.0 * range / lowest(s))), "cache");
+    auto* conv = Own<RooFFTConvPdf>(name.c_str(), "RelBWKK", *obs, *bw, *resolution);
+    conv->setBufferFraction(5.0 * highest(s) / range);
+    return conv;
+  }
+
   // A model that takes sqrt() or a non-integer power of (M - threshold) is NaN below
   // the threshold, and RooFit does not report that as an error: it reports a fit that
   // did not converge, or converged on nonsense, with no mention of the reason.
@@ -563,6 +618,17 @@ class DynamicRooFitter
       RooRealVar* w = CreateVar("width" + suffix); // Natural width (Gamma)
       RooRealVar* s = CreateVar("sigma" + suffix); // Resolution (Gaussian part)
       pdf = Own<RooVoigtian>(name.c_str(), "Voigtian", *obs, *m, *w, *s);
+    } else if (modelType == "RelBWKK") {
+      // The phi -> K+K- line shape: a P-wave relativistic Breit-Wigner, whose width grows with the kaon momentum, convolved
+      // with the Gaussian resolution. The Voigtian's width is constant, so its peak is symmetric; near the KK threshold the
+      // data are not: in pp 2026 (mult 15-20%, from 0.8 GeV/c) chi2/ndf 4-9 with this shape against 26-48 with the
+      // Voigtian, the same with either background. The same parameter names as the Voigtian, with the same meanings, plus
+      // the Blatt-Weisskopf radius. Only for a pair of kaons: their mass is in the formula.
+      RooRealVar* m = CreateVar("mean" + suffix);
+      RooRealVar* w = CreateVar("width" + suffix);  // Gamma at the pole
+      RooRealVar* s = CreateVar("sigma" + suffix);  // resolution
+      RooRealVar* r = CreateVar("radius" + suffix); // Blatt-Weisskopf radius (GeV^-1)
+      pdf = BuildRelBWKK(name, *m, *w, *s, *r);
     }
 
     // Background models

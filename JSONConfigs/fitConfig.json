@@ -8,8 +8,8 @@
         },
         "fit_setup": {
             "default": {
-                "sig_model": "Voigtian",
-                "bkg_model": "BkgSourav2",
+                "sig_model": "RelBWKK",
+                "bkg_model": "BkgMattia",
                 "snap_to_bin": false,
                 "calculate_purity": false,
                 "integration_range": [
@@ -31,24 +31,30 @@
                     ],
                     "sigma_sig": [
                         0.001,
-                        0.0001,
-                        0.010
+                        0.0002,
+                        0.005
                     ],
                     "width_sig": 0.00426,
+                    "radius_sig": 3.0,
+                    "n_bkg": [
+                        0.5,
+                        0.0,
+                        3.0
+                    ],
                     "c1_bkg": [
-                        -0.5,
-                        -0.8,
-                        2.0
+                        0.0,
+                        -200.0,
+                        200.0
                     ],
                     "c2_bkg": [
-                        0.1,
                         0.0,
-                        1.0
+                        -5000.0,
+                        5000.0
                     ],
                     "c3_bkg": [
-                        2.0,
                         0.0,
-                        20.0
+                        -100000.0,
+                        100000.0
                     ],
                     "nsig": [
                         1000.0,
@@ -60,6 +66,38 @@
                         0.0,
                         1000000000.0
                     ]
+                }
+            },
+            "bins": {
+                "mult0-1_pt0.4-0.8": {
+                    "sig_model": "Voigtian"
+                },
+                "mult1-5_pt0.4-0.8": {
+                    "sig_model": "Voigtian"
+                },
+                "mult5-10_pt0.4-0.8": {
+                    "sig_model": "Voigtian"
+                },
+                "mult10-15_pt0.4-0.8": {
+                    "sig_model": "Voigtian"
+                },
+                "mult15-20_pt0.4-0.8": {
+                    "sig_model": "Voigtian"
+                },
+                "mult20-30_pt0.4-0.8": {
+                    "sig_model": "Voigtian"
+                },
+                "mult30-40_pt0.4-0.8": {
+                    "sig_model": "Voigtian"
+                },
+                "mult40-50_pt0.4-0.8": {
+                    "sig_model": "Voigtian"
+                },
+                "mult50-70_pt0.4-0.8": {
+                    "sig_model": "Voigtian"
+                },
+                "mult70-100_pt0.4-0.8": {
+                    "sig_model": "Voigtian"
                 }
             }
         }

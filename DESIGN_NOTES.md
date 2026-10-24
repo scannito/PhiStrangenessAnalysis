@@ -445,6 +445,16 @@ treated as a systematic. Decision pending.
 
 ## 6. Physics questions still open
 
+**The phi line shape below 0.8 GeV/c is a Voigtian, and nobody knows why yet (24 October 2026).** The phi fit is a
+P-wave relativistic Breit-Wigner convolved with the resolution (`RelBWKK`) on `BkgMattia`, everywhere except the first
+pT bin, 0.4-0.8 GeV/c, where `fitConfig.json` sets the Voigtian cell by cell (ten overrides, one per multiplicity
+class: an override key is a whole cell). Measured on the production of 22 October: from 0.8 GeV/c the mass-dependent
+width describes the asymmetry near the KK threshold that the Voigtian cannot (mult 15-20%: chi2/ndf 4-9 against 26-48,
+with either background); at 0.4-0.8 it is the other way round in all ten multiplicity classes (chi2/ndf 12-64 against
+2-29), with yields 1.4% apart. A guess, not checked: at low phi pT the single-kaon pT cut removes more pairs with slow
+kaons in the pair frame, which sculpts the line shape near threshold. The MC reconstructed phi line shape, with the same
+selection, would say. Until then the Voigtian stays in that bin, and the difference is a candidate systematic.
+
 **The background of the π TOF purity fit assumes where the kaons are (24 October 2026).** Measured on the
 production of 22 October (model study in the sandbox, `RooFitKnowledge/ROADMAP.md` phase 3 follow-up). In nσ_TOF(π)
 a slower particle sits on the right (positive), a faster one on the left. The background of the π TOF fit is a
