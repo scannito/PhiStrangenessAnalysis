@@ -37,6 +37,7 @@
 #include <format>
 #include <initializer_list>
 #include <iostream>
+#include <array>
 #include <memory>
 #include <sstream>
 #include <stdexcept>
@@ -224,12 +225,13 @@ class DynamicRooFitter
   // a pull pad, labelling it, writing it and deciding how long it lives belong to the
   // task, which owns the output file. The title is the task's too, since only the task knows which cell this is: it
   // must say so, and must not be empty (RooFit::Title("") gives RooFit's default, "A RooPlot of ...").
-  void DrawFit(TPad* pad, const std::string& title) { DrawFitOnPads(pad, nullptr, 1.0, title); }
+  // So is the scale (logY).
+  void DrawFit(TPad* pad, const std::string& title, bool logY) { DrawFitOnPads(pad, nullptr, 1.0, title, logY); }
 
   // Same, with the pulls on the bottom pad of a ratio canvas.
-  void DrawFit(const CanvasManager::RatioCanvas& ratio, const std::string& title)
+  void DrawFit(const CanvasManager::RatioCanvas& ratio, const std::string& title, bool logY)
   {
-    DrawFitOnPads(ratio.topPad, ratio.bottomPad, ratio.fontScale, title);
+    DrawFitOnPads(ratio.topPad, ratio.bottomPad, ratio.fontScale, title, logY);
   }
 
  private:
@@ -358,7 +360,7 @@ class DynamicRooFitter
       throw std::runtime_error("[FATAL] DynamicRooFitter: call DoFit() first.");
   }
 
-  void DrawFitOnPads(TPad* mainPad, TPad* pullPad, double fontScale, const std::string& title)
+  void DrawFitOnPads(TPad* mainPad, TPad* pullPad, double fontScale, const std::string& title, bool logY)
   {
     RequireFit();
     if (!mainPad) {
@@ -368,7 +370,7 @@ class DynamicRooFitter
     auto [minRange, maxRange] = CalculateIntegrationLimits();
 
     mainPad->cd();
-    mainPad->SetLogy();
+    mainPad->SetLogy(logY);
 
     RooDataHist dataHist("dataHist", "Data", *obs, RooFit::Import(*h1Data));
 
@@ -387,11 +389,23 @@ class DynamicRooFitter
       CanvasManager::FormatTopPadAxes(frame);
     }
 
+    // The y range from the data in the fit range alone. RooPlot's own includes the curves, and in log scale the signal's
+    // tails, drawn down to 1e-3 of the peak, left the data in the top quarter of the pad (the phi fits, then drawn in log
+    // scale, 24 October 2026); h1Data itself covers the whole online axis, outside the fit range too. The histogram is
+    // made on the dataset's own variable, which has the binning plotOn draws: obs's is 100 bins, which merged two K0S bins
+    // of 0.5 MeV into one and doubled the maximum. Half the span above the data, for the legend and the label; the
+    // linear axis from zero unless an error bar goes below it.
+    const auto& binnedObs = static_cast<const RooRealVar&>(*dataHist.get()->find(*obs));
+    const std::unique_ptr<TH1> inRange(dataHist.createHistogram("yRange", binnedObs));
+    inRange->SetDirectory(0);
+    const auto [yMin, yMax] =
+      CanvasManager::ComputeGlobalYRange(std::array{inRange.get()}, {.isLogY = logY, .zeroBaseline = true, .topMargin = 0.5});
+    frame->SetMinimum(yMin);
+    frame->SetMaximum(yMax);
+
     frame->Draw();
 
     // Integration and Sideband boundary lines
-    const double yMin = frame->GetMinimum();
-    const double yMax = frame->GetMaximum();
     CanvasManager::DrawVerticalRange(mainPad, minRange, maxRange, yMin, yMax);
     if (config.integration.sideband) {
       CanvasManager::DrawVerticalRange(mainPad, config.integration.sideband->range.first,

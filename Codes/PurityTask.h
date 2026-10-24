@@ -318,7 +318,8 @@ class PurityTask : public IAnalysisTask
       const std::string cName = std::format("cFit_{}_{}{}", task.name, cell, nameSuffix);
       const std::string title = OutputNames::CellTitle(label, multBinning, multBin, binning, k) + titleSuffix;
       TCanvas* cFit = canvasManager.CreateCanvas(cName, title, 800, 800);
-      fitter.DrawFit(cFit, title);
+      // log: the background under a peak of 1e5-1e8 counts is at 1e-2-1e-4 of it, and it decides the purity
+      fitter.DrawFit(cFit, title, /*logY=*/true);
       CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
       canvasManager.WriteAndDestroy(cName, fitDir);
     }

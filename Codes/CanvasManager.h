@@ -17,6 +17,7 @@
 #include "TStyle.h"
 
 #include <algorithm>
+#include <cmath>
 #include <filesystem>
 #include <format>
 #include <initializer_list>
@@ -68,10 +69,8 @@ struct YRangeOptions {
   bool isLogY{false};
   bool zeroBaseline{false};  // If true and min >= 0, sets Y min to 0.0 (e.g. counts/spectra)
   bool includeErrors{true};  // Includes bin error bars in min/max evaluation
-  double topMargin{0.25};    // Headroom above maximum (leaves space for legend/watermark)
-  double bottomMargin{0.10}; // Footroom below minimum
-  double logHeadroom{5.0};   // Headroom multiplier in log scale (leaves space for legend)
-  double logFootroom{0.5};   // Footroom multiplier in log scale (>0)
+  double topMargin{0.25};    // Headroom above maximum, as a fraction of the span (of its decades in log scale)
+  double bottomMargin{0.10}; // Footroom below minimum, the same way
 };
 } // namespace CanvasInfo
 
@@ -528,8 +527,12 @@ class CanvasManager
       if (globalMax <= 0.0) {
         globalMax = 1.0;
       }
-      double yMin = posMin * opts.logFootroom;
-      double yMax = globalMax * opts.logHeadroom;
+      // The margins as fractions of the decades the data span, as they are of the span in linear scale: a fixed factor
+      // (5 above, 0.5 below, until 24 October 2026) left the peak of a pi TPC purity fit, spanning seven decades, under
+      // the label. At least one decade, so that a single value or a flat set still gets room.
+      const double decades = std::max(globalMax / posMin, 10.0);
+      double yMin = posMin / std::pow(decades, opts.bottomMargin);
+      double yMax = globalMax * std::pow(decades, opts.topMargin);
       if (yMin <= 0.0)
         yMin = 1e-4;
       if (yMax <= yMin)

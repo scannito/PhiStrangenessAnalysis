@@ -137,7 +137,7 @@ class PhiFitTask : public IAnalysisTask
         const std::string canvasName = "cFit_Phi_" + cell;
         const std::string title = OutputNames::CellTitle("#phi", multBinning, i, ptPhiBinning, j);
         TCanvas* cFit = canvasManager.CreateCanvas(canvasName, title, 800, 800);
-        fitter.DrawFit(cFit, title);
+        fitter.DrawFit(cFit, title, /*logY=*/false); // a peak on a smooth background, which log scale flattens
         CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
         canvasManager.WriteAndDestroy(canvasName, fitDir);
 
