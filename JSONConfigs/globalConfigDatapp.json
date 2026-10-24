@@ -175,7 +175,7 @@
         "output_prefix": "Data_OnlineEff_2026_HighIR_updated_"
     },
     "correlation_task_offline_efficiency_2026_highIR_updated": {
-        "inherits": "correlation_base_settings_updated",
+        "inherits": "correlation_task_offline_efficiency_updated",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
         "base_path_data": "phi-strange-correlation_id66809/phiStrangenessCorrelation/",
         "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",

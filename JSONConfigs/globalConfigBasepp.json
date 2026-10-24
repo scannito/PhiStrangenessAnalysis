@@ -427,36 +427,6 @@
                 "name": "Pi"
             }
         ],
-        "corrections": {
-            "event_loss": false,
-            "particles": {
-                "Phi": {
-                    "acceptance_efficiency": {
-                        "mult": "integrated"
-                    }
-                },
-                "K0S": {
-                    "acceptance_efficiency": {
-                        "mult": "integrated"
-                    }
-                },
-                "Xi": {
-                    "acceptance_efficiency": {
-                        "mult": "integrated"
-                    }
-                },
-                "Omega": {
-                    "acceptance_efficiency": {
-                        "mult": "integrated"
-                    }
-                },
-                "Pi": {
-                    "acceptance_efficiency": {
-                        "mult": "integrated"
-                    }
-                }
-            }
-        },
         "purity_sources": [
             {
                 "name": "K0S",
@@ -544,6 +514,39 @@
                 },
                 "Pi": {
                     "signal_loss": true
+                }
+            }
+        }
+    },
+    "correlation_task_offline_efficiency_updated": {
+        "inherits": "correlation_base_settings_updated",
+        "corrections": {
+            "event_loss": false,
+            "particles": {
+                "Phi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "K0S": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "Xi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "Omega": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
+                },
+                "Pi": {
+                    "acceptance_efficiency": {
+                        "mult": "integrated"
+                    }
                 }
             }
         }
