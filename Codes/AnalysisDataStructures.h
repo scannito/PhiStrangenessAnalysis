@@ -223,7 +223,11 @@ struct FitDiagnostics {
   double minNll{0.0};
   int numInvalidNLL{0};
   double counts{0.0};               // what the likelihood saw: the sum of the binned data over the observable range
-  std::vector<std::string> atLimit; // floating parameters within 1e-5 of their range from a limit (RooFitKnowledge, note 09)
+  // Floating parameters at a limit of their range, one list per end: within 1e-5 of the range (RooFitKnowledge,
+  // note 09), a yield at its lower end below one count (DynamicRooFitter::DiagnosticsOf says why).
+  std::vector<std::string> atLowerLimit;
+  std::vector<std::string> atUpperLimit;
+  std::vector<std::string> upperIsShape; // parameters whose model calls their upper limit a shape (see the DSCB's)
   std::string start;                // the DoFit start that won: "config", "yields" or "staged"
   double nllConfig{0.0};            // the NLL the "config" start reached (minNll is the winner's): never below it
 };

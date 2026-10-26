@@ -412,8 +412,9 @@ them (`DESIGN_NOTES.md` section 5).
 `PhiFitTask` and `PurityTask` record every fit they run in a `TTree`, `{binning_name}/FitQuality` of their output
 file, one row per fit: the cell (`section`, `binning` analysis or source, the intervals `multLow`/`multHigh` and
 `ptLow`/`ptHigh`, the `fit_setup.bins` override that applied) and what the fit's result says (`counts` the likelihood saw, `status`,
-`covQual`, `edm`, `minNll`, `numInvalidNLL`, and `atLimit`, the floating parameters within 1e-5 of their range
-from a limit). `DoFit` fits every cell from several starts and keeps the best (`DESIGN_HISTORY.md`, *Several starts
+`covQual`, `edm`, `minNll`, `numInvalidNLL`, `atLowerLimit` and `atUpperLimit`, the floating parameters within
+1e-5 of their range from that limit, a yield at its lower one below one count, and `upperIsShape`, the parameters
+whose model calls their upper limit a shape: a DSCB tail n there is a tail as steep as an exponential). `DoFit` fits every cell from several starts and keeps the best (`DESIGN_HISTORY.md`, *Several starts
 per fit*): `start` is the one that won (`config`, `yields`, `staged`), `minNll` its likelihood without offset, and
 `nllConfig` the one the `config` start reached, the fit as it was made before there were several starts. Raw facts,
 from what the fit already records: recording them refits nothing and changes no number.
@@ -422,15 +423,16 @@ from what the fit already records: recording them refits nothing and changes no 
 TFile f("Data_2024_Purity.root");
 auto t = (TTree*)f.Get("MoreFullDifferential/FitQuality");
 t->Scan("section:binning:ptLow:ptHigh:covQual:numInvalidNLL", "covQual<3 || numInvalidNLL>0");
-t->Scan("section:multLow:ptLow:atLimit", "section==\"xi\"");   // one line per parameter at a limit
+t->Scan("section:multLow:ptLow:atLowerLimit", "section==\"xi\"");   // one line per parameter at its lower limit
 ```
 
-`atLimit` is a list, and `Scan` shows one line per element: a row with no parameter at a limit has none and does
-not appear in a `Scan` that asks for that column. Leave it out to see every row, or ask for `@atLimit.size()`,
-one value per row.
+`atLowerLimit` and `atUpperLimit` are lists, and `Scan` shows one line per element: a row with no parameter at a
+limit has none and does not appear in a `Scan` that asks for that column. Leave it out to see every row, or ask for
+`@atLowerLimit.size()`, one value per row.
 
 The end-of-run summary gets one warning per section and binning that has flagged fits, with the count per flag:
-an empty cell, `covQual < 3`, invalid likelihood evaluations, a parameter at a limit (by name). The `status` is
+an empty cell, `covQual < 3`, invalid likelihood evaluations, a parameter at its lower or upper limit (by name),
+except at the upper limit of one in `upperIsShape`. The `status` is
 recorded and not flagged: with the fit as it is today most cells end with status 3, good and bad alike
 (RooFitKnowledge, note 09).
 
@@ -465,7 +467,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 
 | File | |
 |---|---|
-| `DynamicRooFitter.h` | The only fitter, used by `PhiFitTask` and `PurityTask`. RooFit engine driven entirely by JSON: builds signal and background PDFs from names (`BkgSourav1/2`, `BkgMattia`, Chebychev, …), owns every `RooAbsArg` it creates. |
+| `DynamicRooFitter.h` | The only fitter, used by `PhiFitTask` and `PurityTask`. RooFit engine driven entirely by JSON: builds signal and background PDFs from names (`BkgSourav1/2`, `BkgMattia`, `Chebychev<n>`, `Bernstein<n>`, `RelBWKK`, …), owns every `RooAbsArg` it creates. |
 | `SpectrumExtrapolator.h` | Extrapolates the unmeasured parts of a spectrum, below and above the measured bins within `domain_range`, and propagates the uncertainty (*The extrapolated yield*). Replaced the ALICE-standard `YieldMean` (now in `OldCodes/`) after reproducing it number for number. |
 | `ExtrapolationModelFactory.h` | Builds the `TF1` model (Lévy–Tsallis, …) with its initial parameters. |
 | `FitQualityRecorder.h` | The `FitQuality` tree of the two fit tasks and the one rule that flags a fit (*Fit quality*). |

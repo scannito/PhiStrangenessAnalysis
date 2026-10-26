@@ -6,6 +6,7 @@
 #include "TDirectory.h"
 #include "TTree.h"
 
+#include <algorithm>
 #include <format>
 #include <map>
 #include <memory>
@@ -25,9 +26,9 @@
 // RooFitResult and, for the NLL and the start, DoFit). The tree is detached, filled in memory and written like a histogram, so it is
 // owned here and not by whatever gDirectory was when it was made; a few thousand rows cost nothing.
 //
-// atLimit is a list, and TTree::Scan shows one line per element: a row with no parameter at a limit has none, and
-// does not appear in a Scan that asks for that column (measured: with it, a selection of 70 rows printed 0).
-// "@atLimit.size()" is a column of one value per row, and keeps them all.
+// atLowerLimit and atUpperLimit are lists, and TTree::Scan shows one line per element: a row with no parameter at a
+// limit has none, and does not appear in a Scan that asks for that column (measured: with it, a selection of 70 rows
+// printed 0). "@atLowerLimit.size()" is a column of one value per row, and keeps them all.
 class FitQualityRecorder
 {
  public:
@@ -52,7 +53,9 @@ class FitQualityRecorder
     fTree->Branch("edm", &fRow.fit.edm);
     fTree->Branch("minNll", &fRow.fit.minNll);
     fTree->Branch("numInvalidNLL", &fRow.fit.numInvalidNLL);
-    fTree->Branch("atLimit", &fRow.fit.atLimit);
+    fTree->Branch("atLowerLimit", &fRow.fit.atLowerLimit);
+    fTree->Branch("atUpperLimit", &fRow.fit.atUpperLimit);
+    fTree->Branch("upperIsShape", &fRow.fit.upperIsShape);
     fTree->Branch("start", &fRow.fit.start);
     fTree->Branch("nllConfig", &fRow.fit.nllConfig);
   }
@@ -117,8 +120,11 @@ class FitQualityRecorder
       reasons.emplace_back("covQual < 3");
     if (fit.numInvalidNLL > 0)
       reasons.emplace_back("invalid NLL evaluations");
-    for (const std::string& name : fit.atLimit)
-      reasons.push_back(name + " at a limit");
+    for (const std::string& name : fit.atLowerLimit)
+      reasons.push_back(name + " at its lower limit");
+    for (const std::string& name : fit.atUpperLimit) // not one its model calls a shape there (the DSCB's tail n)
+      if (std::ranges::find(fit.upperIsShape, name) == fit.upperIsShape.end())
+        reasons.push_back(name + " at its upper limit");
     return reasons;
   }
 

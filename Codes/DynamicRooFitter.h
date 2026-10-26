@@ -10,6 +10,7 @@
 #include "RooAbsPdf.h"
 #include "RooAddPdf.h"
 #include "RooArgList.h"
+#include "RooBernstein.h"
 #include "RooChebychev.h"
 #include "RooConstVar.h"
 #include "RooCrystalBall.h"
@@ -41,6 +42,7 @@
 #include <iostream>
 #include <array>
 #include <memory>
+#include <regex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -261,6 +263,7 @@ class DynamicRooFitter
     double at;
   };
   std::vector<Held> staged;
+  std::vector<std::string> upperIsShape; // declared where the model is built (the DSCB), passed on with the diagnostics
 
   std::unique_ptr<RooArgSet> parameters; // every parameter of the model
   std::unique_ptr<RooArgSet> configured; // their configured values, which every start begins from
@@ -342,8 +345,16 @@ class DynamicRooFitter
 
   // The facts of one fit result and of the data it saw (the NLL and the start are DoFit's). "At a limit" as in note
   // 09 of RooFitKnowledge: within 1e-5 of the range from either end. The distance there was bimodal, below 1e-6 or
-  // above 1e-4, so the threshold does not split a population.
-  static FitDiagnostics DiagnosticsOf(const RooFitResult& result, double counts)
+  // above 1e-4, so the threshold does not split a population. Except at the lower end of a yield: its range is counts,
+  // 0 to 1e7-1e11, and 1e-5 of it called every yield below 1e2-1e6 counts "at its limit" (with the yields open to 1e11,
+  // all 70 Omega and Xi fits of the analysis binning on the 22 October production). A yield is at its lower limit below
+  // one count: in the model study's scans the yields within 1e-5 of their range at the lower end were 0 or 1e-7 to 1
+  // count (2537: those Minuit pushed onto the bound, where its sine mapping leaves them at a distance that grows with
+  // the range), then a gap from 1 to 10 counts (34), then from 10 counts up (real small yields). The cell's counts were
+  // tried as the scale first, and cut through the first group (0.003 counts in a cell of 25000). Which end is recorded,
+  // and which parameters their model calls a shape at the upper end: whether that is a problem is
+  // FitQualityRecorder::Reasons' to say.
+  FitDiagnostics DiagnosticsOf(const RooFitResult& result, double counts) const
   {
     FitDiagnostics d;
     d.status = result.status();
@@ -355,10 +366,15 @@ class DynamicRooFitter
       const auto* v = dynamic_cast<const RooRealVar*>(arg);
       if (!v || !v->hasMin() || !v->hasMax())
         continue;
+      const std::string_view name = v->GetName();
       const double tolerance = 1e-5 * (v->getMax() - v->getMin());
-      if (v->getVal() - v->getMin() < tolerance || v->getMax() - v->getVal() < tolerance)
-        d.atLimit.emplace_back(v->GetName());
+      const double lowTolerance = (name == nsig->GetName() || name == nbkg->GetName()) ? 1.0 : tolerance;
+      if (v->getVal() - v->getMin() < lowTolerance)
+        d.atLowerLimit.emplace_back(name);
+      if (v->getMax() - v->getVal() < tolerance)
+        d.atUpperLimit.emplace_back(name);
     }
+    d.upperIsShape = upperIsShape;
     return d;
   }
 
@@ -526,6 +542,17 @@ class DynamicRooFitter
   // AnalysisConstants in the sixth decimal because the constant had a digit missing.
   static double TwoKaonThreshold() { return 2.0 * AnalysisConstants::GetMass("K"); }
 
+  // The order n of "<family><n>" (n >= 1, no leading zero), or 0 when modelType is not one of that family.
+  static int PolynomialOrder(const std::string& modelType, const std::string& family)
+  {
+    std::smatch match;
+    return std::regex_match(modelType, match, std::regex(family + "([1-9][0-9]*)")) ? std::stoi(match[1]) : 0;
+  }
+
+  // The values a parameter can take: a constant has no range (CreateVar builds it without one, limits +-inf).
+  static double Lowest(const RooRealVar& v) { return v.isConstant() ? v.getVal() : v.getMin(); }
+  static double Highest(const RooRealVar& v) { return v.isConstant() ? v.getVal() : v.getMax(); }
+
   // The P-wave Breit-Wigner of RelBWKK, convolved by FFT with the resolution. With q the kaon momentum in the pair frame,
   // Gamma(m) = Gamma0 (M/m) (q/q0)^3 (1 + (q0 R)^2)/(1 + (q R)^2) and dN/dm ~ m M Gamma(m) / ((m^2 - M^2)^2 + M^2 Gamma(m)^2).
   //
@@ -539,18 +566,15 @@ class DynamicRooFitter
   // 25 keV to lower mass, within 3e-5 once moved. mean_sig takes the shift; no yield does.
   RooAbsPdf* BuildRelBWKK(const std::string& name, RooRealVar& m, RooRealVar& w, RooRealVar& s, RooRealVar& r)
   {
-    // The values a parameter can take: a constant has no range (CreateVar builds it without one, limits +-inf).
-    auto lowest = [](const RooRealVar& v) { return v.isConstant() ? v.getVal() : v.getMin(); };
-    auto highest = [](const RooRealVar& v) { return v.isConstant() ? v.getVal() : v.getMax(); };
-    if (lowest(m) <= TwoKaonThreshold()) {
+    if (Lowest(m) <= TwoKaonThreshold()) {
       throw std::runtime_error(std::format("[FATAL] DynamicRooFitter: RelBWKK needs the lower limit of '{}' above the KK "
                                            "threshold {} GeV/c^2 (it is {}): below it the pole momentum is imaginary.",
-                                           m.GetName(), TwoKaonThreshold(), lowest(m)));
+                                           m.GetName(), TwoKaonThreshold(), Lowest(m)));
     }
-    if (lowest(s) <= 0.0) {
+    if (Lowest(s) <= 0.0) {
       throw std::runtime_error(std::format("[FATAL] DynamicRooFitter: RelBWKK needs a positive lower limit for the "
                                            "resolution '{}' (it is {}): the FFT grid is derived from it.",
-                                           s.GetName(), lowest(s)));
+                                           s.GetName(), Lowest(s)));
     }
     const double kaonMass2 = std::pow(AnalysisConstants::GetMass("K"), 2);
     const std::string q2 = std::format("TMath::Max(@0*@0/4-{},0.)", kaonMass2);
@@ -566,9 +590,9 @@ class DynamicRooFitter
     // 1e-5 would mean some 40000 bins). On obs's range as the data import left it, which the constructor makes final
     // before any model is built.
     const double range = obs->getMax() - obs->getMin();
-    obs->setBins(static_cast<int>(std::ceil(4.0 * range / lowest(s))), "cache");
+    obs->setBins(static_cast<int>(std::ceil(4.0 * range / Lowest(s))), "cache");
     auto* conv = Own<RooFFTConvPdf>(name.c_str(), "RelBWKK", *obs, *bw, *resolution);
-    conv->setBufferFraction(5.0 * highest(s) / range);
+    conv->setBufferFraction(5.0 * Highest(s) / range);
     return conv;
   }
 
@@ -588,7 +612,7 @@ class DynamicRooFitter
         "[FATAL] DynamicRooFitter: background model '{}' is only defined above the K+K- "
         "threshold {}, but the observable starts at {}. Below the threshold it evaluates "
         "to NaN and the fit fails without saying why. Raise 'observable.min' in the fit "
-        "configuration, or choose a background with no threshold (Chebychev*, Exponential).",
+        "configuration, or choose a background with no threshold (Chebychev<n>, Bernstein<n>, Exponential).",
         modelType, TwoKaonThreshold(), obs->getMin()));
     }
   }
@@ -608,6 +632,10 @@ class DynamicRooFitter
       RooRealVar* a2 = CreateVar("alpha2" + suffix);
       RooRealVar* n2 = CreateVar("n2" + suffix);
       Stage({{a1, a1->getVal()}, {n1, n1->getVal()}, {a2, a2->getVal()}, {n2, n2->getVal()}}); // the tails as configured
+      // A tail n at its upper limit is a tail as steep as an exponential, a shape the model can describe, and not a fit
+      // that ran out of room; at its lower limit, the heaviest tail allowed, it is (the owner's choice, 24 October 2026).
+      // Declared here, judged in FitQualityRecorder::Reasons.
+      upperIsShape.insert(upperIsShape.end(), {n1->GetName(), n2->GetName()});
       pdf = Own<RooCrystalBall>(name.c_str(), "DSCB", *obs, *m, *s, *a1, *n1, *a2, *n2);
     } else if (modelType == "Gaussian") {
       RooRealVar* m = CreateVar("mean" + suffix);
@@ -632,20 +660,41 @@ class DynamicRooFitter
     }
 
     // Background models
-    else if (modelType == "Chebychev1") {
-      RooRealVar* c1 = CreateVar("c1" + suffix);
-      pdf = Own<RooChebychev>(name.c_str(), "Chebychev1", *obs, RooArgList(*c1));
-    } else if (modelType == "Chebychev2") {
-      RooRealVar* c1 = CreateVar("c1" + suffix);
-      RooRealVar* c2 = CreateVar("c2" + suffix);
-      Stage({{c2, 0.0}}); // a Chebychev1 first
-      pdf = Own<RooChebychev>(name.c_str(), "Chebychev2", *obs, RooArgList(*c1, *c2));
-    } else if (modelType == "Chebychev3") {
-      RooRealVar* c1 = CreateVar("c1" + suffix);
-      RooRealVar* c2 = CreateVar("c2" + suffix);
-      RooRealVar* c3 = CreateVar("c3" + suffix);
-      Stage({{c3, 0.0}}); // a Chebychev2 first
-      pdf = Own<RooChebychev>(name.c_str(), "Chebychev3", *obs, RooArgList(*c1, *c2, *c3));
+    else if (const int order = PolynomialOrder(modelType, "Chebychev")) {
+      // Chebychev<n>: c1..cn, the constant term implicit (the yield sets the scale).
+      std::vector<RooRealVar*> c;
+      RooArgList coefficients;
+      for (int i = 1; i <= order; ++i)
+        coefficients.add(*c.emplace_back(CreateVar(std::format("c{}{}", i, suffix))));
+      if (order > 1)
+        Stage({{c.back(), 0.0}}); // one order lower first
+      pdf = Own<RooChebychev>(name.c_str(), modelType.c_str(), *obs, coefficients);
+    } else if (const int degree = PolynomialOrder(modelType, "Bernstein")) {
+      // Bernstein<n>: b0..bn, the n+1 coefficients of degree n, one of them redundant with the yield. The configuration
+      // fixes which one, since that choice shapes the curve (near the KK threshold the phi background is small, so
+      // there the first is a poor anchor), and it must fix one above zero: with all free, or the fixed one at zero, a
+      // common factor of the free ones leaves the curve unchanged, the fit is degenerate and nothing says so.
+      // All of them non-negative, which keeps the curve positive: the reason to choose Bernstein over Chebychev. No
+      // staged start: a Bernstein polynomial with its last coefficient at 0 is still of degree n, pinned to 0 at the
+      // upper edge, not the polynomial one degree lower.
+      std::vector<RooRealVar*> b;
+      RooArgList coefficients;
+      for (int i = 0; i <= degree; ++i)
+        coefficients.add(*b.emplace_back(CreateVar(std::format("b{}{}", i, suffix))));
+      if (std::ranges::none_of(b, [](const RooRealVar* v) { return v->isConstant() && v->getVal() > 0.0; })) {
+        throw std::runtime_error(std::format("[FATAL] DynamicRooFitter: {} needs one of b0{}..b{}{} fixed above zero "
+                                             "(a positive number instead of [value, min, max]): one coefficient is "
+                                             "redundant with the yield.",
+                                             modelType, suffix, degree, suffix));
+      }
+      for (const RooRealVar* v : b) {
+        if (Lowest(*v) < 0.0) {
+          throw std::runtime_error(std::format("[FATAL] DynamicRooFitter: {} needs '{}' non-negative (lowest value {}): "
+                                               "a negative coefficient lets the background go below zero.",
+                                               modelType, v->GetName(), Lowest(*v)));
+        }
+      }
+      pdf = Own<RooBernstein>(name.c_str(), modelType.c_str(), *obs, coefficients);
     } else if (modelType == "Exponential") {
       RooRealVar* slope = CreateVar("slope" + suffix);
       pdf = Own<RooExponential>(name.c_str(), "Exponential", *obs, *slope);

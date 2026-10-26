@@ -44,7 +44,7 @@ Ognuna è un cambio di configurazione, non di codice. Tutte cambiano i numeri di
    fino a -3%; 1.8 MeV è fisico?); `n>=1` del K0S lega in 47 celle sorgente a pT alto (S +1.1%); `n>=1` di Xi va tenuto (rilassato S +8.6%); `c1_bkg` / Chebychev2 del K0S (pdf negativa nel
    27.5% della scatola dei parametri); segno della pendenza di pi_tof.
 4. **Override per bin del K0S (`mult*_pt4`, `mult*_pt5`):** colpiscono bin diversi nei fit di analisi e in quelli sorgente. Voluto? (nota 09 1.1)
-5. **Errori dell'efficienza online del phi:** `SumW2Error(true)` (errori di default 4-10 volte troppo piccoli, nota 05).
+5. **Errori dell'efficienza online del phi:** `SumW2Error(true)` (errori di default 4-10 volte troppo piccoli, nota 05). **Misurato il 24 ottobre 2026, non applicato:** sul phi del wagon online (produzione del 22 ottobre, mult 15-20%) errori²/contenuti 56, 44, 14 a pT 0.4-0.8, 1.4-2, 6-10, quindi errori attesi circa 7.5, 6.7, 3.8 volte quelli non corretti. `SumW2Error(true)` dà x45.6, x7.9, x3.9, con covQual 2 (Hesse dei pesi² forzata definita positiva) in 41 celle su 70: fuori proprio a basso pT. `AsymptoticError(true)` dà x7.0, x6.5, x3.8 con covQual 3, ma RooFit avverte che non è pensato per dati binnati. Da decidere: quale dei due, o fittare i conteggi non pesati e applicare l'efficienza dopo (come il wagon offline).
 6. **`snap_to_bin` tollerante** (tolleranza 1e-3 bin, nota 04): attenzione, pi_tpc [-3,3] diventerebbe [-3,3.2] con il codice attuale.
 
 ## Fase 3 - Nuova procedura di `DoFit()`
