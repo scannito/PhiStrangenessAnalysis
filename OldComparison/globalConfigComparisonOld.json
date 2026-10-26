@@ -12,8 +12,32 @@
         "output_prefix": "Old_",
         "comparisons": [
             {
-                "label": "2024_over_old",
+                "label": "offline_over_preliminary",
                 "numerator": "../DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root",
+                "denominator": "../OldComparison/output/oldK0SPiRatio.root",
+                "divide_option": "",
+                "objects": [
+                    {
+                        "numerator": "MoreFullDifferential/Extract1D/Ratios/Ratio_K0S_Pi_Extrap_dy1_00",
+                        "denominator": "Ratio_K0S_Pi_dy1_00_stat"
+                    }
+                ]
+            },
+            {
+                "label": "online_over_preliminary",
+                "numerator": "../DataFile/pp/DeltaY/FinalResults/Data_OnlineEff_2024_PhiAssocSpectra.root",
+                "denominator": "../OldComparison/output/oldK0SPiRatio.root",
+                "divide_option": "",
+                "objects": [
+                    {
+                        "numerator": "MoreFullDifferential/Extract1D/Ratios/Ratio_K0S_Pi_Extrap_dy1_00",
+                        "denominator": "Ratio_K0S_Pi_dy1_00_stat"
+                    }
+                ]
+            },
+            {
+                "label": "onlinenophi_over_preliminary",
+                "numerator": "../DataFile/pp/DeltaY/FinalResults/Data_OnlineEff_NoPhi_2024_PhiAssocSpectra.root",
                 "denominator": "../OldComparison/output/oldK0SPiRatio.root",
                 "divide_option": "",
                 "objects": [

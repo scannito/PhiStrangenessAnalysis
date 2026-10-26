@@ -25,19 +25,21 @@ numerator, so run the chain first.
 |---|---|
 | `macro/ratioK0SPiCorrectedUpdated_export.C` | The old macro, made to export its result (its header says exactly what changed). |
 | `macro/YieldMean.C` | The extrapolation code the old macro includes, as it was then (not `OldCodes/YieldMean.h`, which has another signature and four fixed defects). |
-| `macro/show.C` | The table (checked bin by bin against the division) and the overlay, with the old systematic band. |
-| `globalConfigComparisonOld.json` | The `comparison_task` block: one declared pair, the 2024 ratio over the old one with its statistical errors. The only place the numerator's file and object are written: `run.sh` reads them from here. |
-| `run.sh` | All of it, in order. |
+| `macro/show.C` | The table (checked bin by bin against the divisions) and the overlay of the three 2024 results, with the old systematic band and a ratio pad. |
+| `globalConfigComparisonOld.json` | The `comparison_task` block: three declared pairs, the 2024 ratio of each efficiency mode (offline, online, online without φ) over the old one, with their statistical errors. The only place the numerators' files and objects are written: `run.sh` reads them from here. |
+| `run.sh` | All of it, in order. Needs the three 2024 results of the chain. |
 | `data/` | The old inputs (not in git): copied from `~/Downloads/OldAnalysis` on 20 October 2026. |
 | `output/` | What `run.sh` makes (not in git). |
-| `reference/` | Snapshots of the result, in git: the overlay and the table as `run.sh` printed them, one per date (20 October 2026, the π extrapolated with the Lévy-Tsallis over 0.2-1.0; 21 October, with the blast-wave over 0.2-3.0). |
+| `reference/` | Snapshots of the result, in git: the overlay and the table as `run.sh` printed them, one per date (20 October 2026, the π extrapolated with the Lévy-Tsallis over 0.2-1.0; 21 October, with the blast-wave over 0.2-3.0); on 26 October the three efficiency modes, without and with the purity. |
 | `extrapolation/` | The study of the π extrapolation that the comparison led to, and the checks of what was changed in the framework because of it (its README). |
 
 ## The old result
 
 The old macro (`OldCodes/ratioK0SPiCorrectedUpdated.C`, mode 0) computes 2·K0S/(π⁺+π⁻) in the ten
 FT0M classes 0-1, 1-5, 5-10, 10-15, 15-20, 20-30, 30-40, 40-50, 50-70, 70-100 %, for |Δy| < 1.0 only. From `data/ResultsData2.root` (spectra per Δy window and class,
-normalised per event with a φ candidate, purity-corrected) and `data/ResultsEfficiency2.root`:
+normalised per event with a φ candidate corrected for the φ purity) and `data/ResultsEfficiency2.root`. The yields in
+those spectra are signal yields, from a fit per bin (`FitPhiK0S` in invariant mass, `FitPhiPi` in nσ, in
+`OldCodes/fitDataAndMCClosure.C`), so they are already free of the K0S and π backgrounds:
 
 - **K0S**: divided by the multiplicity-integrated efficiency of the window (the per-class one is loaded and
   not used), then by the per-class signal loss taken at |Δy| < 1.0 whatever the window.
@@ -69,8 +71,10 @@ are otherwise the same. Not checkable: whether `macro/YieldMean.C` is exactly th
 `comparison_task` in its declared mode (`objects`): the denominator is not a product of the framework, so
 only the axes are checked (`RequireSameAxis`; the classes coincide), with `divide_option: ""` (independent
 samples). The old systematic uncertainty is shown as a band in the overlay and as a column in the table, not
-divided: a ratio carrying 2024's statistical and the old systematic error would be neither. Numerator: `Ratio_K0S_Pi_Extrap_dy1_00` of `Data_OfflineEff_2024_PhiAssocSpectra.root`, i.e. the
-offline-efficiency 2024 result, |Δy| < 1.0, the extrapolated yields (main README, *The extrapolated yield*).
+divided: a ratio carrying 2024's statistical and the old systematic error would be neither. Numerators: `Ratio_K0S_Pi_Extrap_dy1_00` of `Data_OfflineEff_2024_`, `Data_OnlineEff_2024_` and
+`Data_OnlineEff_NoPhi_2024_PhiAssocSpectra.root`, the 2024 result of each efficiency mode, |Δy| < 1.0, the extrapolated
+yields (main README, *The extrapolated yield*). Until 26 October there was one pair, the offline one; the 20 and 21
+October snapshots are of that.
 
 The comparison has been made twice, and the two are kept apart: what was found on 20 October, as it was found,
 and what changed on 21 October because of it. The old side is the same remake both times.
@@ -109,7 +113,7 @@ does to the 2024/old ratio where it was measured (20 October 2026, 2024 offline,
 | π extrapolation above the data | none: `YieldMean` is called with `max = 1.0`, below the last edge (3.0), so it drops the high part | the Lévy-Tsallis fitted in 0.2-1.0 GeV/c (`fit_range`) and integrated from 3 to 10 GeV/c (`domain_range` `[0, 10]`), where no data constrain it | removing it lowers the π yield by 0.4 % (70-100 %) to 3.5 % (1-5 %) and raises the ratio as much: mean 0.947 → 0.966. **The largest single difference found.** |
 | K0S extrapolation above the data | none (`max = 6.0`, the last edge) | from 6.4 to 10 GeV/c | 0.1 % of the K0S yield in every class: negligible |
 | How the yield is assembled | sum of the measured bins + `YieldMean`'s `kExtra` (equal to `kYield`) | measured bins + model outside them (`SpectrumExtrapolator`, the same scheme) | none: the same quantity (main README, *The extrapolated yield*) |
-| Normalisation | per event with a φ candidate, purity-corrected | per trigger | none: it cancels in the ratio |
+| Normalisation | per event with a φ candidate, corrected for the φ purity | per trigger | none: it cancels in the ratio |
 | Multiplicity classes, \|Δy\| window | 0-1 … 70-100 %, \|Δy\| < 1.0 | the same | none (`RequireSameAxis` checked the classes) |
 
 **Not measured yet**, each able to move the ratio as a whole:
@@ -170,6 +174,51 @@ model's tail and not the data: fitted to the data up to 3 GeV/c, by the blast-wa
 side alone, the tail is 0.1-0.3 % of the yield, and the ratio moves from 0.947 to 0.971 (0.966 with no high-pT
 extrapolation at all; the extra 0.5 % comes from the blast-wave's low-pT side). About 3 % remains, the same in
 every class, and every row of *Not measured yet* stays open; so do the old statistical errors.
+
+## 26 October 2026: the three efficiency modes, the π as in the old macro
+
+The old result is the 2024 preliminary (the owner, 26 October 2026), and the plots now say so: "2024, new" for the
+framework, "2024, preliminary" for the old macro. To take the π extrapolation out of the comparison, the π were
+extrapolated as the old macro does, in a sandbox and not in the repository's configuration: the `Pi` block of
+`extrapConfig.json` at `a3f6899` (the Lévy-Tsallis fitted over 0.2-1.0 GeV/c) with `domain_range` `[0.0, 3.0]`, so
+that nothing is integrated above the data. The three 2024 correlation tasks were run (offline efficiency, online,
+online without φ), framework at commit `0490ca6`, after remaking the 2024 MC corrections: `2024_WTrigger_Corrections.root`
+was older than the interval names of 23 October, and the task without φ stopped on it. Then `run.sh`; the errors
+below are `comparison_task`'s, the preliminary's statistical error included, as on 20 and 21 October.
+
+With `apply_purity: false`, as in the repository's `globalConfigBasepp.json`
+(`reference/overlay_threemodes_2026-10-26.png`, `reference/table_threemodes_2026-10-26.txt`); new / preliminary:
+
+| class (%) | offline | online | online, no φ |
+|---|---|---|---|
+| 0-1 | 0.959 ± 0.018 | 0.964 ± 0.021 | 0.959 ± 0.019 |
+| 1-5 | 0.987 ± 0.011 | 0.988 ± 0.012 | 0.996 ± 0.011 |
+| 5-10 | 0.965 ± 0.011 | 0.962 ± 0.013 | 0.968 ± 0.012 |
+| 10-15 | 0.986 ± 0.012 | 0.994 ± 0.014 | 0.995 ± 0.012 |
+| 15-20 | 0.943 ± 0.013 | 0.955 ± 0.015 | 0.945 ± 0.014 |
+| 20-30 | 0.973 ± 0.011 | 0.973 ± 0.013 | 0.972 ± 0.011 |
+| 30-40 | 0.978 ± 0.012 | 0.972 ± 0.015 | 0.971 ± 0.013 |
+| 40-50 | 0.989 ± 0.015 | 0.996 ± 0.019 | 0.997 ± 0.017 |
+| 50-70 | 0.943 ± 0.013 | 0.954 ± 0.016 | 0.947 ± 0.015 |
+| 70-100 | 0.943 ± 0.016 | 0.946 ± 0.020 | 0.942 ± 0.018 |
+
+Offline, mean 0.967: the 0.966 the 20 October list expected with no high-pT π extrapolation. The three modes agree
+within 1.3 % in every class, so the remaining 3 % does not come from where the efficiency is applied: the argument is
+the size, since the three share the data and the denominator and their statistical errors are mostly the same error.
+
+With `apply_purity: true` (in the sandbox only; the 2024 purities remade with the repository's `fitConfig.json`, since
+the files in `DataFile` were still the August ones, one per species; `reference/overlay_threemodes_purity_2026-10-26.png`,
+`reference/table_threemodes_purity_2026-10-26.txt`): offline mean 0.925 (0.901-0.951), the three modes again within
+1.3 %. The K0S purity is about 0.95 and the π one about 1, so the ratio drops by about 4 %, and half of the classes
+leave the old systematic band. **This is the like-for-like comparison**: the old yields are signal yields from fits
+(*The old result*), the framework's are counts in a signal window until the purity is applied. So the difference to
+account for is about 7.5 %, not 3 %.
+
+To remake the two snapshots, in order: the 2024 MC corrections (`mc_task_2024` and `mc_task_2024_wtrigger` in
+`globalConfigMCpp.json`); the 2024 purities (`purity_task_2024`, needed for the second); the three 2024 correlation
+tasks with that `Pi` block, once with `apply_purity: false` and once with `true`; `OldComparison/run.sh` after each. The
+plot is `output/overlay.png`, the table what `run.sh` prints under "the table"; `show.C` stops if the three files
+differ in `apply_purity`, and writes the setting on the plot.
 
 ## Removing it
 

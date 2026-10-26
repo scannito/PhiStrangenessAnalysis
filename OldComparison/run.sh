@@ -9,14 +9,16 @@ config="$here/globalConfigComparisonOld.json"
 command -v root-config > /dev/null || { echo "[ERROR] ROOT is not in the environment (enterO2P)."; exit 1; }
 [ -f "$here/data/ResultsData2.root" ] || { echo "[ERROR] the old inputs are not in $here/data (README.md)."; exit 1; }
 
-# The numerator as the comparison will divide it: from the configuration, the one place it is
-# written (paths there are relative to Codes/, where the chain runs).
-read -r label newFile newObject < <(python3 -I -c '
-import json, sys
-c = json.load(open(sys.argv[1]))["comparison_task_old_k0spi"]["comparisons"][0]
-print(c["label"], c["numerator"], c["objects"][0]["numerator"])' "$config")
-newFile="$repo/Codes/$newFile"
-[ -f "$newFile" ] || { echo "[ERROR] $newFile is missing: run 'cd Codes && ./runAnalysis.sh data pp --compile' first."; exit 1; }
+# The numerators as the comparison will divide them: from the configuration, the one place they are written (paths
+# there are relative to Codes/, where the chain runs), as "label|file|object;...". Stops, naming them, if any is missing.
+pairs=$(python3 -I -c '
+import json, os, sys
+pairs = json.load(open(sys.argv[1]))["comparison_task_old_k0spi"]["comparisons"]
+files = [os.path.join(sys.argv[2], "Codes", p["numerator"]) for p in pairs]
+missing = [f for f in files if not os.path.isfile(f)]
+if missing:
+    sys.exit("[ERROR] missing, run the three 2024 correlation tasks first (README.md): " + " ".join(missing))
+print(";".join(p["label"] + "|" + f + "|" + p["objects"][0]["numerator"] for p, f in zip(pairs, files)))' "$config" "$repo")
 
 fail() { grep -h "FATAL" "$1" || true; echo "[ERROR] $2 failed: see $1"; exit 1; }
 mkdir -p "$here/output"
@@ -40,5 +42,5 @@ echo "== comparison_task (output/comparison.log)"
 grep -E "divided|SUMMARY" "$here/output/comparison.log"
 
 echo "== the table, and output/overlay.png"
-root -l -b -q "$here/macro/show.C(\"$newFile\",\"$newObject\",\"$here/output/oldK0SPiRatio.root\",\"$here/output/Old_Comparisons.root\",\"$label\",\"$here/output/overlay.png\")" 2>&1 \
+root -l -b -q "$here/macro/show.C(\"$pairs\",\"$here/output/oldK0SPiRatio.root\",\"$here/output/Old_Comparisons.root\",\"$here/output/overlay.png\")" 2>&1 \
   | grep -v "^Info in\|^Processing\|^$"
