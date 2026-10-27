@@ -1,117 +1,140 @@
-# Roadmap: cosa fare nel progetto dopo la ricerca RooFit
+# Roadmap: cosa resta da fare nel progetto dopo la ricerca RooFit
 
-15 ottobre 2026. Scritta dalle conclusioni di `00-summary.md` (sezioni 1-3) e delle note finali 09, 11, 12. Ogni voce rimanda alla nota con le prove. Implementata finora: la 1.1 (21 ottobre 2026, `FitQualityRecorder`, README *Fit quality*); della fase 3, in forma ridotta, le partenze
-multiple di `DoFit` (23 ottobre 2026: config, rese scalate, a stadi; senza partenze casuali né xRooFit; `DESIGN_HISTORY.md`, *Several
-starts per fit*).
+Scritta il 15 ottobre 2026 dalle conclusioni di `00-summary.md` (sezioni 1-3) e delle note finali 09, 11, 12; ogni voce rimanda
+alla nota con le prove. **Rivista voce per voce il 27 ottobre 2026** sul codice di `main` (bf3437a), sulle configurazioni e sui
+file prodotti: le voci fatte sono state tolte (sotto, dove sono raccontate), le altre divise in due gruppi, secondo che servano
+codice o scelte.
 
-Ordine: prima ciò che non cambia la fisica (bug, visibilità), poi le tue decisioni di fisica, poi la nuova procedura di fit, infine la
-rigenerazione e il confronto a valle. Le fasi 0 e 1 si possono fare subito e in qualsiasi ordine.
+**Tolte perché fatte**, e dove ne resta il ragionamento:
+
+- correzioni lette come `TH1` (era 0.1): `DESIGN_HISTORY.md`, *Corrections read as TH1, not TH1F*;
+- stato del fit per cella e record per cella (1.1, 1.5): *Fit quality recorded, ...*, e README *Fit quality*;
+- override per indice del K0S che colpivano celle diverse nei due binning (2.4): risolto alla radice da *Objects and overrides
+  named by interval*;
+- `Offset("bin")`, refit, partenze `config`/`yields`/`staged`, esito per cella (3.1, 3.2, 3.6 e parte della 3.4): *Several starts
+  per fit*; il resto della fase 3 è in A10-A11;
+- estrapolazione dei pioni (4.3): *A second fit for the high side, and the blast-wave for the π* (blast-wave su 0.2-3.0 GeV/c);
+- parser dei modelli tenuto a mano, polinomi per ordine, `Bernstein<n>` (fase 5): *Fit quality: which limit; polynomials by order*;
+- range dell'osservabile del Xi (2.2): tenuto [1.29, 1.36], anche in `fitConfig_modelStudy.json`.
 
 ---------------------------------------------------------------------------------------------------------------------------------
 
-## Fase 0 - Bug, nessun effetto sulla fisica
+## A. Serve codice (o CMake)
 
-| # | cosa | dove | prova | costo |
-|---|---|---|---|---|
-| 0.1 | Caricare le correzioni come `TH1` (o `TH1D`): oggi `GetUniqueOrThrow<TH1F>` lancia su 198 TH1D di `Corrections.root` appena si accende l'efficienza | `Codes/CorrelationTaskBase.h:578` | 00-summary 1.8, nota 11 | 1 riga |
-| 0.2 | Correggere il tally di `RooFitMessages.h`: il "(remaining N suppressed)" di RooFit è sbagliato di 2 | `Codes/RooFitMessages.h` | nota 08 (8.12) | poche righe |
-| 0.3 | Sommario del logger: "No warnings" anche con decine di migliaia di righe RooFit | `Codes/Logger.h` | nota 11 | poche righe |
-| 0.4 | Purezza NaN sulle celle pi_tof vuote: segnalare e scrivere un valore definito | `Codes/PurityTask.h` | nota 11 | piccolo |
-| 0.5 | Path relativi alla directory corrente; errori `TGaxis` su stderr | vari | nota 11 | piccolo |
-| 0.6 | **Errori NaN a valle:** un errore di purezza NaN finisce come errore di bin NaN negli spettri dei pioni, e né il fit di ROOT né `SpectrumExtrapolator` lo scartano. È la causa principale dell'"amplificazione" dei pioni. Controllare la finitezza di purezza ed errore prima di usarli e scartare o segnalare i punti NaN | `PurityTask`, `SpectrumExtrapolator` | nota 11 sezioni 8-9 | piccolo |
+Nessuna di queste cambia la fisica, salvo dove detto (A9, A10-A11).
 
-## Fase 1 - Rendere visibile la qualità dei fit (i risultati non cambiano)
+### Bug e visibilità
 
-1. **Leggere e registrare lo stato del fit per cella:** `status`, `covQual`, `edm`, `minNll`, parametri al limite. **Fatto il 21 ottobre 2026**: un `TTree` `{binning}/FitQuality` per file, e un warning per sezione con i segnali affidabili (cella vuota, `covQual<3`, valutazioni NaN, parametri al limite); lo status non è segnalato.
-   Lo status 3 da solo non è un indicatore (nota 09 sezione 2): segnalare con il test `covQual==3 && edm<0.01` dopo `Offset(true)` (vedi fase 3).
-2. **Validatore del modello prima di `fitTo`:** limiti, start dentro i limiti, pdf finita e non negativa ai valori iniziali. Circa 30 righe,
-   codice in nota 10 sezione 6. Indipendente da parser, factory o HS3.
-3. **Bontà del fit:** chi2 di Pearson su tutte le bin, ndf = bin - parametri liberi (calibrato sui toy, nota 05), al posto di `RooPlot::chiSquare`.
-4. **Grafici:** asse dei pull non fissato a ±5; curva totale e componenti con la stessa normalizzazione (nota 05).
-5. **Opzionale:** record di provenienza per cella (blocco nostro, JSON-lines o oggetto nel file ROOT; HS3 solo come contenitore del modello),
-   agganciato dopo `ExtractYieldsAndPurity` (nota 02 sezione 10, nota 10 sezione 8). In alternativa il minimo: una tabella per cella con lo stato del punto 1.
+**A1. Conteggio di `RooFitMessages`** (era 0.2): il "(remaining N suppressed)" di RooFit è sbagliato di 2 (nota 08, 8.12).
+`RooFitMessages.h` esiste solo sul ramo `wip/roofit-messages`, non su `main`.
 
-## Fase 2 - Decisioni di fisica (tue)
+**A2. Il sommario di fine run non conta i messaggi di ROOT e RooFit** (era 0.3): dice "No warnings" con decine di migliaia di
+righe RooFit nel log (nota 11). È anche in `DESIGN_NOTES.md` sezione 5, *ROOT's own warnings are not in the end-of-run summary*.
 
-Ognuna è un cambio di configurazione, non di codice. Tutte cambiano i numeri di purezza.
+**A3. Una cella di purezza vuota riceve un valore inventato** (era 0.4, riaperta il 27 ottobre). Il NaN di ottobre non c'è più, ma
+al suo posto c'è un numero che non viene dai dati: nella purezza del 2026 (`Data_2026_HighIR_updated_Purity.root`, produzione del
+22 ottobre) le tre celle `pi_tof` vuote del binning di analisi (pT 0.2-0.3 GeV/c, molteplicità 0-1, 40-50, 50-70) valgono tutte
+0.967232 ± 0, e lo stesso valore con errore zero è in 14 celle del binning sorgente. Il fit è segnalato (`empty` nel `FitQuality`
+e nel sommario), il valore no. Oggi non entra in nessun risultato: le correlazioni usano `pi_tpc` (`purity_sources`) e
+`uploadToCCDB.C` non carica purezze. Da fare: scrivere per una cella vuota un valore che non si possa scambiare per una purezza,
+e che chi la legge rifiuti, non quello che il minimizzatore lascia senza dati.
 
-1. **Limiti `nsig`/`nbkg` del K0S (1e8) e di pi_tpc (1e10):** tagliano la resa in 18 celle K0S e 2 pi_tpc; alzandoli S si sposta di una mediana
-   del 22% (fino al 78%). Raccomandato: alzare a 1e11. (nota 09 sezione 1.3 e 9). Il taglio riguarda solo le celle del binning di analisi
-   (bin uniti, più conteggi): nessuna delle 2620 celle sorgente è tagliata, quindi la mappa CCDB non cambia (nota 09 sezione 9.8).
-2. **Range dell'osservabile di Xi:** [1.29, 1.36] (oggi, purezza più bassa di una mediana 0.074) o [1.2, 1.4] (archivio del 7 agosto). Ricorda che
-   RooFit allarga il range ai bordi delle bin dell'istogramma ([1.289, 1.361], nota 08 sezione 3b).
-3. **Forme:** `sigma_sig` di Xi al limite inferiore in quasi tutte le celle (439 su 520 celle sorgente; rilassato S -0.49% di mediana,
-   fino a -3%; 1.8 MeV è fisico?); `n>=1` del K0S lega in 47 celle sorgente a pT alto (S +1.1%); `n>=1` di Xi va tenuto (rilassato S +8.6%); `c1_bkg` / Chebychev2 del K0S (pdf negativa nel
-   27.5% della scatola dei parametri); segno della pendenza di pi_tof.
-4. **Override per bin del K0S (`mult*_pt4`, `mult*_pt5`):** colpiscono bin diversi nei fit di analisi e in quelli sorgente. Voluto? (nota 09 1.1)
-5. **Errori dell'efficienza online del phi:** `SumW2Error(true)` (errori di default 4-10 volte troppo piccoli, nota 05). **Misurato il 24 ottobre 2026, non applicato:** sul phi del wagon online (produzione del 22 ottobre, mult 15-20%) errori²/contenuti 56, 44, 14 a pT 0.4-0.8, 1.4-2, 6-10, quindi errori attesi circa 7.5, 6.7, 3.8 volte quelli non corretti. `SumW2Error(true)` dà x45.6, x7.9, x3.9, con covQual 2 (Hesse dei pesi² forzata definita positiva) in 41 celle su 70: fuori proprio a basso pT. `AsymptoticError(true)` dà x7.0, x6.5, x3.8 con covQual 3, ma RooFit avverte che non è pensato per dati binnati. Da decidere: quale dei due, o fittare i conteggi non pesati e applicare l'efficienza dopo (come il wagon offline).
-6. **`snap_to_bin` tollerante** (tolleranza 1e-3 bin, nota 04): attenzione, pi_tpc [-3,3] diventerebbe [-3,3.2] con il codice attuale.
+**A4. Controllo di finitezza a valle** (era 0.6). Un errore di purezza NaN finiva come errore di bin NaN negli spettri dei pioni
+e né il fit di ROOT né `SpectrumExtrapolator` lo scartavano: era la causa principale dell'"amplificazione" dei pioni (nota 11,
+sezioni 8-9). Il 27 ottobre nessun file di purezza o di risultati finali (2024 e 2026) ha un bin non finito, ma solo perché i NaN
+sono spariti a monte: in `CorrelationTaskBase` e `SpectrumExtrapolator` non c'è nessun controllo, e il prossimo NaN passerebbe
+come il primo.
 
-## Fase 3 - Nuova procedura di `DoFit()`
+**A5. Path e stderr** (era 0.5). I path delle configurazioni sono relativi alla directory corrente: `runAnalysis.sh` fa `cd`
+nella propria, quindi dallo script funziona, il binario lanciato da un'altra directory no. Gli errori di `TGaxis` su stderr non
+sono stati riverificati.
 
-Dopo la fase 2, perché le due cose si sommano. Procedura (nota 09 sezione 4, nota 11, nota 12):
+**A6. Validatore del modello prima di `fitTo`** (era 1.2): limiti, valore iniziale dentro i limiti, pdf finita e non negativa ai
+valori iniziali. Circa 30 righe, codice in nota 10 sezione 6. Oggi ci sono solo due controlli particolari: la soglia dei modelli
+con radici o potenze di (M - soglia) e i coefficienti del Bernstein.
 
-1. fit con **`Offset("bin")`** (meglio di `Offset(true)`: stesse rese, ma il test del punto 3 accetta il 96% delle celle invece dell'88%,
-   quindi l'escalation del punto 5 gira 3 volte meno; nota 09 sezione 9.9);
-2. refit dal risultato;
-3. accettare se `covQual()==3 && edm()<0.01`;
-4. **partenze multiple, tenere l'NLL più basso** (nota 12 sezioni 6-7, toy su 40 celle delle famiglie a rischio, 200 toy ciascuna).
-   Senza, la procedura resta in un minimo sbagliato e il test del punto 3 non se ne accorge: K0S pT 3.0-4.2 5.2%, K0S pT 4.2-6.4 38.8%
-   (fino all'84% in una cella; P -0.013/-0.016 per toy sbagliato), Xi pT 1.2-1.6 25%, Xi pT 1.6-2.0 78%. Regola che ne viene:
-   - K0S, pi_tpc, pi_tof: **partenza scalata sulla resa** (rese iniziali proporzionali ai conteggi della cella; da sola toglie i minimi
-     sbagliati sui toy e costa meno della partenza dalla config) **più 2-4 partenze casuali** come sicurezza (partendo dalla config,
-     2 partenze lasciano 2 toy sbagliati su 4000 nel K0S pT 4.2-6.4, 4 nessuno);
-   - Xi pT 1.2-1.6: 4 partenze casuali (0.35%);
-   - Xi pT 1.6-2.0 (e Xi 2026 pT 2.0-3.0, multimodale anch'esso, nota 11): **partenza dalla mediana dei fit delle altre classi di
-     molteplicità dello stesso pT, più 8 partenze casuali** (2 toy sbagliati su 4000). Per Xi la partenza scalata sulla resa peggiora le
-     cose (fino al 99.8%) e `sigma_sig` al limite aiuta poco (57%).
-   Nella catena completa (nota 11 sezione 8, con k=2 ovunque e 8 per Xi pT 1.2-2.0): la purezza di analisi si sposta di più di 0.001 in 89
-   celle su 737, di più di 0.01 in 9, mai oltre 0.05; i minimi sbagliati scendono da 180 a 55. Tempo 2.5 volte (indicativo). Le celle
-   segnalate salgono da 38 a 80, quasi tutte pi_tpc con `nbkg` al limite 0: va rivisto il criterio di segnalazione per pi_tpc, dove
-   `nbkg`=0 è il risultato atteso (nota 09 9.2). Sulle celle reali 20 partenze lasciano ancora 17 celle sorgente su 2620 sopra il
-   migliore di 50 (Xi 2026 pT alto, S -1.1/-1.4%, nota 09 9.11): un caso in cui solo 1-4 partenze su 50 trovano il minimo;
-5. altrimenti escalation a `xRooFit::minimize`, partendo dal fit con offset (non dai valori della config: è ciò che spiega 16 contro 35 celle
-   segnalate, nota 09 9.11), **con `gDirectory` nullo attorno alla chiamata** (altrimenti restituisce il fit di un'altra cella, nota 11);
-6. registrare l'esito per cella (fase 1.1).
+**A7. Bontà del fit** (era 1.3): chi2 di Pearson su tutte le bin, ndf = bin - parametri liberi (calibrato sui toy, nota 05).
+Oggi nei file non c'è nessun chi2 dei fit di massa.
 
-Requisiti: `RooFitXRooFit` in CMake (oggi manca). **Tempi misurati a macchina libera** (15 ottobre 2026, coordinatore, un processo, due ripetizioni
-concordi entro il 2%; passo di purezza intero, sei file 2024 e 2026, copia in `scratch/coord-timing/`, `times.txt`): `DoFit` attuale 11.7 s,
-procedura raccomandata senza partenze 19.2 s (1.6 volte), con 2 partenze casuali ovunque e 8 per Xi pT 1.2-2.0 48.9 s (4.2 volte). La regola
-della fase 3.4 (partenza scalata sulla resa, mediana delle molteplicità per Xi) non è ancora codificata: il suo tempo andrà rimisurato.
-**`IntegrateBins`: non come default, utile come sistematica.** Sui toy elimina il bias del centro bin (Xi alta statistica da +2.6σ a +0.07σ,
-pi_tpc da +11.7σ a +0.05σ). Con il refit della procedura il fit ad alta statistica finisce con status ≠ 0 nel 77-88% dei toy e gli errori
-sono 1.4-1.5 volte troppo grandi; **un solo fit IB senza refit** converge nel 91-92% dei toy con errori giusti (0.93-1.14σ), a 14-30 volte la
-CPU. La precisione (1e-4, 1e-5, 1e-6) non cambia nulla. L'errore del fit al centro bin copre il valore IB (copertura su P 0.645-0.73), e sulle
-celle reali, con entrambi i fit al proprio minimo migliore, lo spostamento di S è piccolo: mediana +0.012%, p90 0.43%, oltre l'1% solo in
-2 celle Xi 2026 a pT alto su 60 (nota 09 9.11.4; gli spostamenti del 2% della 9.10 erano differenze di minimo). Quindi: fit al centro bin come
-nominale, un fit IB singolo come variazione sistematica nelle celle ad alta statistica. `obs->setBins(n)` uguale alle bin dell'istogramma nel range.
+**A8. Asse dei pull** (resto della 1.4): fisso a ±5 (`DynamicRooFitter.h`, `FormatBottomPadAxes`). La normalizzazione delle
+componenti uguale a quella del totale è fatta (`RelativeExpected`).
 
-Non servono: `Strategy(2)`, `RecoverFromUndefinedRegions`, `Optimize`, `Hesse(true)`.
+### Procedura di fit
 
-## Fase 4 - Rigenerare e confrontare
+**A9. `snap_to_bin` tollerante** (era 2.6, nota 04): `FindFixBin` senza tolleranza. Cambia la fisica: con il codice attuale
+pi_tpc [-3, 3] diventerebbe [-3, 3.2], quindi va fatto insieme alla scelta delle finestre.
 
-1. Rigenerare i file di purezza (K0S, Xi, pi_tpc, pi_tof) con fasi 2 e 3; confrontarli cella per cella con l'archivio
-   (l'harness della nota 11 lo fa già, in `scratch/study11/`).
-2. Rieseguire le correlazioni con `apply_purity` vero ed efficienza accesa (dopo 0.1) e misurare lo spostamento finale.
-   Con efficienza accesa (fix 0.1 in una copia) le variazioni massime sono: resa dei pioni estrapolata 3.35%, K0S/π estrapolato 3.1%, trend K0S
-   misurato 1.07% (nota 11 sezione 7).
-3. **Estrapolazione dei pioni (Levy-Tsallis):** l'amplificazione viene soprattutto dagli errori NaN (0.6): riparati quelli, la sensibilità
-   alla purezza scende da 3.35% a 0.62% (efficienza accesa) e da 9.4% a 2.4% (spenta). Un range di fit [0.2,1.5] o [0.2,3.0] GeV/c con un
-   errore minimo del 2% la porta a ≤0.9% e ≤0.5%. La scelta del range sposta la resa dei pioni dell'1-6%: va trattata come sistematica
-   (gli input non hanno errori sistematici). La curva sotto 0.2 GeV/c vale circa il 25% della resa (nota 11 sezione 9).
-4. Guardare a mano le celle che restano segnalate (00-summary sezione 3, punto 3).
+**A10-A11. Partenze casuali, partenza dalle celle vicine, test di accettazione, escalation a xRooFit** (resto delle 3.3, 3.4,
+3.5). **Lasciate fuori di proposito il 23 ottobre** (`DESIGN_HISTORY.md`, *Several starts per fit*, "Left out, on purpose"):
+rispetto ai minimi migliori dello studio dei modelli le tre partenze attuali bastavano (sopra il migliore di più di 1 in 13 fit K0S
+su 653, 36 Xi su 844, 110 Omega su 2155, 9 pi_tpc su 460, 21 pi_tof su 698), e ognuna delle altre porta un costo: le casuali un
+seme e un numero per famiglia da dichiarare, quella dalle celle vicine una dipendenza dall'ordine del ciclo, xRooFit una libreria
+(`RooFitXRooFit` in CMake, oggi assente) e il `gDirectory` nullo attorno alla chiamata (altrimenti restituisce il fit di un'altra
+cella, nota 11). Tornano **se una misura le chiede**. Quello che potrebbe chiederle:
+- i toy della nota 12 (sezioni 6-7, 40 celle delle famiglie a rischio, 200 toy ciascuna), dove una partenza sola resta in un
+  minimo sbagliato: K0S pT 3.0-4.2 5.2%, K0S pT 4.2-6.4 38.8% (fino all'84% in una cella), Xi pT 1.2-1.6 25%, Xi pT 1.6-2.0 78%;
+  ne venivano 2-4 partenze casuali per K0S, pi_tpc e pi_tof, 4 per Xi pT 1.2-1.6, e per Xi pT 1.6-2.0 (e Xi 2026 pT 2.0-3.0) la
+  mediana delle altre classi di molteplicità più 8 casuali. Misurati con la procedura di allora, non con le tre partenze di oggi:
+  rifarli con queste è il modo di decidere;
+- sulle celle reali, 20 partenze lasciavano 17 celle sorgente su 2620 sopra il migliore di 50 (Xi 2026 pT alto, S -1.1/-1.4%,
+  nota 09 9.11).
+Il test `covQual()==3 && edm()<0.01` (nota 09 sezione 2; lo status 3 da solo non è un criterio) serve a decidere quando
+scalare: senza escalation non ha un uso. Costo misurato: il passo di purezza da 6-13 s a circa 18 s con le tre partenze di oggi;
+con 2 casuali ovunque e 8 per Xi pT 1.2-2.0 la procedura del 15 ottobre andava da 11.7 a 48.9 s (`scratch/coord-timing/`).
 
-## Fase 5 - Struttura, quando serve
+**A12. `IntegrateBins` come variazione sistematica, non come default.** Sui toy elimina il bias del centro bin (Xi alta
+statistica da +2.6σ a +0.07σ, pi_tpc da +11.7σ a +0.05σ). Un solo fit IB senza refit converge nel 91-92% dei toy con errori
+giusti, a 14-30 volte la CPU; con il refit finisce con status ≠ 0 nel 77-88% dei toy. Sulle celle reali S si sposta di poco
+(mediana +0.012%, p90 0.43%, oltre l'1% solo in 2 celle Xi 2026 a pT alto, nota 09 9.11.4). `obs->setBins(n)` uguale alle bin
+dell'istogramma nel range. Aspetta il driver delle sistematiche.
 
-- **Parser dei modelli:** tenere quello a mano finché la lista dei modelli è corta; passare alle stringhe `factory` quando cresce (identiche al bit,
-  nota 10). **Non** adottare HS3 come ingresso.
-- **Range di fit distinto dal range del grafico** (DESIGN_NOTES sezione 3): oggi coincidono.
-- **Approcci non ancora studiati** (nota 13, sezione A): fit simultanei o vincoli sui parametri di forma tra bin di molteplicità
-  (per le celle Xi multimodali e i limiti che decidono il risultato), `RooBernstein` al posto del Chebychev (positivo per costruzione),
-  sPlot, fit 2D delle masse della coppia, fondo del phi da template. Ognuno va provato in una nota di ricerca prima di entrare qui.
+**A13. Range di fit distinto dal range del grafico** (`DESIGN_NOTES.md` sezione 3): oggi coincidono.
+
+---------------------------------------------------------------------------------------------------------------------------------
+
+## B. Servono scelte di fisica, o portare nella repo ciò che è nel sandbox
+
+**B1. Portare `fitConfig_modelStudy.json` nella repo.** È nel sandbox (`~/alice/claude-sandbox/sb-fitcfg/JSONConfigs/`) e
+contiene le scelte delle vecchie 2.1 e 2.3, che nella repo non ci sono:
+- limiti delle rese a 1e11 (nella repo `nsig` fino a 1e8 e `nbkg` fino a 2.5e7 per K0S e Xi, 1e10 e 2e9 per i pioni; quelli
+  di `nsig` tagliavano la resa in 18 celle K0S e 2 pi_tpc, nota 09 sezioni 1.3 e 9);
+- forme: `sigma_sig` del Xi da 0.5 MeV (era 2 MeV, al limite in 439 celle sorgente su 520), `n` delle DSCB fino a 1e3 (era 150),
+  K0S DSCB + Gaussiana con Chebychev3, pendenza di pi_tof libera in [-5, 5], gli override per cella dello studio dei modelli.
+
+Sul 2026 funziona (K0S nessun fit segnalato su 100 nel binning di analisi). Sul 2024 meno: un quarto delle celle K0S e pi_tof
+segnalate (25 su 100 ciascuna), soprattutto parametri al limite, perché gli override sono stati scelti sulle celle del 2026.
+L'effetto netto della purezza sul K0S/π però coincide fra i due anni entro lo 0.4% (B2). Da decidere: portarlo così, o prima
+sistemarlo sul 2024.
+
+**B2. `apply_purity`.** Nella repo è `false`, quindi i risultati non sono corretti per la purezza. Misurato il 26 ottobre nel
+sandbox (B1, efficienza applicata): la purezza abbassa il 2K0S/π estrapolato del 6% a molteplicità 0-1% e del 4% a 70-100%, uguale
+nel 2024 e nel 2026 entro lo 0.4% (procedura offline), e nel 2024 uguale nelle tre procedure. Il confronto con la preliminare 2024 si fa con la purezza (le vecchie
+rese venivano da fit).
+
+**B3. Errori del φ con efficienza online** (era 2.5, nota 05). Misurato il 24 ottobre 2026 sul φ del wagon online (produzione del
+22 ottobre, mult 15-20%): errori²/contenuti 56, 44, 14 a pT 0.4-0.8, 1.4-2, 6-10, quindi errori attesi circa 7.5, 6.7, 3.8 volte
+quelli attuali. `SumW2Error(true)` dà x45.6, x7.9, x3.9, con covQual 2 in 41 celle su 70, fuori proprio a basso pT;
+`AsymptoticError(true)` dà x7.0, x6.5, x3.8 con covQual 3, ma RooFit avverte che non è pensato per dati binnati. Da scegliere: uno
+dei due, o fittare i conteggi non pesati e applicare l'efficienza dopo, come il wagon offline.
+
+**B4. Rigenerare le purezze nella repo** (era 4.1): fatto nel sandbox (2026 e 2024, con B1 e le partenze multiple), non nel
+`DataFile` della repo. Da confrontare cella per cella con l'archivio (l'harness della nota 11 lo fa, in `scratch/study11/`).
+
+**B5. Guardare a mano le celle che restano segnalate** (era 4.4, 00-summary sezione 3, punto 3). Fatto per il 2026 nello studio
+dei modelli; nel 2024 con B1 sono un quarto fra K0S e pi_tof, non ancora guardate.
+
+**B6. Approcci non ancora studiati** (nota 13, sezione A): fit simultanei o vincoli sui parametri di forma tra classi di
+molteplicità (per le celle Xi multimodali e i limiti che decidono il risultato), sPlot, fit 2D delle masse della coppia, fondo del
+φ da template. Ognuno va provato in una nota di ricerca prima di entrare qui. Il Bernstein è già nel parser, come alternativa
+per le sistematiche.
+
+---------------------------------------------------------------------------------------------------------------------------------
 
 ## Da non fare (provato che non serve o non funziona)
 
-- Fit in più thread (crash, `RooLinkedList::_pool`), `NumCPU` con il backend `cpu`, `Parallelize` (lancia), codegen con gradiente (non regge `RooCrystalBall`).
+- Fit in più thread (crash, `RooLinkedList::_pool`), `NumCPU` con il backend `cpu`, `Parallelize` (lancia), codegen con gradiente
+  (non regge `RooCrystalBall`).
+- `Strategy(2)`, `RecoverFromUndefinedRegions`, `Optimize`, `Hesse(true)`: non servono.
 - Usare lo status 3 come criterio, da solo.
 - Fidarsi di "converged": il test di accettazione passa anche nei minimi sbagliati (nota 12).
+- Adottare HS3 come ingresso dei modelli (nota 10).

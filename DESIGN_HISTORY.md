@@ -7,6 +7,65 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## Fit quality: which limit; polynomials by order
+
+**26 October 2026, `0490ca6`.** Three changes to what `FitQuality` calls a limit, and one branch of the model parser for
+the polynomials.
+
+**The two ends apart.** `FitDiagnostics` and the tree had one list, `atLimit`. They now have `atLowerLimit` and
+`atUpperLimit`: which end a parameter sits on is the first thing whoever reads the row asks, and the rule below treats
+the two differently.
+
+**A yield is at its lower limit below one count.** The test was the one of note 09 for every parameter, within 1e-5 of
+the range from an end. A yield's range is 0 to 1e7-1e11, so that called every yield below 1e2-1e6 counts "at its
+limit", and the flag hid the yields that do sit on a limit (the K0S `nsig` cut by its maximum of 1e8, ROADMAP B1). The
+threshold was measured, not chosen: in the scans of the model study the yields Minuit pushed onto zero sat at 0 or
+between 1e-7 and 1 count (2537 of them), then nothing between 1 and 10 counts but 34, then the real small yields.
+Other parameters keep note 09's test.
+
+**A model can call a parameter's upper limit a shape** (`upperIsShape`, declared where the model is built, recorded in
+the tree). The DSCB does for its tail exponents n1 and n2: at a large n the power-law tail is as steep as an
+exponential, which is a shape the data choose, not a fit stopped by its box. `FitQualityRecorder::Reasons`, the one
+verdict, skips the upper limit of those parameters and nothing else; the tree keeps the fact. Only the upper end: an n
+on its lower limit (1) is still a fit pushed against the box (the owner's choice).
+
+**Chebychev<n> and Bernstein<n>** through one branch each, the order read from the name (`PolynomialOrder`, a regex
+`family + "([1-9][0-9]*)"`: `Chebychev0` or `Chebychev01` is not a polynomial but an unknown model, which stops the
+run), in place of a branch per order (`Chebychev1`, `Chebychev2`, `Chebychev3`, each written out). Chebychev keeps c1..cn, the constant implicit, the top term staged at 0. Bernstein has b0..bn, one redundant with the
+yield: the configuration fixes which one, because the choice shapes the curve (near the KK threshold the φ background
+is small, a poor anchor), and must fix it above zero; all coefficients must be non-negative, the reason to choose
+Bernstein over Chebychev (a curve positive by construction). Both stop the run otherwise. No staged start for
+Bernstein: with its last coefficient at 0 it is still of degree n, pinned to 0 at the upper end, not one order lower.
+
+**Checked.** Purity and φ outputs of the 22 October production unchanged; only the flags change.
+
+---
+
+## The φ line shape, and the data imported before the model
+
+**24 October 2026, `51488a1`.** The φ is fitted with `RelBWKK` on `BkgMattia`, and the fitter imports the histogram
+before it builds the model.
+
+**`RelBWKK`.** A P-wave relativistic Breit-Wigner, the width growing with the kaon momentum in the pair frame
+(Blatt-Weisskopf radius), convolved by FFT with the Gaussian resolution, with the Voigtian's parameter names plus the
+radius. The FFT grid and buffer come from the declared limits of `sigma_sig` (bins of a quarter of the smallest
+resolution over the range, a buffer of five times the largest), not RooFit's defaults, which are about one sigma for
+the φ. Measured against `RooVoigtian` with a constant-width Breit-Wigner: the fraction in the window agrees within 2e-6
+and the shape moves by 25 keV, which `mean_sig` absorbs. Checks: the mass lower limit above the KK threshold, a
+positive resolution. On the 22 October production: no φ fit flagged, χ²/ndf 4-9 instead of 26-48 from 0.8 GeV/c (mult
+15-20%), φ yields +6 to +18% at 1.4-2 GeV/c and -24% in one cell where the old fit had failed. Below 0.8 GeV/c the
+Voigtian stays (an override per multiplicity class), because it describes the data better there and nobody yet knows
+why (`DESIGN_NOTES.md` section 6).
+
+**The import before the model.** Importing a histogram into a `RooDataHist` moves the observable's range outwards onto
+the bin edges (0.995-1.1 became 0.9945-1.101). A model built before the import kept the old range, and `RelBWKK`'s FFT
+grid with it: the signal came out normalised 22% high (`nsig` 1.31e6 instead of 1.10e6 in a φ cell), with a fit that
+looked fine. The fitter now imports the data once, in its constructor, and builds the model on the range that results.
+The models already in use did not depend on it: purity and φ outputs bit-identical before and after. Do not move the
+import back after the model.
+
+---
+
 ## Several starts per fit
 
 **23 October 2026.** Phase 3 of `RooFitKnowledge/ROADMAP.md`, in a smaller form. `DynamicRooFitter::DoFit` fitted

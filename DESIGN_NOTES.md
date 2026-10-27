@@ -432,6 +432,16 @@ correlated across the Δy bins of a cell, so quadrature at integration time woul
 dilute it. It should either be propagated as a per-cell scale uncertainty or
 treated as a systematic. Decision pending.
 
+**The extrapolation warning says more than it knows** (26 October 2026). `SpectrumExtrapolator::FitOrWarn` warns that
+"the yield below is NOT an extrapolated one. Do not use it" whenever ten fits in a row end with a status other than 0,
+on the assumption that the covariance is then unusable, `TF1::IntegralError` returns 0 and the extrapolated part is
+dropped. In the data runs of 26 October (2024 and 2026, the π blast-wave over 0.2-3 GeV/c) it fired for five cells,
+and in every one the yield was extrapolated all the same: the π extrapolated/measured ratio is that of the neighbouring
+cells and of the other two procedures (1.335 against 1.335 and 1.338 in 2024, offline, |Δy| < 1, mult 20-30%; with the
+π's single fit dropped, both sides would go and it would be 1), and `warnIfEmpty`, which measures exactly that symptom, stayed silent.
+A status other than 0 does not mean an unusable covariance. The warning should say what was observed (the status) and
+leave "not extrapolated" to `warnIfEmpty`; as it stands it tells the reader to throw away a good point.
+
 ---
 
 ## 6. Physics questions still open
