@@ -7,6 +7,43 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## The normalisation uncertainty, next to the trends
+
+**27 October 2026.** The correlation tasks divided every spectrum by the trigger count as if it were exact: the error
+of the φ fits, which `PhiFitTask` writes with the yield, was dropped, and so was the error of the event-loss
+correction. A branch of 1 August (`test`) had propagated them into the trends' errors; it was redone on `main`, and
+the design changed twice under review.
+
+**What it does.** `GetTriggerSignal` returns the yield with its error. `CountTriggers` sums the trigger-pT bins of a
+class, errors in quadrature; `GenerateSpectraAndTrends` adds the event loss and writes the relative uncertainty of the
+normalisation, per multiplicity class, in `h1NormalisationRelError` at the root of the section (`OutputNames`), with
+the real edges and zero bin errors. The trends keep their statistical errors only. The log prints the count, its
+error and the uncertainty per class. On the 2026 HighIR production it is 0.04-0.10%, which matters for the π trends
+only (statistical error of the same order); the K0S, Ξ and Ω trends do not see it.
+
+**Left out, on purpose.**
+- *The φ efficiency's error.* The pairs of each trigger-pT bin are divided by the same efficiency as the triggers,
+  so in the per-trigger yield it largely cancels; counted on the triggers alone it would add what the yield removes.
+  For the same reason the one reader of the corrections, `Efficiency(particle, class, bin)`, serves the triggers and
+  the pairs both: the yield is corrected only if the two use the same number.
+- *A key that folds it into the trends.* The first version had one (`propagate_trigger_error`, then
+  `propagate_normalisation_error`), and both review agents objected: a trend file does not say that its errors hold
+  the normalisation, and `comparison_task`, dividing the trends of two files that share the triggers (a closure,
+  two variants on one φ fit), counts it twice where it cancels, with a README line as the only guard. The
+  ratios inside the task had to be taken from separate copies for the same reason. Kept apart, it is right in every
+  ratio by construction and added once by whoever builds a total error; no stored number depends on a choice, so no
+  key (the owner's choice).
+- *How much of the fit error belongs there.* Its Poisson part fluctuates with the pairs; the whole error is taken,
+  the conservative choice, while the question is open (`QUESTIONS_FOR_EXPERTS.md`, the first entry).
+
+**WPDG.** The trigger count integrates the cell of the TH3 in place instead of a projection: the counts are identical
+in the 70 cells of `h3PhiData` and of `h3PhiMCClosureGen` in the 2024 closure files.
+
+**Checked.** `correlation_task_offline_efficiency_2026_highIR_updated`, compiled, against `main`: the 300 objects of
+`PhiAssocSpectra.root` identical, the new histogram the only difference.
+
+---
+
 ## Fit quality: which limit; polynomials by order
 
 **26 October 2026, `0490ca6`.** Three changes to what `FitQuality` calls a limit, and one branch of the model parser for

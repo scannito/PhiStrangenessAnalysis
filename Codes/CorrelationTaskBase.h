@@ -32,6 +32,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <format>
 #include <initializer_list>
 #include <iostream>
@@ -168,6 +169,19 @@ class CorrelationTaskBase : public IAnalysisTask
     if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName}, false)) {
       RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
       RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhiBinning);
+    }
+
+    // Next to the trends and not in their errors: two trends that share the triggers - two species of this
+    // task, or the same species in two files that comparison_task divides - share this uncertainty, and a
+    // ratio would count it twice where it cancels. Whoever builds a total error adds it, once per class.
+    // It could be derived from what is already stored (h2TriggerSignal in the PhiFitTask file, the phi
+    // efficiency and hEventLoss in the corrections file), and it is written all the same: it holds choices -
+    // which errors enter, the phi efficiency's not, how they combine - that a reader would otherwise have to
+    // re-implement outside the framework. The trigger count itself is not written, for the opposite reason:
+    // it is those inputs and a sum, with nothing to choose.
+    if (TDirectory* sectionDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), baseLogicalPath)) {
+      sectionDir->cd();
+      hNormalisationRelError->Write(nullptr, TObject::kOverwrite);
     }
 
     // The spectra leave this task and, once the trends and ratios move to a task
@@ -326,6 +340,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
   std::vector<std::vector<std::unique_ptr<TH1>>> h1MultTrends;
   std::vector<std::vector<std::unique_ptr<TH1>>> h1MultTrendsExtrap;
+  std::unique_ptr<TH1> hNormalisationRelError; // filled in GenerateSpectraAndTrends, written in Terminate
 
   std::unique_ptr<ExtrapConfigManager> extrapConfigManager;
 
@@ -344,10 +359,10 @@ class CorrelationTaskBase : public IAnalysisTask
   // CorrelationTask overrides this; CorrelationWPDGTask leaves the default.
   virtual TH1* GetPurityHist(const std::string& /*particleName*/, int /*multBin*/) { return nullptr; }
 
-  // Trigger yield / background ratio for a given (multBin, ptPhiBin), used by
-  // the shared RunLegacy(). Every derived task MUST provide GetTriggerSignal;
+  // Trigger yield, with its error, for a given (multBin, ptPhiBin), read by CountTriggers; background
+  // ratio, read by RunLegacy(). Every derived task MUST provide GetTriggerSignal;
   // GetTriggerBkgRatio defaults to "no background subtraction" (WPDG's case).
-  virtual double GetTriggerSignal(int multBin, int ptPhiBin) = 0;
+  virtual std::pair<double, double> GetTriggerSignal(int multBin, int ptPhiBin) = 0;
   virtual double GetTriggerBkgRatio(int /*multBin*/, int /*ptPhiBin*/) { return 0.0; }
 
   // The (multiplicity, trigger pT) axes of whatever container GetTriggerSignal
@@ -949,6 +964,11 @@ class CorrelationTaskBase : public IAnalysisTask
     }
 
     // 2. Initialize matrix for Mult Trends: [ParticleIndex][DeltaYIndex]
+    hNormalisationRelError = std::make_unique<TH1D>(OutputNames::kNormalisationRelError.c_str(),
+                                                    "Relative uncertainty of the per-trigger normalisation;Multiplicity Percentile (%);#sigma_{N}/N",
+                                                    BinningUtils::NBins(multBinning), multBinning.data());
+    hNormalisationRelError->SetDirectory(0);
+    hNormalisationRelError->Sumw2(); // the bins hold numbers, not counts: errors 0, not sqrt(content)
     h1MultTrends.resize(assocParticles.size());
     if (applyExtrapolation) {
       h1MultTrendsExtrap.resize(assocParticles.size());
@@ -1237,8 +1257,40 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   // Shared spectra construction, normalization, and extrapolation.
   // -------------------------------------------------------------------------
-  void GenerateSpectraAndTrends(int multBin, double totalTriggerSignalPerMult)
+  void GenerateSpectraAndTrends(int multBin)
   {
+    const auto [totalTriggerSignalPerMult, triggerError] = CountTriggers(multBin);
+    double effectiveTriggers = totalTriggerSignalPerMult;
+    double eventLossRelError = 0.0;
+
+    // Normalize by the event loss correction if it is required
+    if (hEventLoss) {
+      double eventLossCorr = hEventLoss->GetBinContent(multBin + 1);
+      if (eventLossCorr > 0.0) {
+        effectiveTriggers /= eventLossCorr;
+        eventLossRelError = hEventLoss->GetBinError(multBin + 1) / eventLossCorr;
+      }
+    }
+
+    // The uncertainty of the normalisation: the trigger count and the event loss, in quadrature. One number
+    // per class, since it scales every bin of every spectrum of the class alike (CLAUDE.md, Physics).
+    const double triggerRelError = totalTriggerSignalPerMult > 0.0 ? triggerError / totalTriggerSignalPerMult : 0.0;
+    const double normalisationRelError = std::hypot(triggerRelError, eventLossRelError);
+    hNormalisationRelError->SetBinContent(multBin + 1, normalisationRelError);
+
+    // The single number every spectrum of this multiplicity class is divided by. A
+    // per-trigger yield that comes out orders of magnitude off, or identical across
+    // classes, is a statement about THIS number and about nothing further downstream -
+    // but with the number invisible, the first place it could be noticed was the shape
+    // of a canvas.
+    //
+    // Two classes sharing a value is the signature of trigger cells being read by the
+    // wrong index; a value that does not fall with the multiplicity percentile is the
+    // signature of the wrong container.
+    Logger::Info("{}: mult {} -> triggers = {:g} +- {:g}, normalisation uncertainty {:g}%", GetName(),
+                 BinningUtils::BinLabel(multBinning, multBin), totalTriggerSignalPerMult, triggerError,
+                 100.0 * normalisationRelError);
+
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& config = assocParticles[pIdx];
 
@@ -1262,16 +1314,6 @@ class CorrelationTaskBase : public IAnalysisTask
 
         // Construct the 1D spectrum from the accumulated Pt bins
         std::unique_ptr<TH1> h1Spectrum = HistogramUtils::ConstructSpectrum(views, config.binning, spectraName, dyLimit);
-
-        double effectiveTriggers = totalTriggerSignalPerMult;
-
-        // Normalize by the event loss correction if it is required
-        if (hEventLoss) {
-          double eventLossCorr = hEventLoss->GetBinContent(multBin + 1);
-          if (eventLossCorr > 0.0) {
-            effectiveTriggers /= eventLossCorr;
-          }
-        }
 
         // Normalize by the total number of triggers AND the Delta Y phase space
         if (totalTriggerSignalPerMult > 0.0) {
@@ -1339,40 +1381,20 @@ class CorrelationTaskBase : public IAnalysisTask
     Logger::Info("{}: RUNNING CORRELATIONS (Legacy)...", GetName());
     CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .meNorm = meNormalization, .targetAxis = projectionAxis});
 
-    const std::vector<std::unique_ptr<TH1>>* phiCorrs{nullptr};
-    std::vector<const std::vector<std::unique_ptr<TH1>>*> assocCorrs(assocParticles.size(), nullptr);
-
-    if (!correctionCollection.empty()) {
-      auto itPhi = correctionCollection.find("Phi");
-      if (itPhi != correctionCollection.end())
-        phiCorrs = &itPhi->second.h1Corrections;
-
-      for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        auto it = correctionCollection.find(assocParticles[pIdx].name);
-        if (it != correctionCollection.end())
-          assocCorrs[pIdx] = &it->second.h1Corrections;
-      }
-    }
-
     const std::vector<std::string> logicalPath = SectionPath();
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
       HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {i + 1, i + 1}};
-      double totalTriggerSignalPerMult = 0.0;
-      TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
         HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {j + 1, j + 1}};
 
-        double triggerSignal = GetTriggerSignal(i, j);
         double triggerBkgRatio = GetTriggerBkgRatio(i, j);
-        double phiEff = h1EffPhi ? h1EffPhi->GetBinContent(j + 1) : 1.0;
-        totalTriggerSignalPerMult += triggerSignal / phiEff;
+        double phiEff = Efficiency("Phi", i, j);
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
           const auto& data = loadedDataCollection[pIdx];
-          TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i].get() : nullptr;
 
           TDirectory* targetDir = ProjectionCacheDir(pIdx, logicalPath);
 
@@ -1380,7 +1402,7 @@ class CorrelationTaskBase : public IAnalysisTask
             HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {k + 1, k + 1}};
             std::vector<HistogramUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
-            double assocEff = h1EffAssoc ? h1EffAssoc->GetBinContent(k + 1) : 1.0;
+            double assocEff = Efficiency(config.name, i, k);
             double totalEff = phiEff * assocEff;
 
             std::string histNameBase = "h1Phi" + config.name + "Data";
@@ -1399,19 +1421,37 @@ class CorrelationTaskBase : public IAnalysisTask
         }
       }
 
-      // The single number every spectrum of this multiplicity class is divided by, and
-      // until now nothing printed it. A per-trigger yield that comes out orders of
-      // magnitude off, or identical across classes, is a statement about THIS number
-      // and about nothing further downstream - but with the number invisible, the first
-      // place it could be noticed was the shape of a canvas.
-      //
-      // Two classes sharing a value is the signature of trigger cells being read by the
-      // wrong index; a value that does not fall with the multiplicity percentile is the
-      // signature of the wrong container.
-      Logger::Info("{}: mult {} -> triggers = {:g}", GetName(), BinningUtils::BinLabel(multBinning, i), totalTriggerSignalPerMult);
-
-      GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
+      GenerateSpectraAndTrends(i);
     }
+  }
+
+  // The correction applied here to one particle in one (multiplicity class, pT bin) - the trigger pT for the phi -
+  // and 1 where none is. The one reader of the loaded corrections: the phi's divides both the triggers
+  // (CountTriggers) and the pairs (totalEff), and the per-trigger yield is corrected only if the two use the same
+  // number.
+  double Efficiency(const std::string& particle, int multBin, int ptBin) const
+  {
+    auto it = correctionCollection.find(particle);
+    const TH1* h = it == correctionCollection.end() ? nullptr : it->second.h1Corrections[multBin].get();
+    return h ? h->GetBinContent(ptBin + 1) : 1.0;
+  }
+
+  // The efficiency-corrected trigger count of one multiplicity class, the sum over the trigger pT bins, with its
+  // uncertainty from the phi fits: one independent fit per bin, so the errors add in quadrature. The uncertainty of
+  // the phi efficiency is left out on purpose: the pairs of each trigger pT bin are divided by the same efficiency,
+  // so in the per-trigger yield it largely cancels.
+  // The whole error of the fit, as independent of the pairs: the conservative choice, until an open question is
+  // answered (QUESTIONS_FOR_EXPERTS.md, "The uncertainty of the trigger count").
+  std::pair<double, double> CountTriggers(int multBin)
+  {
+    double count = 0.0, variance = 0.0;
+    for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
+      const auto [signal, error] = GetTriggerSignal(multBin, j);
+      const double phiEff = Efficiency("Phi", multBin, j);
+      count += signal / phiEff;
+      variance += (error / phiEff) * (error / phiEff);
+    }
+    return {count, std::sqrt(variance)};
   }
 
   // Which of the two sections (Extract1D, Extract2D) this task writes into. Derived rather

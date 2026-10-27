@@ -560,10 +560,19 @@ PhiAssocSpectra.root
     │   │   ├── Spectra/            one corrected spectrum per multiplicity interval
     │   │   └── Trends/             yields against multiplicity, measured and extrapolated
     │   ├── Xi/ …
-    │   └── Ratios/                 trends of one species over another
+    │   ├── Ratios/                 trends of one species over another
+    │   └── h1NormalisationRelError relative uncertainty of the per-trigger normalisation, per multiplicity interval
     ├── binning_mult                stamp: the multiplicity binning
     └── binning_ptPhi               stamp: the trigger pT binning
 ```
+
+The errors of the trends are statistical only. `h1NormalisationRelError` holds, per multiplicity
+interval, the relative uncertainty of what every spectrum of that interval is divided by: the trigger
+count from the φ fits (the trigger-pT bins in quadrature, the whole fit error: `QUESTIONS_FOR_EXPERTS.md`)
+and the event-loss correction, in quadrature. Not the φ efficiency, which divides the pairs of each
+trigger-pT bin as well and largely cancels. It is kept apart because it is common to everything with the
+same triggers: it cancels in the ratios between species, and in a `comparison_task` division of two
+files that share the triggers, so it is added once, by whoever builds a total error.
 
 Everything that carries a cell in its name names it by its **interval**, never by its
 index: `_mult10-15`, `_ptPhi0.8-1`, `_pt1.2-1.6` (`BinningUtils::BinLabel`). A reader with

@@ -33,6 +33,9 @@ inline const std::string kExtract2D{"Extract2D"};
 inline const std::string kSpectraDir{"Spectra"};
 inline const std::string kTrendsDir{"Trends"};
 inline const std::string kRatiosDir{"Ratios"};
+// At the root of a section, next to the species: the relative uncertainty of the per-trigger normalisation, per
+// multiplicity class (CorrelationTaskBase::GenerateSpectraAndTrends).
+inline const std::string kNormalisationRelError{"h1NormalisationRelError"};
 
 // The files between the fit tasks and CorrelationTask: the name that follows the output prefix.
 // Written once here, since the writer and the reader would otherwise each spell it, and a

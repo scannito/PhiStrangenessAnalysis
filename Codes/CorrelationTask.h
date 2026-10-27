@@ -179,9 +179,10 @@ class CorrelationTask : public CorrelationTaskBase
     return it->second.h1Purity[multBin].get();
   }
 
-  double GetTriggerSignal(int multBin, int ptPhiBin) override
+  // The error is the phi fit's (PhiFitTask writes it with the yield).
+  std::pair<double, double> GetTriggerSignal(int multBin, int ptPhiBin) override
   {
-    return h2TriggerSignal->GetBinContent(multBin + 1, ptPhiBin + 1);
+    return {h2TriggerSignal->GetBinContent(multBin + 1, ptPhiBin + 1), h2TriggerSignal->GetBinError(multBin + 1, ptPhiBin + 1)};
   }
 
   double GetTriggerBkgRatio(int multBin, int ptPhiBin) override
@@ -276,26 +277,6 @@ class CorrelationTask : public CorrelationTaskBase
   {
     Logger::Info("{}: RUNNING OPTIMIZED CORRELATIONS AND QA...", GetName());
 
-    // =========================================================================
-    // 0. EFFICIENCY POINTERS SETUP
-    // Hoisted to the top so both the Cache L2 branch and the calculation branch
-    // can access them to properly normalize the trigger signals.
-    // =========================================================================
-    const std::vector<std::unique_ptr<TH1>>* phiCorrs{nullptr};
-    std::vector<const std::vector<std::unique_ptr<TH1>>*> assocCorrs(assocParticles.size(), nullptr);
-
-    if (!correctionCollection.empty()) {
-      auto itPhi = correctionCollection.find("Phi");
-      if (itPhi != correctionCollection.end())
-        phiCorrs = &itPhi->second.h1Corrections;
-
-      for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        auto it = correctionCollection.find(assocParticles[pIdx].name);
-        if (it != correctionCollection.end())
-          assocCorrs[pIdx] = &it->second.h1Corrections;
-      }
-    }
-
     const std::vector<std::string> logicalPath = SectionPath();
 
     // =========================================================================
@@ -306,15 +287,6 @@ class CorrelationTask : public CorrelationTaskBase
       Logger::Info("{}: Super Cache (Signal L2) is ON. Skipping Calculator.", GetName());
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-        double totalTriggerSignalPerMult = 0.0;
-        TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
-
-        for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-          double triggerSignal = h2TriggerSignal->GetBinContent(i + 1, j + 1);
-          double phiEff = h1EffPhi ? h1EffPhi->GetBinContent(j + 1) : 1.0;
-          totalTriggerSignalPerMult += triggerSignal / phiEff;
-        }
-
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
           TDirectory* sourceDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, true);
@@ -331,7 +303,7 @@ class CorrelationTask : public CorrelationTaskBase
             h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
           }
         }
-        GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
+        GenerateSpectraAndTrends(i);
       }
       return;
     }
@@ -344,21 +316,16 @@ class CorrelationTask : public CorrelationTaskBase
 
     for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
       HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {i + 1, i + 1}};
-      double totalTriggerSignalPerMult = 0.0;
-      TH1* h1EffPhi = phiCorrs ? (*phiCorrs)[i].get() : nullptr;
 
       for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
         HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {j + 1, j + 1}};
 
-        double triggerSignal = h2TriggerSignal->GetBinContent(i + 1, j + 1);
         double triggerBkgRatio = h2TriggerBkgRatio->GetBinContent(i + 1, j + 1);
-        double phiEff = h1EffPhi ? h1EffPhi->GetBinContent(j + 1) : 1.0;
-        totalTriggerSignalPerMult += triggerSignal / phiEff;
+        double phiEff = Efficiency("Phi", i, j);
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
           const auto& data = loadedDataCollection[pIdx];
-          TH1* h1EffAssoc = assocCorrs[pIdx] ? (*assocCorrs[pIdx])[i].get() : nullptr;
 
           TDirectory* targetDir = ProjectionCacheDir(pIdx, logicalPath);
 
@@ -371,7 +338,7 @@ class CorrelationTask : public CorrelationTaskBase
             HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {k + 1, k + 1}};
             std::vector<HistogramUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
-            double assocEff = h1EffAssoc ? h1EffAssoc->GetBinContent(k + 1) : 1.0;
+            double assocEff = Efficiency(config.name, i, k);
             double totalEff = phiEff * assocEff;
 
             std::string baseNameStd = "h1Phi" + config.name + "Data";
@@ -410,7 +377,7 @@ class CorrelationTask : public CorrelationTaskBase
         }
       }
 
-      GenerateSpectraAndTrends(i, totalTriggerSignalPerMult);
+      GenerateSpectraAndTrends(i);
     }
   }
 };

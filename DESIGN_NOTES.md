@@ -64,8 +64,8 @@ about particle masses and spectral models.
   indices of spectra produced elsewhere — the same hole that was closed for
   `Corrections.root` and the purity files;
 - the **relative normalisation uncertainty per multiplicity bin**. It is computed
-  in the correlation task (`TriggerYield::RelativeError()` combined with the
-  event-loss error) and applied at trend level, because it is 100% correlated
+  in the correlation task (the trigger count and the event-loss correction) and
+  written as `h1NormalisationRelError`, kept out of the bin errors, because it is 100% correlated
   across the bins of a spectrum. If the trends move to task B, that number has to
   travel with the spectra.
 

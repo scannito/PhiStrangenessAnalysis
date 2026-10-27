@@ -159,17 +159,18 @@ class CorrelationWPDGTask : public CorrelationTaskBase
   // always right. The projected TH2 was the object actually indexed and nothing looked
   // at it - an object addressed by bin index whose axes were never compared with what
   // the consumer assumed, which is the one thing this framework exists to prevent.
-  double GetTriggerSignal(int multBin, int ptPhiBin) override
+  //
+  // The cell is integrated in place, all three bin ranges named; until 27 October 2026 it was projected first and
+  // the projection integrated. The two counts are identical, cell by cell (the 70 cells of h3PhiData and of
+  // h3PhiMCClosureGen in the 2024 closure files, exactly).
+  std::pair<double, double> GetTriggerSignal(int multBin, int ptPhiBin) override
   {
-    std::string phiHistName = "h1PhiTrigger_" + OutputNames::CellTag(multBinning, multBin, ptPhiBinning, ptPhiBin);
-    std::unique_ptr<TH1D> h1PhiTrigger(static_cast<TH1D*>(h3PhiData->ProjectionZ(
-      phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
-    h1PhiTrigger->SetDirectory(0);
-
-    // Bins 1..N, so the under/overflow of the third axis is excluded. Deliberate on
+    // Bins 1..N of the third axis, so its under/overflow is excluded. Deliberate on
     // both paths: outside [0.9, 1.2] is not a phi candidate, and outside |y| < 0.5 is
     // outside the acceptance the spectra are normalised to.
-    return h1PhiTrigger->Integral();
+    double error = 0.0;
+    const double count = h3PhiData->IntegralAndError(multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1, 1, h3PhiData->GetNbinsZ(), error);
+    return {count, error};
   }
   // GetTriggerBkgRatio not overridden: base default (0.0) is correct for WPDG.
 
