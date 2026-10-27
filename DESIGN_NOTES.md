@@ -380,14 +380,6 @@ retired keys was considered and set aside (one more list to grow with every rena
 strongest argument for the key-recording reader described above, which refuses any key a task did not
 read.
 
-**A zero event-loss bin is skipped in silence.** In `CorrelationTaskBase`, where the
-number of triggers is corrected for the event loss, `if (eventLossCorr > 0.0)` divides
-only when the bin is positive: a multiplicity class whose event-loss bin is 0 keeps its
-uncorrected trigger count and nothing says so. Found on 16 October 2026 while reading the
-corrections; it is the same kind of problem as the zero-efficiency candidates of the
-O2Physics task (section 13). At least a `Logger::Warn` with the multiplicity class; whether
-the run should stop instead is a choice to make.
-
 **`h2TriggerSignal` axes are not cross-checked.** `PhiFitTask` resolves the φ pT
 binning from `h3PhiData`, `CorrelationTask` resolves it from axis 1 of the sparse.
 The two must agree because those matrices are read by index. Now that they carry
@@ -1417,7 +1409,9 @@ comes from (MC, or a fit of the DCA distribution in data) is still to be decided
 ### Decisions still open
 
 1. Zero efficiency: discard the candidate and count it, or efficiency 1 for that particle and count it. If
-   discarded, the φ must be removed consistently from the trigger count and from every pair it forms.
+   discarded, the φ must be removed consistently from the trigger count and from every pair it forms. Online only:
+   here the run stops when a loaded map has a bin at or below zero (`DESIGN_HISTORY.md`, *A correction that
+   cannot be computed stops the run*, 27 October 2026).
 2. ~~Where the per-particle corrections live~~ — decided on 16 October: a block of their own (see *JSON*
    above).
 3. How the framework learns the train configuration: idea 1, idea 2, or both (section 12 suggests idea 1

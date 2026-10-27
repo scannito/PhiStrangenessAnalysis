@@ -7,6 +7,34 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## A correction that cannot be computed stops the run
+
+**27 October 2026.** Offline, a correction map with a bin at or below zero (or not a number) was applied as it was:
+an efficiency or signal-loss bin at 0 divided its cell by zero (an infinite or NaN yield), and an event-loss bin at 0
+was skipped, the class left uncorrected without a word (an open item of `DESIGN_NOTES.md` section 5 since
+16 October, "whether the run should stop instead is a choice to make"). `LoadCorrections` now stops at loading,
+naming the map, the file and the interval, for every map it applies: all go through one loader, `fetchHist`, the
+event loss included, which so also gets its axis compared with the multiplicity classes like the pT maps with the
+analysis binning.
+
+**Why stop, not warn.** No number is right in such a bin: 1 is wrong, and skipping it is the same as 1 (`CLAUDE.md`,
+*A correction that cannot be computed is not a correction of 1*). A warning would leave a result that looks complete.
+The remedy the message gives is the real one: more MC statistics in that cell, or data and MC productions whose
+binning merges it. Not `rebinning_pt` in the MC alone: the maps must have the binning of the data, read from the data
+file, so a coarser map stops at the comparison just before.
+
+**What it meets today.** None of the maps loaded by the configured blocks: the 2024 and 2026 maps have no bin at or
+below zero. The `WTrigger` files have φ efficiency maps that are zero everywhere, but the blocks that read them do
+not apply the φ efficiency, and only what is applied is loaded. `2026_LowIRae_updated` has 36 empty Ω bins in the
+per-class maps; a block using them would now stop. Online, the O2Physics task still gives a weight of 1 to a pair
+whose efficiency is zero (section 13, decision 1, open there).
+
+**Checked.** The 2026 offline block identical to the branch it sits on (301 objects); a copy of the corrections with
+one bin of the Ω map at 0, and one with the event loss at 0 in a class, each stop at loading with the map, the file
+and the interval; the real event loss passes the new comparison.
+
+---
+
 ## The normalisation uncertainty, next to the trends
 
 **27 October 2026.** The correlation tasks divided every spectrum by the trigger count as if it were exact: the error

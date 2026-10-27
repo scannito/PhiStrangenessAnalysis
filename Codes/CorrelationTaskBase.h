@@ -658,33 +658,17 @@ class CorrelationTaskBase : public IAnalysisTask
       RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName}, true),
       RootIO::kStampMult, multBinning, std::format("efficiency map '{}'", inputEffFile));
 
-    // Mirror the exact layout MCTask writes: {binningName}/AccEff/MultBin,
-    // {binningName}/SigLoss/MultBin, {binningName}/EvLoss
-    TDirectory* accEffDir = RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "AccEff", "MultBin"}, true);
-    TDirectory* sigLossDir = RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "SigLoss", "MultBin"}, true);
-    TDirectory* evLossDir = RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName, "EvLoss"}, true);
-
-    if (cfg.eventLoss) {
-      if (!evLossDir)
-        throw std::runtime_error(std::format("[FATAL] 'event_loss' requested but directory '{}/EvLoss' not found!", globalCfgs.binningName));
-
-      // dynamic_cast, as in RootIO::GetUniqueOrThrow: another class under this name falls to
-      // the error below instead of being used as a histogram.
-      if (auto hTemp = dynamic_cast<TH1*>(evLossDir->Get("hEventLoss"))) {
-        hEventLoss.reset(static_cast<TH1*>(hTemp->Clone("hEventLoss")));
-        hEventLoss->SetDirectory(0);
-      } else
-        throw std::runtime_error("[FATAL] 'event_loss' requested but 'hEventLoss' not found, or it is not a histogram!");
-    }
-
-    // LAMBDA HELPER 1: Load the histogram and throw an error if missing
-    auto fetchHist = [&](TDirectory* dir, const std::string& name, bool apply, const std::vector<double>& targetBinning) -> std::unique_ptr<TH1> {
+    // LAMBDA HELPER 1: one map of the corrections file, in the directory MCTask writes it to ('dir' below the
+    // binning_name: AccEff/MultBin, SigLoss/MultBin, EvLoss). It returns the map with the analysis binning and every
+    // bin positive, or throws; what reads it divides without a guard. 'axis' names the map's axis in the messages.
+    auto fetchHist = [&](std::string_view dir, const std::string& name, bool apply, const std::vector<double>& targetBinning,
+                         std::string_view axis) -> std::unique_ptr<TH1> {
       if (!apply)
         return nullptr;
-      if (!dir)
-        throw std::runtime_error(std::format("[FATAL] Missing directory containing: {}", name));
 
-      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(dir, name, GetName());
+      // By path from the file: a missing directory and a missing map are one message, naming the file and the path.
+      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(
+        fileEffInput.get(), std::format("{}/{}/{}", globalCfgs.binningName, dir, name), GetName());
 
       // Verified, NOT rebinned. An efficiency is a ratio, and merging bins of a
       // ratio sums them: two bins of 0.5 would give 1.0. A coarser efficiency can
@@ -692,18 +676,30 @@ class CorrelationTaskBase : public IAnalysisTask
       // MC task - see 'rebinning_pt' in the MC configuration.
       const std::string diff = BinningUtils::Compare(targetBinning, BinningUtils::AxisEdges(h->GetXaxis()),
                                                      "analysis binning (data production)",
-                                                     "efficiency map (MC production)");
+                                                     "correction map (MC production)");
       if (!diff.empty()) {
         throw std::runtime_error(std::format(
           "[FATAL] {}: '{}' in '{}' "
           "is not binned like the data being corrected:\n{}"
-          "Set 'rebinning_pt' in the MC configuration so the efficiency is produced at this binning, "
-          "or re-run the production whose axis does not match.",
+          "Re-run the production whose axis does not match; for a pT map, 'rebinning_pt' in the MC configuration "
+          "sets the binning the efficiency is produced at.",
           GetName(), name, inputEffFile, diff));
       }
 
+      // A bin at or below zero, or not a number, has no correct correction: it is not a correction of 1 (CLAUDE.md,
+      // Physics), so the run stops at loading and names the bin. Every bin, since each is applied to a cell.
+      for (int b = 1; b <= h->GetNbinsX(); ++b)
+        if (!(h->GetBinContent(b) > 0.0))
+          throw std::runtime_error(std::format(
+            "[FATAL] {}: '{}' in '{}' is {} at {} {}, and a correction that cannot be computed is not a correction "
+            "of 1. The MC has nothing there: more MC statistics in that interval, or data and MC productions whose "
+            "binning merges it.",
+            GetName(), name, inputEffFile, h->GetBinContent(b), axis, BinningUtils::BinLabel(targetBinning, b - 1)));
+
       return h;
     };
+
+    hEventLoss = fetchHist("EvLoss", "hEventLoss", cfg.eventLoss, multBinning, "multiplicity");
 
     // LAMBDA HELPER 2: Clone and multiply (if both are needed) safely
     auto combineHists = [](const TH1* hEff, const TH1* hLoss, const std::string& name) -> std::unique_ptr<TH1> {
@@ -740,12 +736,12 @@ class CorrelationTaskBase : public IAnalysisTask
       // The signal loss is always per multiplicity class, whatever the efficiency uses.
       const bool sigLoss = pc.sigLoss.has_value();
 
-      std::unique_ptr<TH1> hEffInt = fetchHist(accEffDir, OutputNames::Efficiency(name, OutputNames::kMultIntegrated), effIntegrated, targetBinning);
+      std::unique_ptr<TH1> hEffInt = fetchHist("AccEff/MultBin", OutputNames::Efficiency(name, OutputNames::kMultIntegrated), effIntegrated, targetBinning, "pT");
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
         const std::string multTag = OutputNames::MultTag(multBinning, i);
-        std::unique_ptr<TH1> hEffBin = fetchHist(accEffDir, OutputNames::Efficiency(name, multTag), effBinned, targetBinning);
-        std::unique_ptr<TH1> hLossBin = fetchHist(sigLossDir, OutputNames::SignalLoss(name, multTag), sigLoss, targetBinning);
+        std::unique_ptr<TH1> hEffBin = fetchHist("AccEff/MultBin", OutputNames::Efficiency(name, multTag), effBinned, targetBinning, "pT");
+        std::unique_ptr<TH1> hLossBin = fetchHist("SigLoss/MultBin", OutputNames::SignalLoss(name, multTag), sigLoss, targetBinning, "pT");
 
         corr.h1Corrections[i] = combineHists(effIntegrated ? hEffInt.get() : hEffBin.get(), hLossBin.get(),
                                              std::format("h1Corrected_{}_{}", name, multTag));
@@ -1263,13 +1259,11 @@ class CorrelationTaskBase : public IAnalysisTask
     double effectiveTriggers = totalTriggerSignalPerMult;
     double eventLossRelError = 0.0;
 
-    // Normalize by the event loss correction if it is required
+    // Normalize by the event loss correction if it is required (positive: checked when loaded)
     if (hEventLoss) {
-      double eventLossCorr = hEventLoss->GetBinContent(multBin + 1);
-      if (eventLossCorr > 0.0) {
-        effectiveTriggers /= eventLossCorr;
-        eventLossRelError = hEventLoss->GetBinError(multBin + 1) / eventLossCorr;
-      }
+      const double eventLossCorr = hEventLoss->GetBinContent(multBin + 1);
+      effectiveTriggers /= eventLossCorr;
+      eventLossRelError = hEventLoss->GetBinError(multBin + 1) / eventLossCorr;
     }
 
     // The uncertainty of the normalisation: the trigger count and the event loss, in quadrature. One number
