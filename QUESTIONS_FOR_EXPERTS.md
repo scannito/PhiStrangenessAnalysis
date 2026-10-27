@@ -49,3 +49,30 @@ nothing. In the ratios between species and in extrapolated/measured it cancels e
 
 **Meanwhile.** All of σ_N (`CorrelationTaskBase::CountTriggers`), written per multiplicity interval in
 `h1NormalisationRelError`, next to the trends and not in their errors.
+
+---
+
+## The uncertainty of the background ratio, and how it goes with the trigger count
+
+**Opened 27 October 2026.** `CorrelationCalculator` (the sideband subtraction), `h2TriggerBkgRatio`.
+
+**Context.** The pairs of the φ signal region contain φ-background candidates. They are subtracted with the pairs of
+the sidebands scaled by R = B(signal region) / B(sidebands), per (multiplicity, trigger pT) cell: Y ∝ P_SR − R·P_SB.
+R comes from the same invariant-mass fit as the trigger count N (the previous question), with an error σ_R that
+`PhiFitTask` computes and writes; the subtraction uses R alone, so σ_R goes nowhere.
+
+**Numbers** (2026 HighIR, offline efficiency; `DESIGN_NOTES.md` section 5 has the method). σ_R/R is 0.06-0.72% per
+cell; the background is 36-77% of the signal region. Shifting R by σ_R moves the extrapolated trends by 0.15-0.17%
+at 0-1% and 0.02-0.10% in the other classes, almost the same for every species of a class, so it cancels in the
+ratios between species (≤ 0.05%). It matters against the statistical error for the π trends only (0.16% against
+0.09% at 0-1%), as the trigger-count error does (0.10% there).
+
+**The questions.**
+- Is σ_R a statistical uncertainty of the yield, to be propagated as one per cell (100% correlated across the Δy
+  and associated-pT bins of the cell, independent between cells), or a systematic, an R ± σ_R variation?
+- N and R come from one fit, where signal and background are anticorrelated. Should the two be propagated together,
+  with the covariance of the fit, rather than each on its own? Taken apart, as the code does now for N
+  (`h1NormalisationRelError`), their sum in quadrature is neither the upper nor the lower bound without knowing the
+  sign of the correlation as it reaches Y.
+
+**Meanwhile.** σ_R is not propagated; nothing in the output depends on the answer.

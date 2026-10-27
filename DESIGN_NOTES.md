@@ -424,6 +424,17 @@ correlated across the Δy bins of a cell, so quadrature at integration time woul
 dilute it. It should either be propagated as a per-cell scale uncertainty or
 treated as a systematic. Decision pending.
 
+*Measured on 27 October 2026* (2026 HighIR, offline efficiency, the 2026 block of `correlation_task`, `run_mode:
+"legacy"`): R + σ_R in one trigger-pT bin at a time, all classes together, seven runs against the nominal, the
+shifts summed in quadrature (independent fits). σ_R/R itself is 0.06-0.72% per cell (larger at high trigger pT), the
+background under the peak 36-77% of the signal region. On the extrapolated trends (|Δy| < 1) it moves the yield by
+0.15-0.17% at 0-1% and 0.02-0.10% elsewhere, nearly the same for every species of a class: it acts almost like a
+normalisation, and cancels in the ratios between species (≤ 0.05%, against statistical errors of 0.4% and more).
+Against the statistical error of the trends it matters for the π only (0.16% against 0.09% at 0-1%, the same order
+elsewhere), a fifth of it for the K0S, nothing for Ξ and Ω; |Δy| < 0.1 is the same. Comes from the same fit as the
+trigger count, so the two are correlated (`QUESTIONS_FOR_EXPERTS.md`). Natural home: an R ± σ_R variation of the
+systematics driver. The runs and the macro are in `~/alice/claude-sandbox` (`rshift-out/`, `plots/rshift.C`).
+
 **The extrapolation warning says more than it knows** (26 October 2026). `SpectrumExtrapolator::FitOrWarn` warns that
 "the yield below is NOT an extrapolated one. Do not use it" whenever ten fits in a row end with a status other than 0,
 on the assumption that the covariance is then unusable, `TF1::IntegralError` returns 0 and the extrapolated part is
