@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdio>
 #include <format>
+#include <ranges>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -80,6 +81,16 @@ inline int NBins(std::span<const double> edges)
   return edges.empty() ? 0 : static_cast<int>(edges.size()) - 1;
 }
 
+// The bin indices of a binning, for a loop that names its index once:
+// for (int multBin : BinningUtils::BinIndices(multBinning)). 0-based, as the edges are indexed; the ROOT bin is
+// index + 1 at the call site. The first std::views of the framework: it is not known whether the interpreted mode
+// accepts it (that mode does not start in this environment, CLAUDE.md), and behind one function only this body would
+// have to change if it does not.
+inline auto BinIndices(std::span<const double> edges)
+{
+  return std::views::iota(0, NBins(edges));
+}
+
 // Returns an empty string when the two binnings agree within epsilon, otherwise
 // a report listing EVERY difference. Reporting all of them at once matters:
 // a stale configuration or a wrong production usually differs in several places,
@@ -96,8 +107,7 @@ inline std::string Compare(std::span<const double> lhs, std::span<const double> 
 
   if (lhs.size() != rhs.size()) {
     report += std::format("  - number of bins: {} has {}, {} has {}\n",
-                          lhsName, lhs.empty() ? 0 : lhs.size() - 1,
-                          rhsName, rhs.empty() ? 0 : rhs.size() - 1);
+                          lhsName, NBins(lhs), rhsName, NBins(rhs));
   }
 
   // The common part is compared even when the sizes differ, so the report shows
@@ -139,9 +149,9 @@ inline std::vector<BinRange> MapToSourceBins(std::span<const double> source, std
   };
 
   std::vector<BinRange> ranges;
-  ranges.reserve(target.empty() ? 0 : target.size() - 1);
+  ranges.reserve(NBins(target));
 
-  for (size_t t = 0; t + 1 < target.size(); ++t) {
+  for (int t : BinIndices(target)) {
     const int low = findEdge(target[t]);
     const int up = findEdge(target[t + 1]);
     ranges.push_back({low + 1, up}); // ROOT bins are 1-based and inclusive

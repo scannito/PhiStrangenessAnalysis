@@ -29,8 +29,8 @@ class FitConfigManager : public BaseConfigManager
   {
     std::set<std::string>& cells = declaredCells[section];
     for (std::span<const double> ptBinning : ptBinnings)
-      for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++)
-        for (int ptBin = 0; ptBin < BinningUtils::NBins(ptBinning); ptBin++)
+      for (int multBin : BinningUtils::BinIndices(multBinning))
+        for (int ptBin : BinningUtils::BinIndices(ptBinning))
           cells.insert(OutputNames::CellTag(multBinning, multBin, ptBinning, ptBin));
     if (const rapidjson::Value* bins = Bins(section))
       JsonConfig::RequireKnownKeys(*bins, cells, std::format("{}: section '{}'.fit_setup.bins (the keys are the cells this task fits)", managerName, section));

@@ -112,8 +112,8 @@ class PhiFitTask : public IAnalysisTask
                                            globalCfgs.binningName));
     }
 
-    for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
-      for (int ptPhiBin = 0; ptPhiBin < BinningUtils::NBins(ptPhiBinning); ptPhiBin++) {
+    for (int multBin : BinningUtils::BinIndices(multBinning)) {
+      for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
         const std::string cell = OutputNames::CellTag(multBinning, multBin, ptPhiBinning, ptPhiBin);
         std::string phiHistName = "h1PhiData_" + cell;
         std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));

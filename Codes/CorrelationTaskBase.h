@@ -735,7 +735,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
       std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(particle, OutputNames::kMultIntegrated), applyEfficiencyIntegrated, targetBinning, "pT");
 
-      for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
+      for (int multBin : BinningUtils::BinIndices(multBinning)) {
         const std::string multTag = OutputNames::MultTag(multBinning, multBin);
         std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(particle, multTag), applyEfficiencyBinned, targetBinning, "pT");
         std::unique_ptr<TH1> hSignalLossBinned = fetchHist(OutputNames::SignalLossPath(globalCfgs.binningName), OutputNames::SignalLoss(particle, multTag),
@@ -953,9 +953,8 @@ class CorrelationTaskBase : public IAnalysisTask
     h1PhiAssocNoPtPhi.resize(assocParticles.size());
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       h1PhiAssocNoPtPhi[pIdx].resize(BinningUtils::NBins(multBinning));
-      for (int multBin{0}; multBin < BinningUtils::NBins(multBinning); ++multBin) {
-        h1PhiAssocNoPtPhi[pIdx][multBin].resize(BinningUtils::NBins(assocParticles[pIdx].binning));
-      }
+      for (auto& perMult : h1PhiAssocNoPtPhi[pIdx])
+        perMult.resize(BinningUtils::NBins(assocParticles[pIdx].binning));
     }
 
     // 2. Initialize matrix for Mult Trends: [ParticleIndex][DeltaYIndex]
@@ -1376,10 +1375,10 @@ class CorrelationTaskBase : public IAnalysisTask
 
     const std::vector<std::string> logicalPath = SectionPath();
 
-    for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
+    for (int multBin : BinningUtils::BinIndices(multBinning)) {
       HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {multBin + 1, multBin + 1}};
 
-      for (int ptPhiBin = 0; ptPhiBin < BinningUtils::NBins(ptPhiBinning); ptPhiBin++) {
+      for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
         HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {ptPhiBin + 1, ptPhiBin + 1}};
 
         double triggerBkgRatio = GetTriggerBkgRatio(multBin, ptPhiBin);
@@ -1391,7 +1390,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
           TDirectory* targetDir = ProjectionCacheDir(pIdx, logicalPath);
 
-          for (int ptAssocBin = 0; ptAssocBin < BinningUtils::NBins(config.binning); ptAssocBin++) {
+          for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
             HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {ptAssocBin + 1, ptAssocBin + 1}};
             std::vector<HistogramUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
@@ -1439,7 +1438,7 @@ class CorrelationTaskBase : public IAnalysisTask
   std::pair<double, double> CountTriggers(int multBin)
   {
     double count = 0.0, variance = 0.0;
-    for (int ptPhiBin = 0; ptPhiBin < BinningUtils::NBins(ptPhiBinning); ptPhiBin++) {
+    for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
       const auto [signal, error] = GetTriggerSignal(multBin, ptPhiBin);
       const double phiCorrection = Correction("Phi", multBin, ptPhiBin);
       count += signal / phiCorrection;

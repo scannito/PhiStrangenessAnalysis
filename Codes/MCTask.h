@@ -442,7 +442,7 @@ class MCTask : public IAnalysisTask
         writeInto(lossSourcePath, maps.signalLossSourceBinning.get());
       };
 
-      for (int multBin{0}; multBin < BinningUtils::NBins(multBinning); multBin++) {
+      for (int multBin : BinningUtils::BinIndices(multBinning)) {
         // 'rebinning_pt' is applied inside the calculator, on the counts, before
         // they are divided: rebinning the ratio afterwards would sum efficiencies.
         EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, multBinning, multBin, globalCfgs.GetSpectraColor(multBin));

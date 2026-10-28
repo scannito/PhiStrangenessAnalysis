@@ -246,7 +246,7 @@ class CorrelationTask : public CorrelationTaskBase
       }
 
 
-      for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
+      for (int multBin : BinningUtils::BinIndices(multBinning)) {
         std::string hName = folderPath + OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, multBin));
         std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(filePurity.get(), hName, GetName());
 
@@ -284,14 +284,14 @@ class CorrelationTask : public CorrelationTaskBase
     if (useSignalCache) {
       Logger::Info("{}: Super Cache (Signal L2) is ON. Skipping Calculator.", GetName());
 
-      for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
+      for (int multBin : BinningUtils::BinIndices(multBinning)) {
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
           TDirectory* sourceDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, true);
           if (!sourceDir)
             throw std::runtime_error(std::format("[FATAL] Cache L2 missing: Directory {} not found!", RootIO::MakeDirPath(logicalPath)));
 
-          for (int ptAssocBin = 0; ptAssocBin < BinningUtils::NBins(config.binning); ptAssocBin++) {
+          for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
             std::string cacheName = std::format("h1Phi{}Final{}", config.name, CellSuffix(config, multBin, ptAssocBin));
             // dynamic_cast, as in RootIO::GetUniqueOrThrow: an object of another class under this
             // name must fail here, with the message below, and not on first use.
@@ -312,10 +312,10 @@ class CorrelationTask : public CorrelationTaskBase
     // =========================================================================
     CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .moreQA = doMoreQA, .meNorm = meNormalization, .targetAxis = projectionAxis});
 
-    for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
+    for (int multBin : BinningUtils::BinIndices(multBinning)) {
       HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {multBin + 1, multBin + 1}};
 
-      for (int ptPhiBin = 0; ptPhiBin < BinningUtils::NBins(ptPhiBinning); ptPhiBin++) {
+      for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
         HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {ptPhiBin + 1, ptPhiBin + 1}};
 
         double triggerBkgRatio = h2TriggerBkgRatio->GetBinContent(multBin + 1, ptPhiBin + 1);
@@ -332,7 +332,7 @@ class CorrelationTask : public CorrelationTaskBase
             currentQADir = RootIO::GetOrCreatePath(filesPhiAssocQAOutput[pIdx].get(), logicalPath, false);
           }
 
-          for (int ptAssocBin = 0; ptAssocBin < BinningUtils::NBins(config.binning); ptAssocBin++) {
+          for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
             HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {ptAssocBin + 1, ptAssocBin + 1}};
             std::vector<HistogramUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
@@ -366,7 +366,7 @@ class CorrelationTask : public CorrelationTaskBase
         TDirectory* targetDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, false);
         if (targetDir)
           targetDir->cd();
-        for (int ptAssocBin = 0; ptAssocBin < BinningUtils::NBins(assocParticles[pIdx].binning); ptAssocBin++) {
+        for (int ptAssocBin : BinningUtils::BinIndices(assocParticles[pIdx].binning)) {
           if (h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]) {
             std::string saveName = std::format("h1Phi{}Final{}", assocParticles[pIdx].name, CellSuffix(assocParticles[pIdx], multBin, ptAssocBin));
             h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetName(saveName.c_str());

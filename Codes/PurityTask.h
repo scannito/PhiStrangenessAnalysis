@@ -153,7 +153,7 @@ class PurityTask : public IAnalysisTask
 
     const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
 
-    for (int multBin{0}; multBin < BinningUtils::NBins(multBinning); multBin++) {
+    for (int multBin : BinningUtils::BinIndices(multBinning)) {
       for (auto& task : particleTasks) {
         // Every particle's fits in a directory of its own: they share the file.
         std::vector<std::string> fitPath = {globalCfgs.binningName, "Fits", task.purityKey};
@@ -295,7 +295,7 @@ class PurityTask : public IAnalysisTask
                                                                    BinningUtils::NBins(binning), binning.data());
     h1PuritySpectrum->SetDirectory(0);
 
-    for (int ptBin{0}; ptBin < BinningUtils::NBins(binning); ptBin++) {
+    for (int ptBin : BinningUtils::BinIndices(binning)) {
       const std::string cell = OutputNames::CellTag(multBinning, multBin, binning, ptBin);
       std::string histName = std::format("h1{}_{}{}", task.purityKey, cell, nameSuffix);
 
@@ -342,9 +342,9 @@ class PurityTask : public IAnalysisTask
                                   std::format("spectrum given to the '{}' CCDB map", task.purityKey),
                                   "that map's pT axis (the source binning)");
 
-    for (int ptBin{0}; ptBin < h1Purity->GetNbinsX(); ptBin++) {
-      task.h2PurityCCDB->SetBinContent(multBin + 1, ptBin + 1, h1Purity->GetBinContent(ptBin + 1));
-      task.h2PurityCCDB->SetBinError(multBin + 1, ptBin + 1, h1Purity->GetBinError(ptBin + 1));
+    for (int bin = 1; bin <= h1Purity->GetNbinsX(); ++bin) {
+      task.h2PurityCCDB->SetBinContent(multBin + 1, bin, h1Purity->GetBinContent(bin));
+      task.h2PurityCCDB->SetBinError(multBin + 1, bin, h1Purity->GetBinError(bin));
     }
   }
 };

@@ -27,7 +27,7 @@ class ExtrapConfigManager : public BaseConfigManager
   void DeclareCells(const std::string& particle, std::span<const double> multBinning)
   {
     std::set<std::string>& classes = declaredCells[particle];
-    for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++)
+    for (int multBin : BinningUtils::BinIndices(multBinning))
       classes.insert(OutputNames::MultTag(multBinning, multBin));
     if (const rapidjson::Value* bins = JsonConfig::TryObject(Section(particle), "bins", managerName))
       JsonConfig::RequireKnownKeys(*bins, classes, std::format("{}: section '{}'.bins (the keys are the multiplicity classes)", managerName, particle));

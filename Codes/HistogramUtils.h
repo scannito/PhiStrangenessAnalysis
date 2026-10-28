@@ -119,18 +119,16 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
                                               const std::string& histName,
                                               double absLimToIntegrate)
 {
-  // Checked before the subtraction below: size() is unsigned, so on an empty
-  // span size() - 1 would wrap around instead of failing the comparison.
   if (binning.size() < 2) {
     throw std::runtime_error("[FATAL] ConstructSpectrum: the binning needs at least two edges");
   }
-  if (binning.size() - 1 != hContainer.size()) {
+  if (static_cast<size_t>(BinningUtils::NBins(binning)) != hContainer.size()) {
     throw std::runtime_error("[FATAL] ConstructSpectrum: the number of histograms must be the number of bins, edges - 1");
   }
 
-  std::unique_ptr<TH1> hSpectrum = std::make_unique<TH1D>(histName.c_str(), "; p_{T} (GeV/#it{c}); 1/N_{trig} d^{2}N/dp_{T}d#Deltay", binning.size() - 1, binning.data());
+  std::unique_ptr<TH1> hSpectrum = std::make_unique<TH1D>(histName.c_str(), "; p_{T} (GeV/#it{c}); 1/N_{trig} d^{2}N/dp_{T}d#Deltay", BinningUtils::NBins(binning), binning.data());
 
-  for (size_t ptBin{0}; ptBin < hContainer.size(); ptBin++) {
+  for (int ptBin : BinningUtils::BinIndices(binning)) {
     auto [binContent, binError] = IntegralAndErrorPair(hContainer[ptBin], -absLimToIntegrate, absLimToIntegrate);
     double normalizationFactor = (binning[ptBin + 1] - binning[ptBin]);
 
