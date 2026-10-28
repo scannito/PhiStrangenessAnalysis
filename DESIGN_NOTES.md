@@ -1317,9 +1317,58 @@ rebase on upstream, a full build, a run on data, the PR description (phase 0).
      independent MC counts, so the bins add in quadrature), the MC-statistics error of the associated maps is 0.001%
      of the π trends (statistical 0.04-0.08%), 0.01% of the K0S (0.4-0.7%), 0.11-0.13% of the Ξ (2.5-8.9%) and
      1.1-1.3% of the Ω (9.6-18.6%): negligible, the Ω included once added in quadrature. The φ map, 0.13-0.78% per
-     bin, mostly cancels between pairs and triggers. Being integrated in multiplicity, one map bin moves every class
-     together. This is the MC statistics only; the efficiency uncertainty that matters (material, tracking,
-     selections) is a systematic. Macro: `~/alice/claude-sandbox/plots/effmaperr.C`.
+     bin, cancels in part between pairs and triggers (next point). Being integrated in multiplicity, one map bin
+     moves every class together. This is the MC statistics only; the efficiency uncertainty that matters
+     (material, tracking, selections) is a systematic. Macro: `~/alice/claude-sandbox/plots/effmaperr.C`.
+   - **The φ map: what cancels and what does not.** Offline, the triggers and the pairs of a trigger-pT bin j are
+     divided by the same ε_j (one reader, `CorrelationTaskBase::Efficiency`, serves `CountTriggers` and
+     `totalEff`). In one multiplicity class, leaving the associated efficiency aside, the per-trigger yield is
+
+         Y = Σ_j N_j / Σ_j M_j,   N_j = P_j/ε_j (pairs),   M_j = T_j/ε_j (triggers)
+
+     With a single trigger-pT bin Y = P/T: ε cancels exactly, and its error with it. With several,
+
+         ∂ln Y / ∂ln ε_j = f_j − g_j = f_j · (1 − y_j/ȳ)
+
+     where f_j = M_j/ΣM is the share of the corrected triggers in bin j, g_j = N_j/ΣN the share of the corrected
+     pairs, y_j = P_j/T_j the per-trigger yield of bin j and ȳ its average. The map bins are independent MC
+     counts, so
+
+         σ_Y/Y = √( Σ_j [ (f_j − g_j) · σ_εj/ε_j ]² )
+
+     It vanishes when the per-trigger yield does not depend on the trigger pT, and grows with that dependence
+     (harder triggers bringing more associated particles is the expected case). Counted on the triggers alone
+     it would be √( Σ_j [ f_j · σ_εj/ε_j ]² ), which is what the `test` branch of 1 August did: it adds to the
+     normalisation what the pairs take away. It is not an upper bound of the true residual in general: that needs
+     |f_j − g_j| ≤ f_j, i.e. g_j ≤ 2 f_j, in every bin, and a high-pT trigger bin with 5% of the triggers and 20%
+     of the pairs breaks it. The bound that always holds is |f_j − g_j| ≤ max(f_j, g_j).
+     Three conditions under which this holds: the correction is applied offline (online, the pairs are weighted
+     per candidate and the triggers by another route, so nothing guarantees the same number on both sides);
+     the φ map is the one read by `Efficiency` for both; the bins of the map are statistically independent.
+     With the map integrated in multiplicity, ε_j is the same in every class, so the residual is correlated
+     across classes (with a different weight f_j − g_j in each).
+     Nothing in the code accounts for it: `CountTriggers` leaves the φ efficiency out on purpose, the pairs drop
+     it with `Scale(1.0 / totalEff)`.
+     *Measured on 28 October 2026* (`correlation_task_offline_efficiency_2026_highIR_updated`, 1D engine, the φ map
+     integrated in multiplicity, 7 trigger-pT bins; N_j summed in the task over the associated pT bins of the
+     |Δy| window, T_j, ε_j and σ_εj as the task reads them). The φ map is 0.13-0.78% per bin (0.13% at low trigger
+     pT, 0.78% in 6-10 GeV/c). f_j − g_j is small and has one sign pattern: positive in the lowest trigger-pT bins,
+     negative above, i.e. the per-trigger yield grows with the trigger pT, more so in the low-multiplicity classes
+     (|f_j − g_j| ≤ 0.04 for π, K0S and Ξ, up to 0.2 for the Ω, where it is mostly the Ω's statistical scatter).
+     Residual on the measured trends, against their statistical error:
+
+         π    0.001-0.009%   (stat 0.04-0.13%;  largest at 70-100%, an eighth to a sixth of the statistical error there)
+         K0S  0.001-0.010%   (stat 0.3-1.0%)
+         Ξ    0.004-0.027%   (stat 1.5-8.9%)
+         Ω    0.004-0.06%    (stat 7-32%)
+
+     Counted on the triggers alone it would be 0.08% in every class and for every species: 10 to 100 times the
+     residual, and larger than the π statistical error. Added in quadrature, the residual moves the π error by
+     less than 1.5% of itself, and the others by nothing visible: negligible, as the associated maps. It is also
+     not a per-class number: g_j depends on the species and on the |Δy| window, so it could not go into
+     `h1NormalisationRelError` without becoming one histogram per species and window. Not propagated, for these
+     reasons; to be measured again if the trigger-pT binning, the φ map or the efficiency mode changes.
+     Instrumented copy of `RunLegacy` and the script: `~/alice/claude-sandbox/phieff/` (not in the repository).
 4. **The mass windows.** The defaults in the O2Physics task, the train configuration and `integration_range`
    in `fitConfig.json` agree only because they were set by hand (section 12).
 5. **Candidates with zero efficiency.** The online task gives weight 1 to a pair whose efficiency product is
