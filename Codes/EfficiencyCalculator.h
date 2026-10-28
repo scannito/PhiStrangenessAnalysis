@@ -43,7 +43,7 @@ class EfficiencyCalculator
       return nullptr;
     }
 
-    std::unique_ptr<TH1> hEventLoss(static_cast<TH1*>(hEventMultGenAssocReco->Clone("hEventLoss")));
+    std::unique_ptr<TH1> hEventLoss(static_cast<TH1*>(hEventMultGenAssocReco->Clone(OutputNames::kEventLoss.c_str())));
     hEventLoss->SetTitle("Event Selection Efficiency;Multiplicity Percentile (%);Efficiency");
     hEventLoss->SetDirectory(0);
 

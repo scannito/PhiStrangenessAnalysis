@@ -88,18 +88,18 @@ class PhiFitTask : public IAnalysisTask
     // interval would exist only in the shared configuration, unverifiable.
     const std::string axesTitles = ";Multiplicity percentile (%);p_{T} (GeV/#it{c})";
 
-    auto makeTriggerMatrix = [&](const char* name, const std::string& title) {
-      auto h = std::make_unique<TH2D>(name, (title + axesTitles).c_str(),
+    auto makeTriggerMatrix = [&](const std::string& name, const std::string& title) {
+      auto h = std::make_unique<TH2D>(name.c_str(), (title + axesTitles).c_str(),
                                       BinningUtils::NBins(multBinning), multBinning.data(),
                                       BinningUtils::NBins(ptPhiBinning), ptPhiBinning.data());
       h->SetDirectory(0);
       return h;
     };
 
-    h2TriggerSignal = makeTriggerMatrix("h2TriggerSignal", "Raw Signal Yield");
+    h2TriggerSignal = makeTriggerMatrix(OutputNames::kTriggerSignal, "Raw Signal Yield");
     h2TriggerBkgSigRegion = makeTriggerMatrix("h2TriggerBkgSigRegion", "Bkg in Signal Region");
     h2TriggerBkgSideRegion = makeTriggerMatrix("h2TriggerBkgSideRegion", "Bkg in Sideband Region");
-    h2TriggerBkgRatio = makeTriggerMatrix("h2TriggerBkgRatio", "Bkg(SigRegion)/Bkg(Sideband)");
+    h2TriggerBkgRatio = makeTriggerMatrix(OutputNames::kTriggerBkgRatio, "Bkg(SigRegion)/Bkg(Sideband)");
   }
 
   void Run() override
@@ -159,11 +159,12 @@ class PhiFitTask : public IAnalysisTask
   {
     Logger::Info("{}: TERMINATING...", GetName());
 
-    TDirectory* summaryDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Summary"}, false);
+    const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
+    TDirectory* summaryDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), summaryPath, false);
     if (!summaryDir) {
-      throw std::runtime_error(std::format("[FATAL] {}: Cannot create the '{}/Summary' directory in the output "
+      throw std::runtime_error(std::format("[FATAL] {}: Cannot create the '{}' directory in the output "
                                            "file. Trigger yields would be lost!",
-                                           GetName(), globalCfgs.binningName));
+                                           GetName(), RootIO::MakeDirPath(summaryPath)));
     }
     summaryDir->cd();
 

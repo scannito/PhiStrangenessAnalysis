@@ -77,6 +77,10 @@ class PurityTask : public IAnalysisTask
     auto particles = JsonConfig::RequireArray(taskConfig, "purity_particles", GetName());
 
     int pIdx = 0;
+    const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
+    std::vector<std::string> summarySourcePath = summaryPath;
+    summarySourcePath.push_back("SourceBinning");
+
     for (const auto& particle : particles) {
       const std::string ctx = std::format("{} purity_particles[{}]", GetName(), pIdx++);
       JsonConfig::RequireKnownKeys(particle, {"name", "purity_key", "hist_name", "rebinning_pt"}, ctx);
@@ -121,11 +125,11 @@ class PurityTask : public IAnalysisTask
 
       // Each summary canvas declares its Y range here; the manager applies it when it writes.
       canvasManager.SetAutoYRange(canvasManager.CreateCanvas("canvas" + purityKey + "Purity", purityKey + " Purity",
-                                                             {globalCfgs.binningName, "Summary"}, 800, 600));
+                                                             summaryPath, 800, 600));
       if (particleTasks.back().rebinningPt) {
         canvasManager.SetAutoYRange(canvasManager.CreateCanvas("canvas" + purityKey + "Purity_sourceBinning",
                                                                purityKey + " Purity (source binning)",
-                                                               {globalCfgs.binningName, "Summary", "SourceBinning"}, 800, 600));
+                                                               summarySourcePath, 800, 600));
       }
     }
 
@@ -147,7 +151,7 @@ class PurityTask : public IAnalysisTask
   {
     Logger::Info("{}: RUNNING FITS...", GetName());
 
-    std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
+    const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
 
     for (int i{0}; i < BinningUtils::NBins(multBinning); i++) {
       for (auto& task : particleTasks) {

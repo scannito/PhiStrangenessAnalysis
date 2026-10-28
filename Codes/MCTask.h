@@ -252,6 +252,17 @@ class MCTask : public IAnalysisTask
   {
     Logger::Info("{}: RUNNING EFFICIENCY COMPUTATIONS...", GetName());
 
+    // Writes one object at its path, creating the directories; nothing, when there is no object or the path
+    // cannot be made (GetOrCreatePath says why), rather than into whatever directory is current.
+    auto writeInto = [&](const std::vector<std::string>& path, TH1* h) {
+      if (!h)
+        return;
+      if (TDirectory* dir = RootIO::GetOrCreatePath(fileMCOutput.get(), path, false)) {
+        dir->cd();
+        h->Write(nullptr, TObject::kOverwrite);
+      }
+    };
+
     std::unique_ptr<TH1> hEventLoss;
 
     if (hEventMultGenAssocReco && hEventMultGen) {
@@ -260,13 +271,16 @@ class MCTask : public IAnalysisTask
       // Delegate the math to the static calculator
       hEventLoss = EfficiencyCalculator::ComputeEventEfficiency(hEventMultGenAssocReco.get(), hEventMultGen.get());
 
-      if (hEventLoss) {
-        TDirectory* evLossDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName, "EvLoss"}, false);
-        if (evLossDir)
-          evLossDir->cd();
-        hEventLoss->Write(nullptr, TObject::kOverwrite);
-      }
+      writeInto(OutputNames::EventLossPath(globalCfgs.binningName), hEventLoss.get());
     }
+
+    // The source-binning maps in a subdirectory of their own (see writeMaps), as copies: each name is one directory.
+    const std::vector<std::string> effPath = OutputNames::EfficiencyPath(globalCfgs.binningName);
+    const std::vector<std::string> lossPath = OutputNames::SignalLossPath(globalCfgs.binningName);
+    std::vector<std::string> effSourcePath = effPath;
+    effSourcePath.push_back("SourceBinning");
+    std::vector<std::string> lossSourcePath = lossPath;
+    lossSourcePath.push_back("SourceBinning");
 
     for (auto& data : dataCollection) {
       Logger::Info(" ---> Processing particle: {}", data.name);
@@ -421,20 +435,11 @@ class MCTask : public IAnalysisTask
       // second condition to keep in agreement. The name suffix stays anyway, since
       // once an object leaves the file its directory is no longer part of its
       // identity.
-      auto writeInto = [&](const std::vector<std::string>& path, TH1* h) {
-        if (!h)
-          return;
-        if (TDirectory* dir = RootIO::GetOrCreatePath(fileMCOutput.get(), path, false)) {
-          dir->cd();
-          h->Write(nullptr, TObject::kOverwrite);
-        }
-      };
-
       auto writeMaps = [&](const EfficiencyCalculator::Maps1D& maps) {
-        writeInto({globalCfgs.binningName, "AccEff", "MultBin"}, maps.efficiency.get());
-        writeInto({globalCfgs.binningName, "SigLoss", "MultBin"}, maps.signalLoss.get());
-        writeInto({globalCfgs.binningName, "AccEff", "MultBin", "SourceBinning"}, maps.efficiencySourceBinning.get());
-        writeInto({globalCfgs.binningName, "SigLoss", "MultBin", "SourceBinning"}, maps.signalLossSourceBinning.get());
+        writeInto(effPath, maps.efficiency.get());
+        writeInto(lossPath, maps.signalLoss.get());
+        writeInto(effSourcePath, maps.efficiencySourceBinning.get());
+        writeInto(lossSourcePath, maps.signalLossSourceBinning.get());
       };
 
       for (int i{0}; i < BinningUtils::NBins(multBinning); i++) {

@@ -7,6 +7,27 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## The names between the producers and CorrelationTask in OutputNames
+
+**28 October 2026.** The move of 20 October (*The PhiAssocSpectra names in one place*) left out what crosses the
+other boundaries: the directories of the correction maps (`AccEff/MultBin`, `SigLoss/MultBin`, `EvLoss`) and
+`hEventLoss` in `Corrections.root`, the `Summary` directory of `PhiDataHistograms.root` and `Purity.root`, and the two
+trigger matrices `CorrelationTask` reads (`h2TriggerSignal`, `h2TriggerBkgRatio`). Each was spelled by the writer and
+again by the reader, the trigger matrix a third time in an error message. They are in `OutputNames`, the directories
+as functions of the `binning_name` that return the whole path (`EfficiencyPath`, `SignalLossPath`, `EventLossPath`,
+`SummaryPath`): the layout, not only the leaf name, is written once. What stays inside one task stays there: the
+`Summary` canvas directories of `MCTask`, `Fits`, `SourceBinning`, the two trigger matrices nobody else reads.
+
+One change of behaviour: `MCTask` wrote `hEventLoss` into whatever directory was current when `{binning_name}/EvLoss`
+could not be created. It now goes through the `writeInto` of the maps, which writes nothing and leaves the error to
+`GetOrCreatePath`, so a consumer with `event_loss` stops at the missing object instead of reading nothing.
+
+Checked: mc, purity and data (the `2026_highIR_updated` blocks) before and after; `Corrections.root`, `Purity.root`,
+`PhiDataHistograms.root` and `PhiAssocSpectra.root` identical object by object (`CompareRootFiles`) and key by key,
+canvases included.
+
+---
+
 ## A correction that cannot be computed stops the run
 
 **27 October 2026.** Offline, a correction map with a bin at or below zero (or not a number) was applied as it was:

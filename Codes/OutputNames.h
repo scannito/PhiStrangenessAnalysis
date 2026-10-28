@@ -9,12 +9,14 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <vector>
 
 // The names and the layout of what the correlation tasks write into PhiAssocSpectra.root, the
 // names of the files one task writes and another reads (the trigger matrices, the purities), and
-// of the objects in them that another task looks up (the corrections, the purity spectra), with the cell tags they are
-// built from and the title form of a cell (CellTitle). The
-// directories are written by CorrelationTaskBase and read by ComparisonTask; the object names
+// of the directories and objects in them that another task looks up (the corrections, the trigger
+// matrices, the purity spectra), with the cell tags they are built from and the title form of a
+// cell (CellTitle). The directories of PhiAssocSpectra.root are written by CorrelationTaskBase and
+// read by ComparisonTask; the object names
 // are built here and not where each object is written, so that a reader that looks an object up
 // by what it is builds the same string, and a rename is one change. The names shared by every
 // file the framework writes - the binning stamps and the provenance directory - are RootIO's,
@@ -43,6 +45,8 @@ inline const std::string kNormalisationRelError{"h1NormalisationRelError"};
 // the purities, until 21 October 2026).
 inline const std::string kPhiDataFile{"PhiDataHistograms.root"}; // PhiFitTask -> CorrelationTask
 inline const std::string kPurityFile{"Purity.root"};             // PurityTask -> CorrelationTask, every particle
+// The directory of each, below the binning_name, that holds what the other task reads.
+inline std::vector<std::string> SummaryPath(const std::string& binningName) { return {binningName, "Summary"}; }
 
 
 // A species directory of a section is one that holds per-species results, which is what
@@ -100,6 +104,14 @@ inline std::string CellTitle(std::string_view particle, std::span<const double> 
 // MCTask -> CorrelationTask: the maps of one class (MultTag) or integrated (kMultIntegrated).
 inline std::string Efficiency(std::string_view particle, std::string_view multTag) { return std::format("h1{}Efficiency_{}", particle, multTag); }
 inline std::string SignalLoss(std::string_view particle, std::string_view multTag) { return std::format("h1{}SigLoss_{}", particle, multTag); }
+inline const std::string kEventLoss{"hEventLoss"};
+// Where they are in the corrections file.
+inline std::vector<std::string> EfficiencyPath(const std::string& binningName) { return {binningName, "AccEff", "MultBin"}; }
+inline std::vector<std::string> SignalLossPath(const std::string& binningName) { return {binningName, "SigLoss", "MultBin"}; }
+inline std::vector<std::string> EventLossPath(const std::string& binningName) { return {binningName, "EvLoss"}; }
+// PhiFitTask -> CorrelationTask: the trigger matrices that CorrelationTask reads, of the four PhiFitTask writes.
+inline const std::string kTriggerSignal{"h2TriggerSignal"};
+inline const std::string kTriggerBkgRatio{"h2TriggerBkgRatio"};
 // PurityTask -> CorrelationTask, by purity_key.
 inline std::string Purity(std::string_view purityKey, std::string_view multTag) { return std::format("h1{}Purity_{}", purityKey, multTag); }
 

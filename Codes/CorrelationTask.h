@@ -58,18 +58,17 @@ class CorrelationTask : public CorrelationTaskBase
     RootIO::PrintProvenance(filePhiDataInput.get(), globalCfgs.binningName,
                             std::format("trigger file '{}'", phiDataName));
 
-    std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
-    std::string folderPath = RootIO::MakeDirPath(summaryPath);
+    const std::string folderPath = RootIO::MakeDirPath(OutputNames::SummaryPath(globalCfgs.binningName));
 
-    h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerSignal", GetName());
-    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + "h2TriggerBkgRatio", GetName());
+    h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + OutputNames::kTriggerSignal, GetName());
+    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + OutputNames::kTriggerBkgRatio, GetName());
 
     // The same exposure the WPDG task has, by a different route: this matrix is written
     // cell by cell by PhiFitTask, so a run where every fit failed leaves it present,
     // correctly binned and entirely zero. From there the normalisation is skipped and
     // the spectra come out as raw counts, which is exactly the failure that went
     // unnoticed in the closure - the object is not missing, it is empty.
-    RequireNonEmptyTrigger(h2TriggerSignal.get(), std::format("'{}h2TriggerSignal'", folderPath), phiDataName,
+    RequireNonEmptyTrigger(h2TriggerSignal.get(), std::format("'{}{}'", folderPath, OutputNames::kTriggerSignal), phiDataName,
                            "It is written by phi_fit_task: check its log for fits that did not "
                            "converge, and that it ran on the production this task is reading.");
 
@@ -214,8 +213,7 @@ class CorrelationTask : public CorrelationTaskBase
     std::string purityDir = JsonConfig::RequireString(taskConfig, "input_dir_purity", GetName());
     auto puritySources = JsonConfig::RequireArray(taskConfig, "purity_sources", GetName());
 
-    std::vector<std::string> summaryPath = {globalCfgs.binningName, "Summary"};
-    std::string folderPath = RootIO::MakeDirPath(summaryPath);
+    const std::string folderPath = RootIO::MakeDirPath(OutputNames::SummaryPath(globalCfgs.binningName));
 
     purityCollection.clear();
 

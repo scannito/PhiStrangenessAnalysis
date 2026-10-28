@@ -658,17 +658,16 @@ class CorrelationTaskBase : public IAnalysisTask
       RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName}, true),
       RootIO::kStampMult, multBinning, std::format("efficiency map '{}'", inputEffFile));
 
-    // LAMBDA HELPER 1: one map of the corrections file, in the directory MCTask writes it to ('dir' below the
-    // binning_name: AccEff/MultBin, SigLoss/MultBin, EvLoss). It returns the map with the analysis binning and every
-    // bin positive, or throws; what reads it divides without a guard. 'axis' names the map's axis in the messages.
-    auto fetchHist = [&](std::string_view dir, const std::string& name, bool apply, const std::vector<double>& targetBinning,
+    // LAMBDA HELPER 1: one map of the corrections file, 'name' in the directory 'path' (OutputNames, where MCTask
+    // writes it). It returns the map with the analysis binning and every bin positive, or throws; what reads it
+    // divides without a guard. 'axis' names the map's axis in the messages.
+    auto fetchHist = [&](const std::vector<std::string>& path, const std::string& name, bool apply, const std::vector<double>& targetBinning,
                          std::string_view axis) -> std::unique_ptr<TH1> {
       if (!apply)
         return nullptr;
 
       // By path from the file: a missing directory and a missing map are one message, naming the file and the path.
-      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(
-        fileEffInput.get(), std::format("{}/{}/{}", globalCfgs.binningName, dir, name), GetName());
+      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(fileEffInput.get(), RootIO::MakeDirPath(path) + name, GetName());
 
       // Verified, NOT rebinned. An efficiency is a ratio, and merging bins of a
       // ratio sums them: two bins of 0.5 would give 1.0. A coarser efficiency can
@@ -699,7 +698,7 @@ class CorrelationTaskBase : public IAnalysisTask
       return h;
     };
 
-    hEventLoss = fetchHist("EvLoss", "hEventLoss", cfg.eventLoss, multBinning, "multiplicity");
+    hEventLoss = fetchHist(OutputNames::EventLossPath(globalCfgs.binningName), OutputNames::kEventLoss, cfg.eventLoss, multBinning, "multiplicity");
 
     // LAMBDA HELPER 2: Clone and multiply (if both are needed) safely
     auto combineHists = [](const TH1* hEff, const TH1* hLoss, const std::string& name) -> std::unique_ptr<TH1> {
@@ -736,12 +735,12 @@ class CorrelationTaskBase : public IAnalysisTask
       // The signal loss is always per multiplicity class, whatever the efficiency uses.
       const bool sigLoss = pc.sigLoss.has_value();
 
-      std::unique_ptr<TH1> hEffInt = fetchHist("AccEff/MultBin", OutputNames::Efficiency(name, OutputNames::kMultIntegrated), effIntegrated, targetBinning, "pT");
+      std::unique_ptr<TH1> hEffInt = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(name, OutputNames::kMultIntegrated), effIntegrated, targetBinning, "pT");
 
       for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
         const std::string multTag = OutputNames::MultTag(multBinning, i);
-        std::unique_ptr<TH1> hEffBin = fetchHist("AccEff/MultBin", OutputNames::Efficiency(name, multTag), effBinned, targetBinning, "pT");
-        std::unique_ptr<TH1> hLossBin = fetchHist("SigLoss/MultBin", OutputNames::SignalLoss(name, multTag), sigLoss, targetBinning, "pT");
+        std::unique_ptr<TH1> hEffBin = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(name, multTag), effBinned, targetBinning, "pT");
+        std::unique_ptr<TH1> hLossBin = fetchHist(OutputNames::SignalLossPath(globalCfgs.binningName), OutputNames::SignalLoss(name, multTag), sigLoss, targetBinning, "pT");
 
         corr.h1Corrections[i] = combineHists(effIntegrated ? hEffInt.get() : hEffBin.get(), hLossBin.get(),
                                              std::format("h1Corrected_{}_{}", name, multTag));
