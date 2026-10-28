@@ -313,7 +313,7 @@ class CorrelationCalculator
         NormalizeME2D(h2MESideband.get(), "tempMEProjY_Sb");
     }
 
-    // 3. Efficiency Correction
+    // 3. Correction: divided by efficiency x signal loss
     h2Signal->Scale(1.0 / totalCorrection);
     // Sideband Scaling
     if (h2Sideband)
@@ -440,7 +440,7 @@ class CorrelationCalculator
     // 1. Load from cache or project THnSparse on the fly
     Inputs<TH1> in = LoadOrProject<TH1>(data, req);
 
-    // 2. Efficiency Correction
+    // 2. Correction: divided by efficiency x signal loss
     in.sig->Scale(1.0 / req.totalCorrection);
 
     // 3. Mixed Event Correction

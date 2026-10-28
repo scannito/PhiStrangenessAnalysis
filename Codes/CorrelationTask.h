@@ -228,20 +228,20 @@ class CorrelationTask : public CorrelationTaskBase
     int srcIdx = 0;
     for (const auto& src : puritySources) {
       const std::string ctx = std::format("{} purity_sources[{}]", GetName(), srcIdx++);
-      std::string name = JsonConfig::RequireString(src, "name", ctx);
+      std::string particle = JsonConfig::RequireString(src, "name", ctx);
       std::string purityKey = JsonConfig::RequireString(src, "purity_key", ctx);
 
       LoadedPurity purity;
-      purity.name = name;
+      purity.name = particle;
       purity.h1Purity.resize(BinningUtils::NBins(multBinning));
 
       std::vector<double> targetBinning;
-      if (name == "Phi") {
+      if (particle == "Phi") {
         targetBinning = ptPhiBinning;
       } else {
-        auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == name; });
+        auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == particle; });
         if (it == assocParticles.end())
-          throw std::runtime_error(std::format("[FATAL] {}: Unknown particle name in 'purity_sources': {}", GetName(), name));
+          throw std::runtime_error(std::format("[FATAL] {}: Unknown particle name in 'purity_sources': {}", GetName(), particle));
         targetBinning = it->binning;
       }
 
@@ -266,7 +266,7 @@ class CorrelationTask : public CorrelationTaskBase
         purity.h1Purity[multBin] = std::move(h1Pur);
       }
 
-      purityCollection[name] = std::move(purity);
+      purityCollection[particle] = std::move(purity);
     }
     Logger::Info("{}: Purities loaded successfully.", GetName());
   }

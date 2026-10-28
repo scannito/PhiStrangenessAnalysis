@@ -124,11 +124,11 @@ inline std::string SpectrumExtended(std::string_view spectrumName) { return std:
 inline std::string Trend(std::string_view particle, double dy) { return std::format("h1MultTrend_{}_dy{}", particle, DyTag(dy)); }
 inline std::string TrendExtrapolated(std::string_view particle, double dy) { return std::format("h1MultTrendExtrap_{}_dy{}", particle, DyTag(dy)); }
 inline std::string TrendExtrapOverMeas(std::string_view particle, double dy) { return std::format("Ratio_Extrap_Meas_{}_dy{}", particle, DyTag(dy)); }
-inline std::string SpeciesRatioMeasured(std::string_view num, std::string_view den, double dy)
+inline std::string ParticleRatioMeasured(std::string_view num, std::string_view den, double dy)
 {
   return std::format("Ratio_{}_{}_Meas_dy{}", num, den, DyTag(dy));
 }
-inline std::string SpeciesRatioExtrapolated(std::string_view num, std::string_view den, double dy)
+inline std::string ParticleRatioExtrapolated(std::string_view num, std::string_view den, double dy)
 {
   return std::format("Ratio_{}_{}_Extrap_dy{}", num, den, DyTag(dy));
 }

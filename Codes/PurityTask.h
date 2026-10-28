@@ -81,12 +81,12 @@ class PurityTask : public IAnalysisTask
     std::vector<std::string> summarySourcePath = summaryPath;
     summarySourcePath.push_back("SourceBinning");
 
-    for (const auto& particle : particles) {
+    for (const auto& entry : particles) {
       const std::string ctx = std::format("{} purity_particles[{}]", GetName(), pIdx++);
-      JsonConfig::RequireKnownKeys(particle, {"name", "purity_key", "hist_name", "rebinning_pt"}, ctx);
-      std::string name = JsonConfig::RequireString(particle, "name", ctx);
-      std::string purityKey = JsonConfig::RequireString(particle, "purity_key", ctx);
-      std::string histName = JsonConfig::RequireString(particle, "hist_name", ctx);
+      JsonConfig::RequireKnownKeys(entry, {"name", "purity_key", "hist_name", "rebinning_pt"}, ctx);
+      std::string particle = JsonConfig::RequireString(entry, "name", ctx);
+      std::string purityKey = JsonConfig::RequireString(entry, "purity_key", ctx);
+      std::string histName = JsonConfig::RequireString(entry, "hist_name", ctx);
 
       std::unique_ptr<TH3F> h3Source = RootIO::GetUniqueOrThrow<TH3F>(fileInput.get(), histName, GetName());
 
@@ -95,16 +95,16 @@ class PurityTask : public IAnalysisTask
       // very edges. h3 axes: (mult, pT, invariant mass).
       const std::string origin = std::format("{} in '{}'", histName, inputFile);
       multBinning = globalCfgs.ResolveMultBinning(h3Source->GetXaxis(), origin);
-      std::vector<double> sourceBinning = globalCfgs.ResolvePtBinning(name, h3Source->GetYaxis(), origin);
+      std::vector<double> sourceBinning = globalCfgs.ResolvePtBinning(particle, h3Source->GetYaxis(), origin);
 
       // A coarser analysis binning is obtained by fitting the MERGED mass
       // distribution of the source bins it covers, not by merging the purities
       // afterwards: a purity is a ratio, and ratios do not add up.
       std::optional<std::vector<double>> rebinningPt;
-      if (auto rebin = JsonConfig::TryArray(particle, "rebinning_pt", GetName())) {
-        std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, std::format("rebinning_pt for '{}'", name), GetName());
+      if (auto rebin = JsonConfig::TryArray(entry, "rebinning_pt", GetName())) {
+        std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, std::format("rebinning_pt for '{}'", particle), GetName());
         if (bins.size() < 2) {
-          throw std::runtime_error(std::format("[FATAL] {}: 'rebinning_pt' for '{}' needs at least 2 edges!", GetName(), name));
+          throw std::runtime_error(std::format("[FATAL] {}: 'rebinning_pt' for '{}' needs at least 2 edges!", GetName(), particle));
         }
         rebinningPt = std::move(bins);
       }

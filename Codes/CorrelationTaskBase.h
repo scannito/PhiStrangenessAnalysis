@@ -239,7 +239,7 @@ class CorrelationTaskBase : public IAnalysisTask
             double dyLimit = deltaYLimits[yIdx];
             const std::string dyTitleStr = BinningUtils::FormatDeltaY(dyLimit);
 
-            std::string ratioMeasName = OutputNames::SpeciesRatioMeasured(num.name, den.name, dyLimit);
+            std::string ratioMeasName = OutputNames::ParticleRatioMeasured(num.name, den.name, dyLimit);
             std::string ratioMeasTitle = "Measured Ratio; Multiplicity percentile (%);" + ratioCfg.label;
             std::unique_ptr<TH1> hRatioMeas = HistogramUtils::MakeRatioHist(h1MultTrends[idxNum][yIdx].get(), h1MultTrends[idxDen][yIdx].get(),
                                                                            ratioMeasName, ratioMeasTitle, numScale, denScale);
@@ -254,7 +254,7 @@ class CorrelationTaskBase : public IAnalysisTask
               TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[idxNum][yIdx].get() : h1MultTrends[idxNum][yIdx].get();
               TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[idxDen][yIdx].get() : h1MultTrends[idxDen][yIdx].get();
 
-              std::string ratioExtrapName = OutputNames::SpeciesRatioExtrapolated(num.name, den.name, dyLimit);
+              std::string ratioExtrapName = OutputNames::ParticleRatioExtrapolated(num.name, den.name, dyLimit);
               std::string ratioExtrapTitle = "Extrapolated Ratio; Multiplicity percentile (%);" + ratioCfg.label;
               hRatioExtrap = HistogramUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
 
@@ -506,13 +506,13 @@ class CorrelationTaskBase : public IAnalysisTask
       const std::string ctx = std::format("{} associated_particles[{}]", GetName(), idx++);
       JsonConfig::RequireKnownKeys(sp, {"name", "dir_name"}, ctx);
 
-      std::string name = JsonConfig::RequireString(sp, "name", ctx);
+      std::string particle = JsonConfig::RequireString(sp, "name", ctx);
 
       // The directory name is derived from the species unless the configuration
       // overrides it - see AssocParticleConfig for the rule. The binning stays
       // empty: it is resolved from the input files in ResolveBinningAndCache(),
       // once the containers are open.
-      assocParticles.emplace_back(name, JsonConfig::TryString(sp, "dir_name", ctx));
+      assocParticles.emplace_back(particle, JsonConfig::TryString(sp, "dir_name", ctx));
     }
   }
 
@@ -575,13 +575,13 @@ class CorrelationTaskBase : public IAnalysisTask
     const rapidjson::Value& particles = JsonConfig::RequireObject(*node, "particles", ctx);
 
     for (const auto& member : particles.GetObject()) {
-      const std::string name = member.name.GetString();
-      const std::string pctx = std::format("{}.particles.{}", ctx, name);
+      const std::string particle = member.name.GetString();
+      const std::string pctx = std::format("{}.particles.{}", ctx, particle);
 
-      const bool isPhi = (name == "Phi");
-      const bool isAssoc = std::ranges::any_of(assocParticles, [&](const AssocParticleConfig& p) { return p.name == name; });
+      const bool isPhi = (particle == "Phi");
+      const bool isAssoc = std::ranges::any_of(assocParticles, [&](const AssocParticleConfig& p) { return p.name == particle; });
       if (!isPhi && !isAssoc)
-        throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither Phi nor one of the associated_particles.", pctx, name));
+        throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither Phi nor one of the associated_particles.", pctx, particle));
       if (!member.value.IsObject())
         throw std::runtime_error(std::format("[FATAL] {}: must be an object.", pctx));
 
@@ -590,13 +590,13 @@ class CorrelationTaskBase : public IAnalysisTask
 
       // Species-specific corrections that do not exist yet. Refused, not ignored: a
       // configuration that asks for them must not produce numbers without them.
-      auto refuseNotImplemented = [&](const char* key, std::initializer_list<std::string_view> species) {
+      auto refuseNotImplemented = [&](const char* key, std::initializer_list<std::string_view> appliesTo) {
         if (!JsonConfig::OptionalMember(entry, key))
           return;
-        const bool applies = std::ranges::any_of(species, [&](std::string_view s) { return s == name; });
+        const bool applies = std::ranges::any_of(appliesTo, [&](std::string_view s) { return s == particle; });
         throw std::runtime_error(applies
                                    ? std::format("[FATAL] {}: '{}' is not implemented yet (DESIGN_NOTES.md section 13).", pctx, key)
-                                   : std::format("[FATAL] {}: '{}' does not apply to {}.", pctx, key, name));
+                                   : std::format("[FATAL] {}: '{}' does not apply to {}.", pctx, key, particle));
       };
       refuseNotImplemented("feed_down", {"Lambda", "AntiLambda"});
       refuseNotImplemented("primary_fraction", {"Pi"});
@@ -612,8 +612,8 @@ class CorrelationTaskBase : public IAnalysisTask
         pc.signalLoss = SignalLossCorrection{};
 
       if (!pc.efficiency && !pc.signalLoss)
-        throw std::runtime_error(std::format("[FATAL] {}: no correction is applied. To leave {} uncorrected, do not list it.", pctx, name));
-      if (!cfg.perParticle.emplace(name, pc).second)
+        throw std::runtime_error(std::format("[FATAL] {}: no correction is applied. To leave {} uncorrected, do not list it.", pctx, particle));
+      if (!cfg.perParticle.emplace(particle, pc).second)
         throw std::runtime_error(std::format("[FATAL] {}: listed twice.", pctx));
     }
 
@@ -648,15 +648,15 @@ class CorrelationTaskBase : public IAnalysisTask
   void LoadCorrections()
   {
     const CorrectionsConfig& cfg = *corrections;
-    const std::string& inputEffFile = cfg.file;
-    std::unique_ptr<TFile> fileEffInput = RootIO::OpenOrThrow(inputEffFile, "READ", GetName());
+    const std::string& correctionsFilePath = cfg.file;
+    std::unique_ptr<TFile> fileCorrections = RootIO::OpenOrThrow(correctionsFilePath, "READ", GetName());
 
-    RootIO::PrintProvenance(fileEffInput.get(), globalCfgs.binningName,
-                            std::format("corrections file '{}'", inputEffFile));
+    RootIO::PrintProvenance(fileCorrections.get(), globalCfgs.binningName,
+                            std::format("corrections file '{}'", correctionsFilePath));
 
     RootIO::RequireMatchingBinningStamp(
-      RootIO::GetOrCreatePath(fileEffInput.get(), {globalCfgs.binningName}, true),
-      RootIO::kStampMult, multBinning, std::format("efficiency map '{}'", inputEffFile));
+      RootIO::GetOrCreatePath(fileCorrections.get(), {globalCfgs.binningName}, true),
+      RootIO::kStampMult, multBinning, std::format("corrections file '{}'", correctionsFilePath));
 
     // LAMBDA HELPER 1: one map of the corrections file, 'name' in the directory 'path' (OutputNames, where MCTask
     // writes it). It returns the map with the analysis binning and every bin positive, or throws; what reads it
@@ -667,7 +667,7 @@ class CorrelationTaskBase : public IAnalysisTask
         return nullptr;
 
       // By path from the file: a missing directory and a missing map are one message, naming the file and the path.
-      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(fileEffInput.get(), RootIO::MakeDirPath(path) + name, GetName());
+      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(fileCorrections.get(), RootIO::MakeDirPath(path) + name, GetName());
 
       // Verified, NOT rebinned. An efficiency is a ratio, and merging bins of a
       // ratio sums them: two bins of 0.5 would give 1.0. A coarser efficiency can
@@ -682,7 +682,7 @@ class CorrelationTaskBase : public IAnalysisTask
           "is not binned like the data being corrected:\n{}"
           "Re-run the production whose axis does not match; for a pT map, 'rebinning_pt' in the MC configuration "
           "sets the binning the efficiency is produced at.",
-          GetName(), name, inputEffFile, diff));
+          GetName(), name, correctionsFilePath, diff));
       }
 
       // A bin at or below zero, or not a number, has no correct correction: it is not a correction of 1 (CLAUDE.md,
@@ -693,7 +693,7 @@ class CorrelationTaskBase : public IAnalysisTask
             "[FATAL] {}: '{}' in '{}' is {} at {} {}, and a correction that cannot be computed is not a correction "
             "of 1. The MC has nothing there: more MC statistics in that interval, or data and MC productions whose "
             "binning merges it.",
-            GetName(), name, inputEffFile, h->GetBinContent(bin), axis, BinningUtils::BinLabel(targetBinning, bin - 1)));
+            GetName(), name, correctionsFilePath, h->GetBinContent(bin), axis, BinningUtils::BinLabel(targetBinning, bin - 1)));
 
       return h;
     };
@@ -701,13 +701,13 @@ class CorrelationTaskBase : public IAnalysisTask
     hEventLoss = fetchHist(OutputNames::EventLossPath(globalCfgs.binningName), OutputNames::kEventLoss, cfg.eventLoss, multBinning, "multiplicity");
 
     // LAMBDA HELPER 2: Clone and multiply (if both are needed) safely
-    auto combineHists = [](const TH1* hEff, const TH1* hLoss, const std::string& name) -> std::unique_ptr<TH1> {
-      if (!hEff && !hLoss)
+    auto combineHists = [](const TH1* hEfficiency, const TH1* hSignalLoss, const std::string& name) -> std::unique_ptr<TH1> {
+      if (!hEfficiency && !hSignalLoss)
         return nullptr;
 
-      std::unique_ptr<TH1> hRes(static_cast<TH1*>(hEff ? hEff->Clone(name.c_str()) : hLoss->Clone(name.c_str())));
-      if (hEff && hLoss)
-        hRes->Multiply(hLoss);
+      std::unique_ptr<TH1> hRes(static_cast<TH1*>(hEfficiency ? hEfficiency->Clone(name.c_str()) : hSignalLoss->Clone(name.c_str())));
+      if (hEfficiency && hSignalLoss)
+        hRes->Multiply(hSignalLoss);
       hRes->SetDirectory(0);
 
       return hRes;
@@ -715,38 +715,38 @@ class CorrelationTaskBase : public IAnalysisTask
 
     correctionCollection.clear();
 
-    for (const auto& [name, pc] : cfg.perParticle) {
+    for (const auto& [particle, pc] : cfg.perParticle) {
       LoadedCorrections corr;
-      corr.name = name;
+      corr.name = particle;
       corr.h1Corrections.resize(BinningUtils::NBins(multBinning));
 
       // InitCorrections already refused any other name.
       std::vector<double> targetBinning;
-      if (name == "Phi") {
+      if (particle == "Phi") {
         targetBinning = ptPhiBinning;
       } else {
-        auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == name; });
+        auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == particle; });
         targetBinning = it->binning;
       }
 
 
-      const bool efficiencyBinned = pc.efficiency && pc.efficiency->mult == MultDependence::Binned;
-      const bool efficiencyIntegrated = pc.efficiency && pc.efficiency->mult == MultDependence::Integrated;
-      // The signal loss is always per multiplicity class, whatever the efficiency uses.
-      const bool signalLoss = pc.signalLoss.has_value();
+      const bool applyEfficiencyBinned = pc.efficiency && pc.efficiency->mult == MultDependence::Binned;
+      const bool applyEfficiencyIntegrated = pc.efficiency && pc.efficiency->mult == MultDependence::Integrated;
 
-      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(name, OutputNames::kMultIntegrated), efficiencyIntegrated, targetBinning, "pT");
+      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(particle, OutputNames::kMultIntegrated), applyEfficiencyIntegrated, targetBinning, "pT");
 
       for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
         const std::string multTag = OutputNames::MultTag(multBinning, multBin);
-        std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(name, multTag), efficiencyBinned, targetBinning, "pT");
-        std::unique_ptr<TH1> hSignalLossBinned = fetchHist(OutputNames::SignalLossPath(globalCfgs.binningName), OutputNames::SignalLoss(name, multTag), signalLoss, targetBinning, "pT");
+        std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(particle, multTag), applyEfficiencyBinned, targetBinning, "pT");
+        std::unique_ptr<TH1> hSignalLossBinned = fetchHist(OutputNames::SignalLossPath(globalCfgs.binningName), OutputNames::SignalLoss(particle, multTag),
+                                                                     pc.signalLoss.has_value(), // always per multiplicity class
+                                                                     targetBinning, "pT");
 
-        corr.h1Corrections[multBin] = combineHists(efficiencyIntegrated ? hEfficiencyIntegrated.get() : hEfficiencyBinned.get(), hSignalLossBinned.get(),
-                                             std::format("h1Corrected_{}_{}", name, multTag));
+        corr.h1Corrections[multBin] = combineHists(hEfficiencyIntegrated ? hEfficiencyIntegrated.get() : hEfficiencyBinned.get(), hSignalLossBinned.get(),
+                                             std::format("h1Corrected_{}_{}", particle, multTag));
       }
 
-      correctionCollection[name] = std::move(corr);
+      correctionCollection[particle] = std::move(corr);
     }
 
     Logger::Info("{}: Corrections loaded successfully.", GetName());
@@ -766,18 +766,18 @@ class CorrelationTaskBase : public IAnalysisTask
   // readable by the other.
   // -------------------------------------------------------------------------
   // Per (multiplicity, trigger pT, associated pT) cell.
-  std::string CellSuffix(const AssocParticleConfig& particle, int multBin, int ptPhiBin, int ptAssocBin) const
+  std::string CellSuffix(const AssocParticleConfig& config, int multBin, int ptPhiBin, int ptAssocBin) const
   {
     return std::format("_{}_ptPhi{}_{}",
                        OutputNames::MultTag(multBinning, multBin),
                        BinningUtils::BinLabel(ptPhiBinning, ptPhiBin),
-                       OutputNames::PtTag(particle.binning, ptAssocBin));
+                       OutputNames::PtTag(config.binning, ptAssocBin));
   }
 
   // For the objects accumulated over the trigger pT bins.
-  std::string CellSuffix(const AssocParticleConfig& particle, int multBin, int ptAssocBin) const
+  std::string CellSuffix(const AssocParticleConfig& config, int multBin, int ptAssocBin) const
   {
-    return std::format("_{}", OutputNames::CellTag(multBinning, multBin, particle.binning, ptAssocBin));
+    return std::format("_{}", OutputNames::CellTag(multBinning, multBin, config.binning, ptAssocBin));
   }
 
   // -------------------------------------------------------------------------
@@ -1419,7 +1419,7 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // The correction applied here to one particle in one (multiplicity class, pT bin) - the trigger pT for the phi -
-  // and 1 where none is. The one reader of the loaded corrections: the phi's divides both the triggers
+  // and 1 where none is: efficiency x signal loss, the factor the counts are DIVIDED by. The one reader of the loaded corrections: the phi's divides both the triggers
   // (CountTriggers) and the pairs (totalCorrection), and the per-trigger yield is corrected only if the two use the same
   // number.
   double Correction(const std::string& particle, int multBin, int ptBin) const

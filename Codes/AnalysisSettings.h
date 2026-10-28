@@ -45,8 +45,8 @@ struct AnalysisSettings {
   // and that is announced explicitly rather than defaulted away.
   // ---------------------------------------------------------------------------
 
-  std::vector<double> multBinning;
-  std::map<std::string, std::vector<double>> particlePtBinning;
+  std::vector<double> declaredMultBinning;
+  std::map<std::string, std::vector<double>> declaredPtBinning;
 
   // For reference, the values that used to be built in here. They are not stale:
   // they are the binning of the CORRELATION productions, and are still in use.
@@ -55,9 +55,9 @@ struct AnalysisSettings {
   // would be a false alarm for every workflow of the other family. Declare the
   // one that matches the production in the JSON of that workflow instead.
   //
-  //   multBinning{0.0, 1.0, 5.0, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 70.0, 100.0}
+  //   declaredMultBinning{0.0, 1.0, 5.0, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 70.0, 100.0}
   //
-  //   particlePtBinning{
+  //   declaredPtBinning{
   //     {"Phi", {0.4, 0.8, 1.4, 2.0, 2.8, 4.0, 6.0, 10.0}},
   //     {"K0S", {0.0, 0.3, 0.5, 0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0}},
   //     {"Xi",  {0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0}},
@@ -109,8 +109,8 @@ struct AnalysisSettings {
   void VerifyPtBinning(const std::string& particle, std::span<const double> found,
                        std::string_view context) const
   {
-    auto it = particlePtBinning.find(particle);
-    if (it == particlePtBinning.end()) {
+    auto it = declaredPtBinning.find(particle);
+    if (it == declaredPtBinning.end()) {
       // Announced once per species: silence here would be indistinguishable
       // from a check that passed.
       if (undeclaredPtWarned.insert(particle).second) {
@@ -133,7 +133,7 @@ struct AnalysisSettings {
 
   void VerifyMultBinning(std::span<const double> found, std::string_view context) const
   {
-    if (multBinning.empty()) {
+    if (declaredMultBinning.empty()) {
       if (!undeclaredMultWarned) {
         undeclaredMultWarned = true;
         Logger::Warn("AnalysisSettings: no expected multiplicity binning declared. The binning found in the file is "
@@ -143,7 +143,7 @@ struct AnalysisSettings {
       return;
     }
 
-    const std::string diff = BinningUtils::Compare(multBinning, found, "configuration", "input file");
+    const std::string diff = BinningUtils::Compare(declaredMultBinning, found, "configuration", "input file");
     if (!diff.empty()) {
       throw std::runtime_error(std::format(
         "[FATAL] AnalysisSettings: multiplicity binning mismatch ({}):\n{}"

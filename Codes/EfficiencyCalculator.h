@@ -52,7 +52,7 @@ class EfficiencyCalculator
     return hEventLoss;
   }
 
-  // Computes the 3D Total Efficiency map (Efficiency * Signal Loss)
+  // Computes the 3D correction map: efficiency, signal loss or their product, by mode
   static std::unique_ptr<TH3> Compute3DCorrectionMap(const LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
   {
     HistogramUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
@@ -92,7 +92,7 @@ class EfficiencyCalculator
     return h3CorrectionMap;
   }
 
-  // Computes the 2D Total Efficiency map (Efficiency * Signal Loss) integrated over multiplicity
+  // Computes the 2D correction map (efficiency, signal loss or their product, by mode) integrated over multiplicity
   static std::unique_ptr<TH2> Compute2DCorrectionMapMultIntegrated(const LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
   {
     HistogramUtils::AxisToCut axisToCutZVtx{.axis = 0, .bins = {1, data.h4MCReco->GetAxis(0)->GetNbins()}};
@@ -118,26 +118,26 @@ class EfficiencyCalculator
     h2SignalLoss->Divide(h2MCGenAssocReco.get(), h2MCGen.get(), 1.0, 1.0, "B");
 
     // Compute total 2D correction map: Efficiency, Signal Loss or Efficiency * Signal Loss
-    std::unique_ptr<TH2> h2CorrectionMapMultIntegrated;
+    std::unique_ptr<TH2> h2CorrectionMap;
     switch (mode) {
       case ParticleCorrectionMode::EfficiencyOnly:
-        h2CorrectionMapMultIntegrated = std::unique_ptr<TH2>(static_cast<TH2*>(h2Efficiency->Clone("ccdb_object")));
+        h2CorrectionMap = std::unique_ptr<TH2>(static_cast<TH2*>(h2Efficiency->Clone("ccdb_object")));
         break;
 
       case ParticleCorrectionMode::SignalLossOnly:
-        h2CorrectionMapMultIntegrated = std::unique_ptr<TH2>(static_cast<TH2*>(h2SignalLoss->Clone("ccdb_object")));
+        h2CorrectionMap = std::unique_ptr<TH2>(static_cast<TH2*>(h2SignalLoss->Clone("ccdb_object")));
         break;
 
       case ParticleCorrectionMode::Combined:
-        h2CorrectionMapMultIntegrated = std::unique_ptr<TH2>(static_cast<TH2*>(h2Efficiency->Clone("ccdb_object")));
-        h2CorrectionMapMultIntegrated->Multiply(h2SignalLoss.get());
+        h2CorrectionMap = std::unique_ptr<TH2>(static_cast<TH2*>(h2Efficiency->Clone("ccdb_object")));
+        h2CorrectionMap->Multiply(h2SignalLoss.get());
         break;
     }
 
-    if (h2CorrectionMapMultIntegrated)
-      h2CorrectionMapMultIntegrated->SetDirectory(0);
+    if (h2CorrectionMap)
+      h2CorrectionMap->SetDirectory(0);
 
-    return h2CorrectionMapMultIntegrated;
+    return h2CorrectionMap;
   }
 
   // Builds a "twin" TH2 where each bin content is the bin ERROR of the source

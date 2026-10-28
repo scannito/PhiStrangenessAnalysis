@@ -47,20 +47,20 @@ class FitConfigManager : public BaseConfigManager
                                            managerName, section, cell));
 
     FitConfig config;
-    const rapidjson::Value& partNode = Section(section);
+    const rapidjson::Value& sectionNode = Section(section);
 
     // Every block below has a closed set of keys, so a misspelled one is refused instead
     // of skipped: a typo in n_sigma_integration would otherwise leave the previous window
     // in force and change the fit with no word (CLAUDE.md, Configuration).
-    JsonConfig::RequireKnownKeys(partNode, {"observable", "fit_setup"}, std::format("{}: section '{}'", managerName, section));
+    JsonConfig::RequireKnownKeys(sectionNode, {"observable", "fit_setup"}, std::format("{}: section '{}'", managerName, section));
 
     // LOAD GLOBAL OBSERVABLE PROPERTIES
-    // This is done ONLY ONCE for the particle, completely outside the override logic.
+    // This is done ONLY ONCE for the section, completely outside the override logic.
     // It prevents accidental bin-by-bin modifications of the physical X-axis.
     // The block, the name and the range are required: nothing sensible can stand in for
     // what is fitted or over which interval. The title only labels the axis.
     const std::string obsCtx = std::format("{}: section '{}'", managerName, section);
-    const rapidjson::Value* obs = JsonConfig::TryObject(partNode, "observable", obsCtx);
+    const rapidjson::Value* obs = JsonConfig::TryObject(sectionNode, "observable", obsCtx);
     if (!obs)
       throw std::runtime_error(std::format("[FATAL] {}: 'observable' missing in JSON!", obsCtx));
     JsonConfig::RequireKnownKeys(*obs, {"name", "title", "min", "max"}, obsCtx + ".observable");
@@ -74,7 +74,7 @@ class FitConfigManager : public BaseConfigManager
 
     // LOAD FIT PARAMETERS (WITH OVERRIDE LOGIC)
     //  We now look strictly inside the "fit_setup" block for mathematical models.
-    if (const rapidjson::Value* fitSetup = JsonConfig::TryObject(partNode, "fit_setup", managerName)) {
+    if (const rapidjson::Value* fitSetup = JsonConfig::TryObject(sectionNode, "fit_setup", managerName)) {
       const auto& fitNode = *fitSetup;
       JsonConfig::RequireKnownKeys(fitNode, {"default", "bins"}, std::format("{}: section '{}'.fit_setup", managerName, section));
 

@@ -57,9 +57,10 @@ inline std::string FormatEdge(double value)
 // found by name, and an index matches whatever binning the reader has: "_multBin3" exists on both sides
 // and means two intervals. "_mult10-15" is simply absent when the two disagree, so the mismatch is a
 // missing object instead of a wrong number (CLAUDE.md, the rule the framework is built on).
-inline std::string BinLabel(std::span<const double> edges, int bin)
+// 'index' is 0-based, the interval edges[index]..edges[index + 1]: a ROOT bin is index + 1.
+inline std::string BinLabel(std::span<const double> edges, int index)
 {
-  return FormatEdge(edges[bin]) + "-" + FormatEdge(edges[bin + 1]);
+  return FormatEdge(edges[index]) + "-" + FormatEdge(edges[index + 1]);
 }
 
 // A delta-y limit as written in titles and messages, to two decimals ("0.80"). The form used

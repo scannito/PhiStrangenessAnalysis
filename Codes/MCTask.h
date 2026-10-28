@@ -302,28 +302,28 @@ class MCTask : public IAnalysisTask
       h3CorrectionMap->Write(nullptr, TObject::kOverwrite);
       fileMCOutputPerPart3D->Close();
 
-      std::unique_ptr<TH2> h2CorrectionMapMultIntegrated = EfficiencyCalculator::Compute2DCorrectionMapMultIntegrated(data, particleCorrectionMode);
+      std::unique_ptr<TH2> h2CorrectionMap = EfficiencyCalculator::Compute2DCorrectionMapMultIntegrated(data, particleCorrectionMode);
 
       std::string fileMCOutputPerPartPath2D = ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root";
       std::unique_ptr<TFile> fileMCOutputPerPart2D = RootIO::OpenOrThrow(fileMCOutputPerPartPath2D, "RECREATE", GetName());
       fileMCOutputPerPart2D->cd();
-      h2CorrectionMapMultIntegrated->SetName("ccdb_object");
-      h2CorrectionMapMultIntegrated->Write(nullptr, TObject::kOverwrite);
+      h2CorrectionMap->SetName("ccdb_object");
+      h2CorrectionMap->Write(nullptr, TObject::kOverwrite);
       fileMCOutputPerPart2D->Close();
 
       // QA: error/relative-error maps alongside the CCDB map
-      std::unique_ptr<TH2> h2CorrectionMapMultIntegratedError = EfficiencyCalculator::BuildErrorMap(h2CorrectionMapMultIntegrated.get(), "h2EffMapError" + data.name);
-      std::unique_ptr<TH2> h2CorrectionMapMultIntegratedRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2CorrectionMapMultIntegrated.get(), "h2EffMapRelError" + data.name);
+      std::unique_ptr<TH2> h2CorrectionMapError = EfficiencyCalculator::BuildErrorMap(h2CorrectionMap.get(), "h2EffMapError" + data.name);
+      std::unique_ptr<TH2> h2CorrectionMapRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2CorrectionMap.get(), "h2EffMapRelError" + data.name);
 
       std::string fileMCOutputPerPartErrorPath2D = ccdbOutputDir + outputPrefix + "h2EffMapError" + data.name + ".root";
       std::unique_ptr<TFile> fileMCOutputPerPartError2D = RootIO::OpenOrThrow(fileMCOutputPerPartErrorPath2D, "RECREATE", GetName());
       fileMCOutputPerPartError2D->cd();
-      // h2CorrectionMapMultIntegratedError->SetName("ccdb_object");
-      if (h2CorrectionMapMultIntegratedError)
-        h2CorrectionMapMultIntegratedError->Write(nullptr, TObject::kOverwrite);
-      // h2CorrectionMapMultIntegratedRelError->SetName("ccdb_object");
-      if (h2CorrectionMapMultIntegratedRelError)
-        h2CorrectionMapMultIntegratedRelError->Write(nullptr, TObject::kOverwrite);
+      // h2CorrectionMapError->SetName("ccdb_object");
+      if (h2CorrectionMapError)
+        h2CorrectionMapError->Write(nullptr, TObject::kOverwrite);
+      // h2CorrectionMapRelError->SetName("ccdb_object");
+      if (h2CorrectionMapRelError)
+        h2CorrectionMapRelError->Write(nullptr, TObject::kOverwrite);
       fileMCOutputPerPartError2D->Close();
 
       // 2. Compute 1D Spectra across multiplicity bins
