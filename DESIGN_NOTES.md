@@ -1312,6 +1312,14 @@ rebase on upstream, a full build, a run on data, the PR description (phase 0).
      `Scale(1.0 / totalEff)`, so its error is lost. Here it *can* be propagated from what is at hand,
      because a whole pT cell is divided by one number: a shift of `totalEff` by ±1σ, fully correlated across
      the Δφ bins of the cell. It belongs at trend level, as the normalisation does.
+     *Measured on 27 October 2026* (2026 HighIR, offline efficiency, the maps integrated in multiplicity, measured
+     trends at |Δy| < 1): carried as one factor per pT bin of the spectrum (Y_k · σ_ε/ε; the map bins are
+     independent MC counts, so the bins add in quadrature), the MC-statistics error of the associated maps is 0.001%
+     of the π trends (statistical 0.04-0.08%), 0.01% of the K0S (0.4-0.7%), 0.11-0.13% of the Ξ (2.5-8.9%) and
+     1.1-1.3% of the Ω (9.6-18.6%): negligible, the Ω included once added in quadrature. The φ map, 0.13-0.78% per
+     bin, mostly cancels between pairs and triggers. Being integrated in multiplicity, one map bin moves every class
+     together. This is the MC statistics only; the efficiency uncertainty that matters (material, tracking,
+     selections) is a systematic. Macro: `~/alice/claude-sandbox/plots/effmaperr.C`.
 4. **The mass windows.** The defaults in the O2Physics task, the train configuration and `integration_range`
    in `fitConfig.json` agree only because they were set by hand (section 12).
 5. **Candidates with zero efficiency.** The online task gives weight 1 to a pair whose efficiency product is
