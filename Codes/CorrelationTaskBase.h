@@ -1432,7 +1432,8 @@ class CorrelationTaskBase : public IAnalysisTask
   // The efficiency-corrected trigger count of one multiplicity class, the sum over the trigger pT bins, with its
   // uncertainty from the phi fits: one independent fit per bin, so the errors add in quadrature. The uncertainty of
   // the phi efficiency is left out on purpose: the pairs of each trigger pT bin are divided by the same efficiency,
-  // so in the per-trigger yield it largely cancels.
+  // so in the per-trigger yield it largely cancels; what is left was measured: at most 0.01% of the pi and K0S
+  // trends, 0.03% of the Xi, 0.06% of the Omega (DESIGN_NOTES.md section 13, point 3).
   // The whole error of the fit, as independent of the pairs: the conservative choice, until an open question is
   // answered (QUESTIONS_FOR_EXPERTS.md, "The uncertainty of the trigger count").
   std::pair<double, double> CountTriggers(int multBin)
