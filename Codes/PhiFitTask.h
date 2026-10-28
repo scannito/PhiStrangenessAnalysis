@@ -148,7 +148,7 @@ class PhiFitTask : public IAnalysisTask
         };
 
         fillTriggerMatrix(h2TriggerSignal.get(), res.signalAndError);
-        fillTriggerMatrix(h2TriggerBkgSigRegion.get(), res.backgroundAndError);
+        fillTriggerMatrix(h2TriggerBkgSigRegion.get(), res.bkgInSignalRegionAndError);
         fillTriggerMatrix(h2TriggerBkgSideRegion.get(), res.bkgInSidebandAndError);
         fillTriggerMatrix(h2TriggerBkgRatio.get(), res.bkgRatioAndError);
       }

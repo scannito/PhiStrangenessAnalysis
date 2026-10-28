@@ -1283,7 +1283,7 @@ rebase on upstream, a full build, a run on data, the PR description (phase 0).
    `*_online_efficiency_no_phi` blocks do. A double correction passes today without an error, because the
    framework does not know how the train ran (section 12).
    The split by particle works because the pair weight factorises, 1/(ε_φ · ε_assoc): one factor can come
-   from the task, the other from here (`totalEff = phiEff * assocEff` in `CorrelationTaskBase`). For the
+   from the task, the other from here (`totalCorrection = phiCorrection * assocCorrection` in `CorrelationTaskBase`). For the
    *same* particle the two are not interchangeable even in principle: online, each candidate gets its own
    efficiency in (multiplicity, pT, y); here, a pT cell is divided by one average efficiency, with the y
    dependence already integrated out.
@@ -1307,10 +1307,10 @@ rebase on upstream, a full build, a run on data, the PR description (phase 0).
    - "Propagated afterwards" cannot mean here, from the output alone: the map is read at the y of each
      particle, and the output keeps only Δy, so the map bins behind an output bin are unknown. It means runs
      of the task with the map shifted by ±1σ, compared here as a systematic (phase 4).
-   - Here, it is not propagated at all: `totalEff` is read with `GetBinContent`
-     (`CorrelationTaskBase`, where `phiEff` and `assocEff` are built) and divides the spectrum with
-     `Scale(1.0 / totalEff)`, so its error is lost. Here it *can* be propagated from what is at hand,
-     because a whole pT cell is divided by one number: a shift of `totalEff` by ±1σ, fully correlated across
+   - Here, it is not propagated at all: `totalCorrection` is read with `GetBinContent`
+     (`CorrelationTaskBase`, where `phiCorrection` and `assocCorrection` are built) and divides the spectrum with
+     `Scale(1.0 / totalCorrection)`, so its error is lost. Here it *can* be propagated from what is at hand,
+     because a whole pT cell is divided by one number: a shift of `totalCorrection` by ±1σ, fully correlated across
      the Δφ bins of the cell. It belongs at trend level, as the normalisation does.
      *Measured on 27 October 2026* (2026 HighIR, offline efficiency, the maps integrated in multiplicity, measured
      trends at |Δy| < 1): carried as one factor per pT bin of the spectrum (Y_k · σ_ε/ε; the map bins are
@@ -1321,8 +1321,8 @@ rebase on upstream, a full build, a run on data, the PR description (phase 0).
      moves every class together. This is the MC statistics only; the efficiency uncertainty that matters
      (material, tracking, selections) is a systematic. Macro: `~/alice/claude-sandbox/plots/effmaperr.C`.
    - **The φ map: what cancels and what does not.** Offline, the triggers and the pairs of a trigger-pT bin j are
-     divided by the same ε_j (one reader, `CorrelationTaskBase::Efficiency`, serves `CountTriggers` and
-     `totalEff`). In one multiplicity class, leaving the associated efficiency aside, the per-trigger yield is
+     divided by the same ε_j (one reader, `CorrelationTaskBase::Correction`, serves `CountTriggers` and
+     `totalCorrection`). In one multiplicity class, leaving the associated efficiency aside, the per-trigger yield is
 
          Y = Σ_j N_j / Σ_j M_j,   N_j = P_j/ε_j (pairs),   M_j = T_j/ε_j (triggers)
 
@@ -1348,7 +1348,7 @@ rebase on upstream, a full build, a run on data, the PR description (phase 0).
      With the map integrated in multiplicity, ε_j is the same in every class, so the residual is correlated
      across classes (with a different weight f_j − g_j in each).
      Nothing in the code accounts for it: `CountTriggers` leaves the φ efficiency out on purpose, the pairs drop
-     it with `Scale(1.0 / totalEff)`.
+     it with `Scale(1.0 / totalCorrection)`.
      *Measured on 28 October 2026* (`correlation_task_offline_efficiency_2026_highIR_updated`, 1D engine, the φ map
      integrated in multiplicity, 7 trigger-pT bins; N_j summed in the task over the associated pT bins of the
      |Δy| window, T_j, ε_j and σ_εj as the task reads them). The φ map is 0.13-0.78% per bin (0.13% at low trigger
@@ -1412,7 +1412,7 @@ existing productions become unusable.
 
 **Phase 4 — propagate the map uncertainty properly.** O2Physics: a way to shift the map by nσ, either a
 configurable used in separate wagons or extra histograms filled in the same pass with the shifted weights.
-Here: a systematic from those outputs, and, for the corrections applied here, the uncertainty of `totalEff`
+Here: a systematic from those outputs, and, for the corrections applied here, the uncertainty of `totalCorrection`
 propagated at trend level. Only then `effErrorOffline` becomes the default online and the per-entry version
 goes, together with `customFillHist`/`customFillTHn`, which a plain `Fill` with `Sumw2` replaces.
 
@@ -1431,7 +1431,7 @@ corrections block was checked*); the keys are in `README.md`. What is left of it
   a physics change of its own: one key per mode block, and a K0S whose trends move by up to 2.4% in
   the one task where it was tried.
 - **The species-specific corrections**, below: their keys are reserved and refused.
-- **Phase 3** checks `perParticle[p].accEff` against the particles corrected online.
+- **Phase 3** checks `perParticle[p].efficiency` against the particles corrected online.
 
 ### How the O2Physics side is delivered
 

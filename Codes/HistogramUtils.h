@@ -115,24 +115,24 @@ inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
 
 // Construct pT spectrum from a vector of histograms
 inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
-                                              std::span<const double> binsVec,
+                                              std::span<const double> binning,
                                               const std::string& histName,
                                               double absLimToIntegrate)
 {
   // Checked before the subtraction below: size() is unsigned, so on an empty
   // span size() - 1 would wrap around instead of failing the comparison.
-  if (binsVec.size() < 2) {
+  if (binning.size() < 2) {
     throw std::runtime_error("[FATAL] ConstructSpectrum: the binning needs at least two edges");
   }
-  if (binsVec.size() - 1 != hContainer.size()) {
+  if (binning.size() - 1 != hContainer.size()) {
     throw std::runtime_error("[FATAL] ConstructSpectrum: the number of histograms must be the number of bins, edges - 1");
   }
 
-  std::unique_ptr<TH1> hSpectrum = std::make_unique<TH1D>(histName.c_str(), "; p_{T} (GeV/#it{c}); 1/N_{trig} d^{2}N/dp_{T}d#Deltay", binsVec.size() - 1, binsVec.data());
+  std::unique_ptr<TH1> hSpectrum = std::make_unique<TH1D>(histName.c_str(), "; p_{T} (GeV/#it{c}); 1/N_{trig} d^{2}N/dp_{T}d#Deltay", binning.size() - 1, binning.data());
 
   for (size_t ptBin{0}; ptBin < hContainer.size(); ptBin++) {
     auto [binContent, binError] = IntegralAndErrorPair(hContainer[ptBin], -absLimToIntegrate, absLimToIntegrate);
-    double normalizationFactor = (binsVec[ptBin + 1] - binsVec[ptBin]);
+    double normalizationFactor = (binning[ptBin + 1] - binning[ptBin]);
 
     hSpectrum->SetBinContent(ptBin + 1, binContent / normalizationFactor);
     hSpectrum->SetBinError(ptBin + 1, binError / normalizationFactor);
@@ -198,13 +198,13 @@ struct RebinEdgeMismatch {
   bool outOfSourceRange{false};
 };
 
-inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, std::span<const double> targetBins, double epsilon = 1e-9)
+inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, std::span<const double> targetBinning, double epsilon = 1e-9)
 {
   std::vector<RebinEdgeMismatch> mismatches;
   const double xMin = hSource->GetXaxis()->GetXmin();
   const double xMax = hSource->GetXaxis()->GetXmax();
 
-  for (double edge : targetBins) {
+  for (double edge : targetBinning) {
     // Out of range check
     if (edge < xMin - epsilon || edge > xMax + epsilon) {
       mismatches.push_back({.targetEdge = edge, .sourceBin = -1, .sourceBinLowEdge = xMin,
@@ -236,9 +236,9 @@ inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, st
 // IntegralAndErrorPair works on explicit limits and TH1::Integral() starts at bin
 // 1 - but GetEntries() and the statistics box do count it.
 template <RootHistogram THType>
-inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, std::span<const double> targetBins, std::string_view errCtx)
+inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, std::span<const double> targetBinning, std::string_view errCtx)
 {
-  std::vector<RebinEdgeMismatch> mismatches = FindRebinMismatches(h.get(), targetBins);
+  std::vector<RebinEdgeMismatch> mismatches = FindRebinMismatches(h.get(), targetBinning);
 
   if (!mismatches.empty()) {
     std::string msg = std::format(
@@ -259,8 +259,8 @@ inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, s
     throw std::runtime_error(msg);
   }
 
-  const int nTargetBins = BinningUtils::NBins(targetBins);
-  return std::unique_ptr<THType>(static_cast<THType*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBins.data())));
+  const int nTargetBins = BinningUtils::NBins(targetBinning);
+  return std::unique_ptr<THType>(static_cast<THType*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBinning.data())));
 }
 
 } // namespace HistogramUtils

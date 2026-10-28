@@ -168,13 +168,13 @@ class CorrelationTask : public CorrelationTaskBase
   }
 
  protected:
-  TH1* GetPurityHist(const std::string& particleName, int multBin) override
+  TH1* GetPurityHist(const std::string& particle, int multBin) override
   {
     if (!applyPurity)
       return nullptr;
-    auto it = purityCollection.find(particleName);
+    auto it = purityCollection.find(particle);
     if (it == purityCollection.end())
-      throw std::runtime_error(std::format("[FATAL] {}: Missing purity data for particle '{}'", GetName(), particleName));
+      throw std::runtime_error(std::format("[FATAL] {}: Missing purity data for particle '{}'", GetName(), particle));
     return it->second.h1Purity[multBin].get();
   }
 
@@ -319,7 +319,7 @@ class CorrelationTask : public CorrelationTaskBase
         HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {ptPhiBin + 1, ptPhiBin + 1}};
 
         double triggerBkgRatio = h2TriggerBkgRatio->GetBinContent(multBin + 1, ptPhiBin + 1);
-        double phiEff = Efficiency("Phi", multBin, ptPhiBin);
+        double phiCorrection = Correction("Phi", multBin, ptPhiBin);
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
@@ -336,14 +336,14 @@ class CorrelationTask : public CorrelationTaskBase
             HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {ptAssocBin + 1, ptAssocBin + 1}};
             std::vector<HistogramUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
-            double assocEff = Efficiency(config.name, multBin, ptAssocBin);
-            double totalEff = phiEff * assocEff;
+            double assocCorrection = Correction(config.name, multBin, ptAssocBin);
+            double totalCorrection = phiCorrection * assocCorrection;
 
             std::string baseNameStd = "h1Phi" + config.name + "Data";
             std::string suffix = CellSuffix(config, multBin, ptPhiBin, ptAssocBin);
 
             std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
-              data, {.axesToCut = axesToCut, .totalEff = totalEff, .triggerBkgRatio = triggerBkgRatio, .histNameBase = baseNameStd + suffix, .ioDir = targetDir, .qaDir = currentQADir});
+              data, {.axesToCut = axesToCut, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .histNameBase = baseNameStd + suffix, .ioDir = targetDir, .qaDir = currentQADir});
 
             if (ptPhiBin == 0) {
               std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, multBin, ptAssocBin));

@@ -39,7 +39,7 @@ struct AssocParticleConfig {
   // Unlike the mass this is only a default, because several species can share one
   // directory - as Lambda and AntiLambda would, the histogram name still carrying
   // the species while the folder is shared.
-  static std::string DefaultDirName(const std::string& particleName) { return "phi" + particleName; }
+  static std::string DefaultDirName(const std::string& particle) { return "phi" + particle; }
 };
 
 // One vector, already built with the multiplicity dependence the configuration chose for
@@ -66,7 +66,7 @@ struct LoadedCorrections {
 
 enum class MultDependence { Binned, Integrated };
 
-struct AccEffCorrection {
+struct EfficiencyCorrection {
   MultDependence mult; // No default: it changes a number, so the JSON says it
 };
 
@@ -74,8 +74,8 @@ struct AccEffCorrection {
 struct SignalLossCorrection {};
 
 struct ParticleCorrections {
-  std::optional<AccEffCorrection> accEff;
-  std::optional<SignalLossCorrection> sigLoss;
+  std::optional<EfficiencyCorrection> efficiency;
+  std::optional<SignalLossCorrection> signalLoss;
   // Λ feed-down and π primary fraction belong here as well, once implemented. Until then
   // the parser refuses them instead of carrying a field nobody reads.
 };
@@ -92,7 +92,7 @@ struct LoadedPurity {
 };
 
 struct ParticleTask {
-  std::string name;                                     // e.g. "k0s", "pi_tpc"
+  std::string purityKey;                                // e.g. "k0s", "pi_tpc"
   std::unique_ptr<TH3F> h3Source;                       // Pointer to the 3D source histogram in RAM
   std::vector<double> sourceBinning;                    // The pT axis of h3Source
   std::optional<std::vector<double>> rebinningPt;       // Set only when the configuration asks for a coarser
@@ -114,9 +114,9 @@ struct ParticleTask {
   // name, so the caller cannot get it wrong or forget it, and the object is never
   // half-built. Note that member initialisers run in declaration order, which is why
   // it is declared after what it reads.
-  ParticleTask(std::string name_, std::unique_ptr<TH3F> h3Source_, std::vector<double> sourceBinning_,
+  ParticleTask(std::string purityKey_, std::unique_ptr<TH3F> h3Source_, std::vector<double> sourceBinning_,
                std::optional<std::vector<double>> rebinningPt_, std::unique_ptr<TH2F> h2PurityCCDB_)
-    : name(std::move(name_)),
+    : purityKey(std::move(purityKey_)),
       h3Source(std::move(h3Source_)),
       sourceBinning(std::move(sourceBinning_)),
       rebinningPt(std::move(rebinningPt_)),

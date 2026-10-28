@@ -160,7 +160,7 @@ class DynamicRooFitter
   // Structure to hold the results of the yield and purity calculations
   struct FitResults {
     std::pair<double, double> signalAndError{0.0, 0.0};
-    std::pair<double, double> backgroundAndError{0.0, 0.0};
+    std::pair<double, double> bkgInSignalRegionAndError{0.0, 0.0};
     std::pair<double, double> purityAndError{0.0, 0.0};
     std::pair<double, double> bkgInSidebandAndError{0.0, 0.0};
     std::pair<double, double> bkgRatioAndError{0.0, 0.0};
@@ -188,7 +188,7 @@ class DynamicRooFitter
     // --- 2. BACKGROUND YIELD & ERROR ---
     std::unique_ptr<RooAbsReal> bkgInt(bkgPdf->createIntegral(*obs, RooFit::NormSet(*obs), RooFit::Range("signalRegion")));
     RooProduct bkgYield("bkgYield", "Background Yield", RooArgList(*nbkg, *bkgInt));
-    results.backgroundAndError = {bkgYield.getVal(), bkgYield.getPropagatedError(*fitResult, RooArgSet(*obs))};
+    results.bkgInSignalRegionAndError = {bkgYield.getVal(), bkgYield.getPropagatedError(*fitResult, RooArgSet(*obs))};
 
     // --- 3. OPTIONAL PURITY & ERROR (S / S+B) ---
     if (config.integration.calculatePurity) {
@@ -213,11 +213,11 @@ class DynamicRooFitter
         // Direct integration from histogram bins
         results.bkgInSidebandAndError = HistogramUtils::IntegralAndErrorPair(h1Data, sbMin, sbMax);
 
-        const double num = results.backgroundAndError.first;
+        const double num = results.bkgInSignalRegionAndError.first;
         const double den = results.bkgInSidebandAndError.first;
         if (den > 0.0) {
           const double ratio = num / den;
-          const double relNum = (num != 0.0) ? results.backgroundAndError.second / num : 0.0;
+          const double relNum = (num != 0.0) ? results.bkgInSignalRegionAndError.second / num : 0.0;
           const double relDen = results.bkgInSidebandAndError.second / den;
           results.bkgRatioAndError = {ratio, ratio * std::sqrt(relNum * relNum + relDen * relDen)};
         }

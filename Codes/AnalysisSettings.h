@@ -45,8 +45,8 @@ struct AnalysisSettings {
   // and that is announced explicitly rather than defaulted away.
   // ---------------------------------------------------------------------------
 
-  std::vector<double> binsMult;
-  std::map<std::string, std::vector<double>> speciesPtBinning;
+  std::vector<double> multBinning;
+  std::map<std::string, std::vector<double>> particlePtBinning;
 
   // For reference, the values that used to be built in here. They are not stale:
   // they are the binning of the CORRELATION productions, and are still in use.
@@ -55,9 +55,9 @@ struct AnalysisSettings {
   // would be a false alarm for every workflow of the other family. Declare the
   // one that matches the production in the JSON of that workflow instead.
   //
-  //   binsMult{0.0, 1.0, 5.0, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 70.0, 100.0}
+  //   multBinning{0.0, 1.0, 5.0, 10.0, 15.0, 20.0, 30.0, 40.0, 50.0, 70.0, 100.0}
   //
-  //   speciesPtBinning{
+  //   particlePtBinning{
   //     {"Phi", {0.4, 0.8, 1.4, 2.0, 2.8, 4.0, 6.0, 10.0}},
   //     {"K0S", {0.0, 0.3, 0.5, 0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0}},
   //     {"Xi",  {0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0}},
@@ -79,11 +79,11 @@ struct AnalysisSettings {
   // another, and impossible to forget the check.
   // ---------------------------------------------------------------------------
 
-  std::vector<double> ResolvePtBinning(const std::string& species, const TAxis* axis,
+  std::vector<double> ResolvePtBinning(const std::string& particle, const TAxis* axis,
                                        std::string_view context) const
   {
     std::vector<double> found = BinningUtils::AxisEdges(axis);
-    VerifyPtBinning(species, found, context);
+    VerifyPtBinning(particle, found, context);
     return found;
   }
 
@@ -106,17 +106,17 @@ struct AnalysisSettings {
   // exactly as harmful as a stale JSON entry. Nothing declared, nothing checked.
   // ---------------------------------------------------------------------------
 
-  void VerifyPtBinning(const std::string& species, std::span<const double> found,
+  void VerifyPtBinning(const std::string& particle, std::span<const double> found,
                        std::string_view context) const
   {
-    auto it = speciesPtBinning.find(species);
-    if (it == speciesPtBinning.end()) {
+    auto it = particlePtBinning.find(particle);
+    if (it == particlePtBinning.end()) {
       // Announced once per species: silence here would be indistinguishable
       // from a check that passed.
-      if (undeclaredPtWarned.insert(species).second) {
+      if (undeclaredPtWarned.insert(particle).second) {
         Logger::Warn("AnalysisSettings: no expected pT binning declared for '{}'. The binning found in the file is "
                      "used without verification ({}).",
-                     species, context);
+                     particle, context);
       }
       return;
     }
@@ -127,13 +127,13 @@ struct AnalysisSettings {
         "[FATAL] AnalysisSettings: pT binning mismatch for '{}' ({}):\n{}"
         "Bins are addressed by index, so these must match exactly. Either 'global_binning.pt_binning' "
         "is stale, or this file comes from a different production than the ones it is combined with.",
-        species, context, diff));
+        particle, context, diff));
     }
   }
 
   void VerifyMultBinning(std::span<const double> found, std::string_view context) const
   {
-    if (binsMult.empty()) {
+    if (multBinning.empty()) {
       if (!undeclaredMultWarned) {
         undeclaredMultWarned = true;
         Logger::Warn("AnalysisSettings: no expected multiplicity binning declared. The binning found in the file is "
@@ -143,7 +143,7 @@ struct AnalysisSettings {
       return;
     }
 
-    const std::string diff = BinningUtils::Compare(binsMult, found, "configuration", "input file");
+    const std::string diff = BinningUtils::Compare(multBinning, found, "configuration", "input file");
     if (!diff.empty()) {
       throw std::runtime_error(std::format(
         "[FATAL] AnalysisSettings: multiplicity binning mismatch ({}):\n{}"

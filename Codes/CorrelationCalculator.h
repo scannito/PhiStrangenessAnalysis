@@ -46,7 +46,7 @@ class CorrelationCalculator
   // One extraction: the cell to cut, the corrections to apply, where to read and write.
   struct Request {
     const std::vector<HistogramUtils::AxisToCut>& axesToCut;
-    double totalEff;
+    double totalCorrection;
     double triggerBkgRatio;
     std::string histNameBase;
     TDirectory* ioDir{nullptr};                                // projections cache, written or read
@@ -291,7 +291,7 @@ class CorrelationCalculator
   {
     // Short names for the body below, which is the engine as it was.
     const std::string& histNameBase = req.histNameBase;
-    const double totalEff = req.totalEff;
+    const double totalCorrection = req.totalCorrection;
     const double triggerBkgRatio = req.triggerBkgRatio;
     TDirectory* qaDir = req.qaDir;
     const AxisTarget targetAxis = opt.targetAxis;
@@ -314,10 +314,10 @@ class CorrelationCalculator
     }
 
     // 3. Efficiency Correction
-    h2Signal->Scale(1.0 / totalEff);
+    h2Signal->Scale(1.0 / totalCorrection);
     // Sideband Scaling
     if (h2Sideband)
-      h2Sideband->Scale(triggerBkgRatio / totalEff);
+      h2Sideband->Scale(triggerBkgRatio / totalCorrection);
 
     // 4. 2D Division
     if (applyME && h2MESignal)
@@ -403,18 +403,18 @@ class CorrelationCalculator
                                        : std::unique_ptr<TH1>(h2Signal->ProjectionY((histNameBase + "Signal1D_dy").c_str()));
       h1Sig1D->SetDirectory(0);
 
-      std::unique_ptr<TH1> h1Side1D;
+      std::unique_ptr<TH1> h1Sideband1D;
       if (h2Sideband) {
-        h1Side1D = (targetAxis == AxisTarget::DeltaPhi_X)
+        h1Sideband1D = (targetAxis == AxisTarget::DeltaPhi_X)
                      ? std::unique_ptr<TH1>(h2Sideband->ProjectionX((histNameBase + "Sideband1D_dPhi").c_str()))
                      : std::unique_ptr<TH1>(h2Sideband->ProjectionY((histNameBase + "Sideband1D_dy").c_str()));
-        h1Side1D->SetDirectory(0);
+        h1Sideband1D->SetDirectory(0);
       }
 
       h1Final1D.reset(static_cast<TH1*>(h1Sig1D->Clone((histNameBase + "Final" + ((targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy")).c_str())));
       h1Final1D->SetDirectory(0);
-      if (h1Side1D && triggerBkgRatio > 0) {
-        h1Final1D->Add(h1Side1D.get(), -1);
+      if (h1Sideband1D && triggerBkgRatio > 0) {
+        h1Final1D->Add(h1Sideband1D.get(), -1);
       }
 
       if (qaDir && doMoreQA && orthogonalCut) {
@@ -423,8 +423,8 @@ class CorrelationCalculator
         if (h2Sideband)
           h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Cut").c_str());
         h1Sig1D->Write();
-        if (h1Side1D)
-          h1Side1D->Write();
+        if (h1Sideband1D)
+          h1Sideband1D->Write();
         h1Final1D->Write();
       }
     }
@@ -441,7 +441,7 @@ class CorrelationCalculator
     Inputs<TH1> in = LoadOrProject<TH1>(data, req);
 
     // 2. Efficiency Correction
-    in.sig->Scale(1.0 / req.totalEff);
+    in.sig->Scale(1.0 / req.totalCorrection);
 
     // 3. Mixed Event Correction
     if (opt.mixedEvents) {
@@ -454,7 +454,7 @@ class CorrelationCalculator
         NormalizeME1D(in.meSb.get());
         in.sb->Divide(in.meSb.get());
       }
-      in.sb->Scale(req.triggerBkgRatio / req.totalEff);
+      in.sb->Scale(req.triggerBkgRatio / req.totalCorrection);
     }
 
     // 4. Final Subtraction

@@ -357,7 +357,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // Hook for GenerateSpectraAndTrends: returns a purity correction histogram
   // for this particle/multBin, or nullptr if none should be applied.
   // CorrelationTask overrides this; CorrelationWPDGTask leaves the default.
-  virtual TH1* GetPurityHist(const std::string& /*particleName*/, int /*multBin*/) { return nullptr; }
+  virtual TH1* GetPurityHist(const std::string& /*particle*/, int /*multBin*/) { return nullptr; }
 
   // Trigger yield, with its error, for a given (multBin, ptPhiBin), read by CountTriggers; background
   // ratio, read by RunLegacy(). Every derived task MUST provide GetTriggerSignal;
@@ -602,16 +602,16 @@ class CorrelationTaskBase : public IAnalysisTask
       refuseNotImplemented("primary_fraction", {"Pi"});
 
       ParticleCorrections pc;
-      if (const rapidjson::Value* accEff = JsonConfig::TryObject(entry, "acceptance_efficiency", pctx)) {
+      if (const rapidjson::Value* efficiencyNode = JsonConfig::TryObject(entry, "acceptance_efficiency", pctx)) {
         const std::string actx = pctx + ".acceptance_efficiency";
-        pc.accEff = AccEffCorrection{JsonConfig::ResolveEnum<MultDependence>(
-          JsonConfig::RequireString(*accEff, "mult", actx),
+        pc.efficiency = EfficiencyCorrection{JsonConfig::ResolveEnum<MultDependence>(
+          JsonConfig::RequireString(*efficiencyNode, "mult", actx),
           {{"binned", MultDependence::Binned}, {"integrated", MultDependence::Integrated}}, "mult", actx)};
       }
       if (JsonConfig::OptionalBool(entry, "signal_loss", false, pctx))
-        pc.sigLoss = SignalLossCorrection{};
+        pc.signalLoss = SignalLossCorrection{};
 
-      if (!pc.accEff && !pc.sigLoss)
+      if (!pc.efficiency && !pc.signalLoss)
         throw std::runtime_error(std::format("[FATAL] {}: no correction is applied. To leave {} uncorrected, do not list it.", pctx, name));
       if (!cfg.perParticle.emplace(name, pc).second)
         throw std::runtime_error(std::format("[FATAL] {}: listed twice.", pctx));
@@ -622,9 +622,9 @@ class CorrelationTaskBase : public IAnalysisTask
 
     for (const auto& [name, pc] : cfg.perParticle) {
       std::string what;
-      if (pc.accEff)
-        what = std::format("acceptance x efficiency ({})", pc.accEff->mult == MultDependence::Binned ? "per multiplicity class" : "multiplicity-integrated");
-      if (pc.sigLoss)
+      if (pc.efficiency)
+        what = std::format("acceptance x efficiency ({})", pc.efficiency->mult == MultDependence::Binned ? "per multiplicity class" : "multiplicity-integrated");
+      if (pc.signalLoss)
         what += what.empty() ? "signal loss" : " + signal loss";
       Logger::Info("{}: {} corrected for {}.", GetName(), name, what);
     }
@@ -730,26 +730,26 @@ class CorrelationTaskBase : public IAnalysisTask
       }
 
 
-      const bool effBinned = pc.accEff && pc.accEff->mult == MultDependence::Binned;
-      const bool effIntegrated = pc.accEff && pc.accEff->mult == MultDependence::Integrated;
+      const bool efficiencyBinned = pc.efficiency && pc.efficiency->mult == MultDependence::Binned;
+      const bool efficiencyIntegrated = pc.efficiency && pc.efficiency->mult == MultDependence::Integrated;
       // The signal loss is always per multiplicity class, whatever the efficiency uses.
-      const bool sigLoss = pc.sigLoss.has_value();
+      const bool signalLoss = pc.signalLoss.has_value();
 
-      std::unique_ptr<TH1> hEffInt = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(name, OutputNames::kMultIntegrated), effIntegrated, targetBinning, "pT");
+      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(name, OutputNames::kMultIntegrated), efficiencyIntegrated, targetBinning, "pT");
 
       for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
         const std::string multTag = OutputNames::MultTag(multBinning, multBin);
-        std::unique_ptr<TH1> hEffBin = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(name, multTag), effBinned, targetBinning, "pT");
-        std::unique_ptr<TH1> hLossBin = fetchHist(OutputNames::SignalLossPath(globalCfgs.binningName), OutputNames::SignalLoss(name, multTag), sigLoss, targetBinning, "pT");
+        std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(name, multTag), efficiencyBinned, targetBinning, "pT");
+        std::unique_ptr<TH1> hSignalLossBinned = fetchHist(OutputNames::SignalLossPath(globalCfgs.binningName), OutputNames::SignalLoss(name, multTag), signalLoss, targetBinning, "pT");
 
-        corr.h1Corrections[multBin] = combineHists(effIntegrated ? hEffInt.get() : hEffBin.get(), hLossBin.get(),
+        corr.h1Corrections[multBin] = combineHists(efficiencyIntegrated ? hEfficiencyIntegrated.get() : hEfficiencyBinned.get(), hSignalLossBinned.get(),
                                              std::format("h1Corrected_{}_{}", name, multTag));
       }
 
       correctionCollection[name] = std::move(corr);
     }
 
-    Logger::Info("{}: Efficiencies loaded successfully.", GetName());
+    Logger::Info("{}: Corrections loaded successfully.", GetName());
   }
 
   // -------------------------------------------------------------------------
@@ -1383,7 +1383,7 @@ class CorrelationTaskBase : public IAnalysisTask
         HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {ptPhiBin + 1, ptPhiBin + 1}};
 
         double triggerBkgRatio = GetTriggerBkgRatio(multBin, ptPhiBin);
-        double phiEff = Efficiency("Phi", multBin, ptPhiBin);
+        double phiCorrection = Correction("Phi", multBin, ptPhiBin);
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
@@ -1395,13 +1395,13 @@ class CorrelationTaskBase : public IAnalysisTask
             HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {ptAssocBin + 1, ptAssocBin + 1}};
             std::vector<HistogramUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
-            double assocEff = Efficiency(config.name, multBin, ptAssocBin);
-            double totalEff = phiEff * assocEff;
+            double assocCorrection = Correction(config.name, multBin, ptAssocBin);
+            double totalCorrection = phiCorrection * assocCorrection;
 
             std::string histNameBase = "h1Phi" + config.name + "Data";
             std::string suffix = CellSuffix(config, multBin, ptPhiBin, ptAssocBin);
 
-            std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, {.axesToCut = axesToCut, .totalEff = totalEff, .triggerBkgRatio = triggerBkgRatio, .histNameBase = histNameBase + suffix, .ioDir = targetDir});
+            std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, {.axesToCut = axesToCut, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .histNameBase = histNameBase + suffix, .ioDir = targetDir});
 
             if (ptPhiBin == 0) {
               std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, multBin, ptAssocBin));
@@ -1420,9 +1420,9 @@ class CorrelationTaskBase : public IAnalysisTask
 
   // The correction applied here to one particle in one (multiplicity class, pT bin) - the trigger pT for the phi -
   // and 1 where none is. The one reader of the loaded corrections: the phi's divides both the triggers
-  // (CountTriggers) and the pairs (totalEff), and the per-trigger yield is corrected only if the two use the same
+  // (CountTriggers) and the pairs (totalCorrection), and the per-trigger yield is corrected only if the two use the same
   // number.
-  double Efficiency(const std::string& particle, int multBin, int ptBin) const
+  double Correction(const std::string& particle, int multBin, int ptBin) const
   {
     auto it = correctionCollection.find(particle);
     const TH1* h = it == correctionCollection.end() ? nullptr : it->second.h1Corrections[multBin].get();
@@ -1441,9 +1441,9 @@ class CorrelationTaskBase : public IAnalysisTask
     double count = 0.0, variance = 0.0;
     for (int ptPhiBin = 0; ptPhiBin < BinningUtils::NBins(ptPhiBinning); ptPhiBin++) {
       const auto [signal, error] = GetTriggerSignal(multBin, ptPhiBin);
-      const double phiEff = Efficiency("Phi", multBin, ptPhiBin);
-      count += signal / phiEff;
-      variance += (error / phiEff) * (error / phiEff);
+      const double phiCorrection = Correction("Phi", multBin, ptPhiBin);
+      count += signal / phiCorrection;
+      variance += (error / phiCorrection) * (error / phiCorrection);
     }
     return {count, std::sqrt(variance)};
   }

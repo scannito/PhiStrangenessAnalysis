@@ -24,42 +24,42 @@ class FitConfigManager : public BaseConfigManager
   // An override of fit_setup.bins that names none of them stops the run, since it would never be applied (a typo,
   // or a key written for another binning); GetConfig refuses a cell that was not declared, so a task cannot skip
   // the check, nor fit a binning it did not declare.
-  void DeclareCells(const std::string& particle, std::span<const double> multBinning,
+  void DeclareCells(const std::string& section, std::span<const double> multBinning,
                     std::initializer_list<std::span<const double>> ptBinnings)
   {
-    std::set<std::string>& cells = declaredCells[particle];
+    std::set<std::string>& cells = declaredCells[section];
     for (std::span<const double> ptBinning : ptBinnings)
       for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++)
         for (int ptBin = 0; ptBin < BinningUtils::NBins(ptBinning); ptBin++)
           cells.insert(OutputNames::CellTag(multBinning, multBin, ptBinning, ptBin));
-    if (const rapidjson::Value* bins = Bins(particle))
-      JsonConfig::RequireKnownKeys(*bins, cells, std::format("{}: section '{}'.fit_setup.bins (the keys are the cells this task fits)", managerName, particle));
+    if (const rapidjson::Value* bins = Bins(section))
+      JsonConfig::RequireKnownKeys(*bins, cells, std::format("{}: section '{}'.fit_setup.bins (the keys are the cells this task fits)", managerName, section));
   }
 
   // The configuration of one cell, 'cell' as OutputNames::CellTag gives it: the section's default, then the
   // override of that cell if there is one.
-  FitConfig GetConfig(const std::string& particle, const std::string& cell) const
+  FitConfig GetConfig(const std::string& section, const std::string& cell) const
   {
-    const auto declared = declaredCells.find(particle);
+    const auto declared = declaredCells.find(section);
     if (declared == declaredCells.end() || !declared->second.contains(cell))
       throw std::runtime_error(std::format("[FATAL] {}: GetConfig('{}', '{}') for a cell that was not declared with DeclareCells, "
                                            "so the overrides were not checked against it.",
-                                           managerName, particle, cell));
+                                           managerName, section, cell));
 
     FitConfig config;
-    const rapidjson::Value& partNode = Section(particle);
+    const rapidjson::Value& partNode = Section(section);
 
     // Every block below has a closed set of keys, so a misspelled one is refused instead
     // of skipped: a typo in n_sigma_integration would otherwise leave the previous window
     // in force and change the fit with no word (CLAUDE.md, Configuration).
-    JsonConfig::RequireKnownKeys(partNode, {"observable", "fit_setup"}, std::format("{}: section '{}'", managerName, particle));
+    JsonConfig::RequireKnownKeys(partNode, {"observable", "fit_setup"}, std::format("{}: section '{}'", managerName, section));
 
     // LOAD GLOBAL OBSERVABLE PROPERTIES
     // This is done ONLY ONCE for the particle, completely outside the override logic.
     // It prevents accidental bin-by-bin modifications of the physical X-axis.
     // The block, the name and the range are required: nothing sensible can stand in for
     // what is fitted or over which interval. The title only labels the axis.
-    const std::string obsCtx = std::format("{}: section '{}'", managerName, particle);
+    const std::string obsCtx = std::format("{}: section '{}'", managerName, section);
     const rapidjson::Value* obs = JsonConfig::TryObject(partNode, "observable", obsCtx);
     if (!obs)
       throw std::runtime_error(std::format("[FATAL] {}: 'observable' missing in JSON!", obsCtx));
@@ -76,7 +76,7 @@ class FitConfigManager : public BaseConfigManager
     //  We now look strictly inside the "fit_setup" block for mathematical models.
     if (const rapidjson::Value* fitSetup = JsonConfig::TryObject(partNode, "fit_setup", managerName)) {
       const auto& fitNode = *fitSetup;
-      JsonConfig::RequireKnownKeys(fitNode, {"default", "bins"}, std::format("{}: section '{}'.fit_setup", managerName, particle));
+      JsonConfig::RequireKnownKeys(fitNode, {"default", "bins"}, std::format("{}: section '{}'.fit_setup", managerName, section));
 
       // Local Lambda function to populate the nested ModelConfig struct
       // Every key is optional because this runs twice, on "default" and then on the
@@ -84,7 +84,7 @@ class FitConfigManager : public BaseConfigManager
       // fallback, so absent means "keep the previous pass" and never "reset".
       auto loadNodeIntoModel = [&](const rapidjson::Value& node) {
         JsonConfig::RequireKnownKeys(node, {"sig_model", "bkg_model", "snap_to_bin", "integration_range", "n_sigma_integration", "calculate_purity", "sideband", "params"},
-                                     std::format("{}: section '{}'", managerName, particle));
+                                     std::format("{}: section '{}'", managerName, section));
         config.model.sigModel = JsonConfig::OptionalString(node, "sig_model", config.model.sigModel, managerName);
         config.model.bkgModel = JsonConfig::OptionalString(node, "bkg_model", config.model.bkgModel, managerName);
 
@@ -101,7 +101,7 @@ class FitConfigManager : public BaseConfigManager
         config.integration.calculatePurity = JsonConfig::OptionalBool(node, "calculate_purity", config.integration.calculatePurity, managerName);
 
         if (const rapidjson::Value* sbNode = JsonConfig::TryObject(node, "sideband", managerName)) {
-          JsonConfig::RequireKnownKeys(*sbNode, {"from_fit", "range"}, std::format("{}: section '{}'.sideband", managerName, particle));
+          JsonConfig::RequireKnownKeys(*sbNode, {"from_fit", "range"}, std::format("{}: section '{}'.sideband", managerName, section));
           SidebandConfig sb = config.integration.sideband.value_or(SidebandConfig{});
           sb.fromFit = JsonConfig::OptionalBool(*sbNode, "from_fit", sb.fromFit, managerName);
           if (auto r = JsonConfig::TryRange(*sbNode, "range", managerName))
@@ -119,7 +119,7 @@ class FitConfigManager : public BaseConfigManager
       // 2. Override with specific bin settings if they exist
       // The outer key is fixed and must be an object; the inner one is the cell, so
       // its absence is normal and HasMember is the right tool.
-      const rapidjson::Value* bins = Bins(particle);
+      const rapidjson::Value* bins = Bins(section);
       if (bins && bins->HasMember(cell.c_str())) {
         Logger::Debug("{}: Found custom parameters for bin: {}", managerName, cell);
         loadNodeIntoModel((*bins)[cell.c_str()]);
@@ -138,18 +138,18 @@ class FitConfigManager : public BaseConfigManager
   // ExtrapConfigManager, where it means "skip this particle". Checked before the
   // lookup: rapidjson's operator[] on a missing key asserts, and in a Release
   // build (where asserts are compiled out) returns a null value in silence.
-  const rapidjson::Value& Section(const std::string& particle) const
+  const rapidjson::Value& Section(const std::string& section) const
   {
-    if (!isLoaded || !document.HasMember(particle.c_str()))
+    if (!isLoaded || !document.HasMember(section.c_str()))
       throw std::runtime_error(std::format("[FATAL] {}: no section '{}' in the fit configuration.",
-                                           managerName, particle));
-    return document[particle.c_str()];
+                                           managerName, section));
+    return document[section.c_str()];
   }
 
   // The section's fit_setup.bins, or null if it has none.
-  const rapidjson::Value* Bins(const std::string& particle) const
+  const rapidjson::Value* Bins(const std::string& section) const
   {
-    const rapidjson::Value* fitSetup = JsonConfig::TryObject(Section(particle), "fit_setup", managerName);
+    const rapidjson::Value* fitSetup = JsonConfig::TryObject(Section(section), "fit_setup", managerName);
     return fitSetup ? JsonConfig::TryObject(*fitSetup, "bins", managerName) : nullptr;
   }
 

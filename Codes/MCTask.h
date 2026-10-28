@@ -269,7 +269,7 @@ class MCTask : public IAnalysisTask
       Logger::Info(" ---> Computing Global Event Efficiency (Event Loss)...");
 
       // Delegate the math to the static calculator
-      hEventLoss = EfficiencyCalculator::ComputeEventEfficiency(hEventMultGenAssocReco.get(), hEventMultGen.get());
+      hEventLoss = EfficiencyCalculator::ComputeEventLoss(hEventMultGenAssocReco.get(), hEventMultGen.get());
 
       writeInto(OutputNames::EventLossPath(globalCfgs.binningName), hEventLoss.get());
     }
@@ -293,37 +293,37 @@ class MCTask : public IAnalysisTask
         data.h3MCGen->Sumw2();
 
       // 1. Compute and save the 3D and 2D correction map
-      std::unique_ptr<TH3> h3TotalMap = EfficiencyCalculator::Compute3DTotalMap(data, particleCorrectionMode);
+      std::unique_ptr<TH3> h3CorrectionMap = EfficiencyCalculator::Compute3DCorrectionMap(data, particleCorrectionMode);
 
       std::string fileMCOutputPerPartPath3D = ccdbOutputDir + outputPrefix + "h3EffMap" + data.name + ".root";
       std::unique_ptr<TFile> fileMCOutputPerPart3D = RootIO::OpenOrThrow(fileMCOutputPerPartPath3D, "RECREATE", GetName());
       fileMCOutputPerPart3D->cd();
-      h3TotalMap->SetName("ccdb_object");
-      h3TotalMap->Write(nullptr, TObject::kOverwrite);
+      h3CorrectionMap->SetName("ccdb_object");
+      h3CorrectionMap->Write(nullptr, TObject::kOverwrite);
       fileMCOutputPerPart3D->Close();
 
-      std::unique_ptr<TH2> h2TotalMapMultInt = EfficiencyCalculator::Compute2DTotalMapMultIntegrated(data, particleCorrectionMode);
+      std::unique_ptr<TH2> h2CorrectionMapMultIntegrated = EfficiencyCalculator::Compute2DCorrectionMapMultIntegrated(data, particleCorrectionMode);
 
       std::string fileMCOutputPerPartPath2D = ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root";
       std::unique_ptr<TFile> fileMCOutputPerPart2D = RootIO::OpenOrThrow(fileMCOutputPerPartPath2D, "RECREATE", GetName());
       fileMCOutputPerPart2D->cd();
-      h2TotalMapMultInt->SetName("ccdb_object");
-      h2TotalMapMultInt->Write(nullptr, TObject::kOverwrite);
+      h2CorrectionMapMultIntegrated->SetName("ccdb_object");
+      h2CorrectionMapMultIntegrated->Write(nullptr, TObject::kOverwrite);
       fileMCOutputPerPart2D->Close();
 
       // QA: error/relative-error maps alongside the CCDB map
-      std::unique_ptr<TH2> h2TotalMapMultIntError = EfficiencyCalculator::BuildErrorMap(h2TotalMapMultInt.get(), "h2EffMapError" + data.name);
-      std::unique_ptr<TH2> h2TotalMapMultIntRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2TotalMapMultInt.get(), "h2EffMapRelError" + data.name);
+      std::unique_ptr<TH2> h2CorrectionMapMultIntegratedError = EfficiencyCalculator::BuildErrorMap(h2CorrectionMapMultIntegrated.get(), "h2EffMapError" + data.name);
+      std::unique_ptr<TH2> h2CorrectionMapMultIntegratedRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2CorrectionMapMultIntegrated.get(), "h2EffMapRelError" + data.name);
 
       std::string fileMCOutputPerPartErrorPath2D = ccdbOutputDir + outputPrefix + "h2EffMapError" + data.name + ".root";
       std::unique_ptr<TFile> fileMCOutputPerPartError2D = RootIO::OpenOrThrow(fileMCOutputPerPartErrorPath2D, "RECREATE", GetName());
       fileMCOutputPerPartError2D->cd();
-      // h2TotalMapMultIntError->SetName("ccdb_object");
-      if (h2TotalMapMultIntError)
-        h2TotalMapMultIntError->Write(nullptr, TObject::kOverwrite);
-      // h2TotalMapMultIntRelError->SetName("ccdb_object");
-      if (h2TotalMapMultIntRelError)
-        h2TotalMapMultIntRelError->Write(nullptr, TObject::kOverwrite);
+      // h2CorrectionMapMultIntegratedError->SetName("ccdb_object");
+      if (h2CorrectionMapMultIntegratedError)
+        h2CorrectionMapMultIntegratedError->Write(nullptr, TObject::kOverwrite);
+      // h2CorrectionMapMultIntegratedRelError->SetName("ccdb_object");
+      if (h2CorrectionMapMultIntegratedRelError)
+        h2CorrectionMapMultIntegratedRelError->Write(nullptr, TObject::kOverwrite);
       fileMCOutputPerPartError2D->Close();
 
       // 2. Compute 1D Spectra across multiplicity bins
@@ -365,14 +365,14 @@ class MCTask : public IAnalysisTask
       // denominator, which is not the case for a ratio of two efficiencies. The
       // division is done on a clone, so the maps written to file are untouched.
       // The independence is still an approximation: both come from the same sample.
-      auto drawOverEvLoss = [&](const EfficiencyCalculator::Maps1D& maps, const char* drawOption, int multBin) {
+      auto drawOverEventLoss = [&](const EfficiencyCalculator::Maps1D& maps, const char* drawOption, int multBin) {
         if (!hEventLoss || !maps.signalLoss)
           return;
 
-        double evLoss, evLossErr;
+        double eventLoss, eventLossError;
         if (multBin >= 0) {
-          evLoss = hEventLoss->GetBinContent(multBin + 1);
-          evLossErr = hEventLoss->GetBinError(multBin + 1);
+          eventLoss = hEventLoss->GetBinContent(multBin + 1);
+          eventLossError = hEventLoss->GetBinError(multBin + 1);
         } else {
           // Same convention as the per-bin event loss: collapse the two event
           // histograms into one bin spanning the multiplicity range of the analysis
@@ -389,13 +389,13 @@ class MCTask : public IAnalysisTask
 
           auto gen = collapse(hEventMultGen.get());
           auto reco = collapse(hEventMultGenAssocReco.get());
-          auto integrated = EfficiencyCalculator::ComputeEventEfficiency(reco.get(), gen.get());
+          auto integrated = EfficiencyCalculator::ComputeEventLoss(reco.get(), gen.get());
           if (!integrated)
             return;
-          evLoss = integrated->GetBinContent(1);
-          evLossErr = integrated->GetBinError(1);
+          eventLoss = integrated->GetBinContent(1);
+          eventLossError = integrated->GetBinError(1);
         }
-        if (evLoss <= 0.) {
+        if (eventLoss <= 0.) {
           Logger::Warn("{}: event loss is zero for {}, signal loss over event loss skipped.", GetName(), data.name);
           return;
         }
@@ -408,18 +408,18 @@ class MCTask : public IAnalysisTask
 
           const std::string baseName = signalLoss->GetName();
 
-          std::unique_ptr<TH1> hEvLossConst{static_cast<TH1*>(signalLoss->Clone((baseName + "_evLossConst").c_str()))};
-          hEvLossConst->SetDirectory(0);
-          hEvLossConst->Reset();
-          for (int bin = 1; bin <= hEvLossConst->GetNbinsX(); bin++) {
-            hEvLossConst->SetBinContent(bin, evLoss);
-            hEvLossConst->SetBinError(bin, evLossErr);
+          std::unique_ptr<TH1> hEventLossConst{static_cast<TH1*>(signalLoss->Clone((baseName + "_evLossConst").c_str()))};
+          hEventLossConst->SetDirectory(0);
+          hEventLossConst->Reset();
+          for (int bin = 1; bin <= hEventLossConst->GetNbinsX(); bin++) {
+            hEventLossConst->SetBinContent(bin, eventLoss);
+            hEventLossConst->SetBinError(bin, eventLossError);
           }
 
           std::unique_ptr<TH1> ratio{static_cast<TH1*>(signalLoss->Clone((baseName + "_overEvLoss").c_str()))};
           ratio->GetYaxis()->SetTitle("Signal Loss / Event Loss");
           ratio->SetDirectory(0);
-          ratio->Divide(hEvLossConst.get());
+          ratio->Divide(hEventLossConst.get());
 
           canvas->cd();
           ratio->DrawCopy(drawOption);
@@ -448,14 +448,14 @@ class MCTask : public IAnalysisTask
         EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, multBinning, multBin, globalCfgs.GetSpectraColor(multBin));
 
         drawMaps(maps, multBin == 0 ? "" : "SAME");
-        drawOverEvLoss(maps, multBin == 0 ? "" : "SAME", multBin);
+        drawOverEventLoss(maps, multBin == 0 ? "" : "SAME", multBin);
         writeMaps(maps);
       }
 
       EfficiencyCalculator::Maps1D mapsInt = EfficiencyCalculator::Compute1DMapsMultIntegrated(data);
 
       drawMaps(mapsInt, "SAME");
-      drawOverEvLoss(mapsInt, "SAME", -1);
+      drawOverEventLoss(mapsInt, "SAME", -1);
       writeMaps(mapsInt);
     }
   }

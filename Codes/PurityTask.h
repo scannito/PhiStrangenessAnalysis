@@ -144,7 +144,7 @@ class PurityTask : public IAnalysisTask
     // 4. Initialize specific mathematical tools
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
     for (const ParticleTask& task : particleTasks)
-      fitConfigManager->DeclareCells(task.name, multBinning, {task.sourceBinning, task.AnalysisBinning()});
+      fitConfigManager->DeclareCells(task.purityKey, multBinning, {task.sourceBinning, task.AnalysisBinning()});
   }
 
   void Run() override
@@ -156,7 +156,7 @@ class PurityTask : public IAnalysisTask
     for (int multBin{0}; multBin < BinningUtils::NBins(multBinning); multBin++) {
       for (auto& task : particleTasks) {
         // Every particle's fits in a directory of its own: they share the file.
-        std::vector<std::string> fitPath = {globalCfgs.binningName, "Fits", task.name};
+        std::vector<std::string> fitPath = {globalCfgs.binningName, "Fits", task.purityKey};
 
         TDirectory* summaryDir = RootIO::GetOrCreatePath(outputFile.get(), summaryPath, false);
         TDirectory* fitDir = RootIO::GetOrCreatePath(outputFile.get(), fitPath, false);
@@ -165,7 +165,7 @@ class PurityTask : public IAnalysisTask
 
         // Style and draw on the summary canvas
         CanvasManager::SetHistogramStyle(h1PurityAnalysis.get(), globalCfgs.GetSpectraColor(multBin));
-        canvasManager.RequireCanvas("canvas" + task.name + "Purity")->cd();
+        canvasManager.RequireCanvas("canvas" + task.purityKey + "Purity")->cd();
         h1PurityAnalysis->DrawCopy(multBin == 0 ? "" : "SAME");
 
         if (summaryDir) {
@@ -190,7 +190,7 @@ class PurityTask : public IAnalysisTask
           h1PuritySeparateSource = FitPuritySpectrum(task, multBin, SpectrumBinning::Source, fitDirSource);
 
           CanvasManager::SetHistogramStyle(h1PuritySeparateSource.get(), globalCfgs.GetSpectraColor(multBin));
-          canvasManager.RequireCanvas("canvas" + task.name + "Purity_sourceBinning")->cd();
+          canvasManager.RequireCanvas("canvas" + task.purityKey + "Purity_sourceBinning")->cd();
           h1PuritySeparateSource->DrawCopy(multBin == 0 ? "" : "SAME");
 
           // Own subdirectory rather than sitting next to the analysis spectra.
@@ -237,7 +237,7 @@ class PurityTask : public IAnalysisTask
       if (!task.h2PurityCCDB)
         continue;
 
-      std::string ccdbPath = ccdbOutputDir + outputPrefix + "h2PurityMap" + task.name + ".root";
+      std::string ccdbPath = ccdbOutputDir + outputPrefix + "h2PurityMap" + task.purityKey + ".root";
       std::unique_ptr<TFile> ccdbFile = RootIO::OpenOrThrow(ccdbPath, "RECREATE", GetName());
       ccdbFile->cd();
       task.h2PurityCCDB->SetName("ccdb_object");
@@ -287,17 +287,17 @@ class PurityTask : public IAnalysisTask
     const std::string nameSuffix = atSource ? "_sourceBinning" : "";
     const std::string titleSuffix = atSource ? ", source binning" : "";
     // The purity_key as a TLatex label: an underscore would make the rest a subscript ("pi_tpc").
-    std::string label = task.name;
+    std::string label = task.purityKey;
     std::ranges::replace(label, '_', ' ');
 
-    std::string hName = OutputNames::Purity(task.name, OutputNames::MultTag(multBinning, multBin)) + nameSuffix;
+    std::string hName = OutputNames::Purity(task.purityKey, OutputNames::MultTag(multBinning, multBin)) + nameSuffix;
     std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
                                                                    BinningUtils::NBins(binning), binning.data());
     h1PuritySpectrum->SetDirectory(0);
 
     for (int ptBin{0}; ptBin < BinningUtils::NBins(binning); ptBin++) {
       const std::string cell = OutputNames::CellTag(multBinning, multBin, binning, ptBin);
-      std::string histName = std::format("h1{}_{}{}", task.name, cell, nameSuffix);
+      std::string histName = std::format("h1{}_{}{}", task.purityKey, cell, nameSuffix);
 
       const BinningUtils::BinRange range = atSource ? BinningUtils::BinRange{ptBin + 1, ptBin + 1} : task.mappedSourceBins[ptBin];
       std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), multBin + 1, multBin + 1,
@@ -305,11 +305,11 @@ class PurityTask : public IAnalysisTask
       h1Data->SetDirectory(0);
 
       // Run Fitter using JSON-based configuration
-      FitConfig cfg = fitConfigManager->GetConfig(task.name, cell);
+      FitConfig cfg = fitConfigManager->GetConfig(task.purityKey, cell);
       DynamicRooFitter fitter(h1Data.get(), cfg);
 
       fitter.DoFit();
-      fitQuality.Add(task.name, atSource ? FitQualityRecorder::kSourceBinning : FitQualityRecorder::kAnalysisBinning, multBinning,
+      fitQuality.Add(task.purityKey, atSource ? FitQualityRecorder::kSourceBinning : FitQualityRecorder::kAnalysisBinning, multBinning,
                      multBin, binning, ptBin, cfg.binOverride, fitter.Diagnostics());
 
       auto res = fitter.ExtractYieldsAndPurity();
@@ -319,7 +319,7 @@ class PurityTask : public IAnalysisTask
       // The fit's diagnostic canvas, written into the particle's directory and destroyed
       // per fit, as in PhiFitTask: holding them all for the WriteAll in Terminate would
       // only cost memory, since nothing reads a fit canvas back.
-      const std::string cName = std::format("cFit_{}_{}{}", task.name, cell, nameSuffix);
+      const std::string cName = std::format("cFit_{}_{}{}", task.purityKey, cell, nameSuffix);
       const std::string title = OutputNames::CellTitle(label, multBinning, multBin, binning, ptBin) + titleSuffix;
       TCanvas* cFit = canvasManager.CreateCanvas(cName, title, 800, 800);
       // log: the background under a peak of 1e5-1e8 counts is at 1e-2-1e-4 of it, and it decides the purity
@@ -339,7 +339,7 @@ class PurityTask : public IAnalysisTask
   static void FillCCDBColumn(ParticleTask& task, int multBin, const TH1* h1Purity)
   {
     BinningUtils::RequireSameAxis(h1Purity->GetXaxis(), task.h2PurityCCDB->GetYaxis(),
-                                  std::format("spectrum given to the '{}' CCDB map", task.name),
+                                  std::format("spectrum given to the '{}' CCDB map", task.purityKey),
                                   "that map's pT axis (the source binning)");
 
     for (int ptBin{0}; ptBin < h1Purity->GetNbinsX(); ptBin++) {

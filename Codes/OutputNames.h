@@ -115,15 +115,15 @@ inline const std::string kTriggerBkgRatio{"h2TriggerBkgRatio"};
 // PurityTask -> CorrelationTask, by purity_key.
 inline std::string Purity(std::string_view purityKey, std::string_view multTag) { return std::format("h1{}Purity_{}", purityKey, multTag); }
 
-inline std::string Spectrum(std::string_view species, double dy, std::span<const double> multBinning, int multBin)
+inline std::string Spectrum(std::string_view particle, double dy, std::span<const double> multBinning, int multBin)
 {
-  return std::format("h1SpectrumPhi{}_dy{}_{}", species, DyTag(dy), MultTag(multBinning, multBin));
+  return std::format("h1SpectrumPhi{}_dy{}_{}", particle, DyTag(dy), MultTag(multBinning, multBin));
 }
 // The spectrum with the extrapolated bin down to pT = 0 in front of the measured ones.
 inline std::string SpectrumExtended(std::string_view spectrumName) { return std::format("{}_extended", spectrumName); }
-inline std::string Trend(std::string_view species, double dy) { return std::format("h1MultTrend_{}_dy{}", species, DyTag(dy)); }
-inline std::string TrendExtrapolated(std::string_view species, double dy) { return std::format("h1MultTrendExtrap_{}_dy{}", species, DyTag(dy)); }
-inline std::string TrendExtrapOverMeas(std::string_view species, double dy) { return std::format("Ratio_Extrap_Meas_{}_dy{}", species, DyTag(dy)); }
+inline std::string Trend(std::string_view particle, double dy) { return std::format("h1MultTrend_{}_dy{}", particle, DyTag(dy)); }
+inline std::string TrendExtrapolated(std::string_view particle, double dy) { return std::format("h1MultTrendExtrap_{}_dy{}", particle, DyTag(dy)); }
+inline std::string TrendExtrapOverMeas(std::string_view particle, double dy) { return std::format("Ratio_Extrap_Meas_{}_dy{}", particle, DyTag(dy)); }
 inline std::string SpeciesRatioMeasured(std::string_view num, std::string_view den, double dy)
 {
   return std::format("Ratio_{}_{}_Meas_dy{}", num, den, DyTag(dy));
@@ -135,7 +135,7 @@ inline std::string SpeciesRatioExtrapolated(std::string_view num, std::string_vi
 
 // The summary canvases of the spectra, created once per species and |dy| and drawn into later,
 // found again by these names.
-inline std::string SpectraCanvas(std::string_view species, double dy) { return std::format("cSpectra_{}_dy{}", species, DyTag(dy)); }
-inline std::string SpectraExtrapCanvas(std::string_view species, double dy) { return std::format("cSpectraExtrap_{}_dy{}", species, DyTag(dy)); }
+inline std::string SpectraCanvas(std::string_view particle, double dy) { return std::format("cSpectra_{}_dy{}", particle, DyTag(dy)); }
+inline std::string SpectraExtrapCanvas(std::string_view particle, double dy) { return std::format("cSpectraExtrap_{}_dy{}", particle, DyTag(dy)); }
 
 } // namespace OutputNames

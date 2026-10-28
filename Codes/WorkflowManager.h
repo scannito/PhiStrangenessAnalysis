@@ -197,7 +197,7 @@ class WorkflowManager
     const rapidjson::Value* config = JsonConfig::TryObject(workflowNode, "global_binning", "workflow");
     if (!config) {
       // Not "using defaults": there are none. AnalysisSettings deliberately ships an
-      // empty speciesPtBinning, because the correlation and MC productions have
+      // empty particlePtBinning, because the correlation and MC productions have
       // different binnings and either one built in would be a false alarm for the
       // other family. Empty means VerifyPtBinning has nothing to compare against, so
       // the axes found in the input files are used unverified - which is the check
@@ -212,18 +212,18 @@ class WorkflowManager
 
     // Override multiplicity binning if specified in JSON
     if (auto multBins = JsonConfig::TryArray(*config, "multiplicity_binning", "global_binning")) {
-      globalSettings.binsMult = JsonConfig::ReadNumberArray(*multBins, "multiplicity_binning", "global_binning");
+      globalSettings.multBinning = JsonConfig::ReadNumberArray(*multBins, "multiplicity_binning", "global_binning");
       Logger::Info("  -> Overridden 'multiplicity' binning from JSON.");
     }
 
     // pT binning per species (e.g. Phi, K0S, Pi) can be overridden in the JSON as well
     if (const rapidjson::Value* ptBinning = JsonConfig::TryObject(*config, "pt_binning", "global_binning")) {
       for (auto& m : ptBinning->GetObject()) {
-        std::string species = m.name.GetString();
-        globalSettings.speciesPtBinning[species] =
-          JsonConfig::ReadNumberArray(JsonConfig::ToArray(m.value, species, "global_binning.pt_binning"),
-                                      species, "global_binning.pt_binning");
-        Logger::Info("  -> Overridden pT binning for species '{}' from JSON.", species);
+        std::string particle = m.name.GetString();
+        globalSettings.particlePtBinning[particle] =
+          JsonConfig::ReadNumberArray(JsonConfig::ToArray(m.value, particle, "global_binning.pt_binning"),
+                                      particle, "global_binning.pt_binning");
+        Logger::Info("  -> Overridden pT binning for species '{}' from JSON.", particle);
       }
     }
   }
