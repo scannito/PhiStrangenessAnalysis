@@ -112,11 +112,11 @@ class PhiFitTask : public IAnalysisTask
                                            globalCfgs.binningName));
     }
 
-    for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-      for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-        const std::string cell = OutputNames::CellTag(multBinning, i, ptPhiBinning, j);
+    for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
+      for (int ptPhiBin = 0; ptPhiBin < BinningUtils::NBins(ptPhiBinning); ptPhiBin++) {
+        const std::string cell = OutputNames::CellTag(multBinning, multBin, ptPhiBinning, ptPhiBin);
         std::string phiHistName = "h1PhiData_" + cell;
-        std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), i + 1, i + 1, j + 1, j + 1)));
+        std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
         h1PhiData->SetDirectory(0);
 
         // Fetch configuration dynamically from JSON
@@ -125,7 +125,7 @@ class PhiFitTask : public IAnalysisTask
         // Initialize RooFit Engine
         DynamicRooFitter fitter(h1PhiData.get(), cfg);
         fitter.DoFit();
-        fitQuality.Add(kFitSection, FitQualityRecorder::kAnalysisBinning, multBinning, i, ptPhiBinning, j, cfg.binOverride,
+        fitQuality.Add(kFitSection, FitQualityRecorder::kAnalysisBinning, multBinning, multBin, ptPhiBinning, ptPhiBin, cfg.binOverride,
                        fitter.Diagnostics());
 
         auto res = fitter.ExtractYieldsAndPurity();
@@ -135,7 +135,7 @@ class PhiFitTask : public IAnalysisTask
         // Terminate: nothing reads a fit canvas back, and holding all of them until
         // the end would only cost memory.
         const std::string canvasName = "cFit_Phi_" + cell;
-        const std::string title = OutputNames::CellTitle("#phi", multBinning, i, ptPhiBinning, j);
+        const std::string title = OutputNames::CellTitle("#phi", multBinning, multBin, ptPhiBinning, ptPhiBin);
         TCanvas* cFit = canvasManager.CreateCanvas(canvasName, title, 800, 800);
         fitter.DrawFit(cFit, title, /*logY=*/false); // a peak on a smooth background, which log scale flattens
         CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
@@ -143,8 +143,8 @@ class PhiFitTask : public IAnalysisTask
 
         // Save the results for CorrelationTask
         auto fillTriggerMatrix = [&](TH2D* h, const std::pair<double, double>& valueAndError) {
-          h->SetBinContent(i + 1, j + 1, valueAndError.first);
-          h->SetBinError(i + 1, j + 1, valueAndError.second);
+          h->SetBinContent(multBin + 1, ptPhiBin + 1, valueAndError.first);
+          h->SetBinError(multBin + 1, ptPhiBin + 1, valueAndError.second);
         };
 
         fillTriggerMatrix(h2TriggerSignal.get(), res.signalAndError);

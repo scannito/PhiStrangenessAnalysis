@@ -151,9 +151,9 @@ class EfficiencyCalculator
     h2Error->Reset();
     h2Error->SetDirectory(0);
 
-    for (int ix = 1; ix <= h2Source->GetNbinsX(); ++ix) {
-      for (int iy = 1; iy <= h2Source->GetNbinsY(); ++iy) {
-        h2Error->SetBinContent(ix, iy, h2Source->GetBinError(ix, iy));
+    for (int binX = 1; binX <= h2Source->GetNbinsX(); ++binX) {
+      for (int binY = 1; binY <= h2Source->GetNbinsY(); ++binY) {
+        h2Error->SetBinContent(binX, binY, h2Source->GetBinError(binX, binY));
       }
     }
 
@@ -171,12 +171,12 @@ class EfficiencyCalculator
     h2RelError->Reset();
     h2RelError->SetDirectory(0);
 
-    for (int ix = 1; ix <= h2Source->GetNbinsX(); ++ix) {
-      for (int iy = 1; iy <= h2Source->GetNbinsY(); ++iy) {
-        double content = h2Source->GetBinContent(ix, iy);
-        double error = h2Source->GetBinError(ix, iy);
+    for (int binX = 1; binX <= h2Source->GetNbinsX(); ++binX) {
+      for (int binY = 1; binY <= h2Source->GetNbinsY(); ++binY) {
+        double content = h2Source->GetBinContent(binX, binY);
+        double error = h2Source->GetBinError(binX, binY);
         if (content != 0.0)
-          h2RelError->SetBinContent(ix, iy, error / content);
+          h2RelError->SetBinContent(binX, binY, error / content);
       }
     }
 

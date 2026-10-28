@@ -130,12 +130,12 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
 
   std::unique_ptr<TH1> hSpectrum = std::make_unique<TH1D>(histName.c_str(), "; p_{T} (GeV/#it{c}); 1/N_{trig} d^{2}N/dp_{T}d#Deltay", binsVec.size() - 1, binsVec.data());
 
-  for (size_t i{0}; i < hContainer.size(); i++) {
-    auto [binContent, binError] = IntegralAndErrorPair(hContainer[i], -absLimToIntegrate, absLimToIntegrate);
-    double normalizationFactor = (binsVec[i + 1] - binsVec[i]);
+  for (size_t ptBin{0}; ptBin < hContainer.size(); ptBin++) {
+    auto [binContent, binError] = IntegralAndErrorPair(hContainer[ptBin], -absLimToIntegrate, absLimToIntegrate);
+    double normalizationFactor = (binsVec[ptBin + 1] - binsVec[ptBin]);
 
-    hSpectrum->SetBinContent(i + 1, binContent / normalizationFactor);
-    hSpectrum->SetBinError(i + 1, binError / normalizationFactor);
+    hSpectrum->SetBinContent(ptBin + 1, binContent / normalizationFactor);
+    hSpectrum->SetBinError(ptBin + 1, binError / normalizationFactor);
   }
 
   hSpectrum->SetDirectory(0);
@@ -143,25 +143,25 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
   return hSpectrum;
 }
 
-// The measured trend: bin 'i' of the trend gets the integral of the spectrum.
-inline void FillTrendFromSpectrum(TH1* hTrend, TH1* hSpectrum, int i)
+// The measured trend: the bin of class 'multBin' gets the integral of the spectrum.
+inline void FillTrendFromSpectrum(TH1* hTrend, TH1* hSpectrum, int multBin)
 {
   auto [content, error] =
     IntegralAndErrorPair(hSpectrum, hSpectrum->GetXaxis()->GetXmin(), hSpectrum->GetXaxis()->GetXmax(), "width");
 
-  hTrend->SetBinContent(i + 1, content);
-  hTrend->SetBinError(i + 1, error);
+  hTrend->SetBinContent(multBin + 1, content);
+  hTrend->SetBinError(multBin + 1, error);
 }
 
-// The extrapolated trend: bin 'i' gets res.yield (README.md, The extrapolated yield) and
+// The extrapolated trend: the bin of class 'multBin' gets res.yield (README.md, The extrapolated yield) and
 // the toy error, which is the uncertainty on the TOTAL: the toys sample the measured and
 // the extrapolated parts together, with their correlation, so an error taken from the
 // histogram plus something for the model would either double count or throw that
 // correlation away.
-inline void FillTrendFromExtrapolation(TH1* hTrend, const ExtrapolationResult& res, int i)
+inline void FillTrendFromExtrapolation(TH1* hTrend, const ExtrapolationResult& res, int multBin)
 {
-  hTrend->SetBinContent(i + 1, res.yield);
-  hTrend->SetBinError(i + 1, res.yieldStatErr);
+  hTrend->SetBinContent(multBin + 1, res.yield);
+  hTrend->SetBinError(multBin + 1, res.yieldStatErr);
 }
 
 // -----------------------------------------------------------------------------

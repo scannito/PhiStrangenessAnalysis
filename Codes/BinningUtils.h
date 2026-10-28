@@ -32,8 +32,8 @@ inline std::vector<double> AxisEdges(const TAxis* axis)
   const int n = axis->GetNbins();
   std::vector<double> edges;
   edges.reserve(n + 1);
-  for (int i = 1; i <= n; ++i)
-    edges.push_back(axis->GetBinLowEdge(i));
+  for (int bin = 1; bin <= n; ++bin)
+    edges.push_back(axis->GetBinLowEdge(bin));
   edges.push_back(axis->GetXmax());
 
   return edges;

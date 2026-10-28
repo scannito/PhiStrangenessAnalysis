@@ -491,9 +491,9 @@ class CanvasManager
         continue;
 
       const int nBins = h->GetNbinsX();
-      for (int b = 1; b <= nBins; ++b) {
-        const double c = h->GetBinContent(b);
-        const double e = opts.includeErrors ? h->GetBinError(b) : 0.0;
+      for (int bin = 1; bin <= nBins; ++bin) {
+        const double c = h->GetBinContent(bin);
+        const double e = opts.includeErrors ? h->GetBinError(bin) : 0.0;
 
         // Skip completely unpopulated bins
         if (c == 0.0 && e == 0.0)

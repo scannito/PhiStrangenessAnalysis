@@ -355,10 +355,10 @@ class SpectrumExtrapolator
   {
     std::unique_ptr<TH1> hout(static_cast<TH1*>(src->Clone(Form("%s_%s", src->GetName(), suffix))));
     hout->SetDirectory(0);
-    for (int ibin = 0; ibin < src->GetNbinsX(); ibin++) {
-      if (src->GetBinError(ibin + 1) <= 0.)
+    for (int bin = 1; bin <= src->GetNbinsX(); ++bin) {
+      if (src->GetBinError(bin) <= 0.)
         continue;
-      hout->SetBinContent(ibin + 1, src->GetBinContent(ibin + 1) + sign * src->GetBinError(ibin + 1));
+      hout->SetBinContent(bin, src->GetBinContent(bin) + sign * src->GetBinError(bin));
     }
     return hout;
   }
@@ -375,10 +375,10 @@ class SpectrumExtrapolator
       Form("%s_statplussys", fMeasuredSpectrum->GetName()))));
     hTotal->SetDirectory(0);
 
-    for (int ibin = 1; ibin <= fMeasuredSpectrum->GetNbinsX(); ibin++) {
-      const double stat = fMeasuredSpectrum->GetBinError(ibin);
-      const double sys = fSysSpectrum->GetBinError(ibin);
-      hTotal->SetBinError(ibin, TMath::Sqrt(stat * stat + sys * sys));
+    for (int bin = 1; bin <= fMeasuredSpectrum->GetNbinsX(); bin++) {
+      const double stat = fMeasuredSpectrum->GetBinError(bin);
+      const double sys = fSysSpectrum->GetBinError(bin);
+      hTotal->SetBinError(bin, TMath::Sqrt(stat * stat + sys * sys));
     }
 
     return hTotal;
@@ -519,11 +519,11 @@ class SpectrumExtrapolator
     extraHigh = 0.0;
 
     // Data integration
-    for (int ibin = 0; ibin < hdata->GetNbinsX(); ibin++) {
-      double cent = hdata->GetBinCenter(ibin + 1);
-      double width = hdata->GetBinWidth(ibin + 1);
-      double cont = width * hdata->GetBinContent(ibin + 1);
-      if (hdata->GetBinError(ibin + 1) <= 0.) {
+    for (int bin = 1; bin <= hdata->GetNbinsX(); ++bin) {
+      double cent = hdata->GetBinCenter(bin);
+      double width = hdata->GetBinWidth(bin);
+      double cont = width * hdata->GetBinContent(bin);
+      if (hdata->GetBinError(bin) <= 0.) {
         if (skippedData)
           *skippedData += cont;
         continue;
@@ -534,11 +534,11 @@ class SpectrumExtrapolator
 
     // Low integration
     if (hlo) {
-      for (int ibin = 0; ibin < hlo->GetNbinsX(); ibin++) {
-        double cent = hlo->GetBinCenter(ibin + 1);
-        double width = hlo->GetBinWidth(ibin + 1);
-        double cont = width * hlo->GetBinContent(ibin + 1);
-        if (hlo->GetBinError(ibin + 1) <= 0.)
+      for (int bin = 1; bin <= hlo->GetNbinsX(); ++bin) {
+        double cent = hlo->GetBinCenter(bin);
+        double width = hlo->GetBinWidth(bin);
+        double cont = width * hlo->GetBinContent(bin);
+        if (hlo->GetBinError(bin) <= 0.)
           continue;
         I += cont;
         IX += cont * cent;
@@ -548,11 +548,11 @@ class SpectrumExtrapolator
 
     // High integration
     if (hhi) {
-      for (int ibin = 0; ibin < hhi->GetNbinsX(); ibin++) {
-        double cent = hhi->GetBinCenter(ibin + 1);
-        double width = hhi->GetBinWidth(ibin + 1);
-        double cont = width * hhi->GetBinContent(ibin + 1);
-        if (hhi->GetBinError(ibin + 1) <= 0.)
+      for (int bin = 1; bin <= hhi->GetNbinsX(); ++bin) {
+        double cent = hhi->GetBinCenter(bin);
+        double width = hhi->GetBinWidth(bin);
+        double cont = width * hhi->GetBinContent(bin);
+        if (hhi->GetBinError(bin) <= 0.)
           continue;
         I += cont;
         IX += cont * cent;
@@ -570,10 +570,10 @@ class SpectrumExtrapolator
   {
     int binlo = 1;
     double lo = fMinPt;
-    for (int ibin = 1; ibin <= h->GetNbinsX(); ibin++) {
-      if (h->GetBinContent(ibin) != 0.) {
-        binlo = ibin;
-        lo = h->GetBinLowEdge(ibin);
+    for (int bin = 1; bin <= h->GetNbinsX(); bin++) {
+      if (h->GetBinContent(bin) != 0.) {
+        binlo = bin;
+        lo = h->GetBinLowEdge(bin);
         break;
       }
     }
@@ -587,13 +587,13 @@ class SpectrumExtrapolator
     // file. Attached they get written into it and warn on the next bin.
     hlo->SetDirectory(0);
 
-    for (int ibin = 0; ibin < hlo->GetNbinsX(); ibin++) {
-      double width = hlo->GetBinWidth(ibin + 1);
-      double cont = f->Integral(hlo->GetBinLowEdge(ibin + 1), hlo->GetBinLowEdge(ibin + 2), 1.e-6);
-      double err = f->IntegralError(hlo->GetBinLowEdge(ibin + 1), hlo->GetBinLowEdge(ibin + 2), nullptr, nullptr, 1.e-6);
+    for (int bin = 1; bin <= hlo->GetNbinsX(); ++bin) {
+      double width = hlo->GetBinWidth(bin);
+      double cont = f->Integral(hlo->GetBinLowEdge(bin), hlo->GetBinLowEdge(bin + 1), 1.e-6);
+      double err = f->IntegralError(hlo->GetBinLowEdge(bin), hlo->GetBinLowEdge(bin + 1), nullptr, nullptr, 1.e-6);
 
-      hlo->SetBinContent(ibin + 1, cont / width);
-      hlo->SetBinError(ibin + 1, err / width);
+      hlo->SetBinContent(bin, cont / width);
+      hlo->SetBinError(bin, err / width);
     }
     return hlo;
   }
@@ -602,10 +602,10 @@ class SpectrumExtrapolator
   {
     int binhi = h->GetNbinsX();
     double hi = fMaxPt;
-    for (int ibin = h->GetNbinsX(); ibin > 0; ibin--) {
-      if (h->GetBinContent(ibin) != 0.) {
-        binhi = ibin + 1;
-        hi = h->GetBinLowEdge(ibin + 1);
+    for (int bin = h->GetNbinsX(); bin > 0; bin--) {
+      if (h->GetBinContent(bin) != 0.) {
+        binhi = bin + 1;
+        hi = h->GetBinLowEdge(bin + 1);
         break;
       }
     }
@@ -622,13 +622,13 @@ class SpectrumExtrapolator
     auto hhi = std::make_unique<TH1F>("hhi", "", nbins, hi, maxPt);
     hhi->SetDirectory(0);
 
-    for (int ibin = 0; ibin < hhi->GetNbinsX(); ibin++) {
-      double width = hhi->GetBinWidth(ibin + 1);
-      double cont = f->Integral(hhi->GetBinLowEdge(ibin + 1), hhi->GetBinLowEdge(ibin + 2), 1.e-6);
-      double err = f->IntegralError(hhi->GetBinLowEdge(ibin + 1), hhi->GetBinLowEdge(ibin + 2), nullptr, nullptr, 1.e-6);
+    for (int bin = 1; bin <= hhi->GetNbinsX(); ++bin) {
+      double width = hhi->GetBinWidth(bin);
+      double cont = f->Integral(hhi->GetBinLowEdge(bin), hhi->GetBinLowEdge(bin + 1), 1.e-6);
+      double err = f->IntegralError(hhi->GetBinLowEdge(bin), hhi->GetBinLowEdge(bin + 1), nullptr, nullptr, 1.e-6);
 
-      hhi->SetBinContent(ibin + 1, cont / width);
-      hhi->SetBinError(ibin + 1, err / width);
+      hhi->SetBinContent(bin, cont / width);
+      hhi->SetBinError(bin, err / width);
     }
     return hhi;
   }
@@ -644,13 +644,13 @@ class SpectrumExtrapolator
     hout->SetDirectory(0);
     hout->Reset();
 
-    for (int ibin = 0; ibin < hin->GetNbinsX(); ibin++) {
-      if (hin->GetBinError(ibin + 1) <= 0.)
+    for (int bin = 1; bin <= hin->GetNbinsX(); ++bin) {
+      if (hin->GetBinError(bin) <= 0.)
         continue;
-      double cont = hin->GetBinContent(ibin + 1);
-      double err = hin->GetBinError(ibin + 1);
-      hout->SetBinContent(ibin + 1, fRandomGen.Gaus(cont, err));
-      hout->SetBinError(ibin + 1, err);
+      double cont = hin->GetBinContent(bin);
+      double err = hin->GetBinError(bin);
+      hout->SetBinContent(bin, fRandomGen.Gaus(cont, err));
+      hout->SetBinError(bin, err);
     }
     return hout;
   }
@@ -667,13 +667,13 @@ class SpectrumExtrapolator
     hout->Reset();
 
     double cohe = fRandomGen.Gaus(0., 1.);
-    for (int ibin = 0; ibin < hin->GetNbinsX(); ibin++) {
-      if (hin->GetBinError(ibin + 1) <= 0.)
+    for (int bin = 1; bin <= hin->GetNbinsX(); ++bin) {
+      if (hin->GetBinError(bin) <= 0.)
         continue;
-      double cont = hin->GetBinContent(ibin + 1);
-      double err = hin->GetBinError(ibin + 1);
-      hout->SetBinContent(ibin + 1, cont + cohe * err);
-      hout->SetBinError(ibin + 1, err);
+      double cont = hin->GetBinContent(bin);
+      double err = hin->GetBinError(bin);
+      hout->SetBinContent(bin, cont + cohe * err);
+      hout->SetBinError(bin, err);
     }
     return hout;
   }
@@ -685,15 +685,16 @@ class SpectrumExtrapolator
   std::unique_ptr<TH1> TiltedHisto(const TH1* hin, double sign) const
   {
     double ptlow = 0.0, pthigh = 0.0;
-    for (int ibin = 0; ibin < hin->GetNbinsX(); ibin++) {
-      if (hin->GetBinError(ibin + 1) > 0.) {
-        ptlow = hin->GetBinLowEdge(ibin + 1);
+    for (int bin = 1; bin <= hin->GetNbinsX(); ++bin) {
+      if (hin->GetBinError(bin) > 0.) {
+        ptlow = hin->GetBinLowEdge(bin);
         break;
       }
     }
-    for (int ibin = hin->GetNbinsX(); ibin >= 0; ibin--) {
-      if (hin->GetBinError(ibin + 1) > 0.) {
-        pthigh = hin->GetBinLowEdge(ibin + 2);
+    // From the overflow bin down, as YieldMean does.
+    for (int bin = hin->GetNbinsX() + 1; bin >= 1; --bin) {
+      if (hin->GetBinError(bin) > 0.) {
+        pthigh = hin->GetBinLowEdge(bin + 1);
         break;
       }
     }
@@ -702,24 +703,24 @@ class SpectrumExtrapolator
     double maxdiff = 0.;
     std::unique_ptr<TH1> hmax;
 
-    for (int inode = 0; inode < hin->GetNbinsX(); inode++) {
-      const double ptnode = hin->GetBinCenter(inode + 1);
+    for (int nodeBin = 1; nodeBin <= hin->GetNbinsX(); ++nodeBin) {
+      const double ptnode = hin->GetBinCenter(nodeBin);
       std::unique_ptr<TH1> hout(static_cast<TH1*>(hin->Clone("tmp_extreme")));
       hout->SetDirectory(0);
 
-      for (int ibin = 0; ibin < hin->GetNbinsX(); ibin++) {
-        if (hin->GetBinError(ibin + 1) <= 0.)
+      for (int bin = 1; bin <= hin->GetNbinsX(); ++bin) {
+        if (hin->GetBinError(bin) <= 0.)
           continue;
-        double val = hin->GetBinContent(ibin + 1);
-        double err = hin->GetBinError(ibin + 1);
-        double cen = hin->GetBinCenter(ibin + 1);
+        double val = hin->GetBinContent(bin);
+        double err = hin->GetBinError(bin);
+        double cen = hin->GetBinCenter(bin);
 
         if (cen < ptnode)
           err *= -1. + (cen - ptlow) / (ptnode - ptlow);
         else
           err *= (cen - ptnode) / (pthigh - ptnode);
 
-        hout->SetBinContent(ibin + 1, val + sign * err);
+        hout->SetBinContent(bin, val + sign * err);
       }
 
       const double diff = TMath::Abs(mean - hout->GetMean());

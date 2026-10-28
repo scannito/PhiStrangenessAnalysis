@@ -202,9 +202,9 @@ class CorrelationTaskBase : public IAnalysisTask
 
         // Helper lambda function to find particle index by name
         auto getParticleIndex = [&](const std::string& name) -> int {
-          for (size_t i = 0; i < assocParticles.size(); ++i) {
-            if (assocParticles[i].name == name)
-              return i;
+          for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
+            if (assocParticles[pIdx].name == name)
+              return pIdx;
           }
           return -1;
         };
@@ -687,13 +687,13 @@ class CorrelationTaskBase : public IAnalysisTask
 
       // A bin at or below zero, or not a number, has no correct correction: it is not a correction of 1 (CLAUDE.md,
       // Physics), so the run stops at loading and names the bin. Every bin, since each is applied to a cell.
-      for (int b = 1; b <= h->GetNbinsX(); ++b)
-        if (!(h->GetBinContent(b) > 0.0))
+      for (int bin = 1; bin <= h->GetNbinsX(); ++bin)
+        if (!(h->GetBinContent(bin) > 0.0))
           throw std::runtime_error(std::format(
             "[FATAL] {}: '{}' in '{}' is {} at {} {}, and a correction that cannot be computed is not a correction "
             "of 1. The MC has nothing there: more MC statistics in that interval, or data and MC productions whose "
             "binning merges it.",
-            GetName(), name, inputEffFile, h->GetBinContent(b), axis, BinningUtils::BinLabel(targetBinning, b - 1)));
+            GetName(), name, inputEffFile, h->GetBinContent(bin), axis, BinningUtils::BinLabel(targetBinning, bin - 1)));
 
       return h;
     };
@@ -737,12 +737,12 @@ class CorrelationTaskBase : public IAnalysisTask
 
       std::unique_ptr<TH1> hEffInt = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(name, OutputNames::kMultIntegrated), effIntegrated, targetBinning, "pT");
 
-      for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-        const std::string multTag = OutputNames::MultTag(multBinning, i);
+      for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
+        const std::string multTag = OutputNames::MultTag(multBinning, multBin);
         std::unique_ptr<TH1> hEffBin = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(name, multTag), effBinned, targetBinning, "pT");
         std::unique_ptr<TH1> hLossBin = fetchHist(OutputNames::SignalLossPath(globalCfgs.binningName), OutputNames::SignalLoss(name, multTag), sigLoss, targetBinning, "pT");
 
-        corr.h1Corrections[i] = combineHists(effIntegrated ? hEffInt.get() : hEffBin.get(), hLossBin.get(),
+        corr.h1Corrections[multBin] = combineHists(effIntegrated ? hEffInt.get() : hEffBin.get(), hLossBin.get(),
                                              std::format("h1Corrected_{}_{}", name, multTag));
       }
 
@@ -953,8 +953,8 @@ class CorrelationTaskBase : public IAnalysisTask
     h1PhiAssocNoPtPhi.resize(assocParticles.size());
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       h1PhiAssocNoPtPhi[pIdx].resize(BinningUtils::NBins(multBinning));
-      for (int i{0}; i < BinningUtils::NBins(multBinning); ++i) {
-        h1PhiAssocNoPtPhi[pIdx][i].resize(BinningUtils::NBins(assocParticles[pIdx].binning));
+      for (int multBin{0}; multBin < BinningUtils::NBins(multBinning); ++multBin) {
+        h1PhiAssocNoPtPhi[pIdx][multBin].resize(BinningUtils::NBins(assocParticles[pIdx].binning));
       }
     }
 
@@ -1127,9 +1127,9 @@ class CorrelationTaskBase : public IAnalysisTask
     hSpecExt->SetDirectory(0);
 
     // 6. Copy measured contents (shifted by 1 bin to the right)
-    for (int b = 1; b <= hSpec->GetNbinsX(); ++b) {
-      hSpecExt->SetBinContent(b + 1, hSpec->GetBinContent(b));
-      hSpecExt->SetBinError(b + 1, hSpec->GetBinError(b));
+    for (int bin = 1; bin <= hSpec->GetNbinsX(); ++bin) {
+      hSpecExt->SetBinContent(bin + 1, hSpec->GetBinContent(bin));
+      hSpecExt->SetBinError(bin + 1, hSpec->GetBinError(bin));
     }
 
     // Leave the first bin empty (visual placeholder for the fit curve)
@@ -1376,14 +1376,14 @@ class CorrelationTaskBase : public IAnalysisTask
 
     const std::vector<std::string> logicalPath = SectionPath();
 
-    for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-      HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {i + 1, i + 1}};
+    for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
+      HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {multBin + 1, multBin + 1}};
 
-      for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-        HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {j + 1, j + 1}};
+      for (int ptPhiBin = 0; ptPhiBin < BinningUtils::NBins(ptPhiBinning); ptPhiBin++) {
+        HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {ptPhiBin + 1, ptPhiBin + 1}};
 
-        double triggerBkgRatio = GetTriggerBkgRatio(i, j);
-        double phiEff = Efficiency("Phi", i, j);
+        double triggerBkgRatio = GetTriggerBkgRatio(multBin, ptPhiBin);
+        double phiEff = Efficiency("Phi", multBin, ptPhiBin);
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
@@ -1391,30 +1391,30 @@ class CorrelationTaskBase : public IAnalysisTask
 
           TDirectory* targetDir = ProjectionCacheDir(pIdx, logicalPath);
 
-          for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
-            HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {k + 1, k + 1}};
+          for (int ptAssocBin = 0; ptAssocBin < BinningUtils::NBins(config.binning); ptAssocBin++) {
+            HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {ptAssocBin + 1, ptAssocBin + 1}};
             std::vector<HistogramUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
-            double assocEff = Efficiency(config.name, i, k);
+            double assocEff = Efficiency(config.name, multBin, ptAssocBin);
             double totalEff = phiEff * assocEff;
 
             std::string histNameBase = "h1Phi" + config.name + "Data";
-            std::string suffix = CellSuffix(config, i, j, k);
+            std::string suffix = CellSuffix(config, multBin, ptPhiBin, ptAssocBin);
 
             std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, {.axesToCut = axesToCut, .totalEff = totalEff, .triggerBkgRatio = triggerBkgRatio, .histNameBase = histNameBase + suffix, .ioDir = targetDir});
 
-            if (j == 0) {
-              std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, i, k));
-              h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
-              h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
+            if (ptPhiBin == 0) {
+              std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, multBin, ptAssocBin));
+              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
+              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetDirectory(0);
             } else {
-              h1PhiAssocNoPtPhi[pIdx][i][k]->Add(h1FinalSignal.get());
+              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->Add(h1FinalSignal.get());
             }
           }
         }
       }
 
-      GenerateSpectraAndTrends(i);
+      GenerateSpectraAndTrends(multBin);
     }
   }
 
@@ -1439,9 +1439,9 @@ class CorrelationTaskBase : public IAnalysisTask
   std::pair<double, double> CountTriggers(int multBin)
   {
     double count = 0.0, variance = 0.0;
-    for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-      const auto [signal, error] = GetTriggerSignal(multBin, j);
-      const double phiEff = Efficiency("Phi", multBin, j);
+    for (int ptPhiBin = 0; ptPhiBin < BinningUtils::NBins(ptPhiBinning); ptPhiBin++) {
+      const auto [signal, error] = GetTriggerSignal(multBin, ptPhiBin);
+      const double phiEff = Efficiency("Phi", multBin, ptPhiBin);
       count += signal / phiEff;
       variance += (error / phiEff) * (error / phiEff);
     }

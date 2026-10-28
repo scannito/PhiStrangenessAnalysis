@@ -246,8 +246,8 @@ class CorrelationTask : public CorrelationTaskBase
       }
 
 
-      for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-        std::string hName = folderPath + OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, i));
+      for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
+        std::string hName = folderPath + OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, multBin));
         std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(filePurity.get(), hName, GetName());
 
         // Verified, NOT rebinned: a purity is a ratio, and merging its bins would
@@ -263,7 +263,7 @@ class CorrelationTask : public CorrelationTaskBase
                                                hName, purityFilePath, diff));
         }
 
-        purity.h1Purity[i] = std::move(h1Pur);
+        purity.h1Purity[multBin] = std::move(h1Pur);
       }
 
       purityCollection[name] = std::move(purity);
@@ -284,24 +284,24 @@ class CorrelationTask : public CorrelationTaskBase
     if (useSignalCache) {
       Logger::Info("{}: Super Cache (Signal L2) is ON. Skipping Calculator.", GetName());
 
-      for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
+      for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
           TDirectory* sourceDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, true);
           if (!sourceDir)
             throw std::runtime_error(std::format("[FATAL] Cache L2 missing: Directory {} not found!", RootIO::MakeDirPath(logicalPath)));
 
-          for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
-            std::string cacheName = std::format("h1Phi{}Final{}", config.name, CellSuffix(config, i, k));
+          for (int ptAssocBin = 0; ptAssocBin < BinningUtils::NBins(config.binning); ptAssocBin++) {
+            std::string cacheName = std::format("h1Phi{}Final{}", config.name, CellSuffix(config, multBin, ptAssocBin));
             // dynamic_cast, as in RootIO::GetUniqueOrThrow: an object of another class under this
             // name must fail here, with the message below, and not on first use.
-            h1PhiAssocNoPtPhi[pIdx][i][k].reset(dynamic_cast<TH1*>(sourceDir->Get(cacheName.c_str())));
-            if (!h1PhiAssocNoPtPhi[pIdx][i][k])
+            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin].reset(dynamic_cast<TH1*>(sourceDir->Get(cacheName.c_str())));
+            if (!h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin])
               throw std::runtime_error(std::format("[FATAL] Cache L2 missing for: {}. Run with use_signal_cache: false first!", cacheName));
-            h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
+            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetDirectory(0);
           }
         }
-        GenerateSpectraAndTrends(i);
+        GenerateSpectraAndTrends(multBin);
       }
       return;
     }
@@ -312,14 +312,14 @@ class CorrelationTask : public CorrelationTaskBase
     // =========================================================================
     CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .moreQA = doMoreQA, .meNorm = meNormalization, .targetAxis = projectionAxis});
 
-    for (int i = 0; i < BinningUtils::NBins(multBinning); i++) {
-      HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {i + 1, i + 1}};
+    for (int multBin = 0; multBin < BinningUtils::NBins(multBinning); multBin++) {
+      HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {multBin + 1, multBin + 1}};
 
-      for (int j = 0; j < BinningUtils::NBins(ptPhiBinning); j++) {
-        HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {j + 1, j + 1}};
+      for (int ptPhiBin = 0; ptPhiBin < BinningUtils::NBins(ptPhiBinning); ptPhiBin++) {
+        HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {ptPhiBin + 1, ptPhiBin + 1}};
 
-        double triggerBkgRatio = h2TriggerBkgRatio->GetBinContent(i + 1, j + 1);
-        double phiEff = Efficiency("Phi", i, j);
+        double triggerBkgRatio = h2TriggerBkgRatio->GetBinContent(multBin + 1, ptPhiBin + 1);
+        double phiEff = Efficiency("Phi", multBin, ptPhiBin);
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
@@ -332,25 +332,25 @@ class CorrelationTask : public CorrelationTaskBase
             currentQADir = RootIO::GetOrCreatePath(filesPhiAssocQAOutput[pIdx].get(), logicalPath, false);
           }
 
-          for (int k = 0; k < BinningUtils::NBins(config.binning); k++) {
-            HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {k + 1, k + 1}};
+          for (int ptAssocBin = 0; ptAssocBin < BinningUtils::NBins(config.binning); ptAssocBin++) {
+            HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {ptAssocBin + 1, ptAssocBin + 1}};
             std::vector<HistogramUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
 
-            double assocEff = Efficiency(config.name, i, k);
+            double assocEff = Efficiency(config.name, multBin, ptAssocBin);
             double totalEff = phiEff * assocEff;
 
             std::string baseNameStd = "h1Phi" + config.name + "Data";
-            std::string suffix = CellSuffix(config, i, j, k);
+            std::string suffix = CellSuffix(config, multBin, ptPhiBin, ptAssocBin);
 
             std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
               data, {.axesToCut = axesToCut, .totalEff = totalEff, .triggerBkgRatio = triggerBkgRatio, .histNameBase = baseNameStd + suffix, .ioDir = targetDir, .qaDir = currentQADir});
 
-            if (j == 0) {
-              std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, i, k));
-              h1PhiAssocNoPtPhi[pIdx][i][k].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
-              h1PhiAssocNoPtPhi[pIdx][i][k]->SetDirectory(0);
+            if (ptPhiBin == 0) {
+              std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, multBin, ptAssocBin));
+              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
+              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetDirectory(0);
             } else {
-              h1PhiAssocNoPtPhi[pIdx][i][k]->Add(h1FinalSignal.get());
+              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->Add(h1FinalSignal.get());
             }
           }
         }
@@ -360,22 +360,22 @@ class CorrelationTask : public CorrelationTaskBase
       // BATCH WRITE: SAVING AGGREGATED SIGNALS FOR L2 CACHE
       // Written only once per multiplicity bin after trigger aggregation
       // =======================================================================
-      Logger::Info("Multiplicity bin {} completed. Committing results to Level 2 Cache...", i);
+      Logger::Info("Multiplicity bin {} completed. Committing results to Level 2 Cache...", multBin);
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
         TDirectory* targetDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, false);
         if (targetDir)
           targetDir->cd();
-        for (int k = 0; k < BinningUtils::NBins(assocParticles[pIdx].binning); k++) {
-          if (h1PhiAssocNoPtPhi[pIdx][i][k]) {
-            std::string saveName = std::format("h1Phi{}Final{}", assocParticles[pIdx].name, CellSuffix(assocParticles[pIdx], i, k));
-            h1PhiAssocNoPtPhi[pIdx][i][k]->SetName(saveName.c_str());
-            h1PhiAssocNoPtPhi[pIdx][i][k]->Write(nullptr, TObject::kOverwrite);
+        for (int ptAssocBin = 0; ptAssocBin < BinningUtils::NBins(assocParticles[pIdx].binning); ptAssocBin++) {
+          if (h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]) {
+            std::string saveName = std::format("h1Phi{}Final{}", assocParticles[pIdx].name, CellSuffix(assocParticles[pIdx], multBin, ptAssocBin));
+            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetName(saveName.c_str());
+            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->Write(nullptr, TObject::kOverwrite);
           }
         }
       }
 
-      GenerateSpectraAndTrends(i);
+      GenerateSpectraAndTrends(multBin);
     }
   }
 };

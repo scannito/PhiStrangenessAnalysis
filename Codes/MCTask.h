@@ -411,9 +411,9 @@ class MCTask : public IAnalysisTask
           std::unique_ptr<TH1> hEvLossConst{static_cast<TH1*>(signalLoss->Clone((baseName + "_evLossConst").c_str()))};
           hEvLossConst->SetDirectory(0);
           hEvLossConst->Reset();
-          for (int b = 1; b <= hEvLossConst->GetNbinsX(); b++) {
-            hEvLossConst->SetBinContent(b, evLoss);
-            hEvLossConst->SetBinError(b, evLossErr);
+          for (int bin = 1; bin <= hEvLossConst->GetNbinsX(); bin++) {
+            hEvLossConst->SetBinContent(bin, evLoss);
+            hEvLossConst->SetBinError(bin, evLossErr);
           }
 
           std::unique_ptr<TH1> ratio{static_cast<TH1*>(signalLoss->Clone((baseName + "_overEvLoss").c_str()))};
@@ -442,13 +442,13 @@ class MCTask : public IAnalysisTask
         writeInto(lossSourcePath, maps.signalLossSourceBinning.get());
       };
 
-      for (int i{0}; i < BinningUtils::NBins(multBinning); i++) {
+      for (int multBin{0}; multBin < BinningUtils::NBins(multBinning); multBin++) {
         // 'rebinning_pt' is applied inside the calculator, on the counts, before
         // they are divided: rebinning the ratio afterwards would sum efficiencies.
-        EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, multBinning, i, globalCfgs.GetSpectraColor(i));
+        EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, multBinning, multBin, globalCfgs.GetSpectraColor(multBin));
 
-        drawMaps(maps, i == 0 ? "" : "SAME");
-        drawOverEvLoss(maps, i == 0 ? "" : "SAME", i);
+        drawMaps(maps, multBin == 0 ? "" : "SAME");
+        drawOverEvLoss(maps, multBin == 0 ? "" : "SAME", multBin);
         writeMaps(maps);
       }
 
