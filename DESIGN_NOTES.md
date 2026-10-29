@@ -1486,3 +1486,31 @@ comes from (MC, or a fit of the DCA distribution in data) is still to be decided
    first).
 4. Shifted maps: separate wagons with a configurable, or shifted histograms in the same pass (three times the
    CPU against two or three times the memory of the THnSparse).
+
+---
+
+## 14. What to adopt when the standard moves to C++23
+
+The standard comes from ROOT (`ROOT_CXX_STANDARD`, section 11), so this waits for ROOT and O2. Written on 29 October
+2026, when `BinningUtils::BinIndices` (`std::views::iota`) brought in the first view: the views below were looked
+at for C++20 and left out, because what would remove real code here arrives only with C++23. Each is a new template
+for Cling to accept; check the interpreted mode (if it runs by then) before the first use.
+
+- **`std::views::enumerate`** — the `pIdx` and `yIdx` loops (`for (size_t pIdx = 0; pIdx < assocParticles.size();
+  ++pIdx)` and then `assocParticles[pIdx]`: 10 over the particles and 6 over the |Δy| windows, in
+  `CorrelationTaskBase` and `CorrelationTask`) become
+  `for (auto [pIdx, config] : std::views::enumerate(assocParticles))`: the index named once, the element without a
+  subscript. The same reason as `BinIndices`.
+- **`std::views::zip`** — containers kept parallel to `assocParticles` (`loadedDataCollection`,
+  `filesPhiAssocDataOutput`, `h1MultTrends`, ...) walked together without an index. Only a palliative: the fix those
+  need is one struct per particle (the `invalid-bin-policy` reviews, 28 October), after which zip has nothing to do.
+- **`std::views::join_with` / `std::ranges::to`** — the ", " joins written by hand (`JsonConfigHelpers.h`, twice:
+  the enum and the known-keys messages; `DynamicRooFitter::FindVar`'s fallbacks; `WorkflowManager`) become
+  `names | std::views::join_with(", "sv) | std::ranges::to<std::string>()`. Until then one `Join` helper in a single
+  place is the C++20 answer, and needs no view.
+- **`std::views::split` + `std::string_view` from a range** — `DynamicRooFitter`'s `std::getline` over `'+'` and
+  `'*'` (the pdf expression). In C++20 the pieces of `split` are awkward to turn into strings, so `getline` stays.
+
+Considered and not worth it even then: `views::reverse` for `SpectrumExtrapolator`'s two backward loops (kept as
+YieldMean wrote them, the reference they are compared against), `views::keys`/`views::filter` for the few map walks
+and `continue`-filtered loops (a line saved, a reader's step added).

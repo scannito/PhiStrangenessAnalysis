@@ -620,13 +620,13 @@ class CorrelationTaskBase : public IAnalysisTask
     if (cfg.perParticle.empty() && !cfg.eventLoss)
       throw std::runtime_error(std::format("[FATAL] {}: applies no correction. For none, write \"corrections\": null.", ctx));
 
-    for (const auto& [name, pc] : cfg.perParticle) {
+    for (const auto& [particle, pc] : cfg.perParticle) {
       std::string what;
       if (pc.efficiency)
         what = std::format("acceptance x efficiency ({})", pc.efficiency->mult == MultDependence::Binned ? "per multiplicity class" : "multiplicity-integrated");
       if (pc.signalLoss)
         what += what.empty() ? "signal loss" : " + signal loss";
-      Logger::Info("{}: {} corrected for {}.", GetName(), name, what);
+      Logger::Info("{}: {} corrected for {}.", GetName(), particle, what);
     }
     // Every particle of the analysis gets a line, the uncorrected ones too: a particle left
     // out by mistake would otherwise show only as a line that is missing. Info and not Warn,
