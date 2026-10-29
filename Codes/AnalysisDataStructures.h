@@ -80,10 +80,16 @@ struct ParticleCorrections {
   // the parser refuses them instead of carrying a field nobody reads.
 };
 
+// What a bin at or below zero, or not a number, in a map that is applied does ('on_invalid_correction_bin'). Warn: the
+// map is applied as it is, as before 27 October 2026, and every such map is a counted warning naming its bins; Stop:
+// the run stops at loading.
+enum class InvalidBinPolicy { Warn, Stop };
+
 struct CorrectionsConfig {
   std::string file;
   std::map<std::string, ParticleCorrections> perParticle; // "Phi" or an associated species; absent = not corrected here
   bool eventLoss{false};                                  // Per event, not per particle
+  InvalidBinPolicy onInvalidBin;                          // Set by InitCorrections from the required key
 };
 
 struct LoadedPurity {

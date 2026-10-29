@@ -266,6 +266,14 @@ inline E OptionalEnum(const rapidjson::Value& node, const char* key, std::string
   return ResolveEnum<E>(OptionalString(node, key, std::string(defaultName), errCtx), options, key, errCtx);
 }
 
+// The same with no default: for a choice that changes the numbers (CLAUDE.md, Configuration).
+template <typename E>
+inline E RequireEnum(const rapidjson::Value& node, const char* key,
+                     std::initializer_list<std::pair<std::string_view, E>> options, std::string_view errCtx)
+{
+  return ResolveEnum<E>(RequireString(node, key, errCtx), options, key, errCtx);
+}
+
 // ---------------------------------------------------------------------------
 // Present-or-not, with the type still checked
 // ---------------------------------------------------------------------------

@@ -119,7 +119,7 @@ is no fallback to hand over.
 
 Two more worth knowing: `ReadNumberArray` accepts `6.4` and `"6.4"` alike, because
 both spellings appear in the configurations and a value copied from one key to
-another must not change meaning; and `OptionalEnum`/`ResolveEnum` build the
+another must not change meaning; and `RequireEnum`/`OptionalEnum`/`ResolveEnum` build the
 "Available: ..." message from the same table they match against, so it cannot go
 stale.
 

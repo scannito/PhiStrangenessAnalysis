@@ -258,6 +258,7 @@ silently ignored.
 | `input_me_file`, `base_path_me` | required | Only when mixed events are on. |
 | `corrections` | required | Object, or `null` for none. See below. |
 | `corrections_file` | required | Only when `corrections` is not `null`: the `Corrections` file, with all three corrections. |
+| `on_invalid_correction_bin` | required | Only when `corrections` is not `null`: `warn` or `stop`, what a bin at or below zero (or not a number) in a map that is applied does. See below. The base configurations say `warn`. |
 | `extrapolation_config_file` | required | Only when extrapolation is on. |
 | `associated_particles` | required | Array of `{name, dir_name}`. |
 | `purity_sources` | required | Array of `{name, purity_key}`, read from `{purity_prefix}Purity.root` in `input_dir_purity`. |
@@ -295,7 +296,15 @@ efficiency and the signal loss of every particle are applied online, with a `com
 an absent key could equally be a block that replaced `corrections` and forgot its particles.
 Every entry applies at least one correction, and the block as a whole at least one; an
 unknown key in a particle entry (a misspelled `signal_loss`, say) stops the run instead of
-being ignored. `"corrections": null` is how a
+being ignored.
+
+No number is right in a bin of a correction map at or below zero, so `on_invalid_correction_bin` only
+chooses what the run does about it. `warn` applies the map as it is and warns once per map, naming its
+bins, in the end-of-run summary, and records the same in the provenance of the results: the cells an
+efficiency or signal-loss map divides give no result (with the φ map, every particle of the classes it
+applies to), and a multiplicity class with an event loss at zero is left without that correction. `stop`
+stops the run at loading. It sits next to `corrections_file`, not in the block, so that it is set once in
+the base settings. `"corrections": null` is how a
 block that inherits corrections switches them off, since `inherits` cannot remove a key
 (`CLAUDE.md`, *Configuration*). The file is a separate key so that a block for one year can
 change it without repeating the corrections of its mode. A configuration still written with the keys

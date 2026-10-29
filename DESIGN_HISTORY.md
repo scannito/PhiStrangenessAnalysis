@@ -7,6 +7,32 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## An invalid correction bin warns by default
+
+**29 October 2026.** Two days after *A correction that cannot be computed stops the run* (below), the owner asked for
+the run not to stop by default: a run of many blocks stopped by one map with an empty bin has to be split into
+single runs. A required task key, `on_invalid_correction_bin`, next to `corrections_file` and declared once as
+`warn` in the four base blocks of the correlation tasks (`correlation_base_settings`,
+`correlation_wpdg_base_settings`, pp and pp_ref):
+- `warn`: the map is applied as before 27 October, an efficiency or signal-loss bin divides its cells (inf or NaN,
+  for every particle of the classes when it is the φ map) and an event-loss class at zero is left without that
+  correction, which gives numbers that look normal: the owner's choice, with a NaN in that class as the
+  alternative put to him. Every such map is one `Logger::Warn` naming its bins, counted in the end-of-run summary
+  (the minimum `CLAUDE.md` asks of a correction that cannot be computed), and one line in the provenance of the
+  results (`invalid_correction_bins`).
+- `stop`: what 27 October made the only behaviour.
+
+Required and not optional, and outside the `corrections` block, from the reviews of a first version where it was an
+optional key in the block: optional, the policy in force left no trace in the provenance; in the block, every block
+that writes its own `corrections` would have had to repeat it. `JsonConfig::RequireEnum` came with it, the required
+sibling of `OptionalEnum`, for the three enum keys read that way.
+
+A third value, `drop_particle` (an associated particle with an invalid bin out of the task, the run going on), was
+written and tested, then deferred: the per-particle state is in parallel containers, and dropping one mid-`Init` has
+to erase from all of them by hand (`DESIGN_NOTES.md` section 10, *One struct per associated particle*).
+
+---
+
 ## The names between the producers and CorrelationTask in OutputNames
 
 **28 October 2026.** The move of 20 October (*The PhiAssocSpectra names in one place*) left out what crosses the

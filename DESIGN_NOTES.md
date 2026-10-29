@@ -1170,6 +1170,23 @@ accepting both), or split the struct into `ExpectedBinning` + `AnalysisSettings`
 Best done together with the decision above, so the naming falls out instead of
 being chosen.
 
+
+**One struct per associated particle, before anything removes a particle mid-`Init` (29 October 2026).** The
+per-particle state of the correlation tasks lives in parallel containers indexed alike: `assocParticles`,
+`loadedDataCollection`, `filesPhiAssocDataOutput`, `filesPhiAssocQAOutput` (only with `do_more_qa`), then
+`h1PhiAssocNoPtPhi`, `h1MultTrends`, `h1MultTrendsExtrap` once sized. Nothing goes wrong while the set is
+fixed after `InitAssocParticles`. It was not with `on_invalid_correction_bin`'s third value, `drop_particle`
+(take an associated particle with an invalid map bin out of the task and go on): the drop had to erase from
+every container by hand, and one added later and forgotten there would read another particle's data under its
+name, with no error. Both review agents asked for one struct (configuration, loaded data, projection and QA
+files) held in one vector, so that erasing an element removes all of it; that touches every `pIdx` loop. Two
+more things the drop met, which the struct does not solve by itself: the projection cache of the dropped
+particle has already been stamped by `ResolveBinningAndCache` with this run's provenance (the stamping has to
+move after the corrections are loaded), and its QA file has already been opened with `RECREATE`. So
+`drop_particle` was deferred to after the struct, and the key has `warn` and `stop` only. The triple loop over
+(multiplicity, trigger pT, associated pT) written twice, in `CorrelationTask::RunOptimized` and in `RunLegacy`,
+belongs to the same refactoring.
+
 ---
 
 ## 11. Cling constraints learned the hard way
@@ -1478,8 +1495,8 @@ comes from (MC, or a fit of the DCA distribution in data) is still to be decided
 
 1. Zero efficiency: discard the candidate and count it, or efficiency 1 for that particle and count it. If
    discarded, the φ must be removed consistently from the trigger count and from every pair it forms. Online only:
-   here the run stops when a loaded map has a bin at or below zero (`DESIGN_HISTORY.md`, *A correction that
-   cannot be computed stops the run*, 27 October 2026).
+   here `on_invalid_correction_bin` decides, `warn` in the base settings (`DESIGN_HISTORY.md`, *An invalid
+   correction bin warns by default*, 29 October 2026).
 2. ~~Where the per-particle corrections live~~ — decided on 16 October: a block of their own (see *JSON*
    above).
 3. How the framework learns the train configuration: idea 1, idea 2, or both (section 12 suggests idea 1

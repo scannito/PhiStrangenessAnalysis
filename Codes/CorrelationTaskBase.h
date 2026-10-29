@@ -426,11 +426,11 @@ class CorrelationTaskBase : public IAnalysisTask
     useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
     use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());
     // Required, with no default: it changes the numbers (CLAUDE.md, Configuration).
-    meNormalization = JsonConfig::ResolveEnum<CorrelationCalculator::MENormalization>(
-      JsonConfig::RequireString(taskConfig, "me_normalization", GetName()),
+    meNormalization = JsonConfig::RequireEnum<CorrelationCalculator::MENormalization>(
+      taskConfig, "me_normalization",
       {{"bins_at_zero", CorrelationCalculator::MENormalization::BinsAtZero},
        {"fit", CorrelationCalculator::MENormalization::Fit}},
-      "me_normalization", GetName());
+      GetName());
 
     // Both spellings of each axis are entries in the same table, so the accepted
     // values and the error message can never drift apart.
@@ -568,6 +568,11 @@ class CorrelationTaskBase : public IAnalysisTask
     // Outside the block on purpose: the file changes per year and the corrections per
     // mode, and with a top-level merge a year block can then set the file alone.
     cfg.file = JsonConfig::RequireString(taskConfig, "corrections_file", GetName());
+    // Next to corrections_file for the same reason, set once in the base settings instead of in every block that writes
+    // its corrections. Required: it decides whether results that cannot be right are produced at all, and 'warn' is
+    // the owner's choice (28 October 2026), so that one map with an empty bin does not stop a run of many blocks.
+    cfg.onInvalidBin = JsonConfig::RequireEnum<InvalidBinPolicy>(
+      taskConfig, "on_invalid_correction_bin", {{"warn", InvalidBinPolicy::Warn}, {"stop", InvalidBinPolicy::Stop}}, GetName());
     cfg.eventLoss = JsonConfig::RequireBool(*node, "event_loss", ctx);
 
     // Required, and {} when only the event loss is applied here: absent could equally be a
@@ -604,9 +609,8 @@ class CorrelationTaskBase : public IAnalysisTask
       ParticleCorrections pc;
       if (const rapidjson::Value* efficiencyNode = JsonConfig::TryObject(entry, "acceptance_efficiency", pctx)) {
         const std::string actx = pctx + ".acceptance_efficiency";
-        pc.efficiency = EfficiencyCorrection{JsonConfig::ResolveEnum<MultDependence>(
-          JsonConfig::RequireString(*efficiencyNode, "mult", actx),
-          {{"binned", MultDependence::Binned}, {"integrated", MultDependence::Integrated}}, "mult", actx)};
+        pc.efficiency = EfficiencyCorrection{JsonConfig::RequireEnum<MultDependence>(
+          *efficiencyNode, "mult", {{"binned", MultDependence::Binned}, {"integrated", MultDependence::Integrated}}, actx)};
       }
       if (JsonConfig::OptionalBool(entry, "signal_loss", false, pctx))
         pc.signalLoss = SignalLossCorrection{};
@@ -658,13 +662,17 @@ class CorrelationTaskBase : public IAnalysisTask
       RootIO::GetOrCreatePath(fileCorrections.get(), {globalCfgs.binningName}, true),
       RootIO::kStampMult, multBinning, std::format("corrections file '{}'", correctionsFilePath));
 
+    // What a map corrects: its axis, and what an invalid bin of it does under on_invalid_correction_bin 'warn'.
+    enum class MapOf { EventLoss, Phi, Associated };
+
     // LAMBDA HELPER 1: one map of the corrections file, 'name' in the directory 'path' (OutputNames, where MCTask
-    // writes it). It returns the map with the analysis binning and every bin positive, or throws; what reads it
-    // divides without a guard. 'axis' names the map's axis in the messages.
-    auto fetchHist = [&](const std::vector<std::string>& path, const std::string& name, bool apply, const std::vector<double>& targetBinning,
-                         std::string_view axis) -> std::unique_ptr<TH1> {
+    // writes it). It returns the map with the analysis binning, or throws; a bin that is not positive is
+    // on_invalid_correction_bin's.
+    auto fetchHist = [&](MapOf of, const std::vector<std::string>& path, const std::string& name, bool apply,
+                         const std::vector<double>& targetBinning) -> std::unique_ptr<TH1> {
       if (!apply)
         return nullptr;
+      const char* axis = of == MapOf::EventLoss ? "multiplicity" : "pT";
 
       // By path from the file: a missing directory and a missing map are one message, naming the file and the path.
       std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(fileCorrections.get(), RootIO::MakeDirPath(path) + name, GetName());
@@ -686,19 +694,35 @@ class CorrelationTaskBase : public IAnalysisTask
       }
 
       // A bin at or below zero, or not a number, has no correct correction: it is not a correction of 1 (CLAUDE.md,
-      // Physics), so the run stops at loading and names the bin. Every bin, since each is applied to a cell.
+      // Physics). Every bin is looked at, since each is applied to a cell, and all of them are named.
+      std::string invalid;
       for (int bin = 1; bin <= h->GetNbinsX(); ++bin)
         if (!(h->GetBinContent(bin) > 0.0))
-          throw std::runtime_error(std::format(
-            "[FATAL] {}: '{}' in '{}' is {} at {} {}, and a correction that cannot be computed is not a correction "
-            "of 1. The MC has nothing there: more MC statistics in that interval, or data and MC productions whose "
-            "binning merges it.",
-            GetName(), name, correctionsFilePath, h->GetBinContent(bin), axis, BinningUtils::BinLabel(targetBinning, bin - 1)));
+          invalid += std::format(" {} at {} {};", h->GetBinContent(bin), axis, BinningUtils::BinLabel(targetBinning, bin - 1));
+      if (invalid.empty())
+        return h;
 
+      if (cfg.onInvalidBin == InvalidBinPolicy::Stop)
+        throw std::runtime_error(std::format(
+          "[FATAL] {}: '{}' in '{}' is{} and a correction that cannot be computed is not a correction of 1. The MC has "
+          "nothing there: more MC statistics in that interval, or data and MC productions whose binning merges it.",
+          GetName(), name, correctionsFilePath, invalid));
+
+      // The event loss is skipped in those classes (GenerateSpectraAndTrends), the owner's choice of 28 October 2026;
+      // the other maps are divided by as they are.
+      const char* consequence =
+        of == MapOf::EventLoss ? "not applied in those multiplicity classes, which are left without the event-loss correction"
+        : of == MapOf::Phi     ? "applied as it is: the triggers and the pairs of those trigger-pT bins are divided by it, so no "
+                                 "result of this task is right in the multiplicity classes the map applies to"
+                               : "applied as it is: the cells it corrects are divided by it, and what they give is not a result";
+      Logger::Warn("{}: '{}' in '{}' is{} (on_invalid_correction_bin: warn): {}", GetName(), name, correctionsFilePath,
+                   invalid, consequence);
+      // Next to the results as well, one line per map: the log is not kept with them, and they must say why.
+      provenance["invalid_correction_bins"] += std::format("{}:{}\n", name, invalid);
       return h;
     };
 
-    hEventLoss = fetchHist(OutputNames::EventLossPath(globalCfgs.binningName), OutputNames::kEventLoss, cfg.eventLoss, multBinning, "multiplicity");
+    hEventLoss = fetchHist(MapOf::EventLoss, OutputNames::EventLossPath(globalCfgs.binningName), OutputNames::kEventLoss, cfg.eventLoss, multBinning);
 
     // LAMBDA HELPER 2: Clone and multiply (if both are needed) safely
     auto combineHists = [](const TH1* hEfficiency, const TH1* hSignalLoss, const std::string& name) -> std::unique_ptr<TH1> {
@@ -722,8 +746,10 @@ class CorrelationTaskBase : public IAnalysisTask
 
       // InitCorrections already refused any other name.
       std::vector<double> targetBinning;
+      MapOf of = MapOf::Associated;
       if (particle == "Phi") {
         targetBinning = ptPhiBinning;
+        of = MapOf::Phi;
       } else {
         auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == particle; });
         targetBinning = it->binning;
@@ -733,14 +759,14 @@ class CorrelationTaskBase : public IAnalysisTask
       const bool applyEfficiencyBinned = pc.efficiency && pc.efficiency->mult == MultDependence::Binned;
       const bool applyEfficiencyIntegrated = pc.efficiency && pc.efficiency->mult == MultDependence::Integrated;
 
-      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(particle, OutputNames::kMultIntegrated), applyEfficiencyIntegrated, targetBinning, "pT");
+      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(of, OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(particle, OutputNames::kMultIntegrated), applyEfficiencyIntegrated, targetBinning);
 
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
         const std::string multTag = OutputNames::MultTag(multBinning, multBin);
-        std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(particle, multTag), applyEfficiencyBinned, targetBinning, "pT");
-        std::unique_ptr<TH1> hSignalLossBinned = fetchHist(OutputNames::SignalLossPath(globalCfgs.binningName), OutputNames::SignalLoss(particle, multTag),
+        std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(of, OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(particle, multTag), applyEfficiencyBinned, targetBinning);
+        std::unique_ptr<TH1> hSignalLossBinned = fetchHist(of, OutputNames::SignalLossPath(globalCfgs.binningName), OutputNames::SignalLoss(particle, multTag),
                                                                      pc.signalLoss.has_value(), // always per multiplicity class
-                                                                     targetBinning, "pT");
+                                                                     targetBinning);
 
         corr.h1Corrections[multBin] = combineHists(hEfficiencyIntegrated ? hEfficiencyIntegrated.get() : hEfficiencyBinned.get(), hSignalLossBinned.get(),
                                              std::format("h1Corrected_{}_{}", particle, multTag));
@@ -1257,11 +1283,14 @@ class CorrelationTaskBase : public IAnalysisTask
     double effectiveTriggers = totalTriggerSignalPerMult;
     double eventLossRelError = 0.0;
 
-    // Normalize by the event loss correction if it is required (positive: checked when loaded)
+    // Normalize by the event loss correction if it is required. A class at or below zero is left without it, as before
+    // 27 October 2026: only on_invalid_correction_bin 'warn' lets one through, and the loader has warned about it.
     if (hEventLoss) {
       const double eventLossCorr = hEventLoss->GetBinContent(multBin + 1);
-      effectiveTriggers /= eventLossCorr;
-      eventLossRelError = hEventLoss->GetBinError(multBin + 1) / eventLossCorr;
+      if (eventLossCorr > 0.0) {
+        effectiveTriggers /= eventLossCorr;
+        eventLossRelError = hEventLoss->GetBinError(multBin + 1) / eventLossCorr;
+      }
     }
 
     // The uncertainty of the normalisation: the trigger count and the event loss, in quadrature. One number
