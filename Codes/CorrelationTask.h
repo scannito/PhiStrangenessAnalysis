@@ -181,12 +181,12 @@ class CorrelationTask : public CorrelationTaskBase
   // The error is the phi fit's (PhiFitTask writes it with the yield).
   std::pair<double, double> GetTriggerSignal(int multBin, int ptPhiBin) override
   {
-    return {h2TriggerSignal->GetBinContent(multBin + 1, ptPhiBin + 1), h2TriggerSignal->GetBinError(multBin + 1, ptPhiBin + 1)};
+    return HistogramUtils::BinValueAndError(h2TriggerSignal.get(), multBin, ptPhiBin);
   }
 
   double GetTriggerBkgRatio(int multBin, int ptPhiBin) override
   {
-    return h2TriggerBkgRatio->GetBinContent(multBin + 1, ptPhiBin + 1);
+    return h2TriggerBkgRatio->GetBinContent(BinningUtils::RootBin(multBin), BinningUtils::RootBin(ptPhiBin));
   }
 
   std::pair<const TAxis*, const TAxis*> TriggerAxes() const override
@@ -313,12 +313,8 @@ class CorrelationTask : public CorrelationTaskBase
     CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .moreQA = doMoreQA, .meNorm = meNormalization, .targetAxis = projectionAxis});
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
-      HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {multBin + 1, multBin + 1}};
-
       for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
-        HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {ptPhiBin + 1, ptPhiBin + 1}};
-
-        double triggerBkgRatio = h2TriggerBkgRatio->GetBinContent(multBin + 1, ptPhiBin + 1);
+        double triggerBkgRatio = GetTriggerBkgRatio(multBin, ptPhiBin);
         double phiCorrection = Correction("Phi", multBin, ptPhiBin);
 
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
@@ -333,8 +329,7 @@ class CorrelationTask : public CorrelationTaskBase
           }
 
           for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
-            HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {ptAssocBin + 1, ptAssocBin + 1}};
-            std::vector<HistogramUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
+            const std::vector<HistogramUtils::AxisToCut> axesToCut = CellCuts(multBin, ptPhiBin, ptAssocBin);
 
             double assocCorrection = Correction(config.name, multBin, ptAssocBin);
             double totalCorrection = phiCorrection * assocCorrection;

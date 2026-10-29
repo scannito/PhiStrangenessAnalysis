@@ -97,8 +97,8 @@ struct AnalysisSettings {
   // ---------------------------------------------------------------------------
   // Verification
   //
-  // Source bins are addressed BY INDEX (h->ProjectionZ(n, k+1, k+1),
-  // AxisToCut{.axis = a, .bins = {k+1, k+1}}), so the declared binning and the file's axis
+  // Source bins are addressed BY INDEX (BinRange::Single(k) in a projection,
+  // AxisToCut::Bin(a, k)), so the declared binning and the file's axis
   // must be identical, not merely rebin-compatible: a disagreement means every
   // index points at a different interval than intended.
   //

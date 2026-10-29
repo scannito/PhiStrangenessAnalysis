@@ -13,6 +13,7 @@
 #include <concepts>
 #include <format>
 #include <memory>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -26,6 +27,30 @@ namespace HistogramUtils
 // -----------------------------------------------------------------------------
 // Math & Projection Utilities
 // -----------------------------------------------------------------------------
+
+// The content and error of a bin, read and written together, by its 0-based index (BinningUtils::RootBin).
+inline std::pair<double, double> BinValueAndError(const TH1* h, int index)
+{
+  const int bin = BinningUtils::RootBin(index);
+  return {h->GetBinContent(bin), h->GetBinError(bin)};
+}
+inline std::pair<double, double> BinValueAndError(const TH2* h, int indexX, int indexY)
+{
+  const int binX = BinningUtils::RootBin(indexX), binY = BinningUtils::RootBin(indexY);
+  return {h->GetBinContent(binX, binY), h->GetBinError(binX, binY)};
+}
+inline void SetBinValueAndError(TH1* h, int index, std::pair<double, double> valueAndError)
+{
+  const int bin = BinningUtils::RootBin(index);
+  h->SetBinContent(bin, valueAndError.first);
+  h->SetBinError(bin, valueAndError.second);
+}
+inline void SetBinValueAndError(TH2* h, int indexX, int indexY, std::pair<double, double> valueAndError)
+{
+  const int binX = BinningUtils::RootBin(indexX), binY = BinningUtils::RootBin(indexY);
+  h->SetBinContent(binX, binY, valueAndError.first);
+  h->SetBinError(binX, binY, valueAndError.second);
+}
 
 // Computes the integral and error in a specific range for 1D histograms
 inline std::pair<double, double> IntegralAndErrorPair(TH1* h1, double x1, double x2, Option_t* option = "")
@@ -69,7 +94,13 @@ concept RootHistogram = std::derived_from<T, TH1>;
 // Struct required by the projection utility
 struct AxisToCut {
   int axis{0};
-  BinningUtils::BinRange bins{}; // which bins of that axis to keep
+  // Which bins of that axis to keep, ROOT numbering. None: the whole axis, under- and overflow excluded, of the
+  // container being projected - resolved there, so that it cannot come from another container.
+  std::optional<BinningUtils::BinRange> bins;
+
+  // One bin of a binning, by its 0-based index.
+  static AxisToCut Bin(int axis, int index) { return {axis, BinningUtils::BinRange::Single(index)}; }
+  static AxisToCut Whole(int axis) { return {axis, std::nullopt}; }
 };
 
 // Projects a THnSparse into a lower-dimensional histogram
@@ -83,7 +114,9 @@ inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
     return nullptr;
 
   for (const auto& axisToCut : axesToBeCut) {
-    hnSparse->GetAxis(axisToCut.axis)->SetRange(axisToCut.bins.first, axisToCut.bins.last);
+    TAxis* axis = hnSparse->GetAxis(axisToCut.axis);
+    const BinningUtils::BinRange bins = axisToCut.bins.value_or(BinningUtils::BinRange{1, axis->GetNbins()});
+    axis->SetRange(bins.first, bins.last);
   }
 
   std::unique_ptr<THType> hProjection;
@@ -132,8 +165,7 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
     auto [binContent, binError] = IntegralAndErrorPair(hContainer[ptBin], -absLimToIntegrate, absLimToIntegrate);
     double normalizationFactor = (binning[ptBin + 1] - binning[ptBin]);
 
-    hSpectrum->SetBinContent(ptBin + 1, binContent / normalizationFactor);
-    hSpectrum->SetBinError(ptBin + 1, binError / normalizationFactor);
+    SetBinValueAndError(hSpectrum.get(), ptBin, {binContent / normalizationFactor, binError / normalizationFactor});
   }
 
   hSpectrum->SetDirectory(0);
@@ -147,8 +179,7 @@ inline void FillTrendFromSpectrum(TH1* hTrend, TH1* hSpectrum, int multBin)
   auto [content, error] =
     IntegralAndErrorPair(hSpectrum, hSpectrum->GetXaxis()->GetXmin(), hSpectrum->GetXaxis()->GetXmax(), "width");
 
-  hTrend->SetBinContent(multBin + 1, content);
-  hTrend->SetBinError(multBin + 1, error);
+  SetBinValueAndError(hTrend, multBin, {content, error});
 }
 
 // The extrapolated trend: the bin of class 'multBin' gets res.yield (README.md, The extrapolated yield) and
@@ -158,8 +189,7 @@ inline void FillTrendFromSpectrum(TH1* hTrend, TH1* hSpectrum, int multBin)
 // correlation away.
 inline void FillTrendFromExtrapolation(TH1* hTrend, const ExtrapolationResult& res, int multBin)
 {
-  hTrend->SetBinContent(multBin + 1, res.yield);
-  hTrend->SetBinError(multBin + 1, res.yieldStatErr);
+  SetBinValueAndError(hTrend, multBin, {res.yield, res.yieldStatErr});
 }
 
 // -----------------------------------------------------------------------------

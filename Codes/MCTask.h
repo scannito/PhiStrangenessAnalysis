@@ -369,10 +369,9 @@ class MCTask : public IAnalysisTask
         if (!hEventLoss || !maps.signalLoss)
           return;
 
-        double eventLoss, eventLossError;
+        std::pair<double, double> eventLossAndError;
         if (multBin >= 0) {
-          eventLoss = hEventLoss->GetBinContent(multBin + 1);
-          eventLossError = hEventLoss->GetBinError(multBin + 1);
+          eventLossAndError = HistogramUtils::BinValueAndError(hEventLoss.get(), multBin);
         } else {
           // Same convention as the per-bin event loss: collapse the two event
           // histograms into one bin spanning the multiplicity range of the analysis
@@ -382,8 +381,7 @@ class MCTask : public IAnalysisTask
             auto c = std::make_unique<TH1D>("", "", 1, 0., 1.);
             c->SetDirectory(0);
             c->Sumw2();
-            c->SetBinContent(1, integral);
-            c->SetBinError(1, error);
+            HistogramUtils::SetBinValueAndError(c.get(), 0, {integral, error});
             return c;
           };
 
@@ -392,9 +390,9 @@ class MCTask : public IAnalysisTask
           auto integrated = EfficiencyCalculator::ComputeEventLoss(reco.get(), gen.get());
           if (!integrated)
             return;
-          eventLoss = integrated->GetBinContent(1);
-          eventLossError = integrated->GetBinError(1);
+          eventLossAndError = HistogramUtils::BinValueAndError(integrated.get(), 0);
         }
+        const auto [eventLoss, eventLossError] = eventLossAndError;
         if (eventLoss <= 0.) {
           Logger::Warn("{}: event loss is zero for {}, signal loss over event loss skipped.", GetName(), data.name);
           return;

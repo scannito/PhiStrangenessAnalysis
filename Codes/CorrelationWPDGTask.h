@@ -168,8 +168,9 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     // Bins 1..N of the third axis, so its under/overflow is excluded. Deliberate on
     // both paths: outside [0.9, 1.2] is not a phi candidate, and outside |y| < 0.5 is
     // outside the acceptance the spectra are normalised to.
+    const auto mult = BinningUtils::BinRange::Single(multBin), ptPhi = BinningUtils::BinRange::Single(ptPhiBin);
     double error = 0.0;
-    const double count = h3PhiData->IntegralAndError(multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1, 1, h3PhiData->GetNbinsZ(), error);
+    const double count = h3PhiData->IntegralAndError(mult.first, mult.last, ptPhi.first, ptPhi.last, 1, h3PhiData->GetNbinsZ(), error);
     return {count, error};
   }
   // GetTriggerBkgRatio not overridden: base default (0.0) is correct for WPDG.

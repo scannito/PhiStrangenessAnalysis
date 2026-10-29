@@ -299,9 +299,9 @@ class PurityTask : public IAnalysisTask
       const std::string cell = OutputNames::CellTag(multBinning, multBin, binning, ptBin);
       std::string histName = std::format("h1{}_{}{}", task.purityKey, cell, nameSuffix);
 
-      const BinningUtils::BinRange range = atSource ? BinningUtils::BinRange{ptBin + 1, ptBin + 1} : task.mappedSourceBins[ptBin];
-      std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), multBin + 1, multBin + 1,
-                                                                                range.first, range.last)));
+      const auto mult = BinningUtils::BinRange::Single(multBin);
+      const BinningUtils::BinRange pt = atSource ? BinningUtils::BinRange::Single(ptBin) : task.mappedSourceBins[ptBin];
+      std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), mult.first, mult.last, pt.first, pt.last)));
       h1Data->SetDirectory(0);
 
       // Run Fitter using JSON-based configuration
@@ -313,8 +313,7 @@ class PurityTask : public IAnalysisTask
                      multBin, binning, ptBin, cfg.binOverride, fitter.Diagnostics());
 
       auto res = fitter.ExtractYieldsAndPurity();
-      h1PuritySpectrum->SetBinContent(ptBin + 1, res.purityAndError.first);
-      h1PuritySpectrum->SetBinError(ptBin + 1, res.purityAndError.second);
+      HistogramUtils::SetBinValueAndError(h1PuritySpectrum.get(), ptBin, res.purityAndError);
 
       // The fit's diagnostic canvas, written into the particle's directory and destroyed
       // per fit, as in PhiFitTask: holding them all for the WriteAll in Terminate would
@@ -342,9 +341,7 @@ class PurityTask : public IAnalysisTask
                                   std::format("spectrum given to the '{}' CCDB map", task.purityKey),
                                   "that map's pT axis (the source binning)");
 
-    for (int bin = 1; bin <= h1Purity->GetNbinsX(); ++bin) {
-      task.h2PurityCCDB->SetBinContent(multBin + 1, bin, h1Purity->GetBinContent(bin));
-      task.h2PurityCCDB->SetBinError(multBin + 1, bin, h1Purity->GetBinError(bin));
-    }
+    for (int ptBin = 0; ptBin < h1Purity->GetNbinsX(); ++ptBin)
+      HistogramUtils::SetBinValueAndError(task.h2PurityCCDB.get(), multBin, ptBin, HistogramUtils::BinValueAndError(h1Purity, ptBin));
   }
 };

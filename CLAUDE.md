@@ -226,6 +226,13 @@ strings.
   `TDirectory::Get` is cast with `dynamic_cast` or read through `RootIO::GetUniqueOrThrow`,
   never `static_cast`: with the wrong class under the name, a `static_cast` gives a pointer
   that passes the null check and fails on first use.
+- **A bin index says what it indexes and from where it counts.** The 0-based index of a binning is `multBin`,
+  `ptPhiBin`, `ptAssocBin` (`ptBin` where the particle is generic), in loops as in signatures, and a loop over a
+  binning is `for (int multBin : BinningUtils::BinIndices(multBinning))`. A ROOT bin, 1-based, is `bin` (`binX`,
+  `binY`). The step from one to the other is written once, `BinningUtils::RootBin`, and taken through it:
+  `BinRange::Single`, `AxisToCut::Bin`, `HistogramUtils::BinValueAndError` / `SetBinValueAndError`, or `RootBin` in
+  a ROOT call. A bare `+ 1` on an index is the bug this rule was written against (agreed with the owner,
+  28-29 October 2026); a `+ 1` on an edge index (`edges[index + 1]`, the upper edge) is not a bin.
 - **The names and layout of `PhiAssocSpectra` come from `OutputNames`**, in the task that writes
   them and in every reader (`comparison_task`): object names, the `Spectra`/`Trends`/`Ratios`
   directories, the section names. So do the other names one task writes and another looks up (the

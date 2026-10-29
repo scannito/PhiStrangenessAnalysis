@@ -58,7 +58,7 @@ inline std::string FormatEdge(double value)
 // found by name, and an index matches whatever binning the reader has: "_multBin3" exists on both sides
 // and means two intervals. "_mult10-15" is simply absent when the two disagree, so the mismatch is a
 // missing object instead of a wrong number (CLAUDE.md, the rule the framework is built on).
-// 'index' is 0-based, the interval edges[index]..edges[index + 1]: a ROOT bin is index + 1.
+// 'index' is 0-based, the interval edges[index]..edges[index + 1]; its ROOT bin is RootBin(index).
 inline std::string BinLabel(std::span<const double> edges, int index)
 {
   return FormatEdge(edges[index]) + "-" + FormatEdge(edges[index + 1]);
@@ -83,12 +83,19 @@ inline int NBins(std::span<const double> edges)
 
 // The bin indices of a binning, for a loop that names its index once:
 // for (int multBin : BinningUtils::BinIndices(multBinning)). 0-based, as the edges are indexed; the ROOT bin is
-// index + 1 at the call site. The first std::views of the framework: it is not known whether the interpreted mode
+// RootBin(index). The first std::views of the framework: it is not known whether the interpreted mode
 // accepts it (that mode does not start in this environment, CLAUDE.md), and behind one function only this body would
 // have to change if it does not.
 inline auto BinIndices(std::span<const double> edges)
 {
   return std::views::iota(0, NBins(edges));
+}
+
+// The ROOT bin of a 0-based bin index (BinIndices, the multBin/ptBin of the loops): the one place the + 1 is written.
+// Every helper that takes an index goes through it, and so does a ROOT call given one.
+inline int RootBin(int index)
+{
+  return index + 1;
 }
 
 // Returns an empty string when the two binnings agree within epsilon, otherwise
@@ -123,11 +130,14 @@ inline std::string Compare(std::span<const double> lhs, std::span<const double> 
   return report;
 }
 
-// Range of source bins covered by one target bin, in ROOT numbering (1-based,
-// both ends inclusive), as ProjectionZ and THnSparse::SetRange expect them.
+// A range of bins in ROOT numbering (1-based, both ends inclusive), as ProjectionZ, IntegralAndError and
+// THnSparse::SetRange expect them: one bin (Single), or the source bins one target bin covers (MapToSourceBins).
 struct BinRange {
   int first{0};
   int last{0};
+
+  // One bin, by its 0-based index.
+  static BinRange Single(int index) { return {RootBin(index), RootBin(index)}; }
 };
 
 // Maps each target bin onto the source bins it covers. Requires the target edges
@@ -154,7 +164,7 @@ inline std::vector<BinRange> MapToSourceBins(std::span<const double> source, std
   for (int t : BinIndices(target)) {
     const int low = findEdge(target[t]);
     const int up = findEdge(target[t + 1]);
-    ranges.push_back({low + 1, up}); // ROOT bins are 1-based and inclusive
+    ranges.push_back({RootBin(low), RootBin(up - 1)}); // the source bins between edges low and up
   }
 
   return ranges;

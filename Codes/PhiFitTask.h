@@ -116,7 +116,8 @@ class PhiFitTask : public IAnalysisTask
       for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
         const std::string cell = OutputNames::CellTag(multBinning, multBin, ptPhiBinning, ptPhiBin);
         std::string phiHistName = "h1PhiData_" + cell;
-        std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), multBin + 1, multBin + 1, ptPhiBin + 1, ptPhiBin + 1)));
+        const auto mult = BinningUtils::BinRange::Single(multBin), ptPhi = BinningUtils::BinRange::Single(ptPhiBin);
+        std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), mult.first, mult.last, ptPhi.first, ptPhi.last)));
         h1PhiData->SetDirectory(0);
 
         // Fetch configuration dynamically from JSON
@@ -142,15 +143,10 @@ class PhiFitTask : public IAnalysisTask
         canvasManager.WriteAndDestroy(canvasName, fitDir);
 
         // Save the results for CorrelationTask
-        auto fillTriggerMatrix = [&](TH2D* h, const std::pair<double, double>& valueAndError) {
-          h->SetBinContent(multBin + 1, ptPhiBin + 1, valueAndError.first);
-          h->SetBinError(multBin + 1, ptPhiBin + 1, valueAndError.second);
-        };
-
-        fillTriggerMatrix(h2TriggerSignal.get(), res.signalAndError);
-        fillTriggerMatrix(h2TriggerBkgSigRegion.get(), res.bkgInSignalRegionAndError);
-        fillTriggerMatrix(h2TriggerBkgSideRegion.get(), res.bkgInSidebandAndError);
-        fillTriggerMatrix(h2TriggerBkgRatio.get(), res.bkgRatioAndError);
+        HistogramUtils::SetBinValueAndError(h2TriggerSignal.get(), multBin, ptPhiBin, res.signalAndError);
+        HistogramUtils::SetBinValueAndError(h2TriggerBkgSigRegion.get(), multBin, ptPhiBin, res.bkgInSignalRegionAndError);
+        HistogramUtils::SetBinValueAndError(h2TriggerBkgSideRegion.get(), multBin, ptPhiBin, res.bkgInSidebandAndError);
+        HistogramUtils::SetBinValueAndError(h2TriggerBkgRatio.get(), multBin, ptPhiBin, res.bkgRatioAndError);
       }
     }
   }

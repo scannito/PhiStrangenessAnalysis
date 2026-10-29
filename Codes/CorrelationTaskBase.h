@@ -792,6 +792,13 @@ class CorrelationTaskBase : public IAnalysisTask
   // readable by the other.
   // -------------------------------------------------------------------------
   // Per (multiplicity, trigger pT, associated pT) cell.
+  // The cut that selects one cell of the h5Phi{X}Data* containers, whose axes are (mult, pT(phi), pT(assoc), dy, dphi).
+  static std::vector<HistogramUtils::AxisToCut> CellCuts(int multBin, int ptPhiBin, int ptAssocBin)
+  {
+    return {HistogramUtils::AxisToCut::Bin(0, multBin), HistogramUtils::AxisToCut::Bin(1, ptPhiBin),
+            HistogramUtils::AxisToCut::Bin(2, ptAssocBin)};
+  }
+
   std::string CellSuffix(const AssocParticleConfig& config, int multBin, int ptPhiBin, int ptAssocBin) const
   {
     return std::format("_{}_ptPhi{}_{}",
@@ -1286,10 +1293,10 @@ class CorrelationTaskBase : public IAnalysisTask
     // Normalize by the event loss correction if it is required. A class at or below zero is left without it, as before
     // 27 October 2026: only on_invalid_correction_bin 'warn' lets one through, and the loader has warned about it.
     if (hEventLoss) {
-      const double eventLossCorr = hEventLoss->GetBinContent(multBin + 1);
+      const auto [eventLossCorr, eventLossError] = HistogramUtils::BinValueAndError(hEventLoss.get(), multBin);
       if (eventLossCorr > 0.0) {
         effectiveTriggers /= eventLossCorr;
-        eventLossRelError = hEventLoss->GetBinError(multBin + 1) / eventLossCorr;
+        eventLossRelError = eventLossError / eventLossCorr;
       }
     }
 
@@ -1297,7 +1304,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // per class, since it scales every bin of every spectrum of the class alike (CLAUDE.md, Physics).
     const double triggerRelError = totalTriggerSignalPerMult > 0.0 ? triggerError / totalTriggerSignalPerMult : 0.0;
     const double normalisationRelError = std::hypot(triggerRelError, eventLossRelError);
-    hNormalisationRelError->SetBinContent(multBin + 1, normalisationRelError);
+    hNormalisationRelError->SetBinContent(BinningUtils::RootBin(multBin), normalisationRelError);
 
     // The single number every spectrum of this multiplicity class is divided by. A
     // per-trigger yield that comes out orders of magnitude off, or identical across
@@ -1405,11 +1412,7 @@ class CorrelationTaskBase : public IAnalysisTask
     const std::vector<std::string> logicalPath = SectionPath();
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
-      HistogramUtils::AxisToCut axisToCutMult{.axis = 0, .bins = {multBin + 1, multBin + 1}};
-
       for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
-        HistogramUtils::AxisToCut axisToCutPtPhi{.axis = 1, .bins = {ptPhiBin + 1, ptPhiBin + 1}};
-
         double triggerBkgRatio = GetTriggerBkgRatio(multBin, ptPhiBin);
         double phiCorrection = Correction("Phi", multBin, ptPhiBin);
 
@@ -1420,8 +1423,7 @@ class CorrelationTaskBase : public IAnalysisTask
           TDirectory* targetDir = ProjectionCacheDir(pIdx, logicalPath);
 
           for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
-            HistogramUtils::AxisToCut axisToCutPtAssoc{.axis = 2, .bins = {ptAssocBin + 1, ptAssocBin + 1}};
-            std::vector<HistogramUtils::AxisToCut> axesToCut = {axisToCutMult, axisToCutPtPhi, axisToCutPtAssoc};
+            const std::vector<HistogramUtils::AxisToCut> axesToCut = CellCuts(multBin, ptPhiBin, ptAssocBin);
 
             double assocCorrection = Correction(config.name, multBin, ptAssocBin);
             double totalCorrection = phiCorrection * assocCorrection;
@@ -1454,7 +1456,7 @@ class CorrelationTaskBase : public IAnalysisTask
   {
     auto it = correctionCollection.find(particle);
     const TH1* h = it == correctionCollection.end() ? nullptr : it->second.h1Corrections[multBin].get();
-    return h ? h->GetBinContent(ptBin + 1) : 1.0;
+    return h ? h->GetBinContent(BinningUtils::RootBin(ptBin)) : 1.0;
   }
 
   // The efficiency-corrected trigger count of one multiplicity class, the sum over the trigger pT bins, with its
