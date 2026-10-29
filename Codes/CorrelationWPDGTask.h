@@ -169,9 +169,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     // both paths: outside [0.9, 1.2] is not a phi candidate, and outside |y| < 0.5 is
     // outside the acceptance the spectra are normalised to.
     const auto mult = BinningUtils::BinRange::Single(multBin), ptPhi = BinningUtils::BinRange::Single(ptPhiBin);
-    double error = 0.0;
-    const double count = h3PhiData->IntegralAndError(mult.first, mult.last, ptPhi.first, ptPhi.last, 1, h3PhiData->GetNbinsZ(), error);
-    return {count, error};
+    return HistogramUtils::IntegralAndErrorInBins(h3PhiData.get(), mult, ptPhi, {1, h3PhiData->GetNbinsZ()});
   }
   // GetTriggerBkgRatio not overridden: base default (0.0) is correct for WPDG.
 

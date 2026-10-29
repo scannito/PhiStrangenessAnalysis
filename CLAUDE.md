@@ -233,6 +233,10 @@ strings.
   `BinRange::Single`, `AxisToCut::Bin`, `HistogramUtils::BinValueAndError` / `SetBinValueAndError`, or `RootBin` in
   a ROOT call. A bare `+ 1` on an index is the bug this rule was written against (agreed with the owner,
   28-29 October 2026); a `+ 1` on an edge index (`edges[index + 1]`, the upper edge) is not a bin.
+- **An integral and its error come as a pair, from `HistogramUtils`**: `IntegralAndErrorWholeBins` (the range must fall
+  on bin edges), `IntegralAndErrorFractional` (a range that does not come from the binning, the cut bins by their
+  fraction) or `IntegralAndErrorInBins` (a TH3 region already in ROOT bins). `TH1::IntegralAndError`, with its error by reference, stays inside them, never in the code of a task or of
+  another helper (the owner's choice, 30 October 2026).
 - **The names and layout of `PhiAssocSpectra` come from `OutputNames`**, in the task that writes
   them and in every reader (`comparison_task`): object names, the `Spectra`/`Trends`/`Ratios`
   directories, the section names. So do the other names one task writes and another looks up (the

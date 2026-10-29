@@ -52,9 +52,10 @@ inline void SetBinValueAndError(TH2* h, int indexX, int indexY, std::pair<double
   h->SetBinError(binX, binY, valueAndError.second);
 }
 
-// The integral of a histogram of counts over [x1, x2], a bin cut by an end counted for the fraction of its width
-// inside, as if its entries were spread evenly across it; its variance scaled by the square of that fraction, as
-// TH1::Scale does. For a range that does not come from the binning.
+// The integral of a histogram of counts over [x1, x2] - the sum of the contents, as TH1::IntegralAndError with option
+// "" (not "width") - a bin cut by an end counted for the fraction of its width inside, as if its entries were spread
+// evenly across it; its variance scaled by the square of that fraction, as TH1::Scale does. For a range that does not
+// come from the binning.
 inline std::pair<double, double> IntegralAndErrorFractional(const TH1* h, double x1, double x2)
 {
   constexpr double tolerance = BinningUtils::kEdgeTolerance;
@@ -79,21 +80,37 @@ inline std::pair<double, double> IntegralAndErrorFractional(const TH1* h, double
   return {integral, std::sqrt(variance)};
 }
 
-// The integral and error over [x1, x2] in whole bins. x1 and x2 must be bin edges: an end inside a bin would take that
-// bin whole, a wider range than asked for, with no word. A range that does not come from the binning goes through
-// IntegralAndErrorFractional.
-inline std::pair<double, double> IntegralAndErrorWholeBins(const TH1* h, double x1, double x2)
+// The integral and error over [x1, x2] in whole bins, as a pair: TH1::IntegralAndError and its error by reference stay
+// here, out of the code that uses the result. x1 and x2 must be bin edges: an end inside a bin would take that bin
+// whole, a wider range than asked for, with no word. A range that does not come from the binning goes through
+// IntegralAndErrorFractional. 'option' is TH1::IntegralAndError's ("width" for a density).
+inline std::pair<double, double> IntegralAndErrorWholeBins(const TH1* h, double x1, double x2, Option_t* option = "")
 {
   const std::vector<double> edges = BinningUtils::AxisEdges(h->GetXaxis());
   const auto low = BinningUtils::FindEdgeIndex(edges, x1), up = BinningUtils::FindEdgeIndex(edges, x2);
   if (!low || !up)
-    BinningUtils::EdgeIndex(edges, low ? x2 : x1, std::format("HistogramUtils::IntegralAndErrorWholeBins of '{}'", h->GetName()));
+    throw std::runtime_error(std::format(
+      "[FATAL] HistogramUtils::IntegralAndErrorWholeBins of '{}': the range [{}, {}] must start and end on bin edges of "
+      "the axis [{}, {}]{}{}. A range that does not come from the binning goes through IntegralAndErrorFractional.",
+      h->GetName(), BinningUtils::FormatEdge(x1), BinningUtils::FormatEdge(x2), BinningUtils::FormatEdge(edges.front()),
+      BinningUtils::FormatEdge(edges.back()), low ? "" : std::format("; {} is not one", BinningUtils::FormatEdge(x1)),
+      up ? "" : std::format("; {} is not one", BinningUtils::FormatEdge(x2))));
   // An empty range must not reach ROOT: TH1::IntegralAndError with the first bin past the last takes up to the overflow.
   if (!(*low < *up))
     throw std::runtime_error(std::format("[FATAL] HistogramUtils::IntegralAndErrorWholeBins of '{}': [{}, {}] is an empty range.",
                                          h->GetName(), BinningUtils::FormatEdge(x1), BinningUtils::FormatEdge(x2)));
   double error{0.0};
-  const double integral = h->IntegralAndError(BinningUtils::RootBin(*low), BinningUtils::RootBin(*up - 1), error);
+  const double integral = h->IntegralAndError(BinningUtils::RootBin(*low), BinningUtils::RootBin(*up - 1), error, option);
+  return {integral, error};
+}
+
+// The integral and error of a TH3 over ranges of bins, as a pair, for a region already given in ROOT bins
+// (BinRange::Single, an axis' 1..N).
+inline std::pair<double, double> IntegralAndErrorInBins(const TH3* h, BinningUtils::BinRange x, BinningUtils::BinRange y,
+                                                         BinningUtils::BinRange z)
+{
+  double error{0.0};
+  const double integral = h->IntegralAndError(x.first, x.last, y.first, y.last, z.first, z.last, error);
   return {integral, error};
 }
 
@@ -189,8 +206,8 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
 // The measured trend: the bin of class 'multBin' gets the integral of the spectrum.
 inline void FillTrendFromSpectrum(TH1* hTrend, TH1* hSpectrum, int multBin)
 {
-  double error{0.0};
-  const double content = hSpectrum->IntegralAndError(1, hSpectrum->GetNbinsX(), error, "width");
+  auto [content, error] = IntegralAndErrorWholeBins(hSpectrum, hSpectrum->GetXaxis()->GetXmin(),
+                                                    hSpectrum->GetXaxis()->GetXmax(), "width");
 
   SetBinValueAndError(hTrend, multBin, {content, error});
 }
