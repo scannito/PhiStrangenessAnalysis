@@ -377,7 +377,7 @@ class MCTask : public IAnalysisTask
           // histograms into one bin spanning the multiplicity range of the analysis
           // and hand them to the same calculator.
           auto collapse = [&](TH1* h) {
-            const auto [integral, error] = HistogramUtils::IntegralAndErrorPair(h, multBinning.front(), multBinning.back());
+            const auto [integral, error] = HistogramUtils::IntegralAndErrorWholeBins(h, multBinning.front(), multBinning.back());
             auto c = std::make_unique<TH1D>("", "", 1, 0., 1.);
             c->SetDirectory(0);
             c->Sumw2();

@@ -52,36 +52,49 @@ inline void SetBinValueAndError(TH2* h, int indexX, int indexY, std::pair<double
   h->SetBinError(binX, binY, valueAndError.second);
 }
 
-// Computes the integral and error in a specific range for 1D histograms
-inline std::pair<double, double> IntegralAndErrorPair(TH1* h1, double x1, double x2, Option_t* option = "")
+// The integral of a histogram of counts over [x1, x2], a bin cut by an end counted for the fraction of its width
+// inside, as if its entries were spread evenly across it; its variance scaled by the square of that fraction, as
+// TH1::Scale does. For a range that does not come from the binning.
+inline std::pair<double, double> IntegralAndErrorFractional(const TH1* h, double x1, double x2)
 {
-  double integral{0.0};
-  double error{0.0};
-  double epsilon{0.00001};
-
-  int binX1 = h1->GetXaxis()->FindBin(x1 + epsilon);
-  int binX2 = h1->GetXaxis()->FindBin(x2 - epsilon);
-
-  integral = h1->IntegralAndError(binX1, binX2, error, option);
-
-  return std::make_pair(integral, error);
+  constexpr double tolerance = BinningUtils::kEdgeTolerance;
+  const TAxis* axis = h->GetXaxis();
+  // Under- and overflow have no width to take a fraction of: a range beyond the axis would silently lose its part.
+  if (!(x1 < x2) || x1 < axis->GetXmin() - tolerance || x2 > axis->GetXmax() + tolerance)
+    throw std::runtime_error(std::format("[FATAL] IntegralAndErrorFractional: [{}, {}] is not a range inside the axis [{}, {}] of '{}'.",
+                                         BinningUtils::FormatEdge(x1), BinningUtils::FormatEdge(x2),
+                                         BinningUtils::FormatEdge(axis->GetXmin()), BinningUtils::FormatEdge(axis->GetXmax()),
+                                         h->GetName()));
+  double integral = 0.0, variance = 0.0;
+  for (int bin = 1; bin <= h->GetNbinsX(); ++bin) {
+    const double width = axis->GetBinWidth(bin);
+    const double overlap = std::min(axis->GetBinUpEdge(bin), x2) - std::max(axis->GetBinLowEdge(bin), x1);
+    if (overlap <= tolerance)
+      continue;
+    // A bin inside the range counts exactly once: its edges are computed, and 1 - 1e-13 would move the sum.
+    const double fraction = overlap >= width - tolerance ? 1.0 : overlap / width;
+    integral += fraction * h->GetBinContent(bin);
+    variance += fraction * fraction * h->GetBinError(bin) * h->GetBinError(bin);
+  }
+  return {integral, std::sqrt(variance)};
 }
 
-// Computes the integral and error in a specific range for 2D histograms
-inline std::pair<double, double> IntegralAndErrorPair(TH2* h2, double x1, double x2, double y1, double y2, Option_t* option = "")
+// The integral and error over [x1, x2] in whole bins. x1 and x2 must be bin edges: an end inside a bin would take that
+// bin whole, a wider range than asked for, with no word. A range that does not come from the binning goes through
+// IntegralAndErrorFractional.
+inline std::pair<double, double> IntegralAndErrorWholeBins(const TH1* h, double x1, double x2)
 {
-  double integral{0.0};
+  const std::vector<double> edges = BinningUtils::AxisEdges(h->GetXaxis());
+  const auto low = BinningUtils::FindEdgeIndex(edges, x1), up = BinningUtils::FindEdgeIndex(edges, x2);
+  if (!low || !up)
+    BinningUtils::EdgeIndex(edges, low ? x2 : x1, std::format("HistogramUtils::IntegralAndErrorWholeBins of '{}'", h->GetName()));
+  // An empty range must not reach ROOT: TH1::IntegralAndError with the first bin past the last takes up to the overflow.
+  if (!(*low < *up))
+    throw std::runtime_error(std::format("[FATAL] HistogramUtils::IntegralAndErrorWholeBins of '{}': [{}, {}] is an empty range.",
+                                         h->GetName(), BinningUtils::FormatEdge(x1), BinningUtils::FormatEdge(x2)));
   double error{0.0};
-  double epsilon{0.00001};
-
-  int binX1 = h2->GetXaxis()->FindBin(x1 + epsilon);
-  int binX2 = h2->GetXaxis()->FindBin(x2 - epsilon);
-  int binY1 = h2->GetYaxis()->FindBin(y1 + epsilon);
-  int binY2 = h2->GetYaxis()->FindBin(y2 - epsilon);
-
-  integral = h2->IntegralAndError(binX1, binX2, binY1, binY2, error, option);
-
-  return std::make_pair(integral, error);
+  const double integral = h->IntegralAndError(BinningUtils::RootBin(*low), BinningUtils::RootBin(*up - 1), error);
+  return {integral, error};
 }
 
 // Constrains the helpers below to the ROOT histogram hierarchy. Without it the
@@ -162,7 +175,7 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
   std::unique_ptr<TH1> hSpectrum = std::make_unique<TH1D>(histName.c_str(), "; p_{T} (GeV/#it{c}); 1/N_{trig} d^{2}N/dp_{T}d#Deltay", BinningUtils::NBins(binning), binning.data());
 
   for (int ptBin : BinningUtils::BinIndices(binning)) {
-    auto [binContent, binError] = IntegralAndErrorPair(hContainer[ptBin], -absLimToIntegrate, absLimToIntegrate);
+    auto [binContent, binError] = IntegralAndErrorWholeBins(hContainer[ptBin], -absLimToIntegrate, absLimToIntegrate);
     double normalizationFactor = (binning[ptBin + 1] - binning[ptBin]);
 
     SetBinValueAndError(hSpectrum.get(), ptBin, {binContent / normalizationFactor, binError / normalizationFactor});
@@ -176,8 +189,8 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
 // The measured trend: the bin of class 'multBin' gets the integral of the spectrum.
 inline void FillTrendFromSpectrum(TH1* hTrend, TH1* hSpectrum, int multBin)
 {
-  auto [content, error] =
-    IntegralAndErrorPair(hSpectrum, hSpectrum->GetXaxis()->GetXmin(), hSpectrum->GetXaxis()->GetXmax(), "width");
+  double error{0.0};
+  const double content = hSpectrum->IntegralAndError(1, hSpectrum->GetNbinsX(), error, "width");
 
   SetBinValueAndError(hTrend, multBin, {content, error});
 }
@@ -226,28 +239,23 @@ struct RebinEdgeMismatch {
   bool outOfSourceRange{false};
 };
 
-inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, std::span<const double> targetBinning, double epsilon = 1e-9)
+inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, std::span<const double> targetBinning,
+                                                         double epsilon = BinningUtils::kEdgeTolerance)
 {
   std::vector<RebinEdgeMismatch> mismatches;
-  const double xMin = hSource->GetXaxis()->GetXmin();
-  const double xMax = hSource->GetXaxis()->GetXmax();
+  const std::vector<double> edges = BinningUtils::AxisEdges(hSource->GetXaxis());
 
   for (double edge : targetBinning) {
-    // Out of range check
-    if (edge < xMin - epsilon || edge > xMax + epsilon) {
-      mismatches.push_back({.targetEdge = edge, .sourceBin = -1, .sourceBinLowEdge = xMin,
-                            .sourceBinUpEdge = xMax, .outOfSourceRange = true});
+    if (BinningUtils::FindEdgeIndex(edges, edge, epsilon))
+      continue;
+    if (edge < edges.front() || edge > edges.back()) {
+      mismatches.push_back({.targetEdge = edge, .sourceBin = -1, .sourceBinLowEdge = edges.front(),
+                            .sourceBinUpEdge = edges.back(), .outOfSourceRange = true});
       continue;
     }
-
-    int bin = hSource->GetXaxis()->FindFixBin(edge);
-    bin = std::clamp(bin, 1, hSource->GetNbinsX()); // extra defense for edge cases, though FindFixBin should handle this
-
-    double lowEdge = hSource->GetXaxis()->GetBinLowEdge(bin);
-    double upEdge = hSource->GetXaxis()->GetBinLowEdge(bin + 1);
-    if (std::abs(lowEdge - edge) > epsilon && std::abs(upEdge - edge) > epsilon)
-      mismatches.push_back({.targetEdge = edge, .sourceBin = bin, .sourceBinLowEdge = lowEdge,
-                            .sourceBinUpEdge = upEdge, .outOfSourceRange = false});
+    const int bin = hSource->GetXaxis()->FindFixBin(edge);
+    mismatches.push_back({.targetEdge = edge, .sourceBin = bin, .sourceBinLowEdge = hSource->GetXaxis()->GetBinLowEdge(bin),
+                          .sourceBinUpEdge = hSource->GetXaxis()->GetBinUpEdge(bin), .outOfSourceRange = false});
   }
   return mismatches;
 }
@@ -261,7 +269,7 @@ inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, st
 //
 // So the counts above the target range accumulate in the overflow bin. The visible
 // bins are exact either way, and nothing in this framework reads the overflow -
-// IntegralAndErrorPair works on explicit limits and TH1::Integral() starts at bin
+// IntegralAndErrorWholeBins works on explicit limits and TH1::Integral() starts at bin
 // 1 - but GetEntries() and the statistics box do count it.
 template <RootHistogram THType>
 inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, std::span<const double> targetBinning, std::string_view errCtx)

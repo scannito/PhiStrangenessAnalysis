@@ -1387,7 +1387,12 @@ rebase on upstream, a full build, a run on data, the PR description (phase 0).
      reasons; to be measured again if the trigger-pT binning, the φ map or the efficiency mode changes.
      Instrumented copy of `RunLegacy` and the script: `~/alice/claude-sandbox/phieff/` (not in the repository).
 4. **The mass windows.** The defaults in the O2Physics task, the train configuration and `integration_range`
-   in `fitConfig.json` agree only because they were set by hand (section 12).
+   in `fitConfig.json` agree only because they were set by hand (section 12). Checked on 29 October 2026 against
+   the train of the 2026 HighIR production: `rangeMPhiSignal` {1, 1.05} and `rangeMPhiSideband` {1.06, 1.08}, as in
+   `fitConfig.json` (the task's defaults are {1.0095, 1.029} and {1.1, 1.2}). Agreeing was not enough: the sideband
+   was counted in whole 1.5 MeV mass bins, [1.059, 1.08] instead of [1.06, 1.08], 4.5-5.0% too many candidates
+   (`DESIGN_HISTORY.md`, *The φ sideband counted on its window*). A window that comes from the train has no reason
+   to fall on the binning; what the fit computes on it must not assume it does.
 5. **Candidates with zero efficiency.** The online task gives weight 1 to a pair whose efficiency product is
    ≤ 0 (for instance a candidate outside the map), and loses the correction of the other particle too.
    `hStrangeCorrelation` sets the efficiency of that particle alone to 1, silently. Either way the number is

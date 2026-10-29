@@ -125,6 +125,12 @@ class FitConfigManager : public BaseConfigManager
         loadNodeIntoModel((*bins)[cell.c_str()]);
         config.binOverride = cell;
       }
+
+      // A sideband needs its range, after the default and the cell are merged: absent it stays {0, 0}, an empty range
+      // that the histogram count refuses and the fit integrates to nothing, an R of 0 or infinity.
+      if (const auto& sb = config.integration.sideband; sb && !(sb->range.first < sb->range.second))
+        throw std::runtime_error(std::format("[FATAL] {}: section '{}', cell '{}': 'sideband' has no 'range' [low, high].",
+                                             managerName, section, cell));
     }
 
     return config;

@@ -7,6 +7,48 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## The φ sideband counted on its window
+
+**29 October 2026.** The background ratio R = B(signal window) / N(sideband) that scales the sideband pairs was
+computed with N counted over the wrong range. The train selects the sideband candidates in [1.06, 1.08]
+(`rangeMPhiSideband` {1.05999994, 1.08000004}, checked against the train's configuration; `fitConfig.json` says the
+same), and `DynamicRooFitter` counted them on the mass histogram with `IntegralAndErrorPair`, which found the bins of
+the ends with `FindBin(x ± 1e-5)` and took them whole. The mass axis of every production is 200 bins of 1.5 MeV/c² on
+[0.9, 1.2]: 1.08 is an edge, 1.06 is not, so the count covered [1.059, 1.08], with the candidates of [1.059, 1.06) in N
+and not in the pairs. Measured on the 2026 HighIR production: N 4.5-5.0% too large in every cell, R too small by as
+much; the 2024 and 2026 productions have the same axis and the same window.
+
+**What changed.**
+- The sideband is counted with `HistogramUtils::IntegralAndErrorFractional`: the bin an end cuts counts for the
+  fraction of its width inside, its entries taken as evenly spread (the slope of the spectrum across it, measured in
+  every cell, makes that good to 1.5·10⁻⁴ of the count); its variance by the square of the fraction, as `TH1::Scale`.
+  The method is unchanged: N is still the histogram count (`from_fit: false`).
+- `IntegralAndErrorPair`, renamed `IntegralAndErrorWholeBins` next to `IntegralAndErrorFractional`, requires its ends
+  on bin edges and stops the run otherwise, and refuses an empty range, which ROOT would integrate up to the overflow.
+  "Is x an edge" is one test, `BinningUtils::FindEdgeIndex` (and `EdgeIndex`, which throws), with one tolerance,
+  `kEdgeTolerance`, used by `MapToSourceBins`, `Compare` and `FindRebinMismatches` as well. Its other callers (the |Δy| windows of `ConstructSpectrum`, the event counts of `MCTask`) were already on
+  edges and are unchanged; the next one that is not stops instead of being widened. The 2D overload, with no caller,
+  is gone; `FillTrendFromSpectrum` integrates its whole axis directly.
+- `JsonConfig::TryRange` refuses low ≥ high, and an empty sideband warns, naming the cell, instead of leaving R = 0,
+  which subtracts nothing.
+
+**Effect** (2026 HighIR, offline efficiency, against main): R +4.46 … +5.04%; the trends of every species fall by
+6-10% (π −6.1 … −9.9%, 56-247 statistical errors; K0S −5.6 … −9.8%; Ξ −5.4 … −11.0%; Ω −2.7 … −14.5%), because the
+subtracted background is 0.6-3.4 times the signal; the ratios between species move by at most about 1% (K0S/π +0.07 …
++0.69%, Ξ/π −1.4 … +1.4%, Ω/π −5.1 … +4.3%, all within 1.2 statistical errors), R being the same for every species of
+a cell. Every result produced before this change has its yields and trends too high by that much.
+
+**Found with it, open.** The sideband also holds the tail of the φ (0.4-6.3% of its candidates, growing with S/B), so
+the histogram count and the background of the fit (`from_fit: true`) differ by up to 7% in R and 3% in the trends.
+Which is the right denominator is a method question: `QUESTIONS_FOR_EXPERTS.md`, *The φ sideband: which count goes
+into the background ratio*, with every number of both methods.
+
+**Checked.** mc, purity and the WPDG closure identical to main; the phi fit and the correlation of the 2026 HighIR
+offline block identical to the prototype measured first (R to 5·10⁻¹⁵, the trends exactly); the helpers tested on an
+axis with filled under/overflow, on |Δy| windows on and off the edges, on the mass window, on an empty range.
+
+---
+
 ## An invalid correction bin warns by default
 
 **29 October 2026.** Two days after *A correction that cannot be computed stops the run* (below), the owner asked for

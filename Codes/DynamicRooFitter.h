@@ -210,8 +210,14 @@ class DynamicRooFitter
         RooFormulaVar bkgRatio("bkgRatio", "Bkg(signal)/Bkg(sideband)", "@0 / @1", RooArgList(*bkgInt, *bkgIntSB));
         results.bkgRatioAndError = {bkgRatio.getVal(), bkgRatio.getPropagatedError(*fitResult, RooArgSet(*obs))};
       } else {
-        // Direct integration from histogram bins
-        results.bkgInSidebandAndError = HistogramUtils::IntegralAndErrorPair(h1Data, sbMin, sbMax);
+        // The candidates the sideband pairs were built from, counted on the histogram over the sideband window. The
+        // window is the train's (rangeMPhiSideband, also in fitConfig.json) and need not fall on the mass binning:
+        // [1.06, 1.08] on the 1.5 MeV bins of the productions cuts [1.059, 1.0605], which taken whole made the count
+        // 4.5-5.0% too large and R as much too small (2026 HighIR, every cell, 29 October 2026). The cut bin counts for
+        // its fraction inside; the slope of the spectrum across it makes that good to 1.5e-4 of the count. Whether the
+        // count, which includes the tail of the phi, is the right denominator is open: QUESTIONS_FOR_EXPERTS.md, "The
+        // phi sideband: which count goes into the background ratio".
+        results.bkgInSidebandAndError = HistogramUtils::IntegralAndErrorFractional(h1Data, sbMin, sbMax);
 
         const double num = results.bkgInSignalRegionAndError.first;
         const double den = results.bkgInSidebandAndError.first;
@@ -220,6 +226,11 @@ class DynamicRooFitter
           const double relNum = (num != 0.0) ? results.bkgInSignalRegionAndError.second / num : 0.0;
           const double relDen = results.bkgInSidebandAndError.second / den;
           results.bkgRatioAndError = {ratio, ratio * std::sqrt(relNum * relNum + relDen * relDen)};
+        } else {
+          // R left at 0 means no sideband subtraction at all for this cell: not a correction of 1 either.
+          Logger::Warn("DynamicRooFitter: '{}' has no entries in the sideband [{}, {}]: R is 0 and the sideband pairs of "
+                       "this cell are not subtracted.",
+                       h1Data->GetName(), sbMin, sbMax);
         }
       }
     }

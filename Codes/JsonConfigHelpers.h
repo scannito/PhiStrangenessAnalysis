@@ -343,6 +343,10 @@ inline std::optional<std::pair<double, double>> TryRange(const rapidjson::Value&
     throw std::runtime_error(std::format("[FATAL] {}: '{}' must have exactly two entries, [low, high], but has {}.",
                                          errCtx, key, values.size()));
 
+  // A reversed or empty range would integrate nothing, which reads as a range with nothing in it.
+  if (!(values[0] < values[1]))
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' must be [low, high] with low < high, but is [{}, {}].",
+                                         errCtx, key, values[0], values[1]));
   return std::pair{values[0], values[1]};
 }
 

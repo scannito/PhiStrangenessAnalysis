@@ -10,6 +10,7 @@
 #include <cmath>
 #include <cstdio>
 #include <format>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <stdexcept>
@@ -20,6 +21,12 @@
 
 namespace BinningUtils
 {
+
+// Two values closer than this are the same edge: the tolerance of every "is x an edge" of the framework (Compare,
+// FindEdgeIndex, MapToSourceBins, the integrals and the rebinning of HistogramUtils). Absolute: the edges are pT in GeV/c
+// (0-20), multiplicity percentiles (0-100), Delta y (-1..1) and masses in GeV/c^2 (~1), so 1e-9 sits far below any
+// difference that could be physical and far above double rounding.
+inline constexpr double kEdgeTolerance = 1e-9;
 
 // GetBinLowEdge is used on purpose: GetXbins() returns an empty array for
 // fixed-width axes, which would look like "this axis has no binning at all".
@@ -103,12 +110,10 @@ inline int RootBin(int index)
 // a stale configuration or a wrong production usually differs in several places,
 // and fixing them one run at a time is expensive.
 //
-// The tolerance is absolute. Bin edges here are pT in GeV/c (0-20) or
-// multiplicity percentiles (0-100), so 1e-9 sits far below any difference that
-// could be physical and far above double rounding.
+// The tolerance is absolute, kEdgeTolerance below.
 inline std::string Compare(std::span<const double> lhs, std::span<const double> rhs,
                            std::string_view lhsName = "expected", std::string_view rhsName = "found",
-                           double epsilon = 1e-9)
+                           double epsilon = kEdgeTolerance)
 {
   std::string report;
 
@@ -130,6 +135,28 @@ inline std::string Compare(std::span<const double> lhs, std::span<const double> 
   return report;
 }
 
+// The index 0..N of the edge of 'edges' at x, within epsilon, or none: the one test of "x is an edge" (a merge of bins,
+// a whole-bin integral, a rebinning).
+inline std::optional<int> FindEdgeIndex(std::span<const double> edges, double x, double epsilon = kEdgeTolerance)
+{
+  const auto above = std::ranges::lower_bound(edges, x - epsilon);
+  if (above != edges.end() && std::abs(*above - x) <= epsilon)
+    return static_cast<int>(above - edges.begin());
+  return std::nullopt;
+}
+
+// The same, where x must be an edge: [FATAL] naming what asked and the edges around x.
+inline int EdgeIndex(std::span<const double> edges, double x, std::string_view what, double epsilon = kEdgeTolerance)
+{
+  if (const auto index = FindEdgeIndex(edges, x, epsilon))
+    return *index;
+  const auto above = std::ranges::lower_bound(edges, x);
+  throw std::runtime_error(std::format("[FATAL] {}: {} is not an edge of the binning [{}, {}] (it lies between {} and {}).",
+                                       what, FormatEdge(x), FormatEdge(edges.front()), FormatEdge(edges.back()),
+                                       above == edges.begin() ? "-" : FormatEdge(*(above - 1)),
+                                       above == edges.end() ? "-" : FormatEdge(*above)));
+}
+
 // A range of bins in ROOT numbering (1-based, both ends inclusive), as ProjectionZ, IntegralAndError and
 // THnSparse::SetRange expect them: one bin (Single), or the source bins one target bin covers (MapToSourceBins).
 struct BinRange {
@@ -146,24 +173,15 @@ struct BinRange {
 // Used to merge BEFORE deriving a quantity rather than after: a coarse purity or
 // efficiency must come from the merged counts, never from the merged ratios.
 inline std::vector<BinRange> MapToSourceBins(std::span<const double> source, std::span<const double> target,
-                                             double epsilon = 1e-9)
+                                             double epsilon = kEdgeTolerance)
 {
-  auto findEdge = [&](double edge) -> int {
-    for (size_t i = 0; i < source.size(); ++i) {
-      if (std::abs(source[i] - edge) <= epsilon)
-        return static_cast<int>(i);
-    }
-    throw std::runtime_error(std::format("[FATAL] BinningUtils::MapToSourceBins: target edge {} "
-                                         "is not an edge of the source binning, so the merge is not defined.",
-                                         FormatEdge(edge)));
-  };
-
   std::vector<BinRange> ranges;
   ranges.reserve(NBins(target));
 
+  const std::string_view what = "BinningUtils::MapToSourceBins (a target edge must be a source edge for the merge to be defined)";
   for (int t : BinIndices(target)) {
-    const int low = findEdge(target[t]);
-    const int up = findEdge(target[t + 1]);
+    const int low = EdgeIndex(source, target[t], what, epsilon);
+    const int up = EdgeIndex(source, target[t + 1], what, epsilon);
     ranges.push_back({RootBin(low), RootBin(up - 1)}); // the source bins between edges low and up
   }
 
