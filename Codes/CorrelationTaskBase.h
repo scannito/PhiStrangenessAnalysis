@@ -329,6 +329,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
   std::map<std::string, LoadedCorrections> correctionCollection;
 
+  // Always set from their required keys at Init: initialised only so that they are never indeterminate, not defaults.
   CorrelationCalculator::AxisTarget projectionAxis{CorrelationCalculator::AxisTarget::DeltaY_Y};
   CorrelationCalculator::MENormalization meNormalization{CorrelationCalculator::MENormalization::BinsAtZero};
 
@@ -336,7 +337,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
   std::vector<std::vector<std::vector<std::unique_ptr<TH1>>>> h1PhiAssocNoPtPhi;
 
-  std::vector<double> deltaYLimits{1.0, 0.5, 0.1};
+  std::vector<double> deltaYLimits;
 
   std::vector<std::vector<std::unique_ptr<TH1>>> h1MultTrends;
   std::vector<std::vector<std::unique_ptr<TH1>>> h1MultTrendsExtrap;
@@ -432,13 +433,21 @@ class CorrelationTaskBase : public IAnalysisTask
        {"fit", CorrelationCalculator::MENormalization::Fit}},
       GetName());
 
-    // Both spellings of each axis are entries in the same table, so the accepted
-    // values and the error message can never drift apart.
+    // Required, with no default: it changes the numbers (CLAUDE.md, Configuration).
     using AxisTarget = CorrelationCalculator::AxisTarget;
-    projectionAxis = JsonConfig::OptionalEnum<AxisTarget>(taskConfig, "projection_axis", "delta_y",
-                                                          {{"delta_phi", AxisTarget::DeltaPhi_X},
-                                                           {"delta_y", AxisTarget::DeltaY_Y}},
-                                                          GetName());
+    projectionAxis = JsonConfig::RequireEnum<AxisTarget>(taskConfig, "projection_axis",
+                                                         {{"delta_phi", AxisTarget::DeltaPhi_X}, {"delta_y", AxisTarget::DeltaY_Y}},
+                                                         GetName());
+    // Delta phi is supported in principle, the 2D engine projects on it, but a spectrum in Delta phi has never been
+    // defined: each cell is integrated over |x| < delta_y_limits and GenerateSpectraAndTrends divides by 2 * limit, the
+    // Delta y acceptance. Refused in every engine until that is decided (DESIGN_NOTES.md section 6, "Spectra in Delta
+    // phi: to be looked at"; the owner, 30 October 2026); Supports, below, is the engine's rule once it is lifted.
+    if (projectionAxis == AxisTarget::DeltaPhi_X)
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: projection_axis 'delta_phi' is not supported yet: the spectra are integrated over |x| < "
+        "delta_y_limits and normalised as for Delta y, which has no meaning in Delta phi. See DESIGN_NOTES.md "
+        "section 6, \"Spectra in Delta phi: to be looked at\".",
+        GetName()));
     Logger::Info("{}: Physics projection axis set to {}.",
                  GetName(), (projectionAxis == AxisTarget::DeltaPhi_X ? "Delta Phi (X)" : "Delta Y (Y)"));
 
@@ -458,9 +467,12 @@ class CorrelationTaskBase : public IAnalysisTask
       }
     }
 
-    if (auto dyLimits = JsonConfig::TryArray(taskConfig, "delta_y_limits", GetName())) {
-      deltaYLimits = JsonConfig::ReadNumberArray(*dyLimits, "delta_y_limits", GetName());
-    }
+    // Required, with no default: the windows every spectrum and trend is integrated over (CLAUDE.md, Configuration).
+    // Empty would meet "required" and compute nothing, with no error.
+    deltaYLimits = JsonConfig::ReadNumberArray(JsonConfig::RequireArray(taskConfig, "delta_y_limits", GetName()),
+                                               "delta_y_limits", GetName());
+    if (deltaYLimits.empty())
+      throw std::runtime_error(std::format("[FATAL] {}: 'delta_y_limits' is empty: no spectrum would be built.", GetName()));
   }
 
   // -------------------------------------------------------------------------
@@ -475,7 +487,8 @@ class CorrelationTaskBase : public IAnalysisTask
   // The settings that need an engine this run will not build. Both used to pass in silence:
   // use_2d_me_normalization true where only the 1D engine runs (the results went under
   // "Extract2D"), and projection_axis "delta_phi" with the 1D engine, which projects on Delta y
-  // only and gave Delta y spectra (Delta phi in the 1D engine is open: DESIGN_NOTES.md section 6).
+  // only and gave Delta y spectra (Delta phi in the 1D engine is open: DESIGN_NOTES.md section 6). Delta phi is, for
+  // now, refused in every engine before this, in InitCommonFlags.
   // Refused at Init, before any data is loaded.
   void RequireEngineSettingsSupported() const
   {

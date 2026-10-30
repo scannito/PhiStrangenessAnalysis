@@ -73,7 +73,7 @@ class PhiFitTask : public IAnalysisTask
     provenance["fit_config"] = JsonConfig::ReadFileText(fitCfgPath);
 
     // 3. Output Configuration
-    std::string basePathProj = JsonConfig::RequireString(taskConfig, "output_dir_proj", GetName());
+    std::string basePathProj = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
     std::string prefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
 
     // UPDATE and this binning's subtree cleared, not RECREATE: the file holds one subtree per

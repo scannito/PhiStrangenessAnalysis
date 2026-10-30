@@ -28,10 +28,9 @@ class CorrelationTask : public CorrelationTaskBase
 
     useSignalCache = JsonConfig::OptionalBool(taskConfig, "use_signal_cache", useSignalCache, GetName());
     doMoreQA = JsonConfig::OptionalBool(taskConfig, "do_more_qa", doMoreQA, GetName());
-    runMode = JsonConfig::OptionalEnum<RunMode>(taskConfig, "run_mode", "legacy",
-                                                {{"legacy", RunMode::Legacy},
-                                                 {"optimized", RunMode::Optimized}},
-                                                GetName());
+    // Required, with no default: it chooses the engine (CLAUDE.md, Configuration).
+    runMode = JsonConfig::RequireEnum<RunMode>(taskConfig, "run_mode",
+                                               {{"legacy", RunMode::Legacy}, {"optimized", RunMode::Optimized}}, GetName());
     RequireEngineSettingsSupported();
 
     // Prefix handling: search specific key -> Search fallback -> Search legacy
@@ -50,7 +49,7 @@ class CorrelationTask : public CorrelationTaskBase
     outputPrefix = getPrefix(taskConfig, "output_prefix", "output_prefix");
 
     // 2. Load Trigger information from PhiFitTask
-    std::string basePathProj = JsonConfig::RequireString(taskConfig, "input_dir_proj", GetName());
+    std::string basePathProj = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
     std::string phiDataName = basePathProj + triggerPrefix + OutputNames::kPhiDataFile;
 
     std::unique_ptr<TFile> filePhiDataInput = RootIO::OpenOrThrow(phiDataName, "READ", GetName());
@@ -195,7 +194,7 @@ class CorrelationTask : public CorrelationTaskBase
   }
 
  private:
-  RunMode runMode{RunMode::Legacy};
+  RunMode runMode{RunMode::Legacy}; // always set from run_mode, required: initialised only to be determinate
 
   bool applyPurity{false};
   bool useSignalCache{false}, doMoreQA{false};

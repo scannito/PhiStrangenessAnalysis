@@ -7,6 +7,32 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## The keys that change numbers are required; one name for the projections directory
+
+**30 October 2026.** From the audit of the framework (28 October), at the owner's choice:
+- `run_mode` (`correlation_task`), `projection_axis` and `delta_y_limits` (both correlation tasks) are required, read
+  with `RequireEnum` / `RequireArray`, as `me_normalization` already was: each changes the numbers, and a C++ default
+  left no trace of the value in force (`CLAUDE.md`, *A key that changes a number is declared even when it equals the
+  default*). The base blocks already declared them, except `projection_axis` in `correlation_wpdg_base_settings`
+  (pp and pp_ref), which now says `delta_y`. The C++ default of `delta_y_limits` ({1.0, 0.5, 0.1}) is gone.
+- `projection_axis: "delta_phi"` is refused at `Init` in every engine, right where the key is read: supported in
+  principle, but a spectrum in Δφ has never been defined (`DESIGN_NOTES.md` section 6, *Spectra in Δφ: to be looked
+  at*). An empty `delta_y_limits` stops the run too, since it would compute nothing.
+- The directory of the trigger file and of the projection caches is `projections_dir` in `phi_fit_task`,
+  `correlation_task` and `correlation_wpdg_task`. It was `output_dir_proj` in the first and the last and
+  `input_dir_proj` in the second, which both reads the trigger file there and writes its caches: two names for one
+  directory, and one of them true by half. A configuration that still writes the old keys stops at the missing
+  `projections_dir`.
+
+No number changes. `globalConfigMCClosurepp.json` and `…ppref.json` have empty task blocks (`{}`), already unusable on
+main; they were left as they are.
+
+**Checked.** Every task block of the other configurations has the keys after `inherits` (47 blocks, data and WPDG closure,
+pp and pp_ref); the 2026 HighIR offline block and the WPDG closure identical to main; `delta_phi`, a missing
+`run_mode`, an empty `delta_y_limits` and the old `input_dir_proj` each stop the run naming the key.
+
+---
+
 ## A parameter a model needs and the configuration does not set stops the run
 
 **30 October 2026.** `DynamicRooFitter` (the mass fits) already stopped on a parameter its model needs and

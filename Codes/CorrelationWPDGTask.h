@@ -94,7 +94,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     //    binning that everything below is loaded against)
     std::string prefix = JsonConfig::OptionalString(taskConfig, "input_output_prefix", "", GetName());
 
-    std::string basePathProj = JsonConfig::RequireString(taskConfig, "output_dir_proj", GetName());
+    std::string basePathProj = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
     std::string basePathFinal = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     std::string phiSpectraName = basePathFinal + prefix + "PhiAssocSpectra.root";
     fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", GetName());

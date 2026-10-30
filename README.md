@@ -189,9 +189,9 @@ the value is matched against, so it cannot go stale.
 
 | Key | Task | Values | Default |
 |---|---|---|---|
-| `projection_axis` | correlation | `delta_y` / `DeltaY`, `delta_phi` / `DeltaPhi` (Δφ only with the 2D engine: refused at `Init` otherwise, `DESIGN_NOTES.md` section 6) | `delta_y` |
+| `projection_axis` | correlation | `delta_y`, `delta_phi` (Δφ refused at `Init` for now: the spectra in Δφ are not defined yet, `DESIGN_NOTES.md` section 6) | none: required |
 | `particle_correction_mode` | `mc_task` | `efficiency_only`, `signal_loss_only`, `combined` | `efficiency_only` |
-| `run_mode` | `correlation_task` | `legacy`, `optimized` | `legacy` |
+| `run_mode` | `correlation_task` | `legacy`, `optimized` | none: required |
 | `target` | `comparison_task` | `spectra`, `trends`, `ratios` | `ratios` |
 
 ### Per-cell overrides in `fitConfig.json` and `extrapConfig.json`
@@ -242,7 +242,7 @@ silently ignored.
 |---|---|---|
 | `input_data_file`, `base_path_data` | required | |
 | `fit_config_file` | required | Per-cell fit model, see `JSONConfigs/fitConfig.json`. |
-| `output_dir_proj` | required | |
+| `projections_dir` | required | The directory of the trigger file this task writes (`…PhiDataHistograms.root`), the same key the correlation tasks read it from. |
 | `output_prefix` | optional | |
 
 **`correlation_task`** — the main chain: signal extraction, corrections, spectra, trends, ratios.
@@ -253,7 +253,8 @@ silently ignored.
 | `use_projection_cache` | required | |
 | `use_2d_me_normalization` | required | Despite the name, it chooses the engine: `true` builds the 2D one (SE/ME projected on (Δφ, Δy), divided bin by bin), but only in `correlation_task` with `run_mode: "optimized"`; with `legacy` or in `correlation_wpdg_task`, which always build the 1D engine, `true` is refused at `Init`. The engine also chooses the output section, `Extract2D` or `Extract1D`. |
 | `me_normalization` | required | `bins_at_zero` or `fit`: how the mixed event is scaled to 1 at zero separation, in either engine. See `DESIGN_NOTES.md` section 6. The base configurations say `bins_at_zero`, which is what the 1D engine always did; the 2D engine always used `fit`, so a block that switches the 2D engine on must say `fit` to reproduce its past numbers. |
-| `input_dir_proj`, `input_dir_purity`, `output_dir_final` | required | |
+| `projections_dir` | required | Where the trigger file of `phi_fit_task` is read and the projection caches are written. |
+| `input_dir_purity`, `output_dir_final` | required | |
 | `input_data_file`, `base_path_data` | required | Unless the projection cache is enabled. |
 | `input_me_file`, `base_path_me` | required | Only when mixed events are on. |
 | `corrections` | required | Object, or `null` for none. See below. |
@@ -262,10 +263,10 @@ silently ignored.
 | `extrapolation_config_file` | required | Only when extrapolation is on. |
 | `associated_particles` | required | Array of `{name, dir_name}`. |
 | `purity_sources` | required | Array of `{name, purity_key}`, read from `{purity_prefix}Purity.root` in `input_dir_purity`. |
-| `delta_y_limits` | optional | Δy windows to integrate. |
+| `delta_y_limits` | required | The \|Δy\| windows the spectra are integrated over; each must fall on a bin edge of the Δy axis. |
 | `yield_ratios` | optional | Array of `{numerator, denominator, label?}`. |
 | `use_signal_cache`, `do_more_qa` | optional | |
-| `run_mode`, `projection_axis` | optional | See enumerations above. |
+| `run_mode`, `projection_axis` | required | See enumerations above. |
 | `*_prefix` | optional | `purity_prefix`, `trigger_prefix`, `output_prefix`, with `input_prefix` and `input_output_prefix` as fallbacks. |
 
 **The `corrections` block** says, per particle, which corrections are applied here, in this
@@ -312,7 +313,8 @@ this block replaced (`apply_efficiency`, `active_corrections`, `apply_efficiency
 `use_integrated_efficiency`, `input_efficiency_file`) stops at the missing `corrections`.
 
 **`correlation_wpdg_task`** — MC-closure variant reading PDG-matched pairs. Same keys,
-plus `is_pure_gen` (required) and `output_dir_proj`; it has no purity stage.
+plus `is_pure_gen` (required); `projections_dir` is where it writes its projection caches; it has no purity stage
+and no `run_mode` (it always builds the 1D engine).
 
 **`comparison_task`** — divides results produced by two separate runs of the chain.
 

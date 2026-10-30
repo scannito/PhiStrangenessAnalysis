@@ -168,8 +168,9 @@ The merge works at the top level only, and that has two consequences to design a
 Provenance records `JsonConfig::Serialize(taskConfig)` — the merged block, so only
 the keys the JSON actually contains. A run that leans on a C++ default leaves no
 trace of which value was in force, and changing that default later silently
-reinterprets every file already produced. `projection_axis` is spelled out in
-`correlation_base_settings` for exactly this reason, at its default value.
+reinterprets every file already produced. `projection_axis` was spelled out in
+`correlation_base_settings` for exactly this reason, at its default value, before it became required (30 October 2026);
+`use_signal_cache` and `do_more_qa`, which change no number, keep their defaults.
 
 The converse holds too, and it is why the `dir_name` entries came out, and the
 `trend_composition` key with them (its two values computed the same yield): a key that

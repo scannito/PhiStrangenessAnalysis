@@ -500,6 +500,16 @@ The fit is no way out as it stands: with `me_normalization: "fit"` and the 2D en
 `data pp` 2024, 19 October) the same four cells give a0 = -0.059 in the first (left unnormalised) and a
 fit status 1 in the other three, whose a0 is used as it is.
 
+**Spectra in Δφ: to be looked at (30 October 2026).** `projection_axis: "delta_phi"` is supported in principle, the
+2D engine projects on Δφ, but it is refused at `Init` in every engine for now, at the owner's choice: what a spectrum
+in Δφ is has never been defined. `ConstructSpectrum` integrates each cell over |x| < `delta_y_limits`, and
+`GenerateSpectraAndTrends` divides the spectrum by 2 × limit, the Δy acceptance the spectra are normalised to; on the Δφ axis neither the window nor the
+normalisation means anything (|Δφ| < 1 is not an acceptance). Before lifting the refusal
+(`CorrelationTaskBase::InitCommonFlags`): which Δφ window, if any, defines the spectrum; what it is
+normalised by; which limits replace `delta_y_limits` (a separate key, so that a Δy configuration cannot be read as Δφ
+by accident); and what the trends and ratios built on it mean. The normalisation of the mixed event in Δφ, below, is
+the other half.
+
 **Δφ in the 1D engine: which normalisation of the mixed event? To decide.** Recorded on
 18 October 2026. `CorrelationCalculator` has two engines, and they differ in more than the
 normalisation:

@@ -40,7 +40,7 @@ class CorrelationCalculator
     bool engine2D{false};    // the 2D engine (Extract2D) instead of the 1D one (Extract1D)
     bool moreQA{false};      // write the 2D and 1D QA objects into qaDir (2D engine only)
     MENormalization meNorm{MENormalization::BinsAtZero}; // always set from me_normalization by the tasks
-    AxisTarget targetAxis{AxisTarget::DeltaY_Y};         // the same for every cell of a run; Delta phi only with the 2D engine
+    AxisTarget targetAxis{AxisTarget::DeltaY_Y};         // the same for every cell of a run; Delta phi only with the 2D engine, and refused by the tasks for now
   };
 
   // One extraction: the cell to cut, the corrections to apply, where to read and write.
@@ -58,7 +58,8 @@ class CorrelationCalculator
 
   // Which projections each engine can make, stated once. The 1D engine projects on Delta y
   // only: Delta phi there needs a normalisation of the mixed event that is still to be
-  // decided (DESIGN_NOTES.md section 6). Asked by the tasks at Init
+  // decided (DESIGN_NOTES.md section 6). Delta phi is refused by the tasks in every engine for now, before this is
+  // asked (CorrelationTaskBase::InitCommonFlags): this is the rule that applies once that is lifted. Asked by the tasks at Init
   // (CorrelationTaskBase::RequireEngineSettingsSupported), which stop before loading any
   // data and can name the keys to change; an engine asked for an axis it does not support
   // would otherwise answer with a Delta y projection.
