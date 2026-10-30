@@ -240,13 +240,12 @@ class PurityTask : public IAnalysisTask
   // Which of the two binnings a spectrum is produced at. One parameter and not
   // three because the edges, the bin mapping and the name suffix are three faces
   // of a single choice: passed separately, nothing would stop them disagreeing.
-  enum class SpectrumBinning { Analysis,
-                               Source };
+  using SpectrumBinning = OutputNames::SpectrumBinning;
 
   // The summary canvas of a purity key, created in Init and drawn on per class in Run.
   static std::string SummaryCanvas(const std::string& purityKey, SpectrumBinning binning)
   {
-    return std::format("canvas{}Purity{}", purityKey, binning == SpectrumBinning::Source ? OutputNames::kSourceBinningSuffix : "");
+    return std::format("canvas{}Purity{}", purityKey, OutputNames::BinningSuffix(binning));
   }
 
 
@@ -257,7 +256,7 @@ class PurityTask : public IAnalysisTask
   {
     const bool atSource = (which == SpectrumBinning::Source);
     const std::vector<double>& binning = atSource ? task.sourceBinning : task.AnalysisBinning();
-    const std::string nameSuffix = atSource ? OutputNames::kSourceBinningSuffix : "";
+    const std::string nameSuffix{OutputNames::BinningSuffix(which)};
     const std::string titleSuffix = atSource ? ", source binning" : "";
     // The purity_key as a TLatex label: an underscore would make the rest a subscript ("pi_tpc").
     std::string label = task.purityKey;

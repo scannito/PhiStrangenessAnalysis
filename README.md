@@ -267,7 +267,7 @@ silently ignored.
 | `yield_ratios` | optional | Array of `{numerator, denominator, label?}`. |
 | `use_signal_cache`, `do_more_qa` | optional | |
 | `run_mode`, `projection_axis` | required | See enumerations above. |
-| `*_prefix` | optional | `purity_prefix`, `trigger_prefix`, `output_prefix`, with `input_prefix` and `input_output_prefix` as fallbacks. |
+| `purity_prefix`, `trigger_prefix`, `output_prefix` | required | The prefixes of the files read and written; `""` for none. The WPDG task reads `output_prefix` alone. |
 
 **The `corrections` block** says, per particle, which corrections are applied here, in this
 framework (the efficiency can instead be applied online by the O2Physics task, never both for

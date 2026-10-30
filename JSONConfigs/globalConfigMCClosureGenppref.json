@@ -82,36 +82,36 @@
         "inherits": "correlation_wpdg_task_gen",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bneg_5agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bneg_5agosto.root",
-        "input_output_prefix": "MCClosureGen_Bneg_"
+        "output_prefix": "MCClosureGen_Bneg_"
     },
     "correlation_wpdg_task_gen_bypass_ptcut_Bneg": {
         "inherits": "correlation_wpdg_task_gen",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bneg_5agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bneg_5agosto.root",
-        "input_output_prefix": "MCClosureGen_Bneg_BypassPtCut_"
+        "output_prefix": "MCClosureGen_Bneg_BypassPtCut_"
     },
     "correlation_wpdg_task_gen_Bpos": {
         "inherits": "correlation_wpdg_task_gen",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bpos_5agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bpos_5agosto.root",
-        "input_output_prefix": "MCClosureGen_Bpos_"
+        "output_prefix": "MCClosureGen_Bpos_"
     },
     "correlation_wpdg_task_gen_bypass_ptcut_Bpos": {
         "inherits": "correlation_wpdg_task_gen",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bpos_5agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_Bpos_5agosto.root",
-        "input_output_prefix": "MCClosureGen_Bpos_BypassPtCut_"
+        "output_prefix": "MCClosureGen_Bpos_BypassPtCut_"
     },
     "correlation_wpdg_task_gen_strinj": {
         "inherits": "correlation_wpdg_task_gen",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_strinj_5agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_strinj_5agosto.root",
-        "input_output_prefix": "MCClosureGen_strinj_"
+        "output_prefix": "MCClosureGen_strinj_"
     },
     "correlation_wpdg_task_gen_bypass_ptcut_strinj": {
         "inherits": "correlation_wpdg_task_gen",
         "input_data_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_strinj_5agosto.root",
         "input_me_file": "../DataFile/pp_ref/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_536_PtMod_strinj_5agosto.root",
-        "input_output_prefix": "MCClosureGen_strinj_BypassPtCut_"
+        "output_prefix": "MCClosureGen_strinj_BypassPtCut_"
     }
 }

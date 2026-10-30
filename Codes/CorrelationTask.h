@@ -33,8 +33,10 @@ class CorrelationTask : public CorrelationTaskBase
                                                {{"legacy", RunMode::Legacy}, {"optimized", RunMode::Optimized}}, GetName());
     RequireEngineSettingsSupported();
 
-    purityPrefix = PrefixFor(taskConfig, {"purity_prefix", "input_prefix"});
-    triggerPrefix = PrefixFor(taskConfig, {"trigger_prefix", "input_prefix"});
+    // Required, as every key a rename left behind (CLAUDE.md, Configuration): input_prefix and input_output_prefix
+    // were their fallbacks until 30 October 2026, and a configuration still using them stops here by name.
+    purityPrefix = JsonConfig::RequireString(taskConfig, "purity_prefix", GetName());
+    triggerPrefix = JsonConfig::RequireString(taskConfig, "trigger_prefix", GetName());
 
     // 2. Load Trigger information from PhiFitTask
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
@@ -238,6 +240,11 @@ class CorrelationTask : public CorrelationTaskBase
     // =========================================================================
     if (useSignalCache) {
       Logger::Info("{}: Super Cache (Signal L2) is ON. Skipping Calculator.", GetName());
+      // Here, where the numbers are at risk, and not in the run that cannot update the cache.
+      Logger::Warn("{}: use_signal_cache reads the signals an earlier run cached, and nothing records which corrections, "
+                   "purities and background ratios that run applied: they are not verified (DESIGN_NOTES, \"The signal "
+                   "cache records nothing\").",
+                   GetName());
 
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
@@ -262,12 +269,6 @@ class CorrelationTask : public CorrelationTaskBase
     // MODE B: STANDARD CALCULATION (If L2 Cache is disabled)
     // The CorrelationCalculator is invoked here (managing L1 Cache internally)
     // =========================================================================
-    // With use_projection_cache the projection files are open read-only, so the signal cache cannot be updated:
-    // it keeps what the run that last wrote it put there (DESIGN_NOTES, "The signal cache records nothing").
-    const bool writeSignalCache = !useProjectionCache;
-    if (!writeSignalCache)
-      Logger::Info("{}: use_projection_cache opens the projection files read-only, so the signal cache is not updated.", GetName());
-
     CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .moreQA = doMoreQA, .meNorm = meNormalization, .targetAxis = projectionAxis});
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
@@ -311,19 +312,19 @@ class CorrelationTask : public CorrelationTaskBase
 
       // =======================================================================
       // BATCH WRITE: SAVING AGGREGATED SIGNALS FOR L2 CACHE
-      // Written only once per multiplicity bin after trigger aggregation
+      // Written only once per multiplicity bin after trigger aggregation; not at all when the projection files are
+      // read-only, and the cache then keeps what the run that last wrote it put there.
       // =======================================================================
-      Logger::Info("Multiplicity bin {} completed. Committing results to Level 2 Cache...", multBin);
-
-      for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        if (writeSignalCache)
+      if (!ProjectionFilesReadOnly()) {
+        Logger::Info("Multiplicity bin {} completed. Committing results to Level 2 Cache...", multBin);
+        for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           RootIO::MakePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath)->cd();
-        for (int ptAssocBin : BinningUtils::BinIndices(assocParticles[pIdx].binning)) {
-          if (h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]) {
-            std::string saveName = std::format("h1Phi{}Final{}", assocParticles[pIdx].name, CellSuffix(assocParticles[pIdx], multBin, ptAssocBin));
-            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetName(saveName.c_str());
-            if (writeSignalCache)
+          for (int ptAssocBin : BinningUtils::BinIndices(assocParticles[pIdx].binning)) {
+            if (h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]) {
+              std::string saveName = std::format("h1Phi{}Final{}", assocParticles[pIdx].name, CellSuffix(assocParticles[pIdx], multBin, ptAssocBin));
+              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetName(saveName.c_str());
               h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->Write(nullptr, TObject::kOverwrite);
+            }
           }
         }
       }

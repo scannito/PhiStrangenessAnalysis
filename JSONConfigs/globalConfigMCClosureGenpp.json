@@ -82,7 +82,7 @@
         "base_path_data": "phi-strange-correlation_id51983/phiStrangenessCorrelation/",
         "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2024_PtMod_4agosto.root",
         "base_path_me": "phi-strange-correlation_id51983/phiStrangenessCorrelation/",
-        "input_output_prefix": "MCClosureGen_2024_"
+        "output_prefix": "MCClosureGen_2024_"
     },
     "correlation_wpdg_task_gen_bypass_ptcut_2024": {
         "inherits": "correlation_wpdg_task_gen",
@@ -90,7 +90,7 @@
         "base_path_data": "phi-strange-correlation_BypassMinPt/phiStrangenessCorrelation/",
         "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2024_PtMod_4agosto.root",
         "base_path_me": "phi-strange-correlation_BypassMinPt/phiStrangenessCorrelation/",
-        "input_output_prefix": "MCClosureGen_BypassPtCut_2024_"
+        "output_prefix": "MCClosureGen_BypassPtCut_2024_"
     },
     "correlation_wpdg_task_gen_2026": {
         "inherits": "correlation_wpdg_task_gen",
@@ -98,7 +98,7 @@
         "base_path_data": "phi-strange-correlation_id52254/phiStrangenessCorrelation/",
         "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2026_PtMod_5agosto.root",
         "base_path_me": "phi-strange-correlation_id52254/phiStrangenessCorrelation/",
-        "input_output_prefix": "MCClosureGen_2026_"
+        "output_prefix": "MCClosureGen_2026_"
     },
     "correlation_wpdg_task_gen_bypass_ptcut_2026": {
         "inherits": "correlation_wpdg_task_gen",
@@ -106,6 +106,6 @@
         "base_path_data": "phi-strange-correlation_BypassMinPt/phiStrangenessCorrelation/",
         "input_me_file": "../DataFile/pp/DeltaY/MCClosure/AnalysisResultsMCclosure_gen_136_2026_PtMod_5agosto.root",
         "base_path_me": "phi-strange-correlation_BypassMinPt/phiStrangenessCorrelation/",
-        "input_output_prefix": "MCClosureGen_BypassPtCut_2026_"
+        "output_prefix": "MCClosureGen_BypassPtCut_2026_"
     }
 }

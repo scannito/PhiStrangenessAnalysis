@@ -853,7 +853,7 @@ class CorrelationTaskBase : public IAnalysisTask
         // Projections from an earlier run under the SAME scheme name are still
         // there: if that run used a different binning, the ones whose bin range
         // no longer exists are not overwritten and would survive as garbage.
-        const std::vector<double> previous = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtAssoc);
+        const std::vector<double> previous = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtAssoc, ctx);
         if (!previous.empty()) {
           const std::string diff = BinningUtils::Compare(previous, particle.binning, "existing file", "current run");
           if (!diff.empty()) {
@@ -890,9 +890,9 @@ class CorrelationTaskBase : public IAnalysisTask
                                                GetName(), globalCfgs.binningName, cacheFile->GetName()));
         }
 
-        particle.binning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtAssoc);
-        ptPhi = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtPhi);
-        mult = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult);
+        particle.binning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtAssoc, ctx);
+        ptPhi = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtPhi, ctx);
+        mult = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult, ctx);
 
         if (particle.binning.empty() || ptPhi.empty() || mult.empty()) {
           throw std::runtime_error(std::format("[FATAL] {}: {} carries no binning stamps, so the binning its projections "
@@ -1449,9 +1449,9 @@ class CorrelationTaskBase : public IAnalysisTask
   // the projection file (the cache) and, when asked, a QA file.
   void OpenOutputFiles(const rapidjson::Value& taskConfig, bool withQA)
   {
-    // By the rule of every prefix (PrefixFor): a task that read only one of the keys would write, with the other
-    // set, to the unprefixed file and clear its section below.
-    const std::string prefix = PrefixFor(taskConfig, {"output_prefix"});
+    // One key for both tasks (input_output_prefix, the WPDG spelling, was renamed on 30 October 2026): it names the
+    // file whose section is cleared below.
+    const std::string prefix = JsonConfig::RequireString(taskConfig, "output_prefix", GetName());
 
     const std::string projectionsDir = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
     const std::string finalDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
@@ -1468,7 +1468,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // expensive to rebuild, so a scheme directory that already holds projections of
     // another binning must be REFUSED rather than silently replaced. That guard lives
     // in ResolveBinningAndCache and only has something to guard if the file survives.
-    const char* projMode = useProjectionCache ? "READ" : "UPDATE";
+    const char* projMode = ProjectionFilesReadOnly() ? "READ" : "UPDATE";
     for (const auto& p : assocParticles) {
       filesPhiAssocDataOutput.push_back(
         RootIO::OpenOrThrow(std::format("{}{}{}", projectionsDir, prefix, OutputNames::ProjectionFile(p.name)), projMode, GetName()));
@@ -1478,15 +1478,8 @@ class CorrelationTaskBase : public IAnalysisTask
     }
   }
 
-  // A prefix of the file names: the first of 'keys' present in the block, else input_output_prefix, else none.
-  // Present, even if empty: "" in a child block is how it says "no prefix" over its parent's (CLAUDE.md, the merge).
-  std::string PrefixFor(const rapidjson::Value& taskConfig, std::initializer_list<const char*> keys) const
-  {
-    for (const char* key : keys)
-      if (std::optional<std::string> prefix = JsonConfig::TryString(taskConfig, key, GetName()))
-        return *prefix;
-    return JsonConfig::OptionalString(taskConfig, "input_output_prefix", "", GetName());
-  }
+  // The projection files are read, not written, when the projections come from them: the cache is not rebuilt.
+  bool ProjectionFilesReadOnly() const { return useProjectionCache; }
 
   // Where the associated particle of that name is in assocParticles, if it is one: the configuration names particles.
   std::optional<size_t> AssocIndex(std::string_view name) const
@@ -1497,20 +1490,19 @@ class CorrelationTaskBase : public IAnalysisTask
     return static_cast<size_t>(it - assocParticles.begin());
   }
 
-  // A correction or a purity names its particle: the trigger, "Phi", or one of the associated particles.
-  void RequireKnownParticle(const std::string& particle, std::string_view errCtx) const
-  {
-    if (particle != "Phi" && !AssocIndex(particle))
-      throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither Phi nor one of the associated_particles.", errCtx, particle));
-  }
-
   // The pT binning a correction or a purity of 'particle' is verified against: the trigger's for "Phi", the
-  // particle's own for an associated one.
+  // particle's own for an associated one; any other name stops the run.
   const std::vector<double>& PtBinningOf(const std::string& particle, std::string_view errCtx) const
   {
-    RequireKnownParticle(particle, errCtx);
-    return particle == "Phi" ? ptPhiBinning : assocParticles[*AssocIndex(particle)].binning;
+    if (particle == "Phi")
+      return ptPhiBinning;
+    if (const std::optional<size_t> pIdx = AssocIndex(particle))
+      return assocParticles[*pIdx].binning;
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither Phi nor one of the associated_particles.", errCtx, particle));
   }
+
+  // A correction or a purity names its particle: the trigger, "Phi", or one of the associated particles.
+  void RequireKnownParticle(const std::string& particle, std::string_view errCtx) const { (void)PtBinningOf(particle, errCtx); }
 
   // The path of this task's section, {binning_name, section}, and of what is below it:
   // the layout spelled once, not at every call.

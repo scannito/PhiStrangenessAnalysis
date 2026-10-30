@@ -585,7 +585,7 @@
         "on_invalid_correction_bin": "warn",
         "projections_dir": "../DataFile/pp/DeltaY/ProjData/",
         "output_dir_final": "../DataFile/pp/DeltaY/FinalResults/",
-        "input_output_prefix": "MCClosureWPDG_",
+        "output_prefix": "MCClosureWPDG_",
         "associated_particles": [
             {
                 "name": "K0S"

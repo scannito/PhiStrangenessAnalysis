@@ -150,12 +150,11 @@ inline TDirectory* MakePath(TDirectory* baseDir, const std::vector<std::string>&
   for (const auto& node : pathNodes) {
     if (node.empty())
       continue;
-    // GetDirectory first and not mkdir's returnExistingDirectory: that one looks only at the keys on disk
-    // (TDirectoryFile::mkdir, GetKey), and would make a second directory of one created in this run and not
-    // yet written. mkdir fails when the disk is full or the file is closed or read-only.
-    TDirectory* next = dir->GetDirectory(node.c_str());
-    if (!next)
-      next = dir->mkdir(node.c_str());
+    // The existing directory if there is one, a new one otherwise. returnExistingDirectory finds one made earlier
+    // in the same run too: ROOT 6.36 appends a new directory's key to its mother at once (InitDirectoryFile), and
+    // GetKey searches that list. nullptr when the disk is full, the file is closed or read-only, or the name is
+    // taken by an object that is not a directory.
+    TDirectory* next = dir->mkdir(node.c_str(), "", true);
     if (!next)
       throw std::runtime_error(std::format("[FATAL] RootIO::MakePath: cannot create '{}' in '{}' of {}.",
                                            node, dir->GetPath(), FileNameOf(baseDir)));
@@ -233,9 +232,14 @@ inline const std::string kStampPtAssoc{"binning_ptAssoc"};
 inline void WriteBinningStamp(TDirectory* dir, const std::string& name, std::span<const double> edges)
 {
   // A stamp not written reads back as empty, "nothing to compare": the check would be off with no word.
-  if (!dir || edges.size() < 2)
-    throw std::runtime_error(std::format("[FATAL] RootIO::WriteBinningStamp: '{}' with {} edges into {}.", name, edges.size(),
-                                         dir ? dir->GetPath() : "no directory"));
+  if (!dir)
+    throw std::runtime_error(std::format("[FATAL] RootIO::WriteBinningStamp: no directory to write '{}' into: the "
+                                         "output file is not open for writing.",
+                                         name));
+  if (edges.size() < 2)
+    throw std::runtime_error(std::format("[FATAL] RootIO::WriteBinningStamp: '{}' into {} has {} edges: the binning was "
+                                         "never resolved from the input (Resolve*Binning).",
+                                         name, dir->GetPath(), edges.size()));
 
   TH1D stamp(name.c_str(), "binning stamp (bin edges only, contents unused)",
              BinningUtils::NBins(edges), edges.data());
@@ -247,10 +251,15 @@ inline void WriteBinningStamp(TDirectory* dir, const std::string& name, std::spa
 
 // Empty vector when no stamp is present, e.g. a cache produced before stamps
 // existed. That case is a warning, not an error: see RequireMatchingBinningStamp.
-inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& name)
+// Empty when the directory holds no stamp of that name (a file produced before stamps existed). A directory that
+// is not there is not that case: the file holds nothing of this scheme, and that stops the run.
+inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& name, std::string_view errCtx)
 {
   if (!dir)
-    return {};
+    throw std::runtime_error(std::format("[FATAL] {}: no directory to read the '{}' stamp from: the file holds nothing "
+                                         "of this binning scheme or section. Check 'binning_name', or re-run the task "
+                                         "that produces it under this scheme.",
+                                         errCtx, name));
 
   // dynamic_cast for the reason given at GetUniqueOrThrow: a stamp that is not a histogram
   // reads as no stamp, which RequireMatchingBinningStamp reports, instead of a bad pointer.
@@ -271,12 +280,7 @@ inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& 
 inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name,
                                         std::span<const double> current, std::string_view errCtx)
 {
-  // A directory that is not there is not an old file without a stamp: the file has nothing of this scheme.
-  if (!dir)
-    throw std::runtime_error(std::format("[FATAL] {}: no directory to read the '{}' stamp from: the file holds nothing "
-                                         "of this binning scheme or section.",
-                                         errCtx, name));
-  const std::vector<double> stamped = ReadBinningStamp(dir, name);
+  const std::vector<double> stamped = ReadBinningStamp(dir, name, errCtx);
 
   if (stamped.empty()) {
     Logger::Warn("{}: no '{}' stamp, so the binning it was produced with cannot be verified. Re-produce it "

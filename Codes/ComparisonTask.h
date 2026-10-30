@@ -344,7 +344,7 @@ class ComparisonTask : public IAnalysisTask
     // The two productions must mean the same thing by their bins. Read from the
     // numerator and required of the denominator, so that a mismatch is reported once
     // with both binnings side by side.
-    pair.multBinning = RootIO::ReadBinningStamp(numScheme, RootIO::kStampMult);
+    pair.multBinning = RootIO::ReadBinningStamp(numScheme, RootIO::kStampMult, std::format("{}, numerator '{}'", ctx, comp.numeratorFile));
     if (pair.multBinning.empty())
       throw std::runtime_error(std::format(
         "[FATAL] {}: '{}' carries no '{}' stamp, so there is no way to tell whether its "
@@ -359,10 +359,8 @@ class ComparisonTask : public IAnalysisTask
     // trends alike - so it is an axis of nothing, and two productions summing over
     // different trigger ranges would compare cleanly and mean different things.
     // Checked here rather than per target because it applies to both.
-    const std::vector<double> ptPhi = RootIO::ReadBinningStamp(numScheme, RootIO::kStampPtPhi);
-    if (!ptPhi.empty())
-      RootIO::RequireMatchingBinningStamp(denScheme, RootIO::kStampPtPhi, ptPhi,
-                                          std::format("{}, denominator '{}'", ctx, comp.denominatorFile));
+    RequireSameOptionalStamp(numScheme, denScheme, RootIO::kStampPtPhi, std::format("{}, numerator '{}'", ctx, comp.numeratorFile),
+                             std::format("{}, denominator '{}'", ctx, comp.denominatorFile));
 
     pair.numDir = RootIO::FindPath(pair.num.get(), {inputScheme, inputDirName});
     pair.denDir = RootIO::FindPath(pair.den.get(), {inputScheme, inputDirName});
@@ -561,16 +559,22 @@ class ComparisonTask : public IAnalysisTask
     TDirectory* denParticle = RootIO::FindPath(pair.denDir, {particle});
     if (!denParticle)
       return;
-    const std::vector<double> stamped = RootIO::ReadBinningStamp(RootIO::FindPath(pair.numDir, {particle}), RootIO::kStampPtAssoc);
+    RequireSameOptionalStamp(RootIO::FindPath(pair.numDir, {particle}), denParticle, RootIO::kStampPtAssoc,
+                             std::format("{} '{}', {}, numerator '{}'", GetName(), comp.label, particle, comp.numeratorFile),
+                             std::format("{} '{}', {}, denominator '{}'", GetName(), comp.label, particle, comp.denominatorFile));
+  }
+
+  // A stamp the numerator may lack (it was produced before that stamp existed): required of the denominator when
+  // present, and said when not, so that a comparison never passes over a binning it could not check in silence.
+  static void RequireSameOptionalStamp(TDirectory* num, TDirectory* den, const std::string& stamp, const std::string& numCtx,
+                                       const std::string& denCtx)
+  {
+    const std::vector<double> stamped = RootIO::ReadBinningStamp(num, stamp, numCtx);
     if (stamped.empty()) {
-      Logger::Warn("{} '{}', {}, numerator '{}': no '{}' stamp, so the two pT binnings cannot be compared.", GetName(),
-                   comp.label, particle, comp.numeratorFile, RootIO::kStampPtAssoc);
+      Logger::Warn("{}: no '{}' stamp, so the two binnings cannot be compared on it.", numCtx, stamp);
       return;
     }
-
-    RootIO::RequireMatchingBinningStamp(denParticle, RootIO::kStampPtAssoc, stamped,
-                                        std::format("{} '{}', {}, denominator '{}'", GetName(), comp.label, particle,
-                                                    comp.denominatorFile));
+    RootIO::RequireMatchingBinningStamp(den, stamp, stamped, denCtx);
   }
 
   // ---------------------------------------------------------------------------

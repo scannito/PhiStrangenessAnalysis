@@ -113,8 +113,6 @@ for sys_var in systematics:
             if isinstance(task_content, dict):
                 if "output_prefix" in task_content:
                     task_content["output_prefix"] += f"{sys_name}_"
-                if "input_output_prefix" in task_content:
-                    task_content["input_output_prefix"] += f"{sys_name}_"
 
     sys_config_filename = os.path.join(OUTPUT_CONFIG_DIR, f"config_{sys_name}.json")
     with open(sys_config_filename, "w") as f:

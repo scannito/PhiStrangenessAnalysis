@@ -55,7 +55,9 @@ inline std::string ProjectionFile(std::string_view particle) { return std::forma
 
 // A result kept also at the binning of its source, when 'rebinning_pt' merged the analysis one (MCTask,
 // PurityTask): in a subdirectory of its own, and its canvas named with a suffix.
-inline const std::string kSourceBinningSuffix{"_sourceBinning"};
+enum class SpectrumBinning { Analysis,
+                             Source };
+inline std::string_view BinningSuffix(SpectrumBinning binning) { return binning == SpectrumBinning::Source ? "_sourceBinning" : ""; }
 inline std::vector<std::string> SourceBinningPath(std::vector<std::string> path)
 {
   path.push_back("SourceBinning");

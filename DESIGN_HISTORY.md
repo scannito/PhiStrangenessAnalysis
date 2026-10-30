@@ -7,6 +7,29 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## One way per situation: missing directories, configuration messages, file prefixes
+
+**30 October 2026.** Points 3-5 of the audit of 28 October, at the owner's choice, through three rounds of review:
+- **A directory is found or made, by two functions.** `RootIO::GetOrCreatePath(..., bool isReadOnly)` became
+  `FindPath` (may return null: a cache miss, an optional section) and `MakePath` (never null: a directory that
+  cannot be created stops the run). With the flag, a failed creation logged and returned null, and the callers
+  threw, skipped the write, or - `CorrelationTask` - wrote into the current directory. A binning stamp read from or
+  written to no directory throws too: a stamp that is not there reads as "nothing to compare".
+- **Every configuration message names its node**: `fitConfig: section 'phi'.fit_setup.bins['mult0-1_pt0.4-0.8']`,
+  not the manager alone; sections and cells are looked up with `TryObject`, not `HasMember` + `operator[]`.
+- **The file prefixes are three required keys**, `purity_prefix`, `trigger_prefix`, `output_prefix`.
+  `input_prefix` (used by no configuration) and `input_output_prefix` (the WPDG blocks' spelling of
+  `output_prefix`, renamed in every JSON) were fallbacks read through a three-level rule, and the two correlation
+  tasks read the output one by different rules: a WPDG block with `output_prefix` would have written to the
+  unprefixed file and cleared its section. A configuration that still uses the old keys stops at the missing one.
+- Hand copies replaced by helpers (`OpenOutputFiles`, `AssocIndex`/`PtBinningOf`, `StartProvenance`,
+  `CreateDirectoriesOrThrow`, `JsonConfig::LoadDocument`, `SummaryCanvas` in MCTask and PurityTask with
+  `OutputNames::SpectrumBinning`), and code with no caller removed.
+- The signal cache cannot be written when the projection files are read-only (`use_projection_cache`); it no longer
+  tries, and the run that reads it warns that what it reads is not verified (`DESIGN_NOTES.md`, section 10).
+
+---
+
 ## The keys that change numbers are required; one name for the projections directory
 
 **30 October 2026.** From the audit of the framework (28 October), at the owner's choice:

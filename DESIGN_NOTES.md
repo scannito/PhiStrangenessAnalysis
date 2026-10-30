@@ -1214,9 +1214,9 @@ the per-cell signals (`h1Phi{X}Final...`) a previous run committed, and skips th
 run that was or with which corrections, purities and background ratios: the projection files carry binning
 stamps, not the provenance of the signals. And a run with `use_projection_cache` (on in
 `correlation_base_settings`) opens those files read-only, so it cannot update the signals: until 30 October it
-tried, and ROOT refused with an error of its own outside `Logger`; now `CorrelationTask` says once, as `Info`,
-that it does not write them. The next `use_signal_cache` run therefore reads the signals of whatever run last
-wrote them, with no word. The fix belongs on the reading side: a provenance record (or a fingerprint of the
+tried, and ROOT refused with an error of its own outside `Logger`; now it does not try. The next
+`use_signal_cache` run reads the signals of whatever run last wrote them, and says so with a `Logger::Warn`, in
+the run whose numbers are at risk. The fix belongs on the reading side: a provenance record (or a fingerprint of the
 corrections and settings that shape the signal) written with the signals and compared when they are read, so
 that a stale cache stops the run as a binning mismatch does. Not done: the owner to decide.
 

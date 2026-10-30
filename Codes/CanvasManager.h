@@ -673,15 +673,6 @@ class CanvasManager
   // 4. IO & Export Integration
   // ---------------------------------------------------------------------------
 
-  // Static helper to write any canvas into baseDir/pathNodes; baseDir itself for an empty path.
-  static void WriteCanvas(TCanvas* canvas, TDirectory* baseDir, const std::vector<std::string>& pathNodes)
-  {
-    if (!canvas)
-      return;
-    RootIO::MakePath(baseDir, pathNodes)->cd();
-    canvas->Write(nullptr, TObject::kOverwrite);
-  }
-
   // Writes a managed canvas by name to its registered path below baseDir (baseDir itself if none)
   void WriteCanvas(const std::string& name, TDirectory* baseDir) const
   {
@@ -831,6 +822,14 @@ class CanvasManager
   }
 
  private:
+  // Writes a canvas into baseDir/pathNodes; baseDir itself for an empty path. Private: its callers hold the
+  // canvas (RequireCanvas, the managed map), so it is never null here.
+  static void WriteCanvas(TCanvas* canvas, TDirectory* baseDir, const std::vector<std::string>& pathNodes)
+  {
+    RootIO::MakePath(baseDir, pathNodes)->cd();
+    canvas->Write(nullptr, TObject::kOverwrite);
+  }
+
   std::map<std::string, std::unique_ptr<TCanvas>> canvases;
   std::vector<std::string> canvasOrder;
   std::map<std::string, std::vector<std::string>> canvasPaths;
