@@ -19,7 +19,6 @@
 #include "TH2F.h"
 #include "TH3F.h"
 
-#include <filesystem>
 #include <algorithm>
 #include <format>
 #include <iostream>
@@ -41,15 +40,7 @@ class PurityTask : public IAnalysisTask
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
-    // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
-    // block, so a key added to the JSON tomorrow is recorded without touching this.
-    provenance["produced_at"] = RunEnvironment::TimestampNow();
-    provenance["config_block"] = JsonConfig::Serialize(taskConfig);
-    // The facts about the run itself. std::map has no range insert before C++23,
-    // hence the iterator pair - but the reference is taken once: Facts() returns
-    // the same static object every time, so naming it says so.
-    const auto& runEnv = RunEnvironment::Facts();
-    provenance.insert(runEnv.begin(), runEnv.end());
+    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     // 1. Open input file, extract 3D histograms to RAM, and immediately close it
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
@@ -69,10 +60,7 @@ class PurityTask : public IAnalysisTask
     // object inside must be named literally "ccdb_object" with no subfolder.
     // Same layout as MCTask, so the two kinds of correction sit side by side.
     ccdbOutputDir = outputDir + globalCfgs.binningName + "/";
-    std::error_code ec;
-    std::filesystem::create_directories(ccdbOutputDir, ec);
-    if (ec)
-      throw std::runtime_error(std::format("[FATAL] {}: Cannot create output directory '{}': {}", GetName(), ccdbOutputDir, ec.message()));
+    RootIO::CreateDirectoriesOrThrow(ccdbOutputDir, GetName());
 
     auto particles = JsonConfig::RequireArray(taskConfig, "purity_particles", GetName());
 

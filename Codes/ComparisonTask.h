@@ -208,10 +208,7 @@ class ComparisonTask : public IAnalysisTask
     std::string outName = std::format("{}{}Comparisons.root", outputDir, outputPrefix);
     fileOutput = RootIO::OpenOrThrow(outName, "RECREATE", GetName());
 
-    provenance["produced_at"] = RunEnvironment::TimestampNow();
-    provenance["config_block"] = JsonConfig::Serialize(taskConfig);
-    const auto& runEnv = RunEnvironment::Facts();
-    provenance.insert(runEnv.begin(), runEnv.end());
+    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     Logger::Info("{}: {} comparison(s) configured.", GetName(), comparisons.size());
   }

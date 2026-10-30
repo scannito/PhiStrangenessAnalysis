@@ -116,31 +116,7 @@ class CorrelationTask : public CorrelationTaskBase
 
     // 4. Output files (opened before the corrections: the cache carries the
     //    binning that everything below is loaded against)
-    std::string projMode = useProjectionCache ? "READ" : "UPDATE";
-    std::string basePathFinal = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
-    std::string phiSpectraName = std::format("{}{}{}", basePathFinal, outputPrefix, OutputNames::kSpectraFile);
-    fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", GetName());
-
-    // This run rewrites its whole section directory, so whatever a previous one left
-    // there - produced when the layout or the object names were different - would sit
-    // beside the new objects with nothing to tell them apart. UPDATE and not RECREATE
-    // because only this subtree is ours: another 'binning_name', or the other
-    // Extract1D/2D, belongs to somebody else and stays.
-    RootIO::ClearPath(fileOutputSpectra.get(), SectionPath());
-
-    for (const auto& p : assocParticles) {
-      std::string fName = std::format("{}{}{}", basePathProj, outputPrefix, OutputNames::ProjectionFile(p.name));
-      std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), GetName());
-      filesPhiAssocDataOutput.push_back(std::move(fProj));
-
-      if (doMoreQA) {
-        std::string fQAName = std::format("{}{}Phi{}QAHistograms.root", basePathProj, outputPrefix, p.name);
-        std::unique_ptr<TFile> fQA = RootIO::OpenOrThrow(fQAName, "RECREATE", GetName());
-        filesPhiAssocQAOutput.push_back(std::move(fQA));
-
-      }
-    }
-
+    OpenOutputFiles(taskConfig, outputPrefix, doMoreQA);
     ResolveBinningAndCache();
 
     // 5. Corrections / Purity / Extrapolation, rebinned onto the binning that
@@ -234,15 +210,7 @@ class CorrelationTask : public CorrelationTaskBase
       purity.name = particle;
       purity.h1Purity.resize(BinningUtils::NBins(multBinning));
 
-      std::vector<double> targetBinning;
-      if (particle == "Phi") {
-        targetBinning = ptPhiBinning;
-      } else {
-        auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == particle; });
-        if (it == assocParticles.end())
-          throw std::runtime_error(std::format("[FATAL] {}: Unknown particle name in 'purity_sources': {}", GetName(), particle));
-        targetBinning = it->binning;
-      }
+      const std::vector<double>& targetBinning = PtBinningOf(particle, ctx);
 
 
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
@@ -288,17 +256,14 @@ class CorrelationTask : public CorrelationTaskBase
           const auto& config = assocParticles[pIdx];
           TDirectory* sourceDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, true);
           if (!sourceDir)
-            throw std::runtime_error(std::format("[FATAL] Cache L2 missing: Directory {} not found!", RootIO::MakeDirPath(logicalPath)));
+            throw std::runtime_error(std::format("[FATAL] {}: use_signal_cache is on, but '{}' has no '{}'. Run with "
+                                                 "use_signal_cache false first.",
+                                                 GetName(), filesPhiAssocDataOutput[pIdx]->GetName(), RootIO::MakeDirPath(logicalPath)));
 
-          for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
-            std::string cacheName = std::format("h1Phi{}Final{}", config.name, CellSuffix(config, multBin, ptAssocBin));
-            // dynamic_cast, as in RootIO::GetUniqueOrThrow: an object of another class under this
-            // name must fail here, with the message below, and not on first use.
-            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin].reset(dynamic_cast<TH1*>(sourceDir->Get(cacheName.c_str())));
-            if (!h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin])
-              throw std::runtime_error(std::format("[FATAL] Cache L2 missing for: {}. Run with use_signal_cache: false first!", cacheName));
-            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetDirectory(0);
-          }
+          const std::string ctx = std::format("{} (use_signal_cache; run with it false first if the signal was never cached)", GetName());
+          for (int ptAssocBin : BinningUtils::BinIndices(config.binning))
+            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin] = RootIO::GetUniqueOrThrow<TH1>(
+              sourceDir, std::format("h1Phi{}Final{}", config.name, CellSuffix(config, multBin, ptAssocBin)), ctx);
         }
         GenerateSpectraAndTrends(multBin);
       }

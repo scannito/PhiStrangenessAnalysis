@@ -3,13 +3,16 @@
 #include "Logger.h"
 
 #include "rapidjson/document.h"
+#include "rapidjson/filereadstream.h"
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 
+#include <cstdio>
 #include <format>
 #include <fstream>
 #include <iostream>
 #include <iterator>
+#include <memory>
 #include <initializer_list>
 #include <optional>
 #include <set>
@@ -53,6 +56,26 @@ inline std::string ReadFileText(const std::string& path)
     return "";
   }
   return std::string(std::istreambuf_iterator<char>(file), std::istreambuf_iterator<char>());
+}
+
+// Parses a configuration file into 'doc', whose root must be an object. Every manager and the workflow load
+// their files through it, so a syntax error is reported in one form: where it is, by byte offset.
+inline void LoadDocument(const std::string& path, rapidjson::Document& doc, std::string_view errCtx)
+{
+  std::unique_ptr<FILE, int (*)(FILE*)> fp(std::fopen(path.c_str(), "rb"), &std::fclose);
+  if (!fp)
+    throw std::runtime_error(std::format("[FATAL] {}: cannot open configuration file at: {}", errCtx, path));
+
+  // 64KB read buffer for fast chunked I/O
+  char readBuffer[65536];
+  rapidjson::FileReadStream is(fp.get(), readBuffer, sizeof(readBuffer));
+  doc.ParseStream(is);
+
+  if (doc.HasParseError())
+    throw std::runtime_error(std::format("[FATAL] {}: JSON syntax error in file '{}' at byte offset {}",
+                                         errCtx, path, doc.GetErrorOffset()));
+  if (!doc.IsObject())
+    throw std::runtime_error(std::format("[FATAL] {}: invalid structure in {}. The root must be a JSON object.", errCtx, path));
 }
 
 // Numbers appear in the configurations both as numbers and as strings - 6.4 and

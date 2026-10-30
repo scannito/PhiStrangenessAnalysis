@@ -12,6 +12,7 @@
 #include "TH1D.h"
 
 #include <concepts>
+#include <filesystem>
 #include <format>
 #include <iostream>
 #include <map>
@@ -29,6 +30,15 @@ namespace RootIO
 // canvases. Not narrowed to TH1 on purpose - THnSparse is not one.
 template <typename T>
 concept RootObject = std::derived_from<T, TObject>;
+
+// A directory on disk and its parents, created if missing: TFile::Open and SaveAs do not create them.
+inline void CreateDirectoriesOrThrow(const std::filesystem::path& dir, std::string_view errCtx)
+{
+  std::error_code ec;
+  std::filesystem::create_directories(dir, ec);
+  if (ec)
+    throw std::runtime_error(std::format("[FATAL] {}: cannot create the directory '{}': {}", errCtx, dir.string(), ec.message()));
+}
 
 inline std::unique_ptr<TFile> OpenOrThrow(const std::string& path, const char* mode, std::string_view errCtx)
 {
@@ -300,6 +310,17 @@ inline std::string ProvenanceDirName(std::string_view record)
   return record.empty() ? kProvenanceDir : std::format("{}_{}", kProvenanceDir, record);
 }
 } // namespace Detail
+
+// What every task records before anything of its own: when, its whole merged configuration block (so a key
+// added to the JSON tomorrow is recorded without touching the task), and the facts about the run itself.
+// Documentation, not a check: see WriteProvenance.
+inline std::map<std::string, std::string> StartProvenance(std::string configBlock)
+{
+  std::map<std::string, std::string> facts = RunEnvironment::Facts();
+  facts["produced_at"] = RunEnvironment::TimestampNow();
+  facts["config_block"] = std::move(configBlock);
+  return facts;
+}
 
 inline void WriteProvenance(TDirectory* base, const std::string& owner, const std::map<std::string, std::string>& facts,
                             std::string_view record = {})

@@ -259,18 +259,13 @@ class CanvasManager
 
     // Top Pad (Distribution / Fit / Numerator & Denominator)
     TPad* topPad = new TPad((name + "_top").c_str(), "top", 0.0, splitRatio, 1.0, 1.0);
-    topPad->SetLeftMargin(0.14);
-    topPad->SetRightMargin(0.05);
-    topPad->SetTopMargin(0.08);
-    topPad->SetBottomMargin(0.02); // Seamless junction with bottom pad
+    SetPadMargins(topPad, {.left = 0.14, .right = 0.05, .top = 0.08, .bottom = 0.02}); // Seamless junction with bottom pad
     topPad->Draw();
 
     // Bottom Pad (Ratio / Residuals / Pulls)
     TPad* bottomPad = new TPad((name + "_bottom").c_str(), "bottom", 0.0, 0.0, 1.0, splitRatio);
-    bottomPad->SetLeftMargin(0.14);
-    bottomPad->SetRightMargin(0.05);
-    bottomPad->SetTopMargin(0.02); // Seamless junction with top pad
-    bottomPad->SetBottomMargin(0.35); // Ample space for X axis labels and title
+    // Seamless junction with the top pad; ample space below for the X axis labels and title.
+    SetPadMargins(bottomPad, {.left = 0.14, .right = 0.05, .top = 0.02, .bottom = 0.35});
     bottomPad->Draw();
 
     // In ROOT fractional coordinates, text on the smaller bottom pad appears
@@ -767,14 +762,8 @@ class CanvasManager
     if (!canvas)
       return;
     std::filesystem::path p(filePath);
-    if (p.has_parent_path()) {
-      std::error_code ec;
-      std::filesystem::create_directories(p.parent_path(), ec);
-      if (ec) {
-        throw std::runtime_error(std::format("[FATAL] CanvasManager: Cannot create directory '{}': {}",
-                                             p.parent_path().string(), ec.message()));
-      }
-    }
+    if (p.has_parent_path())
+      RootIO::CreateDirectoriesOrThrow(p.parent_path(), "CanvasManager");
     canvas->SaveAs(filePath.c_str());
   }
 
@@ -788,12 +777,7 @@ class CanvasManager
   // Exports all managed canvases to individual image/PDF files in outputDir
   void ExportAll(const std::string& outputDir, const std::string& extension = "pdf") const
   {
-    std::error_code ec;
-    std::filesystem::create_directories(outputDir, ec);
-    if (ec) {
-      throw std::runtime_error(std::format("[FATAL] CanvasManager: Cannot create directory '{}': {}",
-                                           outputDir, ec.message()));
-    }
+    RootIO::CreateDirectoriesOrThrow(outputDir, "CanvasManager");
     for (const auto& [name, c] : canvases) {
       if (c) {
         ApplyAutoYRange(name);
@@ -815,14 +799,8 @@ class CanvasManager
       return;
 
     std::filesystem::path p(pdfPath);
-    if (p.has_parent_path()) {
-      std::error_code ec;
-      std::filesystem::create_directories(p.parent_path(), ec);
-      if (ec) {
-        throw std::runtime_error(std::format("[FATAL] CanvasManager: Cannot create directory '{}': {}",
-                                             p.parent_path().string(), ec.message()));
-      }
-    }
+    if (p.has_parent_path())
+      RootIO::CreateDirectoriesOrThrow(p.parent_path(), "CanvasManager");
 
     if (valid.size() == 1) {
       valid.front()->Print(pdfPath.c_str());

@@ -39,6 +39,7 @@
 #include <map>
 #include <memory>
 #include <stdexcept>
+#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -78,11 +79,8 @@ class CorrelationTaskBase : public IAnalysisTask
 
       std::vector<std::string> trendsPath = particlePath;
       trendsPath.push_back(OutputNames::kTrendsDir);
-      std::vector<std::string> spectraPath = particlePath;
-      spectraPath.push_back(OutputNames::kSpectraDir);
 
       TDirectory* trendsDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), trendsPath);
-      TDirectory* spectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), spectraPath);
 
       // The associated pT binning, with the particle it belongs to rather than
       // encoded in the object name. What it guards is the Trends directory next to
@@ -193,24 +191,16 @@ class CorrelationTaskBase : public IAnalysisTask
 
       ratioDir->cd();
 
-      // Helper lambda function to find particle index by name
-      auto getParticleIndex = [&](const std::string& name) -> int {
-        for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-          if (assocParticles[pIdx].name == name)
-            return pIdx;
-        }
-        return -1;
-      };
-
       for (const auto& ratioCfg : requestedRatios) {
-        int idxNum = getParticleIndex(ratioCfg.num);
-        int idxDen = getParticleIndex(ratioCfg.den);
-
-        if (idxNum == -1 || idxDen == -1) {
-          Logger::Warn("Cannot compute ratio {}/{} because one or both particles are not configured.",
+        const std::optional<size_t> numIdx = AssocIndex(ratioCfg.num);
+        const std::optional<size_t> denIdx = AssocIndex(ratioCfg.den);
+        if (!numIdx || !denIdx) {
+          Logger::Warn("{}: cannot compute the ratio {}/{}: one or both particles are not configured.", GetName(),
                        ratioCfg.num, ratioCfg.den);
           continue; // Skip this specific ratio and move to the next
         }
+        const size_t idxNum = *numIdx;
+        const size_t idxDen = *denIdx;
 
         const auto& num = assocParticles[idxNum];
         const auto& den = assocParticles[idxDen];
@@ -218,9 +208,9 @@ class CorrelationTaskBase : public IAnalysisTask
         double numScale = GetYieldScaleFactor(num.name);
         double denScale = GetYieldScaleFactor(den.name);
 
-        bool numHasExtrap = doExtrapolationPerParticle.contains(num.name) && doExtrapolationPerParticle.at(num.name);
-        bool denHasExtrap = doExtrapolationPerParticle.contains(den.name) && doExtrapolationPerParticle.at(den.name);
-        bool doExtrapRatio = applyExtrapolation && (numHasExtrap || denHasExtrap);
+        const bool numHasExtrap = extrapolatedParticles.contains(num.name);
+        const bool denHasExtrap = extrapolatedParticles.contains(den.name);
+        const bool doExtrapRatio = numHasExtrap || denHasExtrap;
 
         std::string canvasName = std::format("canvasRatio_{}_{}_MultTrend", num.name, den.name);
         TCanvas* canvasRatio = canvasManager.CreateCanvas(canvasName, "Ratio Mult Trend " + ratioCfg.label, ratioPath, 800, 600);
@@ -325,7 +315,8 @@ class CorrelationTaskBase : public IAnalysisTask
   CorrelationCalculator::AxisTarget projectionAxis{CorrelationCalculator::AxisTarget::DeltaY_Y};
   CorrelationCalculator::MENormalization meNormalization{CorrelationCalculator::MENormalization::BinsAtZero};
 
-  std::map<std::string, bool> doExtrapolationPerParticle;
+  // The particles extrapolated: those with a section in extrapConfig.json, and none when applyExtrapolation is off.
+  std::set<std::string> extrapolatedParticles;
 
   std::vector<std::vector<std::vector<std::unique_ptr<TH1>>>> h1PhiAssocNoPtPhi;
 
@@ -406,15 +397,7 @@ class CorrelationTaskBase : public IAnalysisTask
     applyME = JsonConfig::RequireBool(taskConfig, "apply_mixed_events", GetName());
     applyExtrapolation = JsonConfig::RequireBool(taskConfig, "apply_extrapolation", GetName());
 
-    // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
-    // block, so a key added to the JSON tomorrow is recorded without touching this.
-    provenance["produced_at"] = RunEnvironment::TimestampNow();
-    provenance["config_block"] = JsonConfig::Serialize(taskConfig);
-    // The facts about the run itself. std::map has no range insert before C++23,
-    // hence the iterator pair - but the reference is taken once: Facts() returns
-    // the same static object every time, so naming it says so.
-    const auto& runEnv = RunEnvironment::Facts();
-    provenance.insert(runEnv.begin(), runEnv.end());
+    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
     use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());
@@ -541,12 +524,12 @@ class CorrelationTaskBase : public IAnalysisTask
       Logger::Info("{}: Extrapolation configuration loaded successfully.", GetName());
 
       for (const auto& p : assocParticles) {
-        bool hasCfg = extrapConfigManager->HasConfig(p.name);
-        doExtrapolationPerParticle[p.name] = hasCfg;
-        if (hasCfg)
+        if (extrapConfigManager->HasConfig(p.name)) {
+          extrapolatedParticles.insert(p.name);
           extrapConfigManager->DeclareCells(p.name, multBinning);
-        else
+        } else {
           Logger::Info("{}: No extrapolation config found for '{}'. Skipping.", GetName(), p.name);
+        }
       }
     }
   }
@@ -589,7 +572,7 @@ class CorrelationTaskBase : public IAnalysisTask
       const std::string pctx = std::format("{}.particles.{}", ctx, particle);
 
       const bool isPhi = (particle == "Phi");
-      const bool isAssoc = std::ranges::any_of(assocParticles, [&](const AssocParticleConfig& p) { return p.name == particle; });
+      const bool isAssoc = AssocIndex(particle).has_value();
       if (!isPhi && !isAssoc)
         throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither Phi nor one of the associated_particles.", pctx, particle));
       if (!member.value.IsObject())
@@ -749,16 +732,8 @@ class CorrelationTaskBase : public IAnalysisTask
       corr.name = particle;
       corr.h1Corrections.resize(BinningUtils::NBins(multBinning));
 
-      // InitCorrections already refused any other name.
-      std::vector<double> targetBinning;
-      MapOf of = MapOf::Associated;
-      if (particle == "Phi") {
-        targetBinning = ptPhiBinning;
-        of = MapOf::Phi;
-      } else {
-        auto it = std::ranges::find_if(assocParticles, [&](const AssocParticleConfig& p) { return p.name == particle; });
-        targetBinning = it->binning;
-      }
+      const std::vector<double>& targetBinning = PtBinningOf(particle, GetName());
+      const MapOf of = particle == "Phi" ? MapOf::Phi : MapOf::Associated;
 
 
       const bool applyEfficiencyBinned = pc.efficiency && pc.efficiency->mult == MultDependence::Binned;
@@ -1008,7 +983,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const auto& p = assocParticles[pIdx];
-      bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.contains(p.name) && doExtrapolationPerParticle.at(p.name);
+      const bool doExtrapForThis = extrapolatedParticles.contains(p.name);
 
       const std::vector<std::string> spectraPath = SectionPath({p.name, OutputNames::kSpectraDir});
 
@@ -1148,7 +1123,7 @@ class CorrelationTaskBase : public IAnalysisTask
     }
 
     std::string extName = OutputNames::SpectrumExtended(hSpec->GetName());
-    std::unique_ptr<TH1> hSpecExt = std::make_unique<TH1D>(extName.c_str(), extName.c_str(), extBinning.size() - 1, extBinning.data());
+    std::unique_ptr<TH1> hSpecExt = std::make_unique<TH1D>(extName.c_str(), extName.c_str(), BinningUtils::NBins(extBinning), extBinning.data());
     hSpecExt->SetDirectory(0);
 
     // 6. Copy measured contents (shifted by 1 bin to the right)
@@ -1319,7 +1294,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // the loop and not once outside it, because the directory now depends on which
       // species this iteration is producing.
       TDirectory* targetSpectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), SectionPath({config.name, OutputNames::kSpectraDir}));
-      bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.contains(config.name) && doExtrapolationPerParticle.at(config.name);
+      const bool doExtrapForThis = extrapolatedParticles.contains(config.name);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
@@ -1474,6 +1449,55 @@ class CorrelationTaskBase : public IAnalysisTask
   // directory says how the results were made. The same ternary used to be spelled out in
   // four places - four chances for one of them to be edited alone.
   std::string SectionDirName() const { return Engine2D() ? OutputNames::kExtract2D : OutputNames::kExtract1D; }
+
+  // The files both correlation tasks write, opened in one way: PhiAssocSpectra.root, and per associated particle
+  // the projection file (the cache) and, when asked, a QA file.
+  void OpenOutputFiles(const rapidjson::Value& taskConfig, const std::string& prefix, bool withQA)
+  {
+    const std::string projectionsDir = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
+    const std::string finalDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
+    fileOutputSpectra = RootIO::OpenOrThrow(std::format("{}{}{}", finalDir, prefix, OutputNames::kSpectraFile), "UPDATE", GetName());
+
+    // This run rewrites its whole section directory, so whatever a previous one left
+    // there - produced when the layout or the object names were different - would sit
+    // beside the new objects with nothing to tell them apart. UPDATE and not RECREATE
+    // because only this subtree is ours: another 'binning_name', or the other
+    // Extract1D/2D, belongs to somebody else and stays.
+    RootIO::ClearPath(fileOutputSpectra.get(), SectionPath());
+
+    // UPDATE and not RECREATE here too, and for a different reason: the cache is
+    // expensive to rebuild, so a scheme directory that already holds projections of
+    // another binning must be REFUSED rather than silently replaced. That guard lives
+    // in ResolveBinningAndCache and only has something to guard if the file survives.
+    const char* projMode = useProjectionCache ? "READ" : "UPDATE";
+    for (const auto& p : assocParticles) {
+      filesPhiAssocDataOutput.push_back(
+        RootIO::OpenOrThrow(std::format("{}{}{}", projectionsDir, prefix, OutputNames::ProjectionFile(p.name)), projMode, GetName()));
+      if (withQA)
+        filesPhiAssocQAOutput.push_back(
+          RootIO::OpenOrThrow(std::format("{}{}Phi{}QAHistograms.root", projectionsDir, prefix, p.name), "RECREATE", GetName()));
+    }
+  }
+
+  // Where the associated particle of that name is in assocParticles, if it is one: the configuration names particles.
+  std::optional<size_t> AssocIndex(std::string_view name) const
+  {
+    const auto it = std::ranges::find(assocParticles, name, &AssocParticleConfig::name);
+    if (it == assocParticles.end())
+      return std::nullopt;
+    return static_cast<size_t>(it - assocParticles.begin());
+  }
+
+  // The pT binning a correction or a purity of 'particle' is verified against: the trigger's for "Phi", the
+  // particle's own for an associated one; any other name stops the run.
+  const std::vector<double>& PtBinningOf(const std::string& particle, std::string_view errCtx) const
+  {
+    if (particle == "Phi")
+      return ptPhiBinning;
+    if (const std::optional<size_t> pIdx = AssocIndex(particle))
+      return assocParticles[*pIdx].binning;
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither Phi nor one of the associated_particles.", errCtx, particle));
+  }
 
   // The path of this task's section, {binning_name, section}, and of what is below it:
   // the layout spelled once, not at every call.

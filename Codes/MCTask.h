@@ -21,7 +21,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <filesystem>
 #include <format>
 #include <iostream>
 #include <map>
@@ -46,15 +45,7 @@ class MCTask : public IAnalysisTask
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
-    // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
-    // block, so a key added to the JSON tomorrow is recorded without touching this.
-    provenance["produced_at"] = RunEnvironment::TimestampNow();
-    provenance["config_block"] = JsonConfig::Serialize(taskConfig);
-    // The facts about the run itself. std::map has no range insert before C++23,
-    // hence the iterator pair - but the reference is taken once: Facts() returns
-    // the same static object every time, so naming it says so.
-    const auto& runEnv = RunEnvironment::Facts();
-    provenance.insert(runEnv.begin(), runEnv.end());
+    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     // 1. Check if a list of particle to compute MC corrections is provided
     auto particles = JsonConfig::RequireArray(taskConfig, "mc_particles", GetName());
@@ -74,11 +65,7 @@ class MCTask : public IAnalysisTask
     // since the ROOT object inside must be named literally "ccdb_object" with no
     // internal subfolder. Ensure the directory exists — TFile won't create it.
     ccdbOutputDir = outputDirectory + globalCfgs.binningName + "/";
-    std::error_code ec;
-    std::filesystem::create_directories(ccdbOutputDir, ec);
-    if (ec) {
-      throw std::runtime_error(std::format("[FATAL] {}: Cannot create output directory '{}': {}", GetName(), ccdbOutputDir, ec.message()));
-    }
+    RootIO::CreateDirectoriesOrThrow(ccdbOutputDir, GetName());
 
     particleCorrectionMode = JsonConfig::OptionalEnum<CorrectionMode>(taskConfig, "particle_correction_mode", "efficiency_only",
                                                                       {{"efficiency_only", CorrectionMode::EfficiencyOnly},

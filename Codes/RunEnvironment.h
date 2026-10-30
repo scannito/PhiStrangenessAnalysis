@@ -23,7 +23,9 @@ namespace RunEnvironment
 // FNV-1a, written out rather than reaching for std::hash: that one is not
 // required to give the same answer across implementations or even across runs,
 // and a fingerprint that changes on its own answers no question at all.
-inline std::uint64_t Fnv1a(std::string_view data, std::uint64_t hash = 14695981039346656037ULL)
+// The offset basis: where a hash starts, and what a chain of Fnv1a calls must start from.
+inline constexpr std::uint64_t kFnvOffsetBasis = 14695981039346656037ULL;
+inline std::uint64_t Fnv1a(std::string_view data, std::uint64_t hash = kFnvOffsetBasis)
 {
   for (unsigned char c : data) {
     hash ^= c;
@@ -85,7 +87,7 @@ inline std::string SourcesFingerprint(const std::string& sourceDir = ".")
 
   std::ranges::sort(headers);
 
-  std::uint64_t hash = 14695981039346656037ULL;
+  std::uint64_t hash = kFnvOffsetBasis;
   for (const std::string& path : headers) {
     std::ifstream file(path, std::ios::binary);
     if (!file)

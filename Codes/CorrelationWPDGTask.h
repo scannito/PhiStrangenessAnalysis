@@ -92,31 +92,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
     // 4. Output files (opened before the corrections: the cache carries the
     //    binning that everything below is loaded against)
-    std::string prefix = JsonConfig::OptionalString(taskConfig, "input_output_prefix", "", GetName());
-
-    std::string basePathProj = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
-    std::string basePathFinal = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
-    std::string phiSpectraName = std::format("{}{}{}", basePathFinal, prefix, OutputNames::kSpectraFile);
-    fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", GetName());
-
-    // Same as CorrelationTask, which this used to differ from for no stated reason:
-    // this run rewrites its whole section directory, so a previous run's objects would
-    // otherwise sit beside the new ones. UPDATE and not RECREATE because only this
-    // subtree is ours - another 'binning_name', or the other Extract1D/2D, stays.
-    RootIO::ClearPath(fileOutputSpectra.get(), SectionPath());
-
-    // UPDATE and not RECREATE here too, and for a different reason: the cache is
-    // expensive to rebuild, so a scheme directory that already holds projections of
-    // another binning must be REFUSED rather than silently replaced. That guard lives
-    // in ResolveBinningAndCache and only has something to guard if the file survives.
-    std::string projMode = useProjectionCache ? "READ" : "UPDATE";
-
-    for (const auto& p : assocParticles) {
-      std::string fName = std::format("{}{}{}", basePathProj, prefix, OutputNames::ProjectionFile(p.name));
-      std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), GetName());
-      filesPhiAssocDataOutput.push_back(std::move(fProj));
-    }
-
+    OpenOutputFiles(taskConfig, JsonConfig::OptionalString(taskConfig, "input_output_prefix", "", GetName()), false);
     ResolveBinningAndCache();
 
     // 5. Corrections / Extrapolation, rebinned onto the binning just resolved

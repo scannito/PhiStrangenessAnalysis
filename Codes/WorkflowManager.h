@@ -10,9 +10,7 @@
 #include "PurityTask.h"
 
 #include "rapidjson/document.h"
-#include "rapidjson/filereadstream.h"
 
-#include <cstdio>
 #include <format>
 #include <functional>
 #include <iostream>
@@ -32,11 +30,11 @@ class WorkflowManager
                   const std::string& baseConfigFile = "")
   {
     // 1. Load the Master File (Always required)
-    LoadJsonFile(masterConfigFile, document, "MasterConfig");
+    JsonConfig::LoadDocument(masterConfigFile, document, "MasterConfig");
 
     // 2. Load the Base File (Only if provided by the user)
     if (!baseConfigFile.empty()) {
-      LoadJsonFile(baseConfigFile, baseDocument, "BaseConfig");
+      JsonConfig::LoadDocument(baseConfigFile, baseDocument, "BaseConfig");
       hasBaseFile = true;
       Logger::Info("WorkflowManager: Dual-file configuration mode activated.");
     } else {
@@ -164,30 +162,6 @@ class WorkflowManager
 
   AnalysisSettings globalSettings; // Holds the runtime configuration
 
-  // Safe file loader helper utilizing exceptions
-  void LoadJsonFile(const std::string& path, rapidjson::Document& doc, std::string_view context)
-  {
-    std::unique_ptr<FILE, int (*)(FILE*)> fp(fopen(path.c_str(), "rb"), &fclose);
-    if (!fp) {
-      throw std::runtime_error(std::format("[FATAL] {}: cannot open configuration file at: {}", context, path));
-    }
-
-    // 64KB read buffer for fast chunked I/O
-    char readBuffer[65536];
-    rapidjson::FileReadStream is(fp.get(), readBuffer, sizeof(readBuffer));
-    doc.ParseStream(is);
-
-    if (doc.HasParseError()) {
-      // RapidJSON provides the specific error code and the exact byte offset!
-      throw std::runtime_error(std::format("[FATAL] {}: JSON syntax error in file '{}' at byte offset {}",
-                                           context, path, doc.GetErrorOffset()));
-    }
-
-    if (!doc.IsObject()) {
-      throw std::runtime_error(std::format("[FATAL] {}: invalid structure in {}. The root must be a JSON object.",
-                                           context, path));
-    }
-  }
 
   // 'global_binning' lives inside 'workflow' because the top level of these files
   // is the namespace MergeTaskConfiguration searches for blocks: anything there can

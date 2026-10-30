@@ -40,15 +40,7 @@ class PhiFitTask : public IAnalysisTask
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
-    // Documentation, not a check: see RootIO::WriteProvenance. The whole merged
-    // block, so a key added to the JSON tomorrow is recorded without touching this.
-    provenance["produced_at"] = RunEnvironment::TimestampNow();
-    provenance["config_block"] = JsonConfig::Serialize(taskConfig);
-    // The facts about the run itself. std::map has no range insert before C++23,
-    // hence the iterator pair - but the reference is taken once: Facts() returns
-    // the same static object every time, so naming it says so.
-    const auto& runEnv = RunEnvironment::Facts();
-    provenance.insert(runEnv.begin(), runEnv.end());
+    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     // 1. Input Configuration
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
