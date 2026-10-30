@@ -21,7 +21,6 @@
 #include <filesystem>
 #include <format>
 #include <initializer_list>
-#include <iostream>
 #include <limits>
 #include <map>
 #include <memory>
@@ -459,12 +458,6 @@ class CanvasManager
     }
   }
 
-  // Instance method to enable/disable stats box
-  void EnableStats(bool enable = true, int optStat = 1111)
-  {
-    SetOptStat(enable, optStat);
-  }
-
   // ---------------------------------------------------------------------------
   // Multi-Histogram Automatic Y-Axis Range Determination
   // ---------------------------------------------------------------------------
@@ -576,25 +569,6 @@ class CanvasManager
     AdjustYRange(std::span<TH1* const>(hists.begin(), hists.size()), opts);
   }
 
-  // Convenience overloads with simple boolean flags
-  static void AdjustYRange(std::span<TH1* const> hists,
-                           bool isLogY, bool zeroBaseline = false)
-  {
-    YRangeOptions opts;
-    opts.isLogY = isLogY;
-    opts.zeroBaseline = zeroBaseline;
-    AdjustYRange(hists, opts);
-  }
-
-  static void AdjustYRange(std::initializer_list<TH1*> hists,
-                           bool isLogY, bool zeroBaseline = false)
-  {
-    YRangeOptions opts;
-    opts.isLogY = isLogY;
-    opts.zeroBaseline = zeroBaseline;
-    AdjustYRange(std::span<TH1* const>(hists.begin(), hists.size()), opts);
-  }
-
   // Inspects all 1D histograms currently drawn on pad, computes their global Y-range,
   // and applies it to all of them. Automatically detects log scale from pad->GetLogy().
   static void AdjustPadYRange(TPad* pad, const YRangeOptions& opts = YRangeOptions{})
@@ -619,14 +593,6 @@ class CanvasManager
     AdjustYRange(hists, effectiveOpts);
     pad->Modified();
     pad->Update();
-  }
-
-  static void AdjustPadYRange(TPad* pad, bool isLogY, bool zeroBaseline = false)
-  {
-    YRangeOptions opts;
-    opts.isLogY = isLogY;
-    opts.zeroBaseline = zeroBaseline;
-    AdjustPadYRange(pad, opts);
   }
 
   // The static AdjustYRange / AdjustPadYRange above can also be called on an instance;

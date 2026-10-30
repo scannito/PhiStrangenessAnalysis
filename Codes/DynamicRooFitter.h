@@ -39,7 +39,6 @@
 #include <cmath>
 #include <format>
 #include <initializer_list>
-#include <iostream>
 #include <array>
 #include <memory>
 #include <regex>

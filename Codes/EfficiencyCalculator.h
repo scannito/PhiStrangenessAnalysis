@@ -35,7 +35,7 @@ class EfficiencyCalculator
   EfficiencyCalculator() = delete;
 
   // Computes the Global Event Selection Efficiency (Event Loss)
-  // Returns a 1D histogram. Caller owns the pointer and must delete it.
+  // Returns a 1D histogram, owned by the caller.
   static std::unique_ptr<TH1> ComputeEventLoss(const TH1* hEventMultGenAssocReco, const TH1* hEventMultGen)
   {
     // Safety check
@@ -101,7 +101,6 @@ class EfficiencyCalculator
     const std::vector<HistogramUtils::AxisToCut> cuts = {HistogramUtils::AxisToCut::Whole(0), HistogramUtils::AxisToCut::Whole(1)};
 
     // Project Generator level 2D
-    std::string h2GenName = "h2" + data.name + "MCGen_multInt_temp";
     std::unique_ptr<TH2> h2MCGen(static_cast<TH2D*>(data.h3MCGen->Project3D("zy")));
     h2MCGen->SetDirectory(0);
 

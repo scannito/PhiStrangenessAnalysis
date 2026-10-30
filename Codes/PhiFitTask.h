@@ -22,7 +22,6 @@
 
 #include <cmath>
 #include <format>
-#include <iostream>
 #include <map>
 #include <memory>
 #include <stdexcept>
