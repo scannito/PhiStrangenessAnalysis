@@ -205,7 +205,6 @@ struct SidebandConfig {
 
 struct IntegrationConfig {
   std::variant<FixedRange, NSigma> signalWindow{FixedRange{0.0, 0.0}};
-  bool snapToBin{false};
   bool calculatePurity{false};
   std::optional<SidebandConfig> sideband{std::nullopt};
 };

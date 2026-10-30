@@ -83,12 +83,11 @@ class FitConfigManager : public BaseConfigManager
       // bin override, which carries only what it changes. The current value is the
       // fallback, so absent means "keep the previous pass" and never "reset".
       auto loadNodeIntoModel = [&](const rapidjson::Value& node) {
-        JsonConfig::RequireKnownKeys(node, {"sig_model", "bkg_model", "snap_to_bin", "integration_range", "n_sigma_integration", "calculate_purity", "sideband", "params"},
+        JsonConfig::RequireKnownKeys(node, {"sig_model", "bkg_model", "integration_range", "n_sigma_integration", "calculate_purity", "sideband", "params"},
                                      std::format("{}: section '{}'", managerName, section));
         config.model.sigModel = JsonConfig::OptionalString(node, "sig_model", config.model.sigModel, managerName);
         config.model.bkgModel = JsonConfig::OptionalString(node, "bkg_model", config.model.bkgModel, managerName);
 
-        config.integration.snapToBin = JsonConfig::OptionalBool(node, "snap_to_bin", config.integration.snapToBin, managerName);
 
         // The two are alternatives, and an explicit range wins: reaching the second
         // branch means no range was given, not that n_sigma has priority.

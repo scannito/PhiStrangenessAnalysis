@@ -61,7 +61,9 @@ componenti uguale a quella del totale è fatta (`RelativeExpected`).
 
 ### Procedura di fit
 
-**A9. `snap_to_bin` tollerante** (era 2.6, nota 04): `FindFixBin` senza tolleranza. Cambia la fisica: con il codice attuale
+**A9. `snap_to_bin` tollerante** — *superata il 30 ottobre 2026: l'opzione è stata tolta* (`DESIGN_HISTORY.md`, *snap_to_bin
+removed*): gli integrali del segnale e del fondo sono integrali delle pdf e non hanno bisogno di bordi di bin, e allargare la
+finestra al bin la allontana da quella del treno. Il testo che segue è com'era. (era 2.6, nota 04): `FindFixBin` senza tolleranza. Cambia la fisica: con il codice attuale
 pi_tpc [-3, 3] diventerebbe [-3, 3.2], quindi va fatto insieme alla scelta delle finestre.
 
 **A10-A11. Partenze casuali, partenza dalle celle vicine, test di accettazione, escalation a xRooFit** (resto delle 3.3, 3.4,

@@ -54,7 +54,7 @@ Costo: circa 2 volte la CPU per cella (3.0 → 4.9 ms senza escalation); un inte
 | difetto | effetto | dove |
 |---|---|---|
 | `covQual` 2: il restart sposta S del 4-13% in 5 celle K0S su 16 | l'errore calcolato non ha significato | 04 |
-| `snap_to_bin` allarga di una bin una finestra già allineata ai bordi (rumore in virgola mobile) | nessuna configurazione lo attiva oggi | 04 |
+| `snap_to_bin` allarga di una bin una finestra già allineata ai bordi (rumore in virgola mobile) | opzione tolta il 30 ottobre 2026 (`DESIGN_HISTORY.md`) | 04 |
 | finestre oltre il range estrapolate (fondo negativo, purezza NaN); finestre invertite danno zeri silenziosi | nessun avviso | 04 |
 | range di fit di Xi è in silenzio [1.289, 1.361] invece di [1.29, 1.36] | da guardare | 05 |
 | `RooPlot::chiSquare` segue la statistica di Neyman; per K0S chi2/ndf ≈ 1 + 3e-6·N | modello "rifiutato" da circa 1e5 entries anche con fit buono | 05 |
@@ -127,7 +127,7 @@ Chiusa per limite d'uso giornaliero. Numeri riportati dai ricercatori, non river
 - **Bug del progetto, verificato dal coordinatore:** `CorrelationTaskBase.h:578` carica le correzioni con `GetUniqueOrThrow<TH1F>`, ma `Corrections.root` (in `globalConfigBasepp.json`) contiene 198 TH1D e 3 TH1F: con l'efficienza accesa il task lancia.
 - **Bontà del fit (nota 05):** su toy da 1e3 a 1e5 entries il chi2 di Pearson su tutte le bin con ndf = bin - parametri è calibrato (rifiuta circa 5% a p<0.05); `RooPlot::chiSquare` legge 0.56-0.96 e non rifiuta quasi mai. Sui dati reali invece rifiutava da circa 1e5 entries: lì il modello non è perfetto, sui toy lo è per costruzione.
 - **Phi online (nota 05):** con i pesi veri per bin (variano 1-6%) gli errori di default sono 4-10 volte troppo piccoli; `SumW2Error` giusto entro 0.87-1.10 sui toy convergenti; con covQual 2 (40-80% dei toy) nessuno dei due è affidabile.
-- **`snap_to_bin` tollerante (nota 04):** ricetta con tolleranza 1e-3 bin, codice nella nota; con il codice attuale pi_tpc [-3,3] diventerebbe [-3,3.2] (S spostato di 14 dS). Non applicato.
+- **`snap_to_bin` tollerante (nota 04):** superato: l'opzione è stata tolta il 30 ottobre 2026 (`DESIGN_HISTORY.md`, *snap_to_bin removed*).
 - **Profilo e toy ad alta statistica (nota 07):** con il fit del progetto profilo sbagliato fino al 50% a 1σ, `nsig` 3.6% (96σ) sotto il migliore in una cella; dopo `Offset("bin")` Hesse = profilo entro 0.3%. Toy alla verità: 199/200 in status 3 con le opzioni del progetto, 0 con `Offset("bin")`. `RooMCStudy` tiene solo i fit in status 0; i toy binned usano le bin dell'osservabile (serve `setBins(200)`).
 - **Riguarda il nostro codice (nota 08):** il conteggio "(remaining N messages suppressed)" di RooFit è sbagliato di 2, quindi `RooFitMessages.h` sbaglia il tally di 2 a ogni soppressione; `PrintLevel(-1)` non nasconde la riga INFO dell'ottimizzazione costante. Chebychev2 del K0S: il 27.5% della scatola dei parametri dà una pdf negativa.
 - **Thread (nota 10):** anche la sola costruzione dei modelli va in crash su 2 thread senza lock; con un mutex 18/18. Niente RooFit in più thread: processi separati.

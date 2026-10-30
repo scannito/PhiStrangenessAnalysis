@@ -10,7 +10,6 @@
             "default": {
                 "sig_model": "RelBWKK",
                 "bkg_model": "BkgMattia",
-                "snap_to_bin": false,
                 "calculate_purity": false,
                 "integration_range": [
                     1.0,
@@ -113,7 +112,6 @@
             "default": {
                 "sig_model": "DSCB",
                 "bkg_model": "Chebychev1",
-                "snap_to_bin": false,
                 "integration_range": [
                     0.475,
                     0.515
@@ -782,7 +780,6 @@
             "default": {
                 "sig_model": "DSCB",
                 "bkg_model": "Chebychev1",
-                "snap_to_bin": false,
                 "integration_range": [
                     1.305,
                     1.335
@@ -849,7 +846,6 @@
             "default": {
                 "sig_model": "DSCB",
                 "bkg_model": "Chebychev1",
-                "snap_to_bin": false,
                 "integration_range": [
                     1.655,
                     1.685
@@ -916,7 +912,6 @@
             "default": {
                 "sig_model": "DSCB",
                 "bkg_model": "Gaussian",
-                "snap_to_bin": false,
                 "integration_range": [
                     -3.0,
                     3.0
@@ -988,7 +983,6 @@
             "default": {
                 "sig_model": "Gaussian",
                 "bkg_model": "Exponential",
-                "snap_to_bin": false,
                 "integration_range": [
                     -3.0,
                     3.0

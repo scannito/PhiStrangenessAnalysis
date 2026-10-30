@@ -7,6 +7,23 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## snap_to_bin removed
+
+**30 October 2026.** `fitConfig.json`'s `snap_to_bin` moved the ends of the signal window outward to the edges of the
+mass bins that hold them (`DynamicRooFitter::CalculateIntegrationLimits`). It was `false` in every node, so no number
+came from it, but it was a switch that gave wrong ones: the signal yield and the background of the signal window are
+integrals of the pdfs, which need no bin edges, and the window is the train's (`rangeMPhiSignal` [1.0, 1.05] for the φ),
+so a widened one counts triggers and background over candidates whose pairs were not selected. With [1.0, 1.05] on
+the 1.5 MeV bins it gave [0.999, 1.0515], 5% wider, the upper end a whole bin further although 1.05 is an edge
+(`FindFixBin` on an edge returns the bin that starts there; `RooFitKnowledge/04-integrals-errors-normalization.md` had
+recorded it). Found with *The φ sideband counted on its window*, which was the same error on the denominator. Removed,
+the key, the member and the code, at the owner's choice ("at most it comes back"); a configuration that still writes it
+stops at `RequireKnownKeys`. `fitConfig_DONOTUSE.json`, which no block reads, still has it.
+
+**Checked.** purity and the phi fit + correlation of the 2026 HighIR offline block identical to main.
+
+---
+
 ## The φ sideband counted on its window
 
 **29 October 2026.** The background ratio R = B(signal window) / N(sideband) that scales the sideband pairs was

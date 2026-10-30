@@ -814,7 +814,7 @@ class DynamicRooFitter
     double minRange = 0.0;
     double maxRange = 0.0;
 
-    // 1. Determine base limits based on the configured mode
+    // The limits from the configured mode
     if (const auto* fixed = std::get_if<FixedRange>(&config.integration.signalWindow)) {
       minRange = fixed->min;
       maxRange = fixed->max;
@@ -826,15 +826,6 @@ class DynamicRooFitter
 
       minRange = m - (nSigma.n * s);
       maxRange = m + (nSigma.n * s);
-    }
-
-    // 2. Adjust limits to align with histogram bin edges if requested
-    if (config.integration.snapToBin) {
-      int lowEdgeBin = h1Data->GetXaxis()->FindFixBin(minRange);
-      int upEdgeBin = h1Data->GetXaxis()->FindFixBin(maxRange);
-
-      minRange = h1Data->GetXaxis()->GetBinLowEdge(lowEdgeBin);
-      maxRange = h1Data->GetXaxis()->GetBinLowEdge(upEdgeBin + 1);
     }
 
     return {minRange, maxRange};
