@@ -1197,6 +1197,18 @@ move after the corrections are loaded), and its QA file has already been opened 
 (multiplicity, trigger pT, associated pT) written twice, in `CorrelationTask::RunOptimized` and in `RunLegacy`,
 belongs to the same refactoring.
 
+**Writing into a directory without `cd()` (30 October 2026).** The framework writes an object by moving
+`gDirectory` there and calling `Write`: `dir->cd(); obj->Write(nullptr, TObject::kOverwrite)`. `TObject::Write`
+is nothing more than `gDirectory->WriteTObject(this, name, "OverWrite", bufsize)` (ROOT 6.36, `TObject.cxx`
+942-953; TH1, TH2 and TH3 do not override it), so `dir->WriteTObject(obj, nullptr, "Overwrite")` writes the same
+key without touching the global state, and leaves `gDirectory` where the caller had it: the same reason that
+makes canvas names unique and every `TF1` owned (CLAUDE.md). `RootIO::WriteCcdbFile` is the first place that
+does it, by the owner's choice; the other writes are worth moving the same way where they are touched for another
+reason (about 40 `Write` calls, in `CorrelationCalculator`, `CorrelationTaskBase`, `PhiFitTask`, `MCTask`,
+`PurityTask`, `ComparisonTask`, `CanvasManager`, `FitQualityRecorder`; not every `cd()` is a write). The thing to
+check at each: a `TCanvas` or a `TTree` writes differently from a histogram, and the output must stay identical
+(`CompareRootFiles`).
+
 ---
 
 ## 11. Cling constraints learned the hard way

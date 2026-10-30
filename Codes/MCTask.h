@@ -295,11 +295,13 @@ class MCTask : public IAnalysisTask
       // 1. Compute and save the 3D and 2D correction map
       std::unique_ptr<TH3> h3CorrectionMap = EfficiencyCalculator::Compute3DCorrectionMap(data, particleCorrectionMode);
 
-      RootIO::WriteCcdbFile(ccdbOutputDir + outputPrefix + "h3EffMap" + data.name + ".root", h3CorrectionMap.get(), GetName());
+      std::string fileMCOutputPerPartPath3D = ccdbOutputDir + outputPrefix + "h3EffMap" + data.name + ".root";
+      RootIO::WriteCcdbFile(fileMCOutputPerPartPath3D, h3CorrectionMap.get(), GetName());
 
       std::unique_ptr<TH2> h2CorrectionMap = EfficiencyCalculator::Compute2DCorrectionMapMultIntegrated(data, particleCorrectionMode);
 
-      RootIO::WriteCcdbFile(ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root", h2CorrectionMap.get(), GetName());
+      std::string fileMCOutputPerPartPath2D = ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root";
+      RootIO::WriteCcdbFile(fileMCOutputPerPartPath2D, h2CorrectionMap.get(), GetName());
 
       // QA: error/relative-error maps alongside the CCDB map
       std::unique_ptr<TH2> h2CorrectionMapError = EfficiencyCalculator::BuildErrorMap(h2CorrectionMap.get(), "h2EffMapError" + data.name);
