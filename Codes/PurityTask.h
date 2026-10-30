@@ -62,7 +62,7 @@ class PurityTask : public IAnalysisTask
 
     // Prefix to specify the type of analysis (Data vs MCClosure)
     outputPrefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
-    outputFile = RootIO::OpenOrThrow(outputDir + outputPrefix + OutputNames::kPurityFile, "UPDATE", GetName());
+    outputFile = RootIO::OpenOrThrow(std::format("{}{}{}", outputDir, outputPrefix, OutputNames::kPurityFile), "UPDATE", GetName());
     RootIO::ClearPath(outputFile.get(), {globalCfgs.binningName});
 
     // CCDB-ready maps live under outputDir/{binningName}/ on disk, since the ROOT
@@ -237,7 +237,7 @@ class PurityTask : public IAnalysisTask
       if (!task.h2PurityCCDB)
         continue;
 
-      std::string ccdbPath = ccdbOutputDir + outputPrefix + "h2PurityMap" + task.purityKey + ".root";
+      std::string ccdbPath = std::format("{}{}h2PurityMap{}.root", ccdbOutputDir, outputPrefix, task.purityKey);
       RootIO::WriteCcdbFile(ccdbPath, task.h2PurityCCDB.get(), GetName());
     }
 

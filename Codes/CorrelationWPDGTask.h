@@ -96,7 +96,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
     std::string basePathFinal = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
-    std::string phiSpectraName = basePathFinal + prefix + OutputNames::kSpectraFile;
+    std::string phiSpectraName = std::format("{}{}{}", basePathFinal, prefix, OutputNames::kSpectraFile);
     fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", GetName());
 
     // Same as CorrelationTask, which this used to differ from for no stated reason:
@@ -112,7 +112,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     std::string projMode = useProjectionCache ? "READ" : "UPDATE";
 
     for (const auto& p : assocParticles) {
-      std::string fName = basePathProj + prefix + OutputNames::ProjectionFile(p.name);
+      std::string fName = std::format("{}{}{}", basePathProj, prefix, OutputNames::ProjectionFile(p.name));
       std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), GetName());
       filesPhiAssocDataOutput.push_back(std::move(fProj));
     }

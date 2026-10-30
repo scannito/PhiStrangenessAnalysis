@@ -79,7 +79,7 @@ class PhiFitTask : public IAnalysisTask
     // UPDATE and this binning's subtree cleared, not RECREATE: the file holds one subtree per
     // binning_name, and another scheme's must survive this one's run (CLAUDE.md, How a task
     // opens the file it writes).
-    std::string phiDataName = basePathProj + prefix + OutputNames::kPhiDataFile;
+    std::string phiDataName = std::format("{}{}{}", basePathProj, prefix, OutputNames::kPhiDataFile);
     filePhiDataOutput = RootIO::OpenOrThrow(phiDataName, "UPDATE", GetName());
     RootIO::ClearPath(filePhiDataOutput.get(), {globalCfgs.binningName});
 

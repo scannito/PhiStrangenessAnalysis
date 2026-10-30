@@ -50,7 +50,7 @@ class CorrelationTask : public CorrelationTaskBase
 
     // 2. Load Trigger information from PhiFitTask
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
-    std::string phiDataName = basePathProj + triggerPrefix + OutputNames::kPhiDataFile;
+    std::string phiDataName = std::format("{}{}{}", basePathProj, triggerPrefix, OutputNames::kPhiDataFile);
 
     std::unique_ptr<TFile> filePhiDataInput = RootIO::OpenOrThrow(phiDataName, "READ", GetName());
 
@@ -118,7 +118,7 @@ class CorrelationTask : public CorrelationTaskBase
     //    binning that everything below is loaded against)
     std::string projMode = useProjectionCache ? "READ" : "UPDATE";
     std::string basePathFinal = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
-    std::string phiSpectraName = basePathFinal + outputPrefix + OutputNames::kSpectraFile;
+    std::string phiSpectraName = std::format("{}{}{}", basePathFinal, outputPrefix, OutputNames::kSpectraFile);
     fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", GetName());
 
     // This run rewrites its whole section directory, so whatever a previous one left
@@ -129,12 +129,12 @@ class CorrelationTask : public CorrelationTaskBase
     RootIO::ClearPath(fileOutputSpectra.get(), SectionPath());
 
     for (const auto& p : assocParticles) {
-      std::string fName = basePathProj + outputPrefix + OutputNames::ProjectionFile(p.name);
+      std::string fName = std::format("{}{}{}", basePathProj, outputPrefix, OutputNames::ProjectionFile(p.name));
       std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), GetName());
       filesPhiAssocDataOutput.push_back(std::move(fProj));
 
       if (doMoreQA) {
-        std::string fQAName = basePathProj + outputPrefix + "Phi" + p.name + "QAHistograms.root";
+        std::string fQAName = std::format("{}{}Phi{}QAHistograms.root", basePathProj, outputPrefix, p.name);
         std::unique_ptr<TFile> fQA = RootIO::OpenOrThrow(fQAName, "RECREATE", GetName());
         filesPhiAssocQAOutput.push_back(std::move(fQA));
 
@@ -217,7 +217,7 @@ class CorrelationTask : public CorrelationTaskBase
     purityCollection.clear();
 
     // One file for every particle of a purity production, named by OutputNames: opened, recorded and checked once.
-    const std::string purityFilePath = purityDir + purityPrefix + OutputNames::kPurityFile;
+    const std::string purityFilePath = std::format("{}{}{}", purityDir, purityPrefix, OutputNames::kPurityFile);
     std::unique_ptr<TFile> filePurity = RootIO::OpenOrThrow(purityFilePath, "READ", GetName());
     RootIO::PrintProvenance(filePurity.get(), globalCfgs.binningName, std::format("purity file '{}'", purityFilePath));
 

@@ -205,7 +205,7 @@ class ComparisonTask : public IAnalysisTask
         "here lists its objects explicitly, so it selects nothing - it would be inert, not wrong. "
         "Remove it.", GetName()));
 
-    std::string outName = outputDir + outputPrefix + "Comparisons.root";
+    std::string outName = std::format("{}{}Comparisons.root", outputDir, outputPrefix);
     fileOutput = RootIO::OpenOrThrow(outName, "RECREATE", GetName());
 
     provenance["produced_at"] = RunEnvironment::TimestampNow();

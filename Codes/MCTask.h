@@ -232,7 +232,7 @@ class MCTask : public IAnalysisTask
     }
 
     // 6. Open the master output file for corrections
-    std::string outPath = outputDirectory + outputPrefix + "Corrections.root";
+    std::string outPath = std::format("{}{}Corrections.root", outputDirectory, outputPrefix);
     fileMCOutput = RootIO::OpenOrThrow(outPath, "UPDATE", GetName());
 
     // This run rewrites its whole scheme directory - AccEff, SigLoss, EvLoss and the
@@ -295,19 +295,19 @@ class MCTask : public IAnalysisTask
       // 1. Compute and save the 3D and 2D correction map
       std::unique_ptr<TH3> h3CorrectionMap = EfficiencyCalculator::Compute3DCorrectionMap(data, particleCorrectionMode);
 
-      std::string fileMCOutputPerPartPath3D = ccdbOutputDir + outputPrefix + "h3EffMap" + data.name + ".root";
+      std::string fileMCOutputPerPartPath3D = std::format("{}{}h3EffMap{}.root", ccdbOutputDir, outputPrefix, data.name);
       RootIO::WriteCcdbFile(fileMCOutputPerPartPath3D, h3CorrectionMap.get(), GetName());
 
       std::unique_ptr<TH2> h2CorrectionMap = EfficiencyCalculator::Compute2DCorrectionMapMultIntegrated(data, particleCorrectionMode);
 
-      std::string fileMCOutputPerPartPath2D = ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root";
+      std::string fileMCOutputPerPartPath2D = std::format("{}{}h2EffMap{}.root", ccdbOutputDir, outputPrefix, data.name);
       RootIO::WriteCcdbFile(fileMCOutputPerPartPath2D, h2CorrectionMap.get(), GetName());
 
       // QA: error/relative-error maps alongside the CCDB map
       std::unique_ptr<TH2> h2CorrectionMapError = EfficiencyCalculator::BuildErrorMap(h2CorrectionMap.get(), "h2EffMapError" + data.name);
       std::unique_ptr<TH2> h2CorrectionMapRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2CorrectionMap.get(), "h2EffMapRelError" + data.name);
 
-      std::string fileMCOutputPerPartErrorPath2D = ccdbOutputDir + outputPrefix + "h2EffMapError" + data.name + ".root";
+      std::string fileMCOutputPerPartErrorPath2D = std::format("{}{}h2EffMapError{}.root", ccdbOutputDir, outputPrefix, data.name);
       std::unique_ptr<TFile> fileMCOutputPerPartError2D = RootIO::OpenOrThrow(fileMCOutputPerPartErrorPath2D, "RECREATE", GetName());
       fileMCOutputPerPartError2D->cd();
       // h2CorrectionMapError->SetName("ccdb_object");
