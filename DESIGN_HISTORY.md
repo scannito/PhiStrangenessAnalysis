@@ -7,6 +7,29 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## A parameter a model needs and the configuration does not set stops the run
+
+**30 October 2026.** `DynamicRooFitter` (the mass fits) already stopped on a parameter its model needs and
+`fitConfig.json` does not set; `ExtrapolationModelFactory` (the extrapolation of the spectra) only warned, and left
+the `TF1` parameter at ROOT's initial value, free and unbounded, so the extrapolated yield came from whatever that
+fit converged to. Both stop now, and both messages say where the parameter was looked for: the fit by its histogram
+(the cell), the model, the section's default and the cell override that applied (`FitConfig::binOverride`); the
+extrapolation by the name of its `TF1` (the spectrum), the model and the block of `extrapConfig.json` its parameters
+came from (`ExtrapFit::source`, set by `ExtrapConfigManager`: a high fit is replaced whole, not merged, so the place to
+fix is not the default). `CreateModel` names the `TF1` itself, `f<Model>_<spectrum>` and `f<Model>_high_<spectrum>`,
+the names the caller gave before, so the files do not change.
+
+Not done, proposed by the review: checking every class's parameters when the cells are declared, before the run reaches
+the extrapolation; refusing a parameter the model does not use (`"t"` for `"T"` is ignored today, and the default's
+`T` stays in force). `OldComparison/extrapolation` does not compile on main since the interval naming of 23 October
+(`OutputNames::Spectrum` and `ExtrapConfigManager::GetConfig` take the class by interval); its `CreateModel` calls were
+updated, the rest is not.
+
+**Checked.** The 2026 HighIR offline block identical to main; a phi fit without `width_sig`, an extrapolation without
+`T` and a high fit without `n` each stop naming the cell or the spectrum and the block.
+
+---
+
 ## snap_to_bin removed
 
 **30 October 2026.** `fitConfig.json`'s `snap_to_bin` moved the ends of the signal window outward to the edges of the

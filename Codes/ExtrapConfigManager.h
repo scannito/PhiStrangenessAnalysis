@@ -62,7 +62,8 @@ class ExtrapConfigManager : public BaseConfigManager
       MergeParams(node, fit.params, ctx);
     };
 
-    auto loadNodeIntoConfig = [&](const rapidjson::Value& node) {
+    // 'where' names the node in the messages: "default" or "bins['mult10-15']".
+    auto loadNodeIntoConfig = [&](const rapidjson::Value& node, const std::string& where) {
       JsonConfig::RequireKnownKeys(node, {"model", "domain_range", "fit_range", "params", "high"}, sectionCtx);
       loadFit(node, config, sectionCtx);
 
@@ -80,13 +81,15 @@ class ExtrapConfigManager : public BaseConfigManager
           for (const char* key : {"model", "fit_range", "params"})
             JsonConfig::RequireMember(*high, key, ctx);
           loadFit(*high, config.high.emplace(), ctx);
+          config.high->source = std::format("{}.{}.high", particle, where);
         }
       }
     };
 
     // 1. First, apply all "default" mathematical parameters
     if (const rapidjson::Value* defaults = JsonConfig::TryObject(partNode, "default", managerName)) {
-      loadNodeIntoConfig(*defaults);
+      loadNodeIntoConfig(*defaults, "default");
+      config.source = std::format("{}.default", particle);
     }
 
     // 2. Override with specific bin settings if they exist
@@ -95,7 +98,9 @@ class ExtrapConfigManager : public BaseConfigManager
     const rapidjson::Value* bins = JsonConfig::TryObject(partNode, "bins", managerName);
     if (bins && bins->HasMember(multTag.c_str())) {
       Logger::Debug("{}: Found custom parameters for bin: {}", managerName, multTag);
-      loadNodeIntoConfig((*bins)[multTag.c_str()]);
+      const std::string where = std::format("bins['{}']", multTag);
+      loadNodeIntoConfig((*bins)[multTag.c_str()], where);
+      config.source = std::format("{}.default and {}.{}", particle, particle, where);
     }
 
     return config;

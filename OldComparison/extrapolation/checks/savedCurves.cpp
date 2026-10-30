@@ -60,7 +60,7 @@ int main(int argc, char** argv)
 
   printf("1. ROOT: a curve written and read back (worst deviation below %g GeV/c, above it; integral over 0-0.2 GeV/c)\n", kSplit);
   for (const char* species : {"Pi", "K0S"}) {
-    auto live = ExtrapolationModelFactory::CreateModel(source.Configured(species, 3), 30.0);
+    auto live = ExtrapolationModelFactory::CreateModel(source.Configured(species, 3), 30.0, species);
     for (const bool copy : {false, true}) {
       for (int npx : {100, 200, 500, 1000, 2000}) {
         std::unique_ptr<TF1> curve(copy ? new TF1(*live) : static_cast<TF1*>(live->Clone("c")));
@@ -88,7 +88,7 @@ int main(int argc, char** argv)
     auto* saved = h ? dynamic_cast<TF1*>(h->GetListOfFunctions()->At(0)) : nullptr;
     if (!saved)
       Chain::Fail(std::format("no curve attached to {}", path));
-    auto live = ExtrapolationModelFactory::CreateModel(source.Configured(species, 3), 1.0);
+    auto live = ExtrapolationModelFactory::CreateModel(source.Configured(species, 3), 1.0, species);
     if (saved->GetNpar() != live->GetNpar())
       Chain::Fail(std::format("the curve on {} has {} parameters, the configured {} {}", path, saved->GetNpar(), live->GetName(), live->GetNpar()));
     live->SetParameters(saved->GetParameters());

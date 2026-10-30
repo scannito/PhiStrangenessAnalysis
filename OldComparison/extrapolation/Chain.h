@@ -140,7 +140,7 @@ struct Extrapolation {
 inline Extrapolation Extrapolate(TH1* h, const ExtrapConfig& cfg, const std::string& name)
 {
   Extrapolation out;
-  out.main = ExtrapolationModelFactory::CreateModel(cfg, h->GetMaximum());
+  out.main = ExtrapolationModelFactory::CreateModel(cfg, h->GetMaximum(), name);
   out.main->SetName(std::format("f_{}_main", name).c_str());
   SpectrumExtrapolator extrapolator(h, out.main.get());
   extrapolator.SetFitRange(cfg.fitRange.first, cfg.fitRange.second);
@@ -148,7 +148,7 @@ inline Extrapolation Extrapolate(TH1* h, const ExtrapConfig& cfg, const std::str
   extrapolator.SetFitOption(kFitOption);
   extrapolator.SetIntegrationPrecisions(kLoPrecision, kHiPrecision);
   if (cfg.high) {
-    out.high = ExtrapolationModelFactory::CreateModel(cfg.HighConfig(), h->GetMaximum());
+    out.high = ExtrapolationModelFactory::CreateModel(cfg.HighConfig(), h->GetMaximum(), "high_" + name);
     out.high->SetName(std::format("f_{}_high", name).c_str());
     extrapolator.SetHighModel(out.high.get(), cfg.high->fitRange.first, cfg.high->fitRange.second);
   }

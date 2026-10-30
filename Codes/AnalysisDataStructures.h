@@ -245,6 +245,9 @@ struct ExtrapFit {
   std::string model;
   std::pair<double, double> fitRange{0.0, 0.0};
   std::map<std::string, MathParam> params; // Uses the unified MathParam
+  // Where in extrapConfig.json the parameters came from, said by the manager that merged them, for the messages: a
+  // high fit is replaced whole and the main one merged over the default, so the place to fix differs.
+  std::string source;
 };
 
 // The main fit, and what belongs to the species rather than to a fit.

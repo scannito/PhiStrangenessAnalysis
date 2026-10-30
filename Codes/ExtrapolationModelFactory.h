@@ -10,6 +10,7 @@
 
 #include <cmath>
 #include <format>
+#include <string_view>
 #include <memory>
 #include <stdexcept>
 #include <string>
@@ -22,7 +23,12 @@ class ExtrapolationModelFactory
 
   // MAIN FACTORY METHOD
   // Creates a dynamically configured TF1 based on the ExtrapConfig structure
-  static std::unique_ptr<TF1> CreateModel(const ExtrapConfig& config, double histMaxVal)
+  // The model named f<Model>_<suffix>: every TF1 registers itself in gROOT->GetListOfFunctions(), and the correlation
+  // tasks build one per particle, delta-y and multiplicity class (and a second for a high fit), each cloned into the
+  // extended spectrum and an overlay canvas; under one name per model they would pile up there - the rule in CLAUDE.md
+  // about ROOT's global lists, which cost a segfault once already through TCanvas. Named here, before anything clones
+  // it, so the unique name propagates to every copy; the same name is the fit's name in the messages.
+  static std::unique_ptr<TF1> CreateModel(const ExtrapConfig& config, double histMaxVal, std::string_view suffix)
   {
     std::unique_ptr<TF1> f1;
 
@@ -30,22 +36,23 @@ class ExtrapolationModelFactory
     double dMax = config.domainRange.second;
 
     if (config.model == "LevyTsallis") {
-      f1 = std::make_unique<TF1>("fLevyTsallis", LevyTsallisFunc, dMin, dMax, 4);
+      f1 = std::make_unique<TF1>(std::format("fLevyTsallis_{}", suffix).c_str(), LevyTsallisFunc, dMin, dMax, 4);
       ConfigureTF1(f1.get(), config, histMaxVal, {"mass", "n", "T", "norm"});
     } else if (config.model == "BoseEinstein") {
-      f1 = std::make_unique<TF1>("fBoseEinstein", BoseEinsteinFunc, dMin, dMax, 3);
+      f1 = std::make_unique<TF1>(std::format("fBoseEinstein_{}", suffix).c_str(), BoseEinsteinFunc, dMin, dMax, 3);
       ConfigureTF1(f1.get(), config, histMaxVal, {"mass", "T", "norm"});
     } else if (config.model == "BlastWave") {
-      f1 = std::make_unique<TF1>("fBlastWave", BlastWaveFunc, dMin, dMax, 5);
+      f1 = std::make_unique<TF1>(std::format("fBlastWave_{}", suffix).c_str(), BlastWaveFunc, dMin, dMax, 5);
       ConfigureTF1(f1.get(), config, histMaxVal, {"mass", "beta", "temp", "n", "norm"});
     } else if (config.model == "MtExponential") {
-      f1 = std::make_unique<TF1>("fMtExp", MtExponentialFunc, dMin, dMax, 3);
+      f1 = std::make_unique<TF1>(std::format("fMtExp_{}", suffix).c_str(), MtExponentialFunc, dMin, dMax, 3);
       ConfigureTF1(f1.get(), config, histMaxVal, {"mass", "T", "norm"});
     } else if (config.model == "PtExponential") {
-      f1 = std::make_unique<TF1>("fPtExp", PtExponentialFunc, dMin, dMax, 2);
+      f1 = std::make_unique<TF1>(std::format("fPtExp_{}", suffix).c_str(), PtExponentialFunc, dMin, dMax, 2);
       ConfigureTF1(f1.get(), config, histMaxVal, {"T", "norm"}); // No mass parameter required for PtExponential
     } else {
-      throw std::runtime_error(std::format("[FATAL] ExtrapolationModelFactory: Unknown model requested -> {}", config.model));
+      throw std::runtime_error(std::format("[FATAL] ExtrapolationModelFactory, '{}': unknown model '{}' in {}.", suffix, config.model,
+                                           config.source));
     }
 
     return f1;
@@ -132,35 +139,37 @@ class ExtrapolationModelFactory
         continue;
       }
 
-      // 2. Dynamic shape and normalization parameters are read from the JSON setup
-      if (config.params.count(name)) {
-        const auto& param = config.params.at(name);
+      // 2. Dynamic shape and normalization parameters are read from the JSON setup. A missing one stops the run, as in
+      // DynamicRooFitter: left as it was, it started from ROOT's 0, free and unbounded, and the extrapolation came out
+      // of whatever that fit converged to, with one warning.
+      const auto found = config.params.find(name);
+      if (found == config.params.end())
+        throw std::runtime_error(std::format("[FATAL] ExtrapolationModelFactory, '{}': model '{}' needs the parameter '{}', "
+                                             "which extrapConfig.json does not set in {}.",
+                                             f1->GetName(), config.model, name, config.source));
+      const MathParam& param = found->second;
 
-        // Auto-scale ONLY the normalization parameter based on the histogram's maximum value
-        double scale = (name == "norm") ? histMaxVal : 1.0;
+      // Auto-scale ONLY the normalization parameter based on the histogram's maximum value
+      double scale = (name == "norm") ? histMaxVal : 1.0;
 
-        double scaledVal = param.val * scale;
-        double scaledMin = param.min * scale;
-        double scaledMax = param.max * scale;
+      double scaledVal = param.val * scale;
+      double scaledMin = param.min * scale;
+      double scaledMax = param.max * scale;
 
-        f1->SetParName(i, name.c_str());
+      f1->SetParName(i, name.c_str());
 
-        // Handle fixed vs free parameters dynamically based on the JSON parsing (isConstant flag)
-        if (param.isConstant) {
-          f1->FixParameter(i, scaledVal);
-        } else {
-          f1->SetParameter(i, scaledVal);
-          f1->SetParError(i, std::abs(scaledVal) * 0.05 + 0.001);
-
-          // Apply parameter limits only if a valid range is provided in JSON (min < max)
-          // E.g., a JSON array like [2.0, 0.0, 0.0] leaves the parameter unbounded
-          if (scaledMin < scaledMax) {
-            f1->SetParLimits(i, scaledMin, scaledMax);
-          }
-        }
+      // Handle fixed vs free parameters dynamically based on the JSON parsing (isConstant flag)
+      if (param.isConstant) {
+        f1->FixParameter(i, scaledVal);
       } else {
-        Logger::Warn("ExtrapolationModelFactory: Parameter '{}' missing in JSON config for model '{}'!",
-                     name, config.model);
+        f1->SetParameter(i, scaledVal);
+        f1->SetParError(i, std::abs(scaledVal) * 0.05 + 0.001);
+
+        // Apply parameter limits only if a valid range is provided in JSON (min < max)
+        // E.g., a JSON array like [2.0, 0.0, 0.0] leaves the parameter unbounded
+        if (scaledMin < scaledMax) {
+          f1->SetParLimits(i, scaledMin, scaledMax);
+        }
       }
     }
   }

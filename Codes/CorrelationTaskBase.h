@@ -1066,26 +1066,14 @@ class CorrelationTaskBase : public IAnalysisTask
     eCfg.mass = config.mass; // Inject physical mass
 
     // 2. Generate configured TF1 model
-    std::unique_ptr<TF1> extrapModel = ExtrapolationModelFactory::CreateModel(eCfg, hSpec->GetMaximum());
+    // Named after the spectrum by the factory (unique per particle, delta-y and class: see CreateModel).
+    std::unique_ptr<TF1> extrapModel = ExtrapolationModelFactory::CreateModel(eCfg, hSpec->GetMaximum(), hSpec->GetName());
 
-    // The factory names by model - every Levy-Tsallis is "fLevyTsallis" - and this
-    // function runs once per particle, delta-y and multiplicity bin, each time cloning
-    // the model into the extended spectrum and now also onto an overlay canvas. Every
-    // TF1 registers itself in gROOT->GetListOfFunctions(), so without this they would
-    // all pile up there under one name: the rule in CLAUDE.md about ROOT's global
-    // lists, which cost a segfault once already through TCanvas.
-    //
-    // Renamed here, before anything clones it, so the unique name propagates to every
-    // copy by itself.
-    extrapModel->SetName(std::format("{}_{}", extrapModel->GetName(), hSpec->GetName()).c_str());
-
-    // The separate fit of the high side, when the configuration asks for one: built and
-    // named the same way.
+    // The separate fit of the high side, when the configuration asks for one.
     std::unique_ptr<TF1> highModel;
-    if (eCfg.high) {
-      highModel = ExtrapolationModelFactory::CreateModel(eCfg.HighConfig(), hSpec->GetMaximum());
-      highModel->SetName(std::format("{}_high_{}", highModel->GetName(), hSpec->GetName()).c_str());
-    }
+    if (eCfg.high)
+      highModel = ExtrapolationModelFactory::CreateModel(eCfg.HighConfig(), hSpec->GetMaximum(),
+                                                         std::format("high_{}", hSpec->GetName()));
 
     /*{
       // std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}", hSpec->GetName(), extrapFunction);

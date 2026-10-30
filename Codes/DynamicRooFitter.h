@@ -504,10 +504,14 @@ class DynamicRooFitter
   // This function centralizes error checking and memory management.
   RooRealVar* CreateVar(const std::string& name)
   {
-    // Safety check: if you request a parameter that you forgot to include in the JSON,
-    // the program stops immediately with a clear error, preventing a cryptic ROOT crash later.
+    // A parameter the model needs and the configuration does not set stops the run, naming the fit, the model and where
+    // it was looked for: a cell override carries only what it changes, the rest comes from the section's default.
     if (config.model.params.count(name) == 0) {
-      throw std::runtime_error(std::format("[FATAL] Missing parameter in JSON: {}", name));
+      throw std::runtime_error(std::format(
+        "[FATAL] DynamicRooFitter, '{}': the model {} + {} needs the parameter '{}', which neither the default of its "
+        "fitConfig.json section nor {} sets.",
+        h1Data->GetName(), config.model.sigModel, config.model.bkgModel, name,
+        config.binOverride.empty() ? "a cell override (none applies to this cell)" : std::format("the override '{}'", config.binOverride)));
     }
 
     // Extract the [val, min, max, isConstant] struct from the map
