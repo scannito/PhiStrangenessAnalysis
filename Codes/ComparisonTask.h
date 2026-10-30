@@ -507,9 +507,7 @@ class ComparisonTask : public IAnalysisTask
   // scheme and species directories, not in Spectra, Trends or Ratios.
   int DivideDirectory(const OpenPair& pair, const Comparison& comp, const std::vector<std::string>& subPath)
   {
-    // Read-only on the inputs: navigate, never create. They are opened READ, so a
-    // mkdir would fail anyway, but saying it here is what makes a missing directory
-    // a plain "nothing to do" instead of an error.
+    // A directory missing on either side is nothing to divide.
     TDirectory* numSub = RootIO::FindPath(pair.numDir, subPath);
     TDirectory* denSub = RootIO::FindPath(pair.denDir, subPath);
     if (!numSub || !denSub)
@@ -559,11 +557,18 @@ class ComparisonTask : public IAnalysisTask
   // being divided - see the note at the top of the class.
   void RequireSamePtAssoc(const OpenPair& pair, const Comparison& comp, const std::string& particle)
   {
+    // Absent from the denominator, the particle has nothing to divide (DivideDirectory).
+    TDirectory* denParticle = RootIO::FindPath(pair.denDir, {particle});
+    if (!denParticle)
+      return;
     const std::vector<double> stamped = RootIO::ReadBinningStamp(RootIO::FindPath(pair.numDir, {particle}), RootIO::kStampPtAssoc);
-    if (stamped.empty())
-      return; // produced before the stamp existed: warned about, not fatal
+    if (stamped.empty()) {
+      Logger::Warn("{} '{}', {}, numerator '{}': no '{}' stamp, so the two pT binnings cannot be compared.", GetName(),
+                   comp.label, particle, comp.numeratorFile, RootIO::kStampPtAssoc);
+      return;
+    }
 
-    RootIO::RequireMatchingBinningStamp(RootIO::FindPath(pair.denDir, {particle}), RootIO::kStampPtAssoc, stamped,
+    RootIO::RequireMatchingBinningStamp(denParticle, RootIO::kStampPtAssoc, stamped,
                                         std::format("{} '{}', {}, denominator '{}'", GetName(), comp.label, particle,
                                                     comp.denominatorFile));
   }

@@ -150,9 +150,13 @@ inline TDirectory* MakePath(TDirectory* baseDir, const std::vector<std::string>&
   for (const auto& node : pathNodes) {
     if (node.empty())
       continue;
+    // GetDirectory first and not mkdir's returnExistingDirectory: that one looks only at the keys on disk
+    // (TDirectoryFile::mkdir, GetKey), and would make a second directory of one created in this run and not
+    // yet written. mkdir fails when the disk is full or the file is closed or read-only.
     TDirectory* next = dir->GetDirectory(node.c_str());
-    // mkdir fails when the disk is full or the file is closed or read-only.
-    if (!next && !(next = dir->mkdir(node.c_str())))
+    if (!next)
+      next = dir->mkdir(node.c_str());
+    if (!next)
       throw std::runtime_error(std::format("[FATAL] RootIO::MakePath: cannot create '{}' in '{}' of {}.",
                                            node, dir->GetPath(), FileNameOf(baseDir)));
     dir = next;
@@ -228,12 +232,10 @@ inline const std::string kStampPtAssoc{"binning_ptAssoc"};
 // through AxisEdges like any other axis, and is inspectable in a TBrowser.
 inline void WriteBinningStamp(TDirectory* dir, const std::string& name, std::span<const double> edges)
 {
-  // A stamp not written is read back as empty, which the readers take as "nothing to compare": the check it
-  // carries would be switched off with no word.
-  if (!dir)
-    throw std::runtime_error(std::format("[FATAL] RootIO::WriteBinningStamp: no directory to write '{}' into.", name));
-  if (edges.size() < 2)
-    return;
+  // A stamp not written reads back as empty, "nothing to compare": the check would be off with no word.
+  if (!dir || edges.size() < 2)
+    throw std::runtime_error(std::format("[FATAL] RootIO::WriteBinningStamp: '{}' with {} edges into {}.", name, edges.size(),
+                                         dir ? dir->GetPath() : "no directory"));
 
   TH1D stamp(name.c_str(), "binning stamp (bin edges only, contents unused)",
              BinningUtils::NBins(edges), edges.data());
@@ -269,6 +271,11 @@ inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& 
 inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name,
                                         std::span<const double> current, std::string_view errCtx)
 {
+  // A directory that is not there is not an old file without a stamp: the file has nothing of this scheme.
+  if (!dir)
+    throw std::runtime_error(std::format("[FATAL] {}: no directory to read the '{}' stamp from: the file holds nothing "
+                                         "of this binning scheme or section.",
+                                         errCtx, name));
   const std::vector<double> stamped = ReadBinningStamp(dir, name);
 
   if (stamped.empty()) {

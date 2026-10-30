@@ -162,14 +162,14 @@ class MCTask : public IAnalysisTask
 
       // Register particle summary canvases with their target ROOT subdirectories.
       // Each one declares its Y range here; the manager applies it when it writes.
-      canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_Efficiency", name + " Acceptance x Efficiency",
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, "Efficiency"), name + " Acceptance x Efficiency",
                                                              {globalCfgs.binningName, "AccEff", "Summary"}));
-      canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_SignalLoss", name + " Signal Loss",
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, "SignalLoss"), name + " Signal Loss",
                                                              {globalCfgs.binningName, "SigLoss", "Summary"}));
       if (data.rebinningPt) {
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_Efficiency" + OutputNames::kSourceBinningSuffix, name + " Efficiency (Source Binning)",
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, "Efficiency", true), name + " Efficiency (Source Binning)",
                                                                OutputNames::SourceBinningPath({globalCfgs.binningName, "AccEff", "Summary"})));
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_SignalLoss" + OutputNames::kSourceBinningSuffix, name + " Signal Loss (Source Binning)",
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, "SignalLoss", true), name + " Signal Loss (Source Binning)",
                                                                OutputNames::SourceBinningPath({globalCfgs.binningName, "SigLoss", "Summary"})));
       }
 
@@ -198,11 +198,11 @@ class MCTask : public IAnalysisTask
 
       // OverEventLoss canvases are registered only when event histograms exist
       for (const auto& data : dataCollection) {
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + data.name + "_SignalLossOverEventLoss",
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(data.name, "SignalLossOverEventLoss"),
                                                                data.name + " Signal Loss / Event Loss",
                                                                {globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"}));
         if (data.rebinningPt) {
-          canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + data.name + "_SignalLossOverEventLoss" + OutputNames::kSourceBinningSuffix,
+          canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(data.name, "SignalLossOverEventLoss", true),
                                                                  data.name + " Signal Loss / Event Loss (Source Binning)",
                                                                  OutputNames::SourceBinningPath({globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"})));
         }
@@ -306,24 +306,24 @@ class MCTask : public IAnalysisTask
       // multiplicity bins against each other, so mixing two binnings on one pad
       // would make exactly the comparison it is drawn for unreadable.
       auto drawMaps = [&](const EfficiencyCalculator::Maps1D& maps, const char* drawOption) {
-        if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_Efficiency")) {
+        if (auto* c = canvasManager.GetCanvas(SummaryCanvas(data.name, "Efficiency"))) {
           c->cd();
           maps.efficiency->DrawCopy(drawOption);
         }
 
-        if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_SignalLoss")) {
+        if (auto* c = canvasManager.GetCanvas(SummaryCanvas(data.name, "SignalLoss"))) {
           c->cd();
           maps.signalLoss->DrawCopy(drawOption);
         }
 
         if (maps.efficiencySourceBinning) {
-          if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_Efficiency" + OutputNames::kSourceBinningSuffix)) {
+          if (auto* c = canvasManager.GetCanvas(SummaryCanvas(data.name, "Efficiency", true))) {
             c->cd();
             maps.efficiencySourceBinning->DrawCopy(drawOption);
           }
         }
         if (maps.signalLossSourceBinning) {
-          if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_SignalLoss" + OutputNames::kSourceBinningSuffix)) {
+          if (auto* c = canvasManager.GetCanvas(SummaryCanvas(data.name, "SignalLoss", true))) {
             c->cd();
             maps.signalLossSourceBinning->DrawCopy(drawOption);
           }
@@ -396,8 +396,8 @@ class MCTask : public IAnalysisTask
           ratio->DrawCopy(drawOption);
         };
 
-        divideAndDraw(maps.signalLoss.get(), canvasManager.GetCanvas("c_" + data.name + "_SignalLossOverEventLoss"));
-        divideAndDraw(maps.signalLossSourceBinning.get(), canvasManager.GetCanvas("c_" + data.name + "_SignalLossOverEventLoss" + OutputNames::kSourceBinningSuffix));
+        divideAndDraw(maps.signalLoss.get(), canvasManager.GetCanvas(SummaryCanvas(data.name, "SignalLossOverEventLoss")));
+        divideAndDraw(maps.signalLossSourceBinning.get(), canvasManager.GetCanvas(SummaryCanvas(data.name, "SignalLossOverEventLoss", true)));
       };
 
       // The source-binning maps get a subdirectory of their own rather than
@@ -453,6 +453,13 @@ class MCTask : public IAnalysisTask
   }
 
  private:
+  // The summary canvas of one map of a particle ("Efficiency", "SignalLoss", "SignalLossOverEventLoss"), at the
+  // analysis binning or at the source one: created in Init, drawn on per class in Run.
+  static std::string SummaryCanvas(const std::string& particle, std::string_view map, bool sourceBinning = false)
+  {
+    return std::format("c_{}_{}{}", particle, map, sourceBinning ? OutputNames::kSourceBinningSuffix : "");
+  }
+
   AnalysisSettings globalCfgs;
 
   CanvasManager canvasManager;

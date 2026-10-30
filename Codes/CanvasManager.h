@@ -678,18 +678,7 @@ class CanvasManager
   {
     if (!canvas)
       return;
-    WriteCanvas(canvas, RootIO::MakePath(baseDir, pathNodes));
-  }
-
-  // Static helper to write a canvas directly into a target TDirectory
-  static void WriteCanvas(TCanvas* canvas, TDirectory* targetDir)
-  {
-    if (!canvas)
-      return;
-    // A canvas with nowhere to go is lost, as a missing directory is for RootIO::MakePath.
-    if (!targetDir)
-      throw std::runtime_error(std::format("[FATAL] CanvasManager: no directory to write canvas '{}' into.", canvas->GetName()));
-    targetDir->cd();
+    RootIO::MakePath(baseDir, pathNodes)->cd();
     canvas->Write(nullptr, TObject::kOverwrite);
   }
 

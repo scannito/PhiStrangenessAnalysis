@@ -33,19 +33,8 @@ class CorrelationTask : public CorrelationTaskBase
                                                {{"legacy", RunMode::Legacy}, {"optimized", RunMode::Optimized}}, GetName());
     RequireEngineSettingsSupported();
 
-    // Prefix handling: search specific key -> Search fallback -> Search legacy
-    auto getPrefix = [ctx = GetName()](const rapidjson::Value& config, const std::string& specificKey, const std::string& fallbackKey) -> std::string {
-      // Most specific key first, then the shared one, then the legacy spelling.
-      std::string prefix = JsonConfig::OptionalString(config, specificKey.c_str(), "", ctx);
-      if (prefix.empty())
-        prefix = JsonConfig::OptionalString(config, fallbackKey.c_str(), "", ctx);
-      if (prefix.empty())
-        prefix = JsonConfig::OptionalString(config, "input_output_prefix", "", ctx);
-      return prefix;
-    };
-
-    purityPrefix = getPrefix(taskConfig, "purity_prefix", "input_prefix");
-    triggerPrefix = getPrefix(taskConfig, "trigger_prefix", "input_prefix");
+    purityPrefix = PrefixFor(taskConfig, {"purity_prefix", "input_prefix"});
+    triggerPrefix = PrefixFor(taskConfig, {"trigger_prefix", "input_prefix"});
 
     // 2. Load Trigger information from PhiFitTask
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
@@ -273,6 +262,12 @@ class CorrelationTask : public CorrelationTaskBase
     // MODE B: STANDARD CALCULATION (If L2 Cache is disabled)
     // The CorrelationCalculator is invoked here (managing L1 Cache internally)
     // =========================================================================
+    // With use_projection_cache the projection files are open read-only, so the signal cache cannot be updated:
+    // it keeps what the run that last wrote it put there (DESIGN_NOTES, "The signal cache records nothing").
+    const bool writeSignalCache = !useProjectionCache;
+    if (!writeSignalCache)
+      Logger::Info("{}: use_projection_cache opens the projection files read-only, so the signal cache is not updated.", GetName());
+
     CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .moreQA = doMoreQA, .meNorm = meNormalization, .targetAxis = projectionAxis});
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
@@ -321,21 +316,14 @@ class CorrelationTask : public CorrelationTaskBase
       Logger::Info("Multiplicity bin {} completed. Committing results to Level 2 Cache...", multBin);
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        // With use_projection_cache the projection files are open read-only, and the write would fail with an
-        // error of ROOT's own, outside Logger. Skipped and said instead: what a later use_signal_cache run reads
-        // is then the signal of the run that last wrote it, whatever corrections that run applied.
-        if (!filesPhiAssocDataOutput[pIdx]->IsWritable()) {
-          Logger::Warn("{}: the signal cache (use_signal_cache) of {} is not updated: '{}' is open read-only "
-                       "(use_projection_cache). A later run reading it gets the signal of the run that last wrote it.",
-                       GetName(), assocParticles[pIdx].name, filesPhiAssocDataOutput[pIdx]->GetName());
-          continue;
-        }
-        RootIO::MakePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath)->cd();
+        if (writeSignalCache)
+          RootIO::MakePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath)->cd();
         for (int ptAssocBin : BinningUtils::BinIndices(assocParticles[pIdx].binning)) {
           if (h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]) {
             std::string saveName = std::format("h1Phi{}Final{}", assocParticles[pIdx].name, CellSuffix(assocParticles[pIdx], multBin, ptAssocBin));
             h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetName(saveName.c_str());
-            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->Write(nullptr, TObject::kOverwrite);
+            if (writeSignalCache)
+              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->Write(nullptr, TObject::kOverwrite);
           }
         }
       }

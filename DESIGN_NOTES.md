@@ -1209,6 +1209,17 @@ reason (about 40 `Write` calls, in `CorrelationCalculator`, `CorrelationTaskBase
 check at each: a `TCanvas` or a `TTree` writes differently from a histogram, and the output must stay identical
 (`CompareRootFiles`).
 
+**The signal cache records nothing (30 October 2026).** `use_signal_cache` reads, from the projection files,
+the per-cell signals (`h1Phi{X}Final...`) a previous run committed, and skips the calculator. Nothing says which
+run that was or with which corrections, purities and background ratios: the projection files carry binning
+stamps, not the provenance of the signals. And a run with `use_projection_cache` (on in
+`correlation_base_settings`) opens those files read-only, so it cannot update the signals: until 30 October it
+tried, and ROOT refused with an error of its own outside `Logger`; now `CorrelationTask` says once, as `Info`,
+that it does not write them. The next `use_signal_cache` run therefore reads the signals of whatever run last
+wrote them, with no word. The fix belongs on the reading side: a provenance record (or a fingerprint of the
+corrections and settings that shape the signal) written with the signals and compared when they are read, so
+that a stale cache stops the run as a binning mismatch does. Not done: the owner to decide.
+
 ---
 
 ## 11. Cling constraints learned the hard way

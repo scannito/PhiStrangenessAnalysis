@@ -569,7 +569,7 @@ class CorrelationTaskBase : public IAnalysisTask
       const std::string particle = member.name.GetString();
       const std::string pctx = std::format("{}.particles.{}", ctx, particle);
 
-      PtBinningOf(particle, pctx); // refuses any name that is neither Phi nor an associated particle
+      RequireKnownParticle(particle, pctx);
       if (!member.value.IsObject())
         throw std::runtime_error(std::format("[FATAL] {}: must be an object.", pctx));
 
@@ -1449,11 +1449,9 @@ class CorrelationTaskBase : public IAnalysisTask
   // the projection file (the cache) and, when asked, a QA file.
   void OpenOutputFiles(const rapidjson::Value& taskConfig, bool withQA)
   {
-    // The prefix by one rule for both tasks: output_prefix, else input_output_prefix. A task that read only one of
-    // them would write, with the other set, to the unprefixed file and clear its section below.
-    std::string prefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
-    if (prefix.empty())
-      prefix = JsonConfig::OptionalString(taskConfig, "input_output_prefix", "", GetName());
+    // By the rule of every prefix (PrefixFor): a task that read only one of the keys would write, with the other
+    // set, to the unprefixed file and clear its section below.
+    const std::string prefix = PrefixFor(taskConfig, {"output_prefix"});
 
     const std::string projectionsDir = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
     const std::string finalDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
@@ -1480,6 +1478,16 @@ class CorrelationTaskBase : public IAnalysisTask
     }
   }
 
+  // A prefix of the file names: the first of 'keys' present in the block, else input_output_prefix, else none.
+  // Present, even if empty: "" in a child block is how it says "no prefix" over its parent's (CLAUDE.md, the merge).
+  std::string PrefixFor(const rapidjson::Value& taskConfig, std::initializer_list<const char*> keys) const
+  {
+    for (const char* key : keys)
+      if (std::optional<std::string> prefix = JsonConfig::TryString(taskConfig, key, GetName()))
+        return *prefix;
+    return JsonConfig::OptionalString(taskConfig, "input_output_prefix", "", GetName());
+  }
+
   // Where the associated particle of that name is in assocParticles, if it is one: the configuration names particles.
   std::optional<size_t> AssocIndex(std::string_view name) const
   {
@@ -1489,15 +1497,19 @@ class CorrelationTaskBase : public IAnalysisTask
     return static_cast<size_t>(it - assocParticles.begin());
   }
 
+  // A correction or a purity names its particle: the trigger, "Phi", or one of the associated particles.
+  void RequireKnownParticle(const std::string& particle, std::string_view errCtx) const
+  {
+    if (particle != "Phi" && !AssocIndex(particle))
+      throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither Phi nor one of the associated_particles.", errCtx, particle));
+  }
+
   // The pT binning a correction or a purity of 'particle' is verified against: the trigger's for "Phi", the
-  // particle's own for an associated one; any other name stops the run.
+  // particle's own for an associated one.
   const std::vector<double>& PtBinningOf(const std::string& particle, std::string_view errCtx) const
   {
-    if (particle == "Phi")
-      return ptPhiBinning;
-    if (const std::optional<size_t> pIdx = AssocIndex(particle))
-      return assocParticles[*pIdx].binning;
-    throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither Phi nor one of the associated_particles.", errCtx, particle));
+    RequireKnownParticle(particle, errCtx);
+    return particle == "Phi" ? ptPhiBinning : assocParticles[*AssocIndex(particle)].binning;
   }
 
   // The path of this task's section, {binning_name, section}, and of what is below it:
@@ -1517,13 +1529,14 @@ class CorrelationTaskBase : public IAnalysisTask
   TDirectory* ProjectionCacheDir(size_t pIdx, const std::vector<std::string>& logicalPath) const
   {
     TFile* file = filesPhiAssocDataOutput[pIdx].get();
-    TDirectory* dir = useProjectionCache ? RootIO::FindPath(file, logicalPath) : RootIO::MakePath(file, logicalPath);
-    if (!dir)
-      throw std::runtime_error(std::format(
-        "[FATAL] {}: use_projection_cache is on, but '{}' has no '{}': the projections of {} were never cached "
-        "for this binning and section ({}). Run once with use_projection_cache false to build the cache.",
-        GetName(), RootIO::FileNameOf(file), RootIO::MakeDirPath(logicalPath), assocParticles[pIdx].name, SectionDirName()));
-    return dir;
+    if (!useProjectionCache)
+      return RootIO::MakePath(file, logicalPath);
+    if (TDirectory* dir = RootIO::FindPath(file, logicalPath))
+      return dir;
+    throw std::runtime_error(std::format(
+      "[FATAL] {}: use_projection_cache is on, but '{}' has no '{}': the projections of {} were never cached "
+      "for this binning and section ({}). Run once with use_projection_cache false to build the cache.",
+      GetName(), RootIO::FileNameOf(file), RootIO::MakeDirPath(logicalPath), assocParticles[pIdx].name, SectionDirName()));
   }
 
   static double GetYieldScaleFactor(const std::string& name)
