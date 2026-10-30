@@ -31,6 +31,9 @@ class ExtrapConfigManager : public BaseConfigManager
       classes.insert(OutputNames::MultTag(multBinning, multBin));
     if (const rapidjson::Value* bins = JsonConfig::TryObject(Section(particle), "bins", SectionCtx(particle)))
       JsonConfig::RequireKnownKeys(*bins, classes, SectionCtx(particle) + ".bins (the keys are the multiplicity classes)");
+    // Every class read once now, at Init, for the reason given at FitConfigManager::DeclareCells.
+    for (const std::string& multTag : classes)
+      (void)GetConfig(particle, multTag);
   }
 
   // The configuration of one class, 'multTag' as OutputNames::MultTag gives it.

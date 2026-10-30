@@ -53,7 +53,6 @@ class PurityTask : public IAnalysisTask
     // Prefix to specify the type of analysis (Data vs MCClosure)
     outputPrefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
     outputFile = RootIO::OpenOrThrow(std::format("{}{}{}", outputDir, outputPrefix, OutputNames::kPurityFile), "UPDATE", GetName());
-    RootIO::ClearPath(outputFile.get(), {globalCfgs.binningName});
 
     // CCDB-ready maps live under outputDir/{binningName}/ on disk, since the ROOT
     // object inside must be named literally "ccdb_object" with no subfolder.
@@ -130,6 +129,9 @@ class PurityTask : public IAnalysisTask
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
     for (const ParticleTask& task : particleTasks)
       fitConfigManager->DeclareCells(task.purityKey, multBinning, {task.sourceBinning, task.AnalysisBinning()});
+
+    // Last, once the whole configuration has been read: a mistake in it must not cost the previous production.
+    RootIO::ClearPath(outputFile.get(), {globalCfgs.binningName});
   }
 
   void Run() override

@@ -99,6 +99,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     InitCorrectionsAndExtrapolation(taskConfig);
 
     SetupTrendHistograms();
+    ClearOwnSection();
   }
 
   void Run() override

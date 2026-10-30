@@ -34,6 +34,10 @@ class FitConfigManager : public BaseConfigManager
           cells.insert(OutputNames::CellTag(multBinning, multBin, ptBinning, ptBin));
     if (const rapidjson::Value* bins = Bins(section))
       JsonConfig::RequireKnownKeys(*bins, cells, SectionCtx(section) + ".fit_setup.bins (the keys are the cells this task fits)");
+    // Every cell read once now, at Init: a mistake in a node then stops the run before the task has cleared its
+    // output, and not in Run, after the previous production was already gone.
+    for (const std::string& cell : cells)
+      (void)GetConfig(section, cell);
   }
 
   // The configuration of one cell, 'cell' as OutputNames::CellTag gives it: the section's default, then the

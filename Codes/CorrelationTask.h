@@ -116,6 +116,7 @@ class CorrelationTask : public CorrelationTaskBase
       LoadPurities(taskConfig);
 
     SetupTrendHistograms();
+    ClearOwnSection();
   }
 
   void Run() override

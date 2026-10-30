@@ -1457,12 +1457,6 @@ class CorrelationTaskBase : public IAnalysisTask
     const std::string finalDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     fileOutputSpectra = RootIO::OpenOrThrow(std::format("{}{}{}", finalDir, prefix, OutputNames::kSpectraFile), "UPDATE", GetName());
 
-    // This run rewrites its whole section directory, so whatever a previous one left
-    // there - produced when the layout or the object names were different - would sit
-    // beside the new objects with nothing to tell them apart. UPDATE and not RECREATE
-    // because only this subtree is ours: another 'binning_name', or the other
-    // Extract1D/2D, belongs to somebody else and stays.
-    RootIO::ClearPath(fileOutputSpectra.get(), SectionPath());
 
     // UPDATE and not RECREATE here too, and for a different reason: the cache is
     // expensive to rebuild, so a scheme directory that already holds projections of
@@ -1480,6 +1474,13 @@ class CorrelationTaskBase : public IAnalysisTask
 
   // The projection files are read, not written, when the projections come from them: the cache is not rebuilt.
   bool ProjectionFilesReadOnly() const { return useProjectionCache; }
+
+  // The last step of Init, once the whole configuration has been read (the extrapolation classes included), so that a
+  // mistake in it does not cost the previous production. This run rewrites its whole section directory, so whatever
+  // a previous one left there - produced when the layout or the object names were different - would sit beside the
+  // new objects with nothing to tell them apart. UPDATE and not RECREATE because only this subtree is ours: another
+  // 'binning_name', or the other Extract1D/2D, belongs to somebody else and stays.
+  void ClearOwnSection() { RootIO::ClearPath(fileOutputSpectra.get(), SectionPath()); }
 
   // Where the associated particle of that name is in assocParticles, if it is one: the configuration names particles.
   std::optional<size_t> AssocIndex(std::string_view name) const
