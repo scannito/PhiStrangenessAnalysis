@@ -66,6 +66,9 @@ class ExtrapConfigManager : public BaseConfigManager
     auto loadNodeIntoConfig = [&](const rapidjson::Value& node, const std::string& where) {
       JsonConfig::RequireKnownKeys(node, {"model", "domain_range", "fit_range", "params", "high"}, sectionCtx);
       loadFit(node, config, sectionCtx);
+      // The main fit is merged pass after pass, so its source is every node read so far.
+      const std::string read = std::format("{}.{}", particle, where);
+      config.source = config.source.empty() ? read : std::format("{} and {}", config.source, read);
 
       if (auto range = JsonConfig::TryRange(node, "domain_range", sectionCtx))
         config.domainRange = *range;
@@ -81,18 +84,15 @@ class ExtrapConfigManager : public BaseConfigManager
           for (const char* key : {"model", "fit_range", "params"})
             JsonConfig::RequireMember(*high, key, ctx);
           loadFit(*high, config.high.emplace(), ctx);
-          config.high->source = std::format("{}.{}.high", particle, where);
+          config.high->source = read + ".high";
         }
       }
     };
 
-    // 1. First, apply all "default" mathematical parameters
-    if (const rapidjson::Value* defaults = JsonConfig::TryObject(partNode, "default", managerName)) {
+    // The default first, then the override of this bin over it; either may be absent.
+    if (const rapidjson::Value* defaults = JsonConfig::TryObject(partNode, "default", managerName))
       loadNodeIntoConfig(*defaults, "default");
-      config.source = std::format("{}.default", particle);
-    }
 
-    // 2. Override with specific bin settings if they exist
     // The outer key is fixed and must be an object; the inner one is the class, so
     // its absence is the normal case and HasMember is the right tool.
     const rapidjson::Value* bins = JsonConfig::TryObject(partNode, "bins", managerName);
@@ -100,7 +100,6 @@ class ExtrapConfigManager : public BaseConfigManager
       Logger::Debug("{}: Found custom parameters for bin: {}", managerName, multTag);
       const std::string where = std::format("bins['{}']", multTag);
       loadNodeIntoConfig((*bins)[multTag.c_str()], where);
-      config.source = std::format("{}.default and {}.{}", particle, particle, where);
     }
 
     return config;
