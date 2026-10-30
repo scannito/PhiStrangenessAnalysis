@@ -569,11 +569,9 @@ class SpectrumExtrapolator
   // fit range, and reading the member here would quietly undo that.
   std::unique_ptr<TH1> CreateLowExtrapolationHisto(TH1* h, TF1* f, double minPt) const
   {
-    int binlo = 1;
-    double lo = fMinPt;
+    double lo = minPt;
     for (int bin = 1; bin <= h->GetNbinsX(); bin++) {
       if (h->GetBinContent(bin) != 0.) {
-        binlo = bin;
         lo = h->GetBinLowEdge(bin);
         break;
       }
@@ -601,20 +599,19 @@ class SpectrumExtrapolator
 
   std::unique_ptr<TH1> CreateHighExtrapolationHisto(TH1* h, TF1* f, double maxPt) const
   {
-    int binhi = h->GetNbinsX();
-    double hi = fMaxPt;
+    double hi = maxPt;
     for (int bin = h->GetNbinsX(); bin > 0; bin--) {
       if (h->GetBinContent(bin) != 0.) {
-        binhi = bin + 1;
         hi = h->GetBinLowEdge(bin + 1);
         break;
       }
     }
 
-    if (fMaxPt < hi) {
+    // maxPt and not fMaxPt: the domain widened over the fit range (Extrapolate), as YieldMean checks it.
+    if (maxPt < hi) {
       Logger::Warn("SpectrumExtrapolator: '{}' has content up to {:g}, above the upper end {:g} of the extrapolation "
                    "domain: no extrapolation on the high side.",
-                   h->GetName(), hi, fMaxPt);
+                   h->GetName(), hi, maxPt);
       return nullptr;
     }
 
