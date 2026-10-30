@@ -12,14 +12,14 @@
 #include <vector>
 
 // The names and the layout of what the correlation tasks write into PhiAssocSpectra.root, the
-// names of the files one task writes and another reads (the trigger matrices, the purities), and
-// of the directories and objects in them that another task looks up (the corrections, the trigger
-// matrices, the purity spectra), with the cell tags they are built from and the title form of a
-// cell (CellTitle). The directories of PhiAssocSpectra.root are written by CorrelationTaskBase and
-// read by ComparisonTask; the object names
-// are built here and not where each object is written, so that a reader that looks an object up
-// by what it is builds the same string, and a rename is one change. The names shared by every
-// file the framework writes - the binning stamps and the provenance directory - are RootIO's,
+// names of the files that more than one place in the code spells (the trigger matrices, the
+// purities, the projections, the results), and of the directories and objects in them that another
+// task looks up (the corrections, the trigger matrices, the purity spectra), with the cell tags they
+// are built from and the title form of a cell (CellTitle). The directories of PhiAssocSpectra.root
+// are written by CorrelationTaskBase and read by ComparisonTask; the object names are built here and
+// not where each object is written, so that a reader that looks an object up by what it is builds
+// the same string, and a rename is one change. The names shared by every file the framework writes
+// - the binning stamps and the provenance directory - and the object of a CCDB file are RootIO's,
 // next to the functions that write them.
 //
 // A multiplicity class is named by its interval ("mult10-15", BinningUtils::BinLabel), never by
@@ -47,6 +47,10 @@ inline const std::string kPhiDataFile{"PhiDataHistograms.root"}; // PhiFitTask -
 inline const std::string kPurityFile{"Purity.root"};             // PurityTask -> CorrelationTask, every particle
 // The directory of each, below the binning_name, that holds what the other task reads.
 inline std::vector<std::string> SummaryPath(const std::string& binningName) { return {binningName, "Summary"}; }
+// Written by both correlation tasks, CorrelationTask and CorrelationWPDGTask: the results, and the
+// projections of one associated particle, which a later run reads back (use_projection_cache).
+inline const std::string kSpectraFile{"PhiAssocSpectra.root"};
+inline std::string ProjectionFile(std::string_view particle) { return std::format("Phi{}DataHistograms.root", particle); }
 
 
 // A species directory of a section is one that holds per-species results, which is what

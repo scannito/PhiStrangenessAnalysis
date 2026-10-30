@@ -105,7 +105,7 @@ layers, and the right one depends on what you already hold:
 
 | | |
 |---|---|
-| `ToNumber`, `ToArray` | you have the value; interpret it and name it if it is wrong |
+| `ToNumber`, `ToArray`, `ToString` | you have the value; interpret it and name it if it is wrong |
 | `RequireMember`, `OptionalMember` | navigate by key, no opinion on the type |
 | `Require*`, `Optional*`, `Try*` | key and type together, which is what tasks use |
 

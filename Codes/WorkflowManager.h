@@ -232,8 +232,9 @@ class WorkflowManager
   {
     // Missing and present-but-not-an-array used to give the same message; now the
     // two are told apart, which matters when the mistake is a typo in the type.
+    int index = 0;
     for (auto& taskValue : JsonConfig::RequireArray(workflowNode, "active_tasks", "workflow"))
-      activeTasksList.push_back(taskValue.GetString());
+      activeTasksList.push_back(JsonConfig::ToString(taskValue, std::format("active_tasks[{}]", index++), "workflow"));
   }
 
   // =========================================================================
@@ -242,24 +243,24 @@ class WorkflowManager
   // =========================================================================
   rapidjson::Value MergeTaskConfiguration(const std::string& taskName)
   {
-    bool isInMaster = document.HasMember(taskName.c_str());
-    bool isInBase = hasBaseFile && baseDocument.HasMember(taskName.c_str());
-
-    if (!isInMaster && !isInBase) {
-      throw std::runtime_error(std::format("[FATAL] JSON configuration block '{}' not found in any file!", taskName));
+    // The master takes precedence; a block present but not an object stops the run in either file.
+    const rapidjson::Value* src = JsonConfig::TryObject(document, taskName.c_str(), "master configuration");
+    if (!src && hasBaseFile)
+      src = JsonConfig::TryObject(baseDocument, taskName.c_str(), "base configuration");
+    if (!src) {
+      throw std::runtime_error(std::format("[FATAL] WorkflowManager: configuration block '{}' not found in the master "
+                                           "configuration{}.", taskName, hasBaseFile ? " nor in the base one" : ""));
     }
-
-    // Target the document where the block was found (Master takes precedence)
-    rapidjson::Value& currentSrc = isInMaster ? document[taskName.c_str()] : baseDocument[taskName.c_str()];
+    const rapidjson::Value& currentSrc = *src;
 
     // BASE CASE: No inheritance requested. Return a standalone deep copy.
-    if (!currentSrc.HasMember("inherits")) {
+    std::optional<std::string> parentName = JsonConfig::TryString(currentSrc, "inherits", taskName);
+    if (!parentName) {
       return rapidjson::Value(currentSrc, document.GetAllocator());
     }
 
     // RECURSIVE CASE: Resolve the parent chain first
-    std::string baseName = JsonConfig::RequireString(currentSrc, "inherits", taskName);
-    rapidjson::Value mergedConfig = MergeTaskConfiguration(baseName);
+    rapidjson::Value mergedConfig = MergeTaskConfiguration(*parentName);
 
     // Apply the local overrides from the child to the resolved parent
     for (auto& m : currentSrc.GetObject()) {

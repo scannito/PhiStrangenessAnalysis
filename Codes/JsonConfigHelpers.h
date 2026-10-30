@@ -89,6 +89,15 @@ inline rapidjson::Value::ConstArray ToArray(const rapidjson::Value& value, std::
   return value.GetArray();
 }
 
+// The same for a string, which GetString() on anything else asserts on. The key-based readers below go
+// through it, so the test and its message exist once.
+inline std::string ToString(const rapidjson::Value& value, std::string_view what, std::string_view errCtx)
+{
+  if (!value.IsString())
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' is not a string.", errCtx, what));
+  return value.GetString();
+}
+
 // Takes the array and not the node: whether the key exists and whether it is an
 // array is what RequireArray and TryArray answer, and answering it twice would
 // mean two error messages for one mistake.
@@ -135,10 +144,7 @@ inline const rapidjson::Value* OptionalMember(const rapidjson::Value& node, cons
 
 inline std::string RequireString(const rapidjson::Value& node, const char* key, std::string_view errCtx)
 {
-  const auto& val = RequireMember(node, key, errCtx);
-  if (!val.IsString())
-    throw std::runtime_error(std::format("[FATAL] {}: key '{}' exists but is NOT a string!", errCtx, key));
-  return val.GetString();
+  return ToString(RequireMember(node, key, errCtx), key, errCtx);
 }
 
 inline bool RequireBool(const rapidjson::Value& node, const char* key, std::string_view errCtx)
@@ -189,11 +195,7 @@ inline const rapidjson::Value& RequireObject(const rapidjson::Value& node, const
 inline std::string OptionalString(const rapidjson::Value& node, const char* key, std::string fallback, std::string_view errCtx)
 {
   const rapidjson::Value* val = OptionalMember(node, key);
-  if (!val)
-    return fallback;
-  if (!val->IsString())
-    throw std::runtime_error(std::format("[FATAL] {}: key '{}' is present but is NOT a string, so it would be silently ignored.", errCtx, key));
-  return val->GetString();
+  return val ? ToString(*val, key, errCtx) : fallback;
 }
 
 inline bool OptionalBool(const rapidjson::Value& node, const char* key, bool fallback, std::string_view errCtx)
@@ -365,9 +367,7 @@ inline std::optional<std::string> TryString(const rapidjson::Value& node, const 
   const rapidjson::Value* val = OptionalMember(node, key);
   if (!val)
     return std::nullopt;
-  if (!val->IsString())
-    throw std::runtime_error(std::format("[FATAL] {}: key '{}' is present but is NOT a string, so it would be silently ignored.", errCtx, key));
-  return val->GetString();
+  return ToString(*val, key, errCtx);
 }
 
 // ---------------------------------------------------------------------------

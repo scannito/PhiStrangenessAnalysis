@@ -119,13 +119,13 @@ class MCTask : public IAnalysisTask
       // histogram name still carries the species, only the folder is shared.
       std::string dirName = name;
       std::ranges::transform(dirName, dirName.begin(), [](unsigned char c) { return std::tolower(c); });
-      dirName = JsonConfig::OptionalString(p, "dir_name", dirName, GetName());
+      dirName = JsonConfig::OptionalString(p, "dir_name", dirName, ctx);
 
-      std::string particleInputFile = JsonConfig::OptionalString(p, "input_mc_file", defaultInputFile, GetName());
+      std::string particleInputFile = JsonConfig::OptionalString(p, "input_mc_file", defaultInputFile, ctx);
       // The task-level key is required, so this only fires on an explicitly
       // empty string, in the JSON or in the per-particle override.
       if (particleInputFile.empty()) {
-        throw std::runtime_error(std::format("[FATAL] MCTask: empty 'input_mc_file' for particle '{}'!", name));
+        throw std::runtime_error(std::format("[FATAL] {}: empty 'input_mc_file' for particle '{}'!", ctx, name));
       }
 
       LoadedMC data;
@@ -166,10 +166,10 @@ class MCTask : public IAnalysisTask
       multBinning = globalCfgs.ResolveMultBinning(data.h3MCGen->GetXaxis(), h3MCGenName + " in " + origin);
       globalCfgs.ResolvePtBinning(name, data.h3MCGen->GetYaxis(), h3MCGenName + " in " + origin);
 
-      if (auto rebin = JsonConfig::TryArray(p, "rebinning_pt", GetName())) {
-        std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, std::format("rebinning_pt for '{}'", name), GetName());
+      if (auto rebin = JsonConfig::TryArray(p, "rebinning_pt", ctx)) {
+        std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, std::format("rebinning_pt for '{}'", name), ctx);
         if (bins.size() < 2) {
-          throw std::runtime_error(std::format("[FATAL] MCTask: 'rebinning_pt' for particle '{}' must have at least 2 edges!", name));
+          throw std::runtime_error(std::format("[FATAL] {}: 'rebinning_pt' for particle '{}' must have at least 2 edges!", ctx, name));
         }
         data.rebinningPt = std::move(bins);
       }
@@ -295,21 +295,11 @@ class MCTask : public IAnalysisTask
       // 1. Compute and save the 3D and 2D correction map
       std::unique_ptr<TH3> h3CorrectionMap = EfficiencyCalculator::Compute3DCorrectionMap(data, particleCorrectionMode);
 
-      std::string fileMCOutputPerPartPath3D = ccdbOutputDir + outputPrefix + "h3EffMap" + data.name + ".root";
-      std::unique_ptr<TFile> fileMCOutputPerPart3D = RootIO::OpenOrThrow(fileMCOutputPerPartPath3D, "RECREATE", GetName());
-      fileMCOutputPerPart3D->cd();
-      h3CorrectionMap->SetName("ccdb_object");
-      h3CorrectionMap->Write(nullptr, TObject::kOverwrite);
-      fileMCOutputPerPart3D->Close();
+      RootIO::WriteCcdbFile(ccdbOutputDir + outputPrefix + "h3EffMap" + data.name + ".root", h3CorrectionMap.get(), GetName());
 
       std::unique_ptr<TH2> h2CorrectionMap = EfficiencyCalculator::Compute2DCorrectionMapMultIntegrated(data, particleCorrectionMode);
 
-      std::string fileMCOutputPerPartPath2D = ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root";
-      std::unique_ptr<TFile> fileMCOutputPerPart2D = RootIO::OpenOrThrow(fileMCOutputPerPartPath2D, "RECREATE", GetName());
-      fileMCOutputPerPart2D->cd();
-      h2CorrectionMap->SetName("ccdb_object");
-      h2CorrectionMap->Write(nullptr, TObject::kOverwrite);
-      fileMCOutputPerPart2D->Close();
+      RootIO::WriteCcdbFile(ccdbOutputDir + outputPrefix + "h2EffMap" + data.name + ".root", h2CorrectionMap.get(), GetName());
 
       // QA: error/relative-error maps alongside the CCDB map
       std::unique_ptr<TH2> h2CorrectionMapError = EfficiencyCalculator::BuildErrorMap(h2CorrectionMap.get(), "h2EffMapError" + data.name);

@@ -228,9 +228,9 @@ class DynamicRooFitter
           results.bkgRatioAndError = {ratio, ratio * std::sqrt(relNum * relNum + relDen * relDen)};
         } else {
           // R left at 0 means no sideband subtraction at all for this cell: not a correction of 1 either.
-          Logger::Warn("DynamicRooFitter: '{}' has no entries in the sideband [{}, {}]: R is 0 and the sideband pairs of "
+          Logger::Warn("{}: no entries in the sideband [{}, {}]: R is 0 and the sideband pairs of "
                        "this cell are not subtracted.",
-                       h1Data->GetName(), sbMin, sbMax);
+                       Who(), sbMin, sbMax);
         }
       }
     }
@@ -258,6 +258,9 @@ class DynamicRooFitter
  private:
   TH1* h1Data;
   FitConfig config;
+
+  // The class and the histogram of the fit, at the head of every message: which cell failed is what the reader needs.
+  std::string Who() const { return std::format("DynamicRooFitter, '{}'", h1Data->GetName()); }
 
   RooRealVar* obs{nullptr}; // The X-axis observable
 
@@ -393,14 +396,14 @@ class DynamicRooFitter
   void RequireFit() const
   {
     if (!fitResult)
-      throw std::runtime_error("[FATAL] DynamicRooFitter: call DoFit() first.");
+      throw std::runtime_error(std::format("[FATAL] {}: call DoFit() first.", Who()));
   }
 
   void DrawFitOnPads(TPad* mainPad, TPad* pullPad, double fontScale, const std::string& title, bool logY)
   {
     RequireFit();
     if (!mainPad) {
-      throw std::runtime_error("[FATAL] DynamicRooFitter::DrawFit: no pad to draw on.");
+      throw std::runtime_error(std::format("[FATAL] {}: DrawFit has no pad to draw on.", Who()));
     }
 
     auto [minRange, maxRange] = CalculateIntegrationLimits();
@@ -508,9 +511,9 @@ class DynamicRooFitter
     // it was looked for: a cell override carries only what it changes, the rest comes from the section's default.
     if (config.model.params.count(name) == 0) {
       throw std::runtime_error(std::format(
-        "[FATAL] DynamicRooFitter, '{}': the model {} + {} needs the parameter '{}', which neither the default of its "
+        "[FATAL] {}: the model {} + {} needs the parameter '{}', which neither the default of its "
         "fitConfig.json section nor {} sets.",
-        h1Data->GetName(), config.model.sigModel, config.model.bkgModel, name,
+        Who(), config.model.sigModel, config.model.bkgModel, name,
         config.binOverride.empty() ? "a cell override (none applies to this cell)" : std::format("the override '{}'", config.binOverride)));
     }
 
@@ -532,23 +535,22 @@ class DynamicRooFitter
   }
 
   // Finds a RooRealVar in a RooArgSet, checking the primary name and any optional fallback names.
-  RooRealVar* FindVar(const RooArgSet& vars, const std::string& name,
-                      std::initializer_list<std::string_view> fallbacks = {}) const
+  RooRealVar* FindVar(const RooArgSet& vars, const char* name, std::initializer_list<const char*> fallbacks = {}) const
   {
-    if (auto* v = static_cast<RooRealVar*>(vars.find(name.c_str())))
+    if (auto* v = dynamic_cast<RooRealVar*>(vars.find(name)))
       return v;
 
     std::string tried = name;
-    for (const auto& alt : fallbacks) {
-      if (auto* v = static_cast<RooRealVar*>(vars.find(std::string(alt).c_str())))
+    for (const char* alt : fallbacks) {
+      if (auto* v = dynamic_cast<RooRealVar*>(vars.find(alt)))
         return v;
       tried += ", ";
       tried += alt;
     }
 
     throw std::runtime_error(std::format(
-      "[FATAL] DynamicRooFitter: Variable '{}' not found in model{}",
-      name, fallbacks.size() ? " (tried: [" + tried + "])" : ""));
+      "[FATAL] {}: variable '{}' not found in the model{}",
+      Who(), name, fallbacks.size() ? " (tried: [" + tried + "])" : ""));
   }
 
   // The K+K- threshold, 2*m_K: the phase-space backgrounds are built on (M - 2*m_K)
@@ -582,14 +584,14 @@ class DynamicRooFitter
   RooAbsPdf* BuildRelBWKK(const std::string& name, RooRealVar& m, RooRealVar& w, RooRealVar& s, RooRealVar& r)
   {
     if (Lowest(m) <= TwoKaonThreshold()) {
-      throw std::runtime_error(std::format("[FATAL] DynamicRooFitter: RelBWKK needs the lower limit of '{}' above the KK "
+      throw std::runtime_error(std::format("[FATAL] {}: RelBWKK needs the lower limit of '{}' above the KK "
                                            "threshold {} GeV/c^2 (it is {}): below it the pole momentum is imaginary.",
-                                           m.GetName(), TwoKaonThreshold(), Lowest(m)));
+                                           Who(), m.GetName(), TwoKaonThreshold(), Lowest(m)));
     }
     if (Lowest(s) <= 0.0) {
-      throw std::runtime_error(std::format("[FATAL] DynamicRooFitter: RelBWKK needs a positive lower limit for the "
+      throw std::runtime_error(std::format("[FATAL] {}: RelBWKK needs a positive lower limit for the "
                                            "resolution '{}' (it is {}): the FFT grid is derived from it.",
-                                           s.GetName(), Lowest(s)));
+                                           Who(), s.GetName(), Lowest(s)));
     }
     const double kaonMass2 = std::pow(AnalysisConstants::GetMass("K"), 2);
     const std::string q2 = std::format("TMath::Max(@0*@0/4-{},0.)", kaonMass2);
@@ -624,11 +626,11 @@ class DynamicRooFitter
   {
     if (obs->getMin() < TwoKaonThreshold()) {
       throw std::runtime_error(std::format(
-        "[FATAL] DynamicRooFitter: background model '{}' is only defined above the K+K- "
+        "[FATAL] {}: background model '{}' is only defined above the K+K- "
         "threshold {}, but the observable starts at {}. Below the threshold it evaluates "
         "to NaN and the fit fails without saying why. Raise 'observable.min' in the fit "
         "configuration, or choose a background with no threshold (Chebychev<n>, Bernstein<n>, Exponential).",
-        modelType, TwoKaonThreshold(), obs->getMin()));
+        Who(), modelType, TwoKaonThreshold(), obs->getMin()));
     }
   }
 
@@ -697,16 +699,16 @@ class DynamicRooFitter
       for (int i = 0; i <= degree; ++i)
         coefficients.add(*b.emplace_back(CreateVar(std::format("b{}{}", i, suffix))));
       if (std::ranges::none_of(b, [](const RooRealVar* v) { return v->isConstant() && v->getVal() > 0.0; })) {
-        throw std::runtime_error(std::format("[FATAL] DynamicRooFitter: {} needs one of b0{}..b{}{} fixed above zero "
+        throw std::runtime_error(std::format("[FATAL] {}: {} needs one of b0{}..b{}{} fixed above zero "
                                              "(a positive number instead of [value, min, max]): one coefficient is "
                                              "redundant with the yield.",
-                                             modelType, suffix, degree, suffix));
+                                             Who(), modelType, suffix, degree, suffix));
       }
       for (const RooRealVar* v : b) {
         if (Lowest(*v) < 0.0) {
-          throw std::runtime_error(std::format("[FATAL] DynamicRooFitter: {} needs '{}' non-negative (lowest value {}): "
+          throw std::runtime_error(std::format("[FATAL] {}: {} needs '{}' non-negative (lowest value {}): "
                                                "a negative coefficient lets the background go below zero.",
-                                               modelType, v->GetName(), Lowest(*v)));
+                                               Who(), modelType, v->GetName(), Lowest(*v)));
         }
       }
       pdf = Own<RooBernstein>(name.c_str(), modelType.c_str(), *obs, coefficients);
@@ -754,7 +756,7 @@ class DynamicRooFitter
     }
 
     else {
-      throw std::runtime_error(std::format("[FATAL] Unknown model type: {}", modelType));
+      throw std::runtime_error(std::format("[FATAL] {}: unknown model type '{}'.", Who(), modelType));
     }
 
     return pdf;

@@ -187,6 +187,20 @@ inline std::string MakeDirPath(const std::vector<std::string>& path)
 }
 
 // -----------------------------------------------------------------------------
+// Files for the CCDB
+// -----------------------------------------------------------------------------
+
+// A file for the CCDB holds one object, at its top, named "ccdb_object": the name Macros/uploadToCCDB.C and the
+// O2Physics task read, so not ours to change. Given here, where the file is written, so no writer spells it.
+inline void WriteCcdbFile(const std::string& path, TNamed* object, std::string_view errCtx)
+{
+  std::unique_ptr<TFile> file = OpenOrThrow(path, "RECREATE", errCtx);
+  object->SetName("ccdb_object");
+  file->WriteTObject(object, nullptr, "Overwrite");
+  file->Close();
+}
+
+// -----------------------------------------------------------------------------
 // Binning stamps: provenance for cached projections
 // -----------------------------------------------------------------------------
 

@@ -118,7 +118,7 @@ class CorrelationTask : public CorrelationTaskBase
     //    binning that everything below is loaded against)
     std::string projMode = useProjectionCache ? "READ" : "UPDATE";
     std::string basePathFinal = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
-    std::string phiSpectraName = basePathFinal + outputPrefix + "PhiAssocSpectra.root";
+    std::string phiSpectraName = basePathFinal + outputPrefix + OutputNames::kSpectraFile;
     fileOutputSpectra = RootIO::OpenOrThrow(phiSpectraName, "UPDATE", GetName());
 
     // This run rewrites its whole section directory, so whatever a previous one left
@@ -129,7 +129,7 @@ class CorrelationTask : public CorrelationTaskBase
     RootIO::ClearPath(fileOutputSpectra.get(), SectionPath());
 
     for (const auto& p : assocParticles) {
-      std::string fName = basePathProj + outputPrefix + "Phi" + p.name + "DataHistograms.root";
+      std::string fName = basePathProj + outputPrefix + OutputNames::ProjectionFile(p.name);
       std::unique_ptr<TFile> fProj = RootIO::OpenOrThrow(fName, projMode.c_str(), GetName());
       filesPhiAssocDataOutput.push_back(std::move(fProj));
 
@@ -162,7 +162,7 @@ class CorrelationTask : public CorrelationTaskBase
         RunOptimized();
         break;
       default:
-        throw std::runtime_error("[FATAL] CorrelationTask: Unknown run mode!");
+        throw std::runtime_error(std::format("[FATAL] {}: Unknown run mode!", GetName()));
     }
   }
 
@@ -255,11 +255,11 @@ class CorrelationTask : public CorrelationTaskBase
         const std::string diff = BinningUtils::Compare(targetBinning, BinningUtils::AxisEdges(h1Pur->GetXaxis()),
                                                        "analysis binning (data production)", "purity spectrum");
         if (!diff.empty()) {
-          throw std::runtime_error(std::format("[FATAL] CorrelationTask::LoadPurities: '{}' in '{}' "
+          throw std::runtime_error(std::format("[FATAL] {}: '{}' in '{}' "
                                                "is not binned like the data being corrected:\n{}"
                                                "Set 'rebinning_pt' in the purity configuration so the fits are done at this "
                                                "binning, or re-run the production whose axis does not match.",
-                                               hName, purityFilePath, diff));
+                                               GetName(), hName, purityFilePath, diff));
         }
 
         purity.h1Purity[multBin] = std::move(h1Pur);

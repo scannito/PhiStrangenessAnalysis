@@ -70,18 +70,20 @@ class EfficiencyCalculator
     h3SignalLoss->Divide(h3MCGenAssocReco.get(), data.h3MCGen.get(), 1.0, 1.0, "B");
 
     // Compute total 3D correction map: Efficiency, Signal Loss or Efficiency * Signal Loss
+    // Named for what it is: the CCDB name is given where the file is written (RootIO::WriteCcdbFile).
+    const std::string name = std::format("h3{}CorrectionMap", data.name);
     std::unique_ptr<TH3> h3CorrectionMap;
     switch (mode) {
       case ParticleCorrectionMode::EfficiencyOnly:
-        h3CorrectionMap = std::unique_ptr<TH3>(static_cast<TH3*>(h3Efficiency->Clone("ccdb_object")));
+        h3CorrectionMap = std::unique_ptr<TH3>(static_cast<TH3*>(h3Efficiency->Clone(name.c_str())));
         break;
 
       case ParticleCorrectionMode::SignalLossOnly:
-        h3CorrectionMap = std::unique_ptr<TH3>(static_cast<TH3*>(h3SignalLoss->Clone("ccdb_object")));
+        h3CorrectionMap = std::unique_ptr<TH3>(static_cast<TH3*>(h3SignalLoss->Clone(name.c_str())));
         break;
 
       case ParticleCorrectionMode::Combined:
-        h3CorrectionMap = std::unique_ptr<TH3>(static_cast<TH3*>(h3Efficiency->Clone("ccdb_object")));
+        h3CorrectionMap = std::unique_ptr<TH3>(static_cast<TH3*>(h3Efficiency->Clone(name.c_str())));
         h3CorrectionMap->Multiply(h3SignalLoss.get());
         break;
     }
@@ -116,18 +118,20 @@ class EfficiencyCalculator
     h2SignalLoss->Divide(h2MCGenAssocReco.get(), h2MCGen.get(), 1.0, 1.0, "B");
 
     // Compute total 2D correction map: Efficiency, Signal Loss or Efficiency * Signal Loss
+    // Named for what it is: the CCDB name is given where the file is written (RootIO::WriteCcdbFile).
+    const std::string name = std::format("h2{}CorrectionMap", data.name);
     std::unique_ptr<TH2> h2CorrectionMap;
     switch (mode) {
       case ParticleCorrectionMode::EfficiencyOnly:
-        h2CorrectionMap = std::unique_ptr<TH2>(static_cast<TH2*>(h2Efficiency->Clone("ccdb_object")));
+        h2CorrectionMap = std::unique_ptr<TH2>(static_cast<TH2*>(h2Efficiency->Clone(name.c_str())));
         break;
 
       case ParticleCorrectionMode::SignalLossOnly:
-        h2CorrectionMap = std::unique_ptr<TH2>(static_cast<TH2*>(h2SignalLoss->Clone("ccdb_object")));
+        h2CorrectionMap = std::unique_ptr<TH2>(static_cast<TH2*>(h2SignalLoss->Clone(name.c_str())));
         break;
 
       case ParticleCorrectionMode::Combined:
-        h2CorrectionMap = std::unique_ptr<TH2>(static_cast<TH2*>(h2Efficiency->Clone("ccdb_object")));
+        h2CorrectionMap = std::unique_ptr<TH2>(static_cast<TH2*>(h2Efficiency->Clone(name.c_str())));
         h2CorrectionMap->Multiply(h2SignalLoss.get());
         break;
     }

@@ -871,7 +871,7 @@ class CorrelationTaskBase : public IAnalysisTask
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       auto& particle = assocParticles[pIdx];
       TFile* cacheFile = filesPhiAssocDataOutput[pIdx].get();
-      const std::string ctx = std::format("Phi{}DataHistograms.root, scheme '{}'", particle.name, globalCfgs.binningName);
+      const std::string ctx = std::format("{}, scheme '{}'", cacheFile->GetName(), globalCfgs.binningName);
 
       // Resolved for THIS particle, then merged into the common ones below.
       std::vector<double> mult;
@@ -923,9 +923,9 @@ class CorrelationTaskBase : public IAnalysisTask
       } else {
         TDirectory* schemeDir = RootIO::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, true);
         if (!schemeDir) {
-          throw std::runtime_error(std::format("[FATAL] {}: cache requested but scheme '{}' does not exist in Phi{}"
-                                               "DataHistograms.root. Run once with 'use_projection_cache': false.",
-                                               GetName(), globalCfgs.binningName, particle.name));
+          throw std::runtime_error(std::format("[FATAL] {}: cache requested but scheme '{}' does not exist in {}. "
+                                               "Run once with 'use_projection_cache': false.",
+                                               GetName(), globalCfgs.binningName, cacheFile->GetName()));
         }
 
         particle.binning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtAssoc);

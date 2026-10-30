@@ -44,7 +44,7 @@ class SpectrumExtrapolator
     : fMeasuredSpectrum(measuredSpectrum), fFitModel(fitModel)
   {
     if (!fMeasuredSpectrum || !fFitModel) {
-      throw std::invalid_argument("[SpectrumExtrapolator] Invalid input pointers.");
+      throw std::runtime_error("[FATAL] SpectrumExtrapolator: a null spectrum or fit model.");
     }
 
     // Was SetSeed(0), which in ROOT does not mean "seed zero": it draws one from
@@ -399,9 +399,10 @@ class SpectrumExtrapolator
       return;
 
     if (fSysSpectrum->GetNbinsX() != fMeasuredSpectrum->GetNbinsX())
-      throw std::runtime_error(
-        "[FATAL] SpectrumExtrapolator: the systematic spectrum has a different number of bins "
-        "than the measured one, so bin i does not mean the same interval in the two.");
+      throw std::runtime_error(std::format(
+        "[FATAL] SpectrumExtrapolator: the systematic spectrum '{}' has a different number of bins "
+        "than the measured one '{}', so bin i does not mean the same interval in the two.",
+        fSysSpectrum->GetName(), fMeasuredSpectrum->GetName()));
 
     // The model is fitted in place and the caller keeps using it afterwards - it
     // integrates it and writes the curve next to the spectrum. Four more fits are
@@ -611,7 +612,9 @@ class SpectrumExtrapolator
     }
 
     if (fMaxPt < hi) {
-      Logger::Warn("Extrapolation max < highest non-empty bin.");
+      Logger::Warn("SpectrumExtrapolator: '{}' has content up to {:g}, above the upper end {:g} of the extrapolation "
+                   "domain: no extrapolation on the high side.",
+                   h->GetName(), hi, fMaxPt);
       return nullptr;
     }
 

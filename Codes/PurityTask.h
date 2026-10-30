@@ -237,12 +237,7 @@ class PurityTask : public IAnalysisTask
       if (!task.h2PurityCCDB)
         continue;
 
-      std::string ccdbPath = ccdbOutputDir + outputPrefix + "h2PurityMap" + task.purityKey + ".root";
-      std::unique_ptr<TFile> ccdbFile = RootIO::OpenOrThrow(ccdbPath, "RECREATE", GetName());
-      ccdbFile->cd();
-      task.h2PurityCCDB->SetName("ccdb_object");
-      task.h2PurityCCDB->Write(nullptr, TObject::kOverwrite);
-      ccdbFile->Close();
+      RootIO::WriteCcdbFile(ccdbOutputDir + outputPrefix + "h2PurityMap" + task.purityKey + ".root", task.h2PurityCCDB.get(), GetName());
     }
 
     // 3. Close the output file
