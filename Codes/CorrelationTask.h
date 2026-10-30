@@ -357,9 +357,7 @@ class CorrelationTask : public CorrelationTaskBase
       Logger::Info("Multiplicity bin {} completed. Committing results to Level 2 Cache...", multBin);
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        TDirectory* targetDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, false);
-        if (targetDir)
-          targetDir->cd();
+        RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, false)->cd();
         for (int ptAssocBin : BinningUtils::BinIndices(assocParticles[pIdx].binning)) {
           if (h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]) {
             std::string saveName = std::format("h1Phi{}Final{}", assocParticles[pIdx].name, CellSuffix(assocParticles[pIdx], multBin, ptAssocBin));

@@ -301,8 +301,6 @@ class ComparisonTask : public IAnalysisTask
     pair.den = RootIO::OpenOrThrow(comp.denominatorFile, "READ", ctx);
 
     pair.outDir = RootIO::GetOrCreatePath(fileOutput.get(), {comp.label});
-    if (!pair.outDir)
-      throw std::runtime_error(std::format("[FATAL] {}: cannot create the output directory '{}'.", ctx, comp.label));
 
     // What was divided, travelling with the result. Provenance never throws: a path
     // that moved is not a reason to fail a comparison that is otherwise fine.
@@ -525,8 +523,6 @@ class ComparisonTask : public IAnalysisTask
     // 'subPath' then means the same thing on all three sides, so the output mirrors
     // the input layout by construction rather than by two places agreeing.
     TDirectory* outSub = RootIO::GetOrCreatePath(pair.outDir, subPath);
-    if (!outSub)
-      return 0;
 
     int done = 0;
     for (const std::string& name : ListHistograms(numSub)) {

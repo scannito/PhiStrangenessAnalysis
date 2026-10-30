@@ -367,15 +367,15 @@ class CorrelationCalculator
         h1Final1D->SetDirectory(0);
       }
 
-      h1QA_X_Sig->Write();
+      h1QA_X_Sig->Write(nullptr, TObject::kOverwrite);
       if (h1QA_X_Sb)
-        h1QA_X_Sb->Write();
-      h1QA_X_Final->Write();
+        h1QA_X_Sb->Write(nullptr, TObject::kOverwrite);
+      h1QA_X_Final->Write(nullptr, TObject::kOverwrite);
 
-      h1QA_Y_Sig->Write();
+      h1QA_Y_Sig->Write(nullptr, TObject::kOverwrite);
       if (h1QA_Y_Sb)
-        h1QA_Y_Sb->Write();
-      h1QA_Y_Final->Write();
+        h1QA_Y_Sb->Write(nullptr, TObject::kOverwrite);
+      h1QA_Y_Final->Write(nullptr, TObject::kOverwrite);
     }
 
     if (!h1Final1D) {
@@ -423,10 +423,10 @@ class CorrelationCalculator
         h2Signal->Write((histNameBase + "Signal2D_MECorrected_Cut").c_str());
         if (h2Sideband)
           h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Cut").c_str());
-        h1Sig1D->Write();
+        h1Sig1D->Write(nullptr, TObject::kOverwrite);
         if (h1Sideband1D)
-          h1Sideband1D->Write();
-        h1Final1D->Write();
+          h1Sideband1D->Write(nullptr, TObject::kOverwrite);
+        h1Final1D->Write(nullptr, TObject::kOverwrite);
       }
     }
 

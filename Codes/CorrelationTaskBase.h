@@ -84,9 +84,6 @@ class CorrelationTaskBase : public IAnalysisTask
       TDirectory* trendsDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), trendsPath);
       TDirectory* spectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), spectraPath);
 
-      if (!trendsDir || !spectraDir)
-        continue;
-
       // The associated pT binning, with the particle it belongs to rather than
       // encoded in the object name. What it guards is the Trends directory next to
       // it: those are integrals over pT, so a disagreement there does not show up in
@@ -166,10 +163,9 @@ class CorrelationTaskBase : public IAnalysisTask
     // but the TRENDS are integrated over pT and carry multiplicity on theirs, so two
     // productions with different pT binnings would produce trends whose axes agree
     // perfectly and whose contents are integrals over different ranges.
-    if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName}, false)) {
-      RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
-      RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhiBinning);
-    }
+    TDirectory* schemeDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName}, false);
+    RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
+    RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhiBinning);
 
     // Next to the trends and not in their errors: two trends that share the triggers - two species of this
     // task, or the same species in two files that comparison_task divides - share this uncertainty, and a
@@ -179,10 +175,8 @@ class CorrelationTaskBase : public IAnalysisTask
     // which errors enter, the phi efficiency's not, how they combine - that a reader would otherwise have to
     // re-implement outside the framework. The trigger count itself is not written, for the opposite reason:
     // it is those inputs and a sum, with nothing to choose.
-    if (TDirectory* sectionDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), baseLogicalPath)) {
-      sectionDir->cd();
-      hNormalisationRelError->Write(nullptr, TObject::kOverwrite);
-    }
+    RootIO::GetOrCreatePath(fileOutputSpectra.get(), baseLogicalPath)->cd();
+    hNormalisationRelError->Write(nullptr, TObject::kOverwrite);
 
     // The spectra leave this task and, once the trends and ratios move to a task
     // of their own, this is what will say which method produced them.
@@ -197,87 +191,85 @@ class CorrelationTaskBase : public IAnalysisTask
       ratioPath.push_back(OutputNames::kRatiosDir);
       TDirectory* ratioDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), ratioPath);
 
-      if (ratioDir) {
-        ratioDir->cd();
+      ratioDir->cd();
 
-        // Helper lambda function to find particle index by name
-        auto getParticleIndex = [&](const std::string& name) -> int {
-          for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-            if (assocParticles[pIdx].name == name)
-              return pIdx;
-          }
-          return -1;
-        };
+      // Helper lambda function to find particle index by name
+      auto getParticleIndex = [&](const std::string& name) -> int {
+        for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
+          if (assocParticles[pIdx].name == name)
+            return pIdx;
+        }
+        return -1;
+      };
 
-        for (const auto& ratioCfg : requestedRatios) {
-          int idxNum = getParticleIndex(ratioCfg.num);
-          int idxDen = getParticleIndex(ratioCfg.den);
+      for (const auto& ratioCfg : requestedRatios) {
+        int idxNum = getParticleIndex(ratioCfg.num);
+        int idxDen = getParticleIndex(ratioCfg.den);
 
-          if (idxNum == -1 || idxDen == -1) {
-            Logger::Warn("Cannot compute ratio {}/{} because one or both particles are not configured.",
-                         ratioCfg.num, ratioCfg.den);
-            continue; // Skip this specific ratio and move to the next
-          }
+        if (idxNum == -1 || idxDen == -1) {
+          Logger::Warn("Cannot compute ratio {}/{} because one or both particles are not configured.",
+                       ratioCfg.num, ratioCfg.den);
+          continue; // Skip this specific ratio and move to the next
+        }
 
-          const auto& num = assocParticles[idxNum];
-          const auto& den = assocParticles[idxDen];
+        const auto& num = assocParticles[idxNum];
+        const auto& den = assocParticles[idxDen];
 
-          double numScale = GetYieldScaleFactor(num.name);
-          double denScale = GetYieldScaleFactor(den.name);
+        double numScale = GetYieldScaleFactor(num.name);
+        double denScale = GetYieldScaleFactor(den.name);
 
-          bool numHasExtrap = doExtrapolationPerParticle.contains(num.name) && doExtrapolationPerParticle.at(num.name);
-          bool denHasExtrap = doExtrapolationPerParticle.contains(den.name) && doExtrapolationPerParticle.at(den.name);
-          bool doExtrapRatio = applyExtrapolation && (numHasExtrap || denHasExtrap);
+        bool numHasExtrap = doExtrapolationPerParticle.contains(num.name) && doExtrapolationPerParticle.at(num.name);
+        bool denHasExtrap = doExtrapolationPerParticle.contains(den.name) && doExtrapolationPerParticle.at(den.name);
+        bool doExtrapRatio = applyExtrapolation && (numHasExtrap || denHasExtrap);
 
-          std::string canvasName = std::format("canvasRatio_{}_{}_MultTrend", num.name, den.name);
-          TCanvas* canvasRatio = canvasManager.CreateCanvas(canvasName, "Ratio Mult Trend " + ratioCfg.label, ratioPath, 800, 600);
-          canvasRatio->cd();
+        std::string canvasName = std::format("canvasRatio_{}_{}_MultTrend", num.name, den.name);
+        TCanvas* canvasRatio = canvasManager.CreateCanvas(canvasName, "Ratio Mult Trend " + ratioCfg.label, ratioPath, 800, 600);
+        canvasRatio->cd();
 
-          TLegend* legend = CanvasManager::CreateLegend(0.7, 0.7, 0.9, 0.9, 2);
+        TLegend* legend = CanvasManager::CreateLegend(0.7, 0.7, 0.9, 0.9, 2);
 
-          for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
-            double dyLimit = deltaYLimits[yIdx];
-            const std::string dyTitleStr = BinningUtils::FormatDeltaY(dyLimit);
+        for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
+          double dyLimit = deltaYLimits[yIdx];
+          const std::string dyTitleStr = BinningUtils::FormatDeltaY(dyLimit);
 
-            std::string ratioMeasName = OutputNames::ParticleRatioMeasured(num.name, den.name, dyLimit);
-            std::string ratioMeasTitle = "Measured Ratio; Multiplicity percentile (%);" + ratioCfg.label;
-            std::unique_ptr<TH1> hRatioMeas = HistogramUtils::MakeRatioHist(h1MultTrends[idxNum][yIdx].get(), h1MultTrends[idxDen][yIdx].get(),
-                                                                           ratioMeasName, ratioMeasTitle, numScale, denScale);
+          std::string ratioMeasName = OutputNames::ParticleRatioMeasured(num.name, den.name, dyLimit);
+          std::string ratioMeasTitle = "Measured Ratio; Multiplicity percentile (%);" + ratioCfg.label;
+          std::unique_ptr<TH1> hRatioMeas = HistogramUtils::MakeRatioHist(h1MultTrends[idxNum][yIdx].get(), h1MultTrends[idxDen][yIdx].get(),
+                                                                         ratioMeasName, ratioMeasTitle, numScale, denScale);
 
-            CanvasManager::SetHistogramStyle(hRatioMeas.get(), globalCfgs.GetMultTrendColor(yIdx), 24);
+          CanvasManager::SetHistogramStyle(hRatioMeas.get(), globalCfgs.GetMultTrendColor(yIdx), 24);
+
+          ratioDir->cd();
+          hRatioMeas->Write(nullptr, TObject::kOverwrite);
+
+          std::unique_ptr<TH1> hRatioExtrap{nullptr};
+          if (doExtrapRatio) {
+            TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[idxNum][yIdx].get() : h1MultTrends[idxNum][yIdx].get();
+            TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[idxDen][yIdx].get() : h1MultTrends[idxDen][yIdx].get();
+
+            std::string ratioExtrapName = OutputNames::ParticleRatioExtrapolated(num.name, den.name, dyLimit);
+            std::string ratioExtrapTitle = "Extrapolated Ratio; Multiplicity percentile (%);" + ratioCfg.label;
+            hRatioExtrap = HistogramUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
+
+            CanvasManager::SetHistogramStyle(hRatioExtrap.get(), globalCfgs.GetMultTrendColor(yIdx), 20);
 
             ratioDir->cd();
-            hRatioMeas->Write(nullptr, TObject::kOverwrite);
-
-            std::unique_ptr<TH1> hRatioExtrap{nullptr};
-            if (doExtrapRatio) {
-              TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[idxNum][yIdx].get() : h1MultTrends[idxNum][yIdx].get();
-              TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[idxDen][yIdx].get() : h1MultTrends[idxDen][yIdx].get();
-
-              std::string ratioExtrapName = OutputNames::ParticleRatioExtrapolated(num.name, den.name, dyLimit);
-              std::string ratioExtrapTitle = "Extrapolated Ratio; Multiplicity percentile (%);" + ratioCfg.label;
-              hRatioExtrap = HistogramUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
-
-              CanvasManager::SetHistogramStyle(hRatioExtrap.get(), globalCfgs.GetMultTrendColor(yIdx), 20);
-
-              ratioDir->cd();
-              hRatioExtrap->Write(nullptr, TObject::kOverwrite);
-            }
-
-            CanvasManager::AdjustYRange({hRatioMeas.get(), hRatioExtrap.get()});
-
-            canvasRatio->cd();
-
-            TH1* cloneMeas = hRatioMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
-            legend->AddEntry(cloneMeas, std::format("Meas. |#Delta y| < {}", dyTitleStr).c_str(), "p");
-            if (hRatioExtrap) {
-              TH1* cloneExtrap = hRatioExtrap->DrawCopy("SAME");
-              legend->AddEntry(cloneExtrap, std::format("Extrap. |#Delta y| < {}", dyTitleStr).c_str(), "p");
-            }
+            hRatioExtrap->Write(nullptr, TObject::kOverwrite);
           }
 
-          legend->Draw("SAME");
+          CanvasManager::AdjustYRange({hRatioMeas.get(), hRatioExtrap.get()});
+
+          canvasRatio->cd();
+
+          TH1* cloneMeas = hRatioMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
+          legend->AddEntry(cloneMeas, std::format("Meas. |#Delta y| < {}", dyTitleStr).c_str(), "p");
+          if (hRatioExtrap) {
+            TH1* cloneExtrap = hRatioExtrap->DrawCopy("SAME");
+            legend->AddEntry(cloneExtrap, std::format("Extrap. |#Delta y| < {}", dyTitleStr).c_str(), "p");
+          }
         }
+
+        legend->Draw("SAME");
       }
     } else {
       Logger::Info("{}: No yield ratios requested. Skipping.", GetName());
@@ -1327,8 +1319,6 @@ class CorrelationTaskBase : public IAnalysisTask
       // the loop and not once outside it, because the directory now depends on which
       // species this iteration is producing.
       TDirectory* targetSpectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), SectionPath({config.name, OutputNames::kSpectraDir}));
-      if (!targetSpectraDir)
-        continue;
       bool doExtrapForThis = applyExtrapolation && doExtrapolationPerParticle.contains(config.name) && doExtrapolationPerParticle.at(config.name);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {

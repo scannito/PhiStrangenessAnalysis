@@ -252,15 +252,12 @@ class MCTask : public IAnalysisTask
   {
     Logger::Info("{}: RUNNING EFFICIENCY COMPUTATIONS...", GetName());
 
-    // Writes one object at its path, creating the directories; nothing, when there is no object or the path
-    // cannot be made (GetOrCreatePath says why), rather than into whatever directory is current.
+    // Writes one object at its path, creating the directories; nothing when there is no object.
     auto writeInto = [&](const std::vector<std::string>& path, TH1* h) {
       if (!h)
         return;
-      if (TDirectory* dir = RootIO::GetOrCreatePath(fileMCOutput.get(), path, false)) {
-        dir->cd();
-        h->Write(nullptr, TObject::kOverwrite);
-      }
+      RootIO::GetOrCreatePath(fileMCOutput.get(), path, false)->cd();
+      h->Write(nullptr, TObject::kOverwrite);
     };
 
     std::unique_ptr<TH1> hEventLoss;
@@ -456,8 +453,8 @@ class MCTask : public IAnalysisTask
 
     // The pT binning of every correction is its own axis; the multiplicity binning is
     // in the names, and stamped (RootIO::RequireMatchingBinningStamp).
-    if (TDirectory* schemeDir = RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName}, false))
-      RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
+    RootIO::WriteBinningStamp(RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName}, false), RootIO::kStampMult,
+                              multBinning);
 
     RootIO::WriteProvenance(fileMCOutput.get(), globalCfgs.binningName, provenance);
 

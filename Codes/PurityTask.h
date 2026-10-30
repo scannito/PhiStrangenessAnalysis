@@ -78,8 +78,6 @@ class PurityTask : public IAnalysisTask
 
     int pIdx = 0;
     const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
-    std::vector<std::string> summarySourcePath = summaryPath;
-    summarySourcePath.push_back("SourceBinning");
 
     for (const auto& entry : particles) {
       const std::string ctx = std::format("{} purity_particles[{}]", GetName(), pIdx++);
@@ -124,12 +122,12 @@ class PurityTask : public IAnalysisTask
                                  std::move(rebinningPt), std::move(h2CCDB));
 
       // Each summary canvas declares its Y range here; the manager applies it when it writes.
-      canvasManager.SetAutoYRange(canvasManager.CreateCanvas("canvas" + purityKey + "Purity", purityKey + " Purity",
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(purityKey, SpectrumBinning::Analysis), purityKey + " Purity",
                                                              summaryPath, 800, 600));
       if (particleTasks.back().rebinningPt) {
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("canvas" + purityKey + "Purity_sourceBinning",
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(purityKey, SpectrumBinning::Source),
                                                                purityKey + " Purity (source binning)",
-                                                               summarySourcePath, 800, 600));
+                                                               SourceBinningPath(summaryPath), 800, 600));
       }
     }
 
@@ -165,13 +163,11 @@ class PurityTask : public IAnalysisTask
 
         // Style and draw on the summary canvas
         CanvasManager::SetHistogramStyle(h1PurityAnalysis.get(), globalCfgs.GetSpectraColor(multBin));
-        canvasManager.RequireCanvas("canvas" + task.purityKey + "Purity")->cd();
+        canvasManager.RequireCanvas(SummaryCanvas(task.purityKey, SpectrumBinning::Analysis))->cd();
         h1PurityAnalysis->DrawCopy(multBin == 0 ? "" : "SAME");
 
-        if (summaryDir) {
-          summaryDir->cd();
-          h1PurityAnalysis->Write(nullptr, TObject::kOverwrite);
-        }
+        summaryDir->cd();
+        h1PurityAnalysis->Write(nullptr, TObject::kOverwrite);
 
         // When 'rebinning_pt' asked for a coarser analysis binning, the purity is
         // produced at the source binning as well. It is a second full set of fits,
@@ -180,28 +176,21 @@ class PurityTask : public IAnalysisTask
         // uses - a per-candidate correction needs the fine one.
         std::unique_ptr<TH1> h1PuritySeparateSource;
         if (task.rebinningPt) {
-          // A copy rather than a push_back on fitPath: that vector is still the
-          // analysis path, and anything added below this line would silently start
-          // resolving to the subdirectory instead.
-          std::vector<std::string> sourceFitPath = fitPath;
-          sourceFitPath.push_back("SourceBinning");
-
-          TDirectory* fitDirSource = RootIO::GetOrCreatePath(outputFile.get(), sourceFitPath, false);
+          // A copy (SourceBinningPath takes its argument by value) and not a push_back on fitPath: that vector
+          // is still the analysis path, and anything added below this line would silently start resolving to
+          // the subdirectory instead.
+          TDirectory* fitDirSource = RootIO::GetOrCreatePath(outputFile.get(), SourceBinningPath(fitPath), false);
           h1PuritySeparateSource = FitPuritySpectrum(task, multBin, SpectrumBinning::Source, fitDirSource);
 
           CanvasManager::SetHistogramStyle(h1PuritySeparateSource.get(), globalCfgs.GetSpectraColor(multBin));
-          canvasManager.RequireCanvas("canvas" + task.purityKey + "Purity_sourceBinning")->cd();
+          canvasManager.RequireCanvas(SummaryCanvas(task.purityKey, SpectrumBinning::Source))->cd();
           h1PuritySeparateSource->DrawCopy(multBin == 0 ? "" : "SAME");
 
           // Own subdirectory rather than sitting next to the analysis spectra.
           // Created here, inside the branch that produces the spectrum, so it
           // exists if and only if something was written into it.
-          std::vector<std::string> sourceSummaryPath = summaryPath;
-          sourceSummaryPath.push_back("SourceBinning");
-          if (TDirectory* sourceDir = RootIO::GetOrCreatePath(outputFile.get(), sourceSummaryPath, false)) {
-            sourceDir->cd();
-            h1PuritySeparateSource->Write(nullptr, TObject::kOverwrite);
-          }
+          RootIO::GetOrCreatePath(outputFile.get(), SourceBinningPath(summaryPath), false)->cd();
+          h1PuritySeparateSource->Write(nullptr, TObject::kOverwrite);
         }
 
         // A separate source-binning spectrum is only produced when the analysis one
@@ -226,9 +215,6 @@ class PurityTask : public IAnalysisTask
     // The pT binning is the axis of each purity spectrum; the multiplicity binning is
     // in the names, and stamped (RootIO::RequireMatchingBinningStamp).
     TDirectory* schemeDir = RootIO::GetOrCreatePath(outputFile.get(), {globalCfgs.binningName}, false);
-    if (!schemeDir)
-      throw std::runtime_error(std::format("[FATAL] {}: cannot create '{}' in {}: the binning stamp and the fit quality would be lost.",
-                                           GetName(), globalCfgs.binningName, outputFile->GetName()));
     RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
     fitQuality.Write(schemeDir, GetName());
 
@@ -272,6 +258,19 @@ class PurityTask : public IAnalysisTask
   // of a single choice: passed separately, nothing would stop them disagreeing.
   enum class SpectrumBinning { Analysis,
                                Source };
+
+  // The summary canvas of a purity key, created in Init and drawn on per class in Run.
+  static std::string SummaryCanvas(const std::string& purityKey, SpectrumBinning binning)
+  {
+    return std::format("canvas{}Purity{}", purityKey, binning == SpectrumBinning::Source ? "_sourceBinning" : "");
+  }
+
+  // Where the source-binning version of what 'path' holds goes: its own subdirectory.
+  static std::vector<std::string> SourceBinningPath(std::vector<std::string> path)
+  {
+    path.push_back("SourceBinning");
+    return path;
+  }
 
   // Builds one purity spectrum: for every bin, fits the mass distribution obtained
   // by merging the source bins it covers and reads S/(S+B) off the fit. At the

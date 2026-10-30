@@ -29,8 +29,8 @@ class ExtrapConfigManager : public BaseConfigManager
     std::set<std::string>& classes = declaredCells[particle];
     for (int multBin : BinningUtils::BinIndices(multBinning))
       classes.insert(OutputNames::MultTag(multBinning, multBin));
-    if (const rapidjson::Value* bins = JsonConfig::TryObject(Section(particle), "bins", managerName))
-      JsonConfig::RequireKnownKeys(*bins, classes, std::format("{}: section '{}'.bins (the keys are the multiplicity classes)", managerName, particle));
+    if (const rapidjson::Value* bins = JsonConfig::TryObject(Section(particle), "bins", SectionCtx(particle)))
+      JsonConfig::RequireKnownKeys(*bins, classes, SectionCtx(particle) + ".bins (the keys are the multiplicity classes)");
   }
 
   // The configuration of one class, 'multTag' as OutputNames::MultTag gives it.
@@ -46,7 +46,7 @@ class ExtrapConfigManager : public BaseConfigManager
     const rapidjson::Value& partNode = Section(particle);
     // Closed sets of keys, as in FitConfigManager: a misspelled key is refused, not skipped.
     // Every error inside the section names it, the high fit included.
-    const std::string sectionCtx = std::format("{}: section '{}'", managerName, particle);
+    const std::string sectionCtx = SectionCtx(particle);
     JsonConfig::RequireKnownKeys(partNode, {"default", "bins"}, sectionCtx);
 
     // The keys of one fit, read into 'fit' over what it already holds. Every key here is
@@ -64,13 +64,14 @@ class ExtrapConfigManager : public BaseConfigManager
 
     // 'where' names the node in the messages: "default" or "bins['mult10-15']".
     auto loadNodeIntoConfig = [&](const rapidjson::Value& node, const std::string& where) {
-      JsonConfig::RequireKnownKeys(node, {"model", "domain_range", "fit_range", "params", "high"}, sectionCtx);
-      loadFit(node, config, sectionCtx);
+      const std::string nodeCtx = std::format("{}.{}", sectionCtx, where);
+      JsonConfig::RequireKnownKeys(node, {"model", "domain_range", "fit_range", "params", "high"}, nodeCtx);
+      loadFit(node, config, nodeCtx);
       // The main fit is merged pass after pass, so its source is every node read so far.
       const std::string read = std::format("{}.{}", particle, where);
       config.source = config.source.empty() ? read : std::format("{} and {}", config.source, read);
 
-      if (auto range = JsonConfig::TryRange(node, "domain_range", sectionCtx))
+      if (auto range = JsonConfig::TryRange(node, "domain_range", nodeCtx))
         config.domainRange = *range;
 
       // The separate fit of the high side (ExtrapConfig::high). Replaced whole when a bin
@@ -78,7 +79,7 @@ class ExtrapConfigManager : public BaseConfigManager
       // it out would keep the default's. Replaced whole, it has nothing to keep from a
       // previous pass, so its three keys are required.
       if (const rapidjson::Value* value = JsonConfig::OptionalMember(node, "high")) {
-        const std::string ctx = sectionCtx + ", high";
+        const std::string ctx = nodeCtx + ".high";
         config.high.reset();
         if (const rapidjson::Value* high = JsonConfig::ToObjectOrNull(*value, "high", ctx)) {
           for (const char* key : {"model", "fit_range", "params"})
@@ -90,16 +91,13 @@ class ExtrapConfigManager : public BaseConfigManager
     };
 
     // The default first, then the override of this bin over it; either may be absent.
-    if (const rapidjson::Value* defaults = JsonConfig::TryObject(partNode, "default", managerName))
+    if (const rapidjson::Value* defaults = JsonConfig::TryObject(partNode, "default", sectionCtx))
       loadNodeIntoConfig(*defaults, "default");
 
-    // The outer key is fixed and must be an object; the inner one is the class, so
-    // its absence is the normal case and HasMember is the right tool.
-    const rapidjson::Value* bins = JsonConfig::TryObject(partNode, "bins", managerName);
-    if (bins && bins->HasMember(multTag.c_str())) {
+    const rapidjson::Value* bins = JsonConfig::TryObject(partNode, "bins", sectionCtx);
+    if (const rapidjson::Value* classNode = bins ? JsonConfig::TryObject(*bins, multTag.c_str(), sectionCtx + ".bins") : nullptr) {
       Logger::Debug("{}: Found custom parameters for bin: {}", managerName, multTag);
-      const std::string where = std::format("bins['{}']", multTag);
-      loadNodeIntoConfig((*bins)[multTag.c_str()], where);
+      loadNodeIntoConfig(*classNode, std::format("bins['{}']", multTag));
     }
 
     return config;
@@ -112,11 +110,15 @@ class ExtrapConfigManager : public BaseConfigManager
   // problem. Checked before the lookup: rapidjson's operator[] on a missing key asserts.
   const rapidjson::Value& Section(const std::string& particle) const
   {
-    if (!HasConfig(particle))
+    const rapidjson::Value* node = isLoaded ? JsonConfig::TryObject(document, particle.c_str(), managerName) : nullptr;
+    if (!node)
       throw std::runtime_error(std::format("[FATAL] {}: section '{}' asked for, but the JSON has none: check HasConfig first.",
                                            managerName, particle));
-    return document[particle.c_str()];
+    return *node;
   }
+
+  // The head of every message about a section; the node read is appended to it.
+  std::string SectionCtx(const std::string& particle) const { return std::format("{}: section '{}'", managerName, particle); }
 
   // section -> the MultTags its task extrapolates ("mult10-15"); filled by DeclareCells
   std::map<std::string, std::set<std::string>> declaredCells;

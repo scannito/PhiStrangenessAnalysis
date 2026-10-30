@@ -107,10 +107,6 @@ class PhiFitTask : public IAnalysisTask
     Logger::Info("{}: RUNNING TRIGGER SIGNAL EXTRACTION...", GetName());
 
     TDirectory* fitDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Fits"}, false);
-    if (!fitDir) {
-      throw std::runtime_error(std::format("[FATAL] {}: Cannot create the '{}/Fits' directory in the output file.", GetName(),
-                                           globalCfgs.binningName));
-    }
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
       for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
@@ -157,11 +153,6 @@ class PhiFitTask : public IAnalysisTask
 
     const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
     TDirectory* summaryDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), summaryPath, false);
-    if (!summaryDir) {
-      throw std::runtime_error(std::format("[FATAL] {}: Cannot create the '{}' directory in the output "
-                                           "file. Trigger yields would be lost!",
-                                           GetName(), RootIO::MakeDirPath(summaryPath)));
-    }
     summaryDir->cd();
 
     h2TriggerSignal->Write(nullptr, TObject::kOverwrite);

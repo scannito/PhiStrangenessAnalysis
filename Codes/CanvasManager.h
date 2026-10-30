@@ -712,19 +712,12 @@ class CanvasManager
   // 4. IO & Export Integration
   // ---------------------------------------------------------------------------
 
-  // Static helper to write any canvas into targetDir/pathNodes
+  // Static helper to write any canvas into baseDir/pathNodes; baseDir itself for an empty path.
   static void WriteCanvas(TCanvas* canvas, TDirectory* baseDir, const std::vector<std::string>& pathNodes)
   {
     if (!canvas || !baseDir)
       return;
-    if (pathNodes.empty()) {
-      WriteCanvas(canvas, baseDir);
-      return;
-    }
-    if (TDirectory* dir = RootIO::GetOrCreatePath(baseDir, pathNodes, false)) {
-      dir->cd();
-      canvas->Write(nullptr, TObject::kOverwrite);
-    }
+    WriteCanvas(canvas, RootIO::GetOrCreatePath(baseDir, pathNodes, false));
   }
 
   // Static helper to write a canvas directly into a target TDirectory
@@ -736,25 +729,12 @@ class CanvasManager
     canvas->Write(nullptr, TObject::kOverwrite);
   }
 
-  // Writes a managed canvas by name using its registered targetPath (or baseDir if none)
+  // Writes a managed canvas by name to its registered path below baseDir (baseDir itself if none)
   void WriteCanvas(const std::string& name, TDirectory* baseDir) const
   {
     TCanvas* c = RequireCanvas(name);
     ApplyAutoYRange(name);
-    auto it = canvasPaths.find(name);
-    if (it != canvasPaths.end() && !it->second.empty()) {
-      WriteCanvas(c, baseDir, it->second);
-    } else {
-      WriteCanvas(c, baseDir);
-    }
-  }
-
-  // Writes a managed canvas by name into an explicit path, overriding any registered path
-  void WriteCanvas(const std::string& name, TDirectory* baseDir, const std::vector<std::string>& pathNodes) const
-  {
-    TCanvas* c = RequireCanvas(name);
-    ApplyAutoYRange(name);
-    WriteCanvas(c, baseDir, pathNodes);
+    WriteCanvas(c, baseDir, GetCanvasPath(name));
   }
 
   // Writes a managed canvas (to its registered path, or to baseDir), then destroys it.
@@ -776,28 +756,7 @@ class CanvasManager
     for (const auto& name : canvasOrder) {
       if (auto it = canvases.find(name); it != canvases.end() && it->second) {
         ApplyAutoYRange(name);
-        auto pit = canvasPaths.find(name);
-        if (pit != canvasPaths.end() && !pit->second.empty()) {
-          WriteCanvas(it->second.get(), baseDir, pit->second);
-        } else {
-          WriteCanvas(it->second.get(), baseDir);
-        }
-      }
-    }
-  }
-
-  // Writes all managed canvases into the specified directory path
-  void WriteAll(TDirectory* baseDir, const std::vector<std::string>& pathNodes) const
-  {
-    if (!baseDir)
-      return;
-    if (TDirectory* dir = RootIO::GetOrCreatePath(baseDir, pathNodes, false)) {
-      dir->cd();
-      for (const auto& [name, c] : canvases) {
-        if (c) {
-          ApplyAutoYRange(name);
-          c->Write(nullptr, TObject::kOverwrite);
-        }
+        WriteCanvas(it->second.get(), baseDir, GetCanvasPath(name));
       }
     }
   }

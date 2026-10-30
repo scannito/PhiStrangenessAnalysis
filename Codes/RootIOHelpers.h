@@ -102,10 +102,28 @@ inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& ob
 // Navigation inside a TFile
 // ---------------------------------------------------------------------------
 
+// Builds the ROOT directory prefix "node1/node2/", trailing slash included, so
+// that the caller can append the object name and hand the result to Get().
+inline std::string MakeDirPath(const std::vector<std::string>& path)
+{
+  std::string fullPath = "";
+  for (const auto& dir : path) {
+    fullPath += dir + "/";
+  }
+  return fullPath;
+}
+
+// Read-only, a missing directory is an answer: nullptr, and the caller decides (a cache miss, an optional
+// section). Creating, it is a failure that would lose whatever was to be written there, so it stops the run:
+// it used to log and return nullptr, and each caller then either threw, skipped the write, or wrote into the
+// current directory instead.
 inline TDirectory* GetOrCreatePath(TDirectory* baseDir, const std::vector<std::string>& pathNodes, bool isReadOnly = false)
 {
-  if (!baseDir)
-    return nullptr;
+  if (!baseDir) {
+    if (isReadOnly)
+      return nullptr;
+    throw std::runtime_error(std::format("[FATAL] RootIO::GetOrCreatePath: no directory to create '{}' in.", MakeDirPath(pathNodes)));
+  }
 
   TDirectory* currentDir = baseDir;
 
@@ -113,24 +131,17 @@ inline TDirectory* GetOrCreatePath(TDirectory* baseDir, const std::vector<std::s
     if (node.empty())
       continue;
 
-    // Search for the subdirectory in the current level
     TDirectory* nextDir = currentDir->GetDirectory(node.c_str());
     if (!nextDir) {
-      if (isReadOnly) {
-        // In read-only mode, do not create anything; fail silently (Cache Miss)
+      if (isReadOnly)
         return nullptr;
-      } else {
-        nextDir = currentDir->mkdir(node.c_str());
-      }
-
-      // Safety check (e.g., disk full, file closed, permission denied)
-      if (!nextDir) {
-        Logger::Error("RootIO::GetOrCreatePath - Failed to create TDirectory '{}'.", node);
-        return nullptr;
-      }
+      nextDir = currentDir->mkdir(node.c_str());
+      // Disk full, file closed or opened read-only.
+      if (!nextDir)
+        throw std::runtime_error(std::format("[FATAL] RootIO::GetOrCreatePath: cannot create '{}' in '{}' of {}.",
+                                             node, currentDir->GetPath(), FileNameOf(baseDir)));
     }
 
-    // Move down one level for the next iteration
     currentDir = nextDir;
   }
 
@@ -173,17 +184,6 @@ inline void ClearPath(TDirectory* baseDir, const std::vector<std::string>& pathN
   TDirectory* parent = parentPath.empty() ? baseDir : GetOrCreatePath(baseDir, parentPath, true);
 
   parent->Delete((pathNodes.back() + ";*").c_str());
-}
-
-// Builds the ROOT directory prefix "node1/node2/", trailing slash included, so
-// that the caller can append the object name and hand the result to Get().
-inline std::string MakeDirPath(const std::vector<std::string>& path)
-{
-  std::string fullPath = "";
-  for (const auto& dir : path) {
-    fullPath += dir + "/";
-  }
-  return fullPath;
 }
 
 // -----------------------------------------------------------------------------
