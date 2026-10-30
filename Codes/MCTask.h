@@ -44,7 +44,7 @@ class MCTask : public IAnalysisTask
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
-    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
+    provenance = RootIO::StartProvenance(taskConfig);
 
     // 1. Check if a list of particle to compute MC corrections is provided
     auto particles = JsonConfig::RequireArray(taskConfig, "mc_particles", GetName());
@@ -167,10 +167,10 @@ class MCTask : public IAnalysisTask
       canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_SignalLoss", name + " Signal Loss",
                                                              {globalCfgs.binningName, "SigLoss", "Summary"}));
       if (data.rebinningPt) {
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_Efficiency_sourceBinning", name + " Efficiency (Source Binning)",
-                                                               {globalCfgs.binningName, "AccEff", "Summary", "SourceBinning"}));
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_SignalLoss_sourceBinning", name + " Signal Loss (Source Binning)",
-                                                               {globalCfgs.binningName, "SigLoss", "Summary", "SourceBinning"}));
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_Efficiency" + OutputNames::kSourceBinningSuffix, name + " Efficiency (Source Binning)",
+                                                               OutputNames::SourceBinningPath({globalCfgs.binningName, "AccEff", "Summary"})));
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + name + "_SignalLoss" + OutputNames::kSourceBinningSuffix, name + " Signal Loss (Source Binning)",
+                                                               OutputNames::SourceBinningPath({globalCfgs.binningName, "SigLoss", "Summary"})));
       }
 
       dataCollection.push_back(std::move(data));
@@ -202,9 +202,9 @@ class MCTask : public IAnalysisTask
                                                                data.name + " Signal Loss / Event Loss",
                                                                {globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"}));
         if (data.rebinningPt) {
-          canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + data.name + "_SignalLossOverEventLoss_sourceBinning",
+          canvasManager.SetAutoYRange(canvasManager.CreateCanvas("c_" + data.name + "_SignalLossOverEventLoss" + OutputNames::kSourceBinningSuffix,
                                                                  data.name + " Signal Loss / Event Loss (Source Binning)",
-                                                                 {globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss", "SourceBinning"}));
+                                                                 OutputNames::SourceBinningPath({globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"})));
         }
       }
     } else {
@@ -242,7 +242,7 @@ class MCTask : public IAnalysisTask
     auto writeInto = [&](const std::vector<std::string>& path, TH1* h) {
       if (!h)
         return;
-      RootIO::GetOrCreatePath(fileMCOutput.get(), path, false)->cd();
+      RootIO::MakePath(fileMCOutput.get(), path)->cd();
       h->Write(nullptr, TObject::kOverwrite);
     };
 
@@ -260,10 +260,8 @@ class MCTask : public IAnalysisTask
     // The source-binning maps in a subdirectory of their own (see writeMaps), as copies: each name is one directory.
     const std::vector<std::string> effPath = OutputNames::EfficiencyPath(globalCfgs.binningName);
     const std::vector<std::string> lossPath = OutputNames::SignalLossPath(globalCfgs.binningName);
-    std::vector<std::string> effSourcePath = effPath;
-    effSourcePath.push_back("SourceBinning");
-    std::vector<std::string> lossSourcePath = lossPath;
-    lossSourcePath.push_back("SourceBinning");
+    const std::vector<std::string> effSourcePath = OutputNames::SourceBinningPath(effPath);
+    const std::vector<std::string> lossSourcePath = OutputNames::SourceBinningPath(lossPath);
 
     for (auto& data : dataCollection) {
       Logger::Info(" ---> Processing particle: {}", data.name);
@@ -319,13 +317,13 @@ class MCTask : public IAnalysisTask
         }
 
         if (maps.efficiencySourceBinning) {
-          if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_Efficiency_sourceBinning")) {
+          if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_Efficiency" + OutputNames::kSourceBinningSuffix)) {
             c->cd();
             maps.efficiencySourceBinning->DrawCopy(drawOption);
           }
         }
         if (maps.signalLossSourceBinning) {
-          if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_SignalLoss_sourceBinning")) {
+          if (auto* c = canvasManager.GetCanvas("c_" + data.name + "_SignalLoss" + OutputNames::kSourceBinningSuffix)) {
             c->cd();
             maps.signalLossSourceBinning->DrawCopy(drawOption);
           }
@@ -399,7 +397,7 @@ class MCTask : public IAnalysisTask
         };
 
         divideAndDraw(maps.signalLoss.get(), canvasManager.GetCanvas("c_" + data.name + "_SignalLossOverEventLoss"));
-        divideAndDraw(maps.signalLossSourceBinning.get(), canvasManager.GetCanvas("c_" + data.name + "_SignalLossOverEventLoss_sourceBinning"));
+        divideAndDraw(maps.signalLossSourceBinning.get(), canvasManager.GetCanvas("c_" + data.name + "_SignalLossOverEventLoss" + OutputNames::kSourceBinningSuffix));
       };
 
       // The source-binning maps get a subdirectory of their own rather than
@@ -439,7 +437,7 @@ class MCTask : public IAnalysisTask
 
     // The pT binning of every correction is its own axis; the multiplicity binning is
     // in the names, and stamped (RootIO::RequireMatchingBinningStamp).
-    RootIO::WriteBinningStamp(RootIO::GetOrCreatePath(fileMCOutput.get(), {globalCfgs.binningName}, false), RootIO::kStampMult,
+    RootIO::WriteBinningStamp(RootIO::MakePath(fileMCOutput.get(), {globalCfgs.binningName}), RootIO::kStampMult,
                               multBinning);
 
     RootIO::WriteProvenance(fileMCOutput.get(), globalCfgs.binningName, provenance);

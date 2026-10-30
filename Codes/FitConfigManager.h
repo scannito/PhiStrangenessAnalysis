@@ -140,12 +140,10 @@ class FitConfigManager : public BaseConfigManager
   // decides which ones: the purity task by each particle's 'purity_key', the trigger
   // fit by "phi". A section cannot be defaulted - there is no sensible model,
   // observable or range to invent - so its absence is always an error, unlike for
-  // ExtrapConfigManager, where it means "skip this particle". Checked before the
-  // lookup: rapidjson's operator[] on a missing key asserts, and in a Release
-  // build (where asserts are compiled out) returns a null value in silence.
+  // ExtrapConfigManager, where it means "skip this particle".
   const rapidjson::Value& Section(const std::string& section) const
   {
-    const rapidjson::Value* node = isLoaded ? JsonConfig::TryObject(document, section.c_str(), managerName) : nullptr;
+    const rapidjson::Value* node = JsonConfig::TryObject(document, section.c_str(), managerName);
     if (!node)
       throw std::runtime_error(std::format("[FATAL] {}: no section '{}' in the fit configuration.",
                                            managerName, section));
@@ -157,10 +155,6 @@ class FitConfigManager : public BaseConfigManager
   {
     const rapidjson::Value* fitSetup = JsonConfig::TryObject(Section(section), "fit_setup", SectionCtx(section));
     return fitSetup ? JsonConfig::TryObject(*fitSetup, "bins", SectionCtx(section) + ".fit_setup") : nullptr;
-  }
-
-  // The head of every message about a section; the node read is appended to it.
-  std::string SectionCtx(const std::string& section) const { return std::format("{}: section '{}'", managerName, section);
   }
 
   // section -> the CellTags its task fits ("mult0-1_pt0.7-0.8"), every declared binning together; filled by DeclareCells

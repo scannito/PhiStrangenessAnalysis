@@ -17,14 +17,14 @@ class BaseConfigManager
 {
  protected:
   rapidjson::Document document;
-  bool isLoaded{false};
   std::string managerName;
+
+  // The head of every message about a section of the file; the node read is appended to it.
+  std::string SectionCtx(const std::string& section) const { return std::format("{}: section '{}'", managerName, section); }
 
   BaseConfigManager(const std::string& jsonPath, const std::string& managerName) : managerName(managerName)
   {
     JsonConfig::LoadDocument(jsonPath, document, managerName);
-
-    isLoaded = true;
     Logger::Info("{}: JSON successfully loaded into RAM.", managerName);
   }
 

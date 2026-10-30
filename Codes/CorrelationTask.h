@@ -46,7 +46,6 @@ class CorrelationTask : public CorrelationTaskBase
 
     purityPrefix = getPrefix(taskConfig, "purity_prefix", "input_prefix");
     triggerPrefix = getPrefix(taskConfig, "trigger_prefix", "input_prefix");
-    outputPrefix = getPrefix(taskConfig, "output_prefix", "output_prefix");
 
     // 2. Load Trigger information from PhiFitTask
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
@@ -116,7 +115,7 @@ class CorrelationTask : public CorrelationTaskBase
 
     // 4. Output files (opened before the corrections: the cache carries the
     //    binning that everything below is loaded against)
-    OpenOutputFiles(taskConfig, outputPrefix, doMoreQA);
+    OpenOutputFiles(taskConfig, doMoreQA);
     ResolveBinningAndCache();
 
     // 5. Corrections / Purity / Extrapolation, rebinned onto the binning that
@@ -175,7 +174,7 @@ class CorrelationTask : public CorrelationTaskBase
   bool applyPurity{false};
   bool useSignalCache{false}, doMoreQA{false};
 
-  std::string purityPrefix{""}, triggerPrefix{""}, outputPrefix{""};
+  std::string purityPrefix{""}, triggerPrefix{""};
 
   std::unique_ptr<TH2D> h2TriggerSignal;
   std::unique_ptr<TH2D> h2TriggerBkgRatio;
@@ -197,7 +196,7 @@ class CorrelationTask : public CorrelationTaskBase
     std::unique_ptr<TFile> filePurity = RootIO::OpenOrThrow(purityFilePath, "READ", GetName());
     RootIO::PrintProvenance(filePurity.get(), globalCfgs.binningName, std::format("purity file '{}'", purityFilePath));
 
-    RootIO::RequireMatchingBinningStamp(RootIO::GetOrCreatePath(filePurity.get(), {globalCfgs.binningName}, true), RootIO::kStampMult,
+    RootIO::RequireMatchingBinningStamp(RootIO::FindPath(filePurity.get(), {globalCfgs.binningName}), RootIO::kStampMult,
                                         multBinning, std::format("purity file '{}'", purityFilePath));
 
     int srcIdx = 0;
@@ -254,7 +253,7 @@ class CorrelationTask : public CorrelationTaskBase
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
-          TDirectory* sourceDir = RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, true);
+          TDirectory* sourceDir = RootIO::FindPath(filesPhiAssocDataOutput[pIdx].get(), logicalPath);
           if (!sourceDir)
             throw std::runtime_error(std::format("[FATAL] {}: use_signal_cache is on, but '{}' has no '{}'. Run with "
                                                  "use_signal_cache false first.",
@@ -289,7 +288,7 @@ class CorrelationTask : public CorrelationTaskBase
 
           TDirectory* currentQADir{nullptr};
           if (doMoreQA && pIdx < filesPhiAssocQAOutput.size()) {
-            currentQADir = RootIO::GetOrCreatePath(filesPhiAssocQAOutput[pIdx].get(), logicalPath, false);
+            currentQADir = RootIO::MakePath(filesPhiAssocQAOutput[pIdx].get(), logicalPath);
           }
 
           for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
@@ -322,7 +321,16 @@ class CorrelationTask : public CorrelationTaskBase
       Logger::Info("Multiplicity bin {} completed. Committing results to Level 2 Cache...", multBin);
 
       for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-        RootIO::GetOrCreatePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath, false)->cd();
+        // With use_projection_cache the projection files are open read-only, and the write would fail with an
+        // error of ROOT's own, outside Logger. Skipped and said instead: what a later use_signal_cache run reads
+        // is then the signal of the run that last wrote it, whatever corrections that run applied.
+        if (!filesPhiAssocDataOutput[pIdx]->IsWritable()) {
+          Logger::Warn("{}: the signal cache (use_signal_cache) of {} is not updated: '{}' is open read-only "
+                       "(use_projection_cache). A later run reading it gets the signal of the run that last wrote it.",
+                       GetName(), assocParticles[pIdx].name, filesPhiAssocDataOutput[pIdx]->GetName());
+          continue;
+        }
+        RootIO::MakePath(filesPhiAssocDataOutput[pIdx].get(), logicalPath)->cd();
         for (int ptAssocBin : BinningUtils::BinIndices(assocParticles[pIdx].binning)) {
           if (h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]) {
             std::string saveName = std::format("h1Phi{}Final{}", assocParticles[pIdx].name, CellSuffix(assocParticles[pIdx], multBin, ptAssocBin));

@@ -92,7 +92,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
     // 4. Output files (opened before the corrections: the cache carries the
     //    binning that everything below is loaded against)
-    OpenOutputFiles(taskConfig, JsonConfig::OptionalString(taskConfig, "input_output_prefix", "", GetName()), false);
+    OpenOutputFiles(taskConfig, false);
     ResolveBinningAndCache();
 
     // 5. Corrections / Extrapolation, rebinned onto the binning just resolved

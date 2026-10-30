@@ -38,6 +38,7 @@
 #include <map>
 #include <memory>
 #include <stdexcept>
+#include <optional>
 #include <set>
 #include <string>
 #include <string_view>
@@ -79,13 +80,13 @@ class CorrelationTaskBase : public IAnalysisTask
       std::vector<std::string> trendsPath = particlePath;
       trendsPath.push_back(OutputNames::kTrendsDir);
 
-      TDirectory* trendsDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), trendsPath);
+      TDirectory* trendsDir = RootIO::MakePath(fileOutputSpectra.get(), trendsPath);
 
       // The associated pT binning, with the particle it belongs to rather than
       // encoded in the object name. What it guards is the Trends directory next to
       // it: those are integrals over pT, so a disagreement there does not show up in
       // any axis. See the note by the scheme-level stamps below.
-      RootIO::WriteBinningStamp(RootIO::GetOrCreatePath(fileOutputSpectra.get(), particlePath),
+      RootIO::WriteBinningStamp(RootIO::MakePath(fileOutputSpectra.get(), particlePath),
                                 RootIO::kStampPtAssoc, assocParticles[pIdx].binning);
       trendsDir->cd();
 
@@ -160,7 +161,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // but the TRENDS are integrated over pT and carry multiplicity on theirs, so two
     // productions with different pT binnings would produce trends whose axes agree
     // perfectly and whose contents are integrals over different ranges.
-    TDirectory* schemeDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), {globalCfgs.binningName}, false);
+    TDirectory* schemeDir = RootIO::MakePath(fileOutputSpectra.get(), {globalCfgs.binningName});
     RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
     RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhiBinning);
 
@@ -172,7 +173,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // which errors enter, the phi efficiency's not, how they combine - that a reader would otherwise have to
     // re-implement outside the framework. The trigger count itself is not written, for the opposite reason:
     // it is those inputs and a sum, with nothing to choose.
-    RootIO::GetOrCreatePath(fileOutputSpectra.get(), baseLogicalPath)->cd();
+    RootIO::MakePath(fileOutputSpectra.get(), baseLogicalPath)->cd();
     hNormalisationRelError->Write(nullptr, TObject::kOverwrite);
 
     // The spectra leave this task and, once the trends and ratios move to a task
@@ -186,23 +187,21 @@ class CorrelationTaskBase : public IAnalysisTask
       // Create or access the "Ratios" directory inside Extract1D/2D
       std::vector<std::string> ratioPath = baseLogicalPath;
       ratioPath.push_back(OutputNames::kRatiosDir);
-      TDirectory* ratioDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), ratioPath);
+      TDirectory* ratioDir = RootIO::MakePath(fileOutputSpectra.get(), ratioPath);
 
       ratioDir->cd();
 
       for (const auto& ratioCfg : requestedRatios) {
-        const std::optional<size_t> numIdx = AssocIndex(ratioCfg.num);
-        const std::optional<size_t> denIdx = AssocIndex(ratioCfg.den);
-        if (!numIdx || !denIdx) {
+        const std::optional<size_t> idxNum = AssocIndex(ratioCfg.num);
+        const std::optional<size_t> idxDen = AssocIndex(ratioCfg.den);
+        if (!idxNum || !idxDen) {
           Logger::Warn("{}: cannot compute the ratio {}/{}: one or both particles are not configured.", GetName(),
                        ratioCfg.num, ratioCfg.den);
           continue; // Skip this specific ratio and move to the next
         }
-        const size_t idxNum = *numIdx;
-        const size_t idxDen = *denIdx;
 
-        const auto& num = assocParticles[idxNum];
-        const auto& den = assocParticles[idxDen];
+        const auto& num = assocParticles[*idxNum];
+        const auto& den = assocParticles[*idxDen];
 
         double numScale = GetYieldScaleFactor(num.name);
         double denScale = GetYieldScaleFactor(den.name);
@@ -223,7 +222,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
           std::string ratioMeasName = OutputNames::ParticleRatioMeasured(num.name, den.name, dyLimit);
           std::string ratioMeasTitle = "Measured Ratio; Multiplicity percentile (%);" + ratioCfg.label;
-          std::unique_ptr<TH1> hRatioMeas = HistogramUtils::MakeRatioHist(h1MultTrends[idxNum][yIdx].get(), h1MultTrends[idxDen][yIdx].get(),
+          std::unique_ptr<TH1> hRatioMeas = HistogramUtils::MakeRatioHist(h1MultTrends[*idxNum][yIdx].get(), h1MultTrends[*idxDen][yIdx].get(),
                                                                          ratioMeasName, ratioMeasTitle, numScale, denScale);
 
           CanvasManager::SetHistogramStyle(hRatioMeas.get(), globalCfgs.GetMultTrendColor(yIdx), 24);
@@ -233,8 +232,8 @@ class CorrelationTaskBase : public IAnalysisTask
 
           std::unique_ptr<TH1> hRatioExtrap{nullptr};
           if (doExtrapRatio) {
-            TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[idxNum][yIdx].get() : h1MultTrends[idxNum][yIdx].get();
-            TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[idxDen][yIdx].get() : h1MultTrends[idxDen][yIdx].get();
+            TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[*idxNum][yIdx].get() : h1MultTrends[*idxNum][yIdx].get();
+            TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[*idxDen][yIdx].get() : h1MultTrends[*idxDen][yIdx].get();
 
             std::string ratioExtrapName = OutputNames::ParticleRatioExtrapolated(num.name, den.name, dyLimit);
             std::string ratioExtrapTitle = "Extrapolated Ratio; Multiplicity percentile (%);" + ratioCfg.label;
@@ -396,7 +395,7 @@ class CorrelationTaskBase : public IAnalysisTask
     applyME = JsonConfig::RequireBool(taskConfig, "apply_mixed_events", GetName());
     applyExtrapolation = JsonConfig::RequireBool(taskConfig, "apply_extrapolation", GetName());
 
-    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
+    provenance = RootIO::StartProvenance(taskConfig);
 
     useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
     use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());
@@ -570,10 +569,7 @@ class CorrelationTaskBase : public IAnalysisTask
       const std::string particle = member.name.GetString();
       const std::string pctx = std::format("{}.particles.{}", ctx, particle);
 
-      const bool isPhi = (particle == "Phi");
-      const bool isAssoc = AssocIndex(particle).has_value();
-      if (!isPhi && !isAssoc)
-        throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither Phi nor one of the associated_particles.", pctx, particle));
+      PtBinningOf(particle, pctx); // refuses any name that is neither Phi nor an associated particle
       if (!member.value.IsObject())
         throw std::runtime_error(std::format("[FATAL] {}: must be an object.", pctx));
 
@@ -646,7 +642,7 @@ class CorrelationTaskBase : public IAnalysisTask
                             std::format("corrections file '{}'", correctionsFilePath));
 
     RootIO::RequireMatchingBinningStamp(
-      RootIO::GetOrCreatePath(fileCorrections.get(), {globalCfgs.binningName}, true),
+      RootIO::FindPath(fileCorrections.get(), {globalCfgs.binningName}),
       RootIO::kStampMult, multBinning, std::format("corrections file '{}'", correctionsFilePath));
 
     // What a map corrects: its axis, and what an invalid bin of it does under on_invalid_correction_bin 'warn'.
@@ -852,7 +848,7 @@ class CorrelationTaskBase : public IAnalysisTask
         ptPhi = globalCfgs.ResolvePtBinning("Phi", source->GetAxis(1), origin);
         particle.binning = globalCfgs.ResolvePtBinning(particle.name, source->GetAxis(2), origin);
 
-        TDirectory* schemeDir = RootIO::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, false);
+        TDirectory* schemeDir = RootIO::MakePath(cacheFile, {globalCfgs.binningName});
 
         // Projections from an earlier run under the SAME scheme name are still
         // there: if that run used a different binning, the ones whose bin range
@@ -887,7 +883,7 @@ class CorrelationTaskBase : public IAnalysisTask
         RootIO::WriteProvenance(cacheFile, globalCfgs.binningName,
                                 provenance);
       } else {
-        TDirectory* schemeDir = RootIO::GetOrCreatePath(cacheFile, {globalCfgs.binningName}, true);
+        TDirectory* schemeDir = RootIO::FindPath(cacheFile, {globalCfgs.binningName});
         if (!schemeDir) {
           throw std::runtime_error(std::format("[FATAL] {}: cache requested but scheme '{}' does not exist in {}. "
                                                "Run once with 'use_projection_cache': false.",
@@ -1292,7 +1288,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Per particle, alongside the Trends written in Terminate(). Resolved inside
       // the loop and not once outside it, because the directory now depends on which
       // species this iteration is producing.
-      TDirectory* targetSpectraDir = RootIO::GetOrCreatePath(fileOutputSpectra.get(), SectionPath({config.name, OutputNames::kSpectraDir}));
+      TDirectory* targetSpectraDir = RootIO::MakePath(fileOutputSpectra.get(), SectionPath({config.name, OutputNames::kSpectraDir}));
       const bool doExtrapForThis = extrapolatedParticles.contains(config.name);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
@@ -1451,8 +1447,14 @@ class CorrelationTaskBase : public IAnalysisTask
 
   // The files both correlation tasks write, opened in one way: PhiAssocSpectra.root, and per associated particle
   // the projection file (the cache) and, when asked, a QA file.
-  void OpenOutputFiles(const rapidjson::Value& taskConfig, const std::string& prefix, bool withQA)
+  void OpenOutputFiles(const rapidjson::Value& taskConfig, bool withQA)
   {
+    // The prefix by one rule for both tasks: output_prefix, else input_output_prefix. A task that read only one of
+    // them would write, with the other set, to the unprefixed file and clear its section below.
+    std::string prefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
+    if (prefix.empty())
+      prefix = JsonConfig::OptionalString(taskConfig, "input_output_prefix", "", GetName());
+
     const std::string projectionsDir = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
     const std::string finalDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     fileOutputSpectra = RootIO::OpenOrThrow(std::format("{}{}{}", finalDir, prefix, OutputNames::kSpectraFile), "UPDATE", GetName());
@@ -1515,8 +1517,8 @@ class CorrelationTaskBase : public IAnalysisTask
   TDirectory* ProjectionCacheDir(size_t pIdx, const std::vector<std::string>& logicalPath) const
   {
     TFile* file = filesPhiAssocDataOutput[pIdx].get();
-    TDirectory* dir = RootIO::GetOrCreatePath(file, logicalPath, useProjectionCache);
-    if (!dir && useProjectionCache)
+    TDirectory* dir = useProjectionCache ? RootIO::FindPath(file, logicalPath) : RootIO::MakePath(file, logicalPath);
+    if (!dir)
       throw std::runtime_error(std::format(
         "[FATAL] {}: use_projection_cache is on, but '{}' has no '{}': the projections of {} were never cached "
         "for this binning and section ({}). Run once with use_projection_cache false to build the cache.",

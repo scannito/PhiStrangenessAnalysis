@@ -207,7 +207,7 @@ class ComparisonTask : public IAnalysisTask
     std::string outName = std::format("{}{}Comparisons.root", outputDir, outputPrefix);
     fileOutput = RootIO::OpenOrThrow(outName, "RECREATE", GetName());
 
-    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
+    provenance = RootIO::StartProvenance(taskConfig);
 
     Logger::Info("{}: {} comparison(s) configured.", GetName(), comparisons.size());
   }
@@ -296,7 +296,7 @@ class ComparisonTask : public IAnalysisTask
     pair.num = RootIO::OpenOrThrow(comp.numeratorFile, "READ", ctx);
     pair.den = RootIO::OpenOrThrow(comp.denominatorFile, "READ", ctx);
 
-    pair.outDir = RootIO::GetOrCreatePath(fileOutput.get(), {comp.label});
+    pair.outDir = RootIO::MakePath(fileOutput.get(), {comp.label});
 
     // What was divided, travelling with the result. Provenance never throws: a path
     // that moved is not a reason to fail a comparison that is otherwise fine.
@@ -331,8 +331,8 @@ class ComparisonTask : public IAnalysisTask
       return pair;
     }
 
-    TDirectory* numScheme = RootIO::GetOrCreatePath(pair.num.get(), {inputScheme}, true);
-    TDirectory* denScheme = RootIO::GetOrCreatePath(pair.den.get(), {inputScheme}, true);
+    TDirectory* numScheme = RootIO::FindPath(pair.num.get(), {inputScheme});
+    TDirectory* denScheme = RootIO::FindPath(pair.den.get(), {inputScheme});
     if (!numScheme || !denScheme)
       throw std::runtime_error(std::format(
         "[FATAL] {}: no '{}' directory in '{}'. Either the inputs were produced under a different "
@@ -364,8 +364,8 @@ class ComparisonTask : public IAnalysisTask
       RootIO::RequireMatchingBinningStamp(denScheme, RootIO::kStampPtPhi, ptPhi,
                                           std::format("{}, denominator '{}'", ctx, comp.denominatorFile));
 
-    pair.numDir = RootIO::GetOrCreatePath(pair.num.get(), {inputScheme, inputDirName}, true);
-    pair.denDir = RootIO::GetOrCreatePath(pair.den.get(), {inputScheme, inputDirName}, true);
+    pair.numDir = RootIO::FindPath(pair.num.get(), {inputScheme, inputDirName});
+    pair.denDir = RootIO::FindPath(pair.den.get(), {inputScheme, inputDirName});
     if (!pair.numDir || !pair.denDir)
       throw std::runtime_error(std::format("[FATAL] {}: no '{}' directory under '{}' in one of the two inputs.",
                                            ctx, inputDirName, inputScheme));
@@ -510,15 +510,15 @@ class ComparisonTask : public IAnalysisTask
     // Read-only on the inputs: navigate, never create. They are opened READ, so a
     // mkdir would fail anyway, but saying it here is what makes a missing directory
     // a plain "nothing to do" instead of an error.
-    TDirectory* numSub = RootIO::GetOrCreatePath(pair.numDir, subPath, true);
-    TDirectory* denSub = RootIO::GetOrCreatePath(pair.denDir, subPath, true);
+    TDirectory* numSub = RootIO::FindPath(pair.numDir, subPath);
+    TDirectory* denSub = RootIO::FindPath(pair.denDir, subPath);
     if (!numSub || !denSub)
       return 0;
 
     // From pair.outDir, which is already the directory of this comparison: the same
     // 'subPath' then means the same thing on all three sides, so the output mirrors
     // the input layout by construction rather than by two places agreeing.
-    TDirectory* outSub = RootIO::GetOrCreatePath(pair.outDir, subPath);
+    TDirectory* outSub = RootIO::MakePath(pair.outDir, subPath);
 
     int done = 0;
     for (const std::string& name : ListHistograms(numSub)) {
@@ -559,11 +559,11 @@ class ComparisonTask : public IAnalysisTask
   // being divided - see the note at the top of the class.
   void RequireSamePtAssoc(const OpenPair& pair, const Comparison& comp, const std::string& particle)
   {
-    const std::vector<double> stamped = RootIO::ReadBinningStamp(RootIO::GetOrCreatePath(pair.numDir, {particle}, true), RootIO::kStampPtAssoc);
+    const std::vector<double> stamped = RootIO::ReadBinningStamp(RootIO::FindPath(pair.numDir, {particle}), RootIO::kStampPtAssoc);
     if (stamped.empty())
       return; // produced before the stamp existed: warned about, not fatal
 
-    RootIO::RequireMatchingBinningStamp(RootIO::GetOrCreatePath(pair.denDir, {particle}, true), RootIO::kStampPtAssoc, stamped,
+    RootIO::RequireMatchingBinningStamp(RootIO::FindPath(pair.denDir, {particle}), RootIO::kStampPtAssoc, stamped,
                                         std::format("{} '{}', {}, denominator '{}'", GetName(), comp.label, particle,
                                                     comp.denominatorFile));
   }

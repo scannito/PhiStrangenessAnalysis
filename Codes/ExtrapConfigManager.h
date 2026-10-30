@@ -18,7 +18,7 @@ class ExtrapConfigManager : public BaseConfigManager
 
   bool HasConfig(const std::string& particle) const
   {
-    return isLoaded && document.HasMember(particle.c_str());
+    return JsonConfig::TryObject(document, particle.c_str(), managerName) != nullptr;
   }
 
   // The multiplicity classes a task extrapolates for a particle that HasConfig, each by OutputNames::MultTag.
@@ -107,18 +107,15 @@ class ExtrapConfigManager : public BaseConfigManager
   // A missing section is a legitimate state, and HasConfig is how a caller asks: it
   // skips the particle. Arriving here means a caller skipped that test - and an empty
   // ExtrapConfig would only fail later, with a message about a model that was never the
-  // problem. Checked before the lookup: rapidjson's operator[] on a missing key asserts.
+  // problem.
   const rapidjson::Value& Section(const std::string& particle) const
   {
-    const rapidjson::Value* node = isLoaded ? JsonConfig::TryObject(document, particle.c_str(), managerName) : nullptr;
+    const rapidjson::Value* node = JsonConfig::TryObject(document, particle.c_str(), managerName);
     if (!node)
       throw std::runtime_error(std::format("[FATAL] {}: section '{}' asked for, but the JSON has none: check HasConfig first.",
                                            managerName, particle));
     return *node;
   }
-
-  // The head of every message about a section; the node read is appended to it.
-  std::string SectionCtx(const std::string& particle) const { return std::format("{}: section '{}'", managerName, particle); }
 
   // section -> the MultTags its task extrapolates ("mult10-15"); filled by DeclareCells
   std::map<std::string, std::set<std::string>> declaredCells;

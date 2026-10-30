@@ -53,6 +53,15 @@ inline const std::string kSpectraFile{"PhiAssocSpectra.root"};
 inline std::string ProjectionFile(std::string_view particle) { return std::format("Phi{}DataHistograms.root", particle); }
 
 
+// A result kept also at the binning of its source, when 'rebinning_pt' merged the analysis one (MCTask,
+// PurityTask): in a subdirectory of its own, and its canvas named with a suffix.
+inline const std::string kSourceBinningSuffix{"_sourceBinning"};
+inline std::vector<std::string> SourceBinningPath(std::vector<std::string> path)
+{
+  path.push_back("SourceBinning");
+  return path;
+}
+
 // A species directory of a section is one that holds per-species results, which is what
 // tells it from the Ratios sibling. Recognised by what it contains and not by excluding the
 // names of everything it is not: that exclusion would need a new entry the first time

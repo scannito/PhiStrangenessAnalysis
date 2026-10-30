@@ -1,6 +1,7 @@
 #pragma once
 
 #include "BinningUtils.h"
+#include "JsonConfigHelpers.h"
 #include "Logger.h"
 #include "RunEnvironment.h"
 
@@ -122,39 +123,41 @@ inline std::string MakeDirPath(const std::vector<std::string>& path)
   return fullPath;
 }
 
-// Read-only, a missing directory is an answer: nullptr, and the caller decides (a cache miss, an optional
-// section). Creating, it is a failure that would lose whatever was to be written there, so it stops the run:
-// it used to log and return nullptr, and each caller then either threw, skipped the write, or wrote into the
-// current directory instead.
-inline TDirectory* GetOrCreatePath(TDirectory* baseDir, const std::vector<std::string>& pathNodes, bool isReadOnly = false)
+// The directory at baseDir/pathNodes if it exists, or nullptr: read-only, so a missing directory is an
+// answer and the caller decides what it means (a cache miss, an optional section).
+inline TDirectory* FindPath(TDirectory* baseDir, const std::vector<std::string>& pathNodes)
 {
-  if (!baseDir) {
-    if (isReadOnly)
+  TDirectory* dir = baseDir;
+  for (const auto& node : pathNodes) {
+    if (!dir)
       return nullptr;
-    throw std::runtime_error(std::format("[FATAL] RootIO::GetOrCreatePath: no directory to create '{}' in.", MakeDirPath(pathNodes)));
+    if (!node.empty())
+      dir = dir->GetDirectory(node.c_str());
   }
+  return dir;
+}
 
-  TDirectory* currentDir = baseDir;
+// The directory at baseDir/pathNodes, created where missing; never nullptr. A directory that cannot be created
+// would lose whatever was to be written there, so it stops the run: the function that did both, with a flag,
+// used to log and return nullptr, and each caller then threw, skipped the write or wrote into the current
+// directory instead.
+inline TDirectory* MakePath(TDirectory* baseDir, const std::vector<std::string>& pathNodes)
+{
+  if (!baseDir)
+    throw std::runtime_error(std::format("[FATAL] RootIO::MakePath: no directory to create '{}' in.", MakeDirPath(pathNodes)));
 
+  TDirectory* dir = baseDir;
   for (const auto& node : pathNodes) {
     if (node.empty())
       continue;
-
-    TDirectory* nextDir = currentDir->GetDirectory(node.c_str());
-    if (!nextDir) {
-      if (isReadOnly)
-        return nullptr;
-      nextDir = currentDir->mkdir(node.c_str());
-      // Disk full, file closed or opened read-only.
-      if (!nextDir)
-        throw std::runtime_error(std::format("[FATAL] RootIO::GetOrCreatePath: cannot create '{}' in '{}' of {}.",
-                                             node, currentDir->GetPath(), FileNameOf(baseDir)));
-    }
-
-    currentDir = nextDir;
+    TDirectory* next = dir->GetDirectory(node.c_str());
+    // mkdir fails when the disk is full or the file is closed or read-only.
+    if (!next && !(next = dir->mkdir(node.c_str())))
+      throw std::runtime_error(std::format("[FATAL] RootIO::MakePath: cannot create '{}' in '{}' of {}.",
+                                           node, dir->GetPath(), FileNameOf(baseDir)));
+    dir = next;
   }
-
-  return currentDir;
+  return dir;
 }
 
 // Removes a subtree, so that a task about to rewrite it does not leave the previous
@@ -185,12 +188,12 @@ inline void ClearPath(TDirectory* baseDir, const std::vector<std::string>& pathN
 
   // Read-only navigation is the existence test used throughout this header: if the
   // path is not there, there is nothing to clear and nothing to report.
-  if (!GetOrCreatePath(baseDir, pathNodes, true))
+  if (!FindPath(baseDir, pathNodes))
     return;
 
   // The parent must resolve, since the full path just did.
   const std::vector<std::string> parentPath(pathNodes.begin(), pathNodes.end() - 1);
-  TDirectory* parent = parentPath.empty() ? baseDir : GetOrCreatePath(baseDir, parentPath, true);
+  TDirectory* parent = parentPath.empty() ? baseDir : FindPath(baseDir, parentPath);
 
   parent->Delete((pathNodes.back() + ";*").c_str());
 }
@@ -225,7 +228,11 @@ inline const std::string kStampPtAssoc{"binning_ptAssoc"};
 // through AxisEdges like any other axis, and is inspectable in a TBrowser.
 inline void WriteBinningStamp(TDirectory* dir, const std::string& name, std::span<const double> edges)
 {
-  if (!dir || edges.size() < 2)
+  // A stamp not written is read back as empty, which the readers take as "nothing to compare": the check it
+  // carries would be switched off with no word.
+  if (!dir)
+    throw std::runtime_error(std::format("[FATAL] RootIO::WriteBinningStamp: no directory to write '{}' into.", name));
+  if (edges.size() < 2)
     return;
 
   TH1D stamp(name.c_str(), "binning stamp (bin edges only, contents unused)",
@@ -313,22 +320,20 @@ inline std::string ProvenanceDirName(std::string_view record)
 // What every task records before anything of its own: when, its whole merged configuration block (so a key
 // added to the JSON tomorrow is recorded without touching the task), and the facts about the run itself.
 // Documentation, not a check: see WriteProvenance.
-inline std::map<std::string, std::string> StartProvenance(std::string configBlock)
+inline std::map<std::string, std::string> StartProvenance(const rapidjson::Value& taskConfig)
 {
   std::map<std::string, std::string> facts = RunEnvironment::Facts();
   facts["produced_at"] = RunEnvironment::TimestampNow();
-  facts["config_block"] = std::move(configBlock);
+  facts["config_block"] = JsonConfig::Serialize(taskConfig);
   return facts;
 }
 
 inline void WriteProvenance(TDirectory* base, const std::string& owner, const std::map<std::string, std::string>& facts,
                             std::string_view record = {})
 {
-  TDirectory* dir = GetOrCreatePath(base, {owner, Detail::ProvenanceDirName(record)}, false);
-  if (!dir)
-    return;
-
-  dir->cd();
+  // MakePath throws if the directory cannot be created: that is the output file failing, and the results
+  // written beside the provenance are lost with it. "Provenance never throws" is about the facts recorded.
+  MakePath(base, {owner, Detail::ProvenanceDirName(record)})->cd();
   for (const auto& [key, value] : facts) {
     TNamed entry(key.c_str(), value.c_str());
     entry.Write(key.c_str(), TObject::kOverwrite);
@@ -338,7 +343,7 @@ inline void WriteProvenance(TDirectory* base, const std::string& owner, const st
 inline std::map<std::string, std::string> ReadProvenance(TDirectory* base, const std::string& owner)
 {
   std::map<std::string, std::string> facts;
-  TDirectory* dir = GetOrCreatePath(base, {owner, Detail::kProvenanceDir}, true);
+  TDirectory* dir = FindPath(base, {owner, Detail::kProvenanceDir});
   if (!dir || !dir->GetListOfKeys())
     return facts;
 

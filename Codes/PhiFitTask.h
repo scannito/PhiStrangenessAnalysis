@@ -39,7 +39,7 @@ class PhiFitTask : public IAnalysisTask
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
-    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
+    provenance = RootIO::StartProvenance(taskConfig);
 
     // 1. Input Configuration
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
@@ -97,7 +97,7 @@ class PhiFitTask : public IAnalysisTask
   {
     Logger::Info("{}: RUNNING TRIGGER SIGNAL EXTRACTION...", GetName());
 
-    TDirectory* fitDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Fits"}, false);
+    TDirectory* fitDir = RootIO::MakePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Fits"});
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
       for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
@@ -143,7 +143,7 @@ class PhiFitTask : public IAnalysisTask
     Logger::Info("{}: TERMINATING...", GetName());
 
     const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
-    TDirectory* summaryDir = RootIO::GetOrCreatePath(filePhiDataOutput.get(), summaryPath, false);
+    TDirectory* summaryDir = RootIO::MakePath(filePhiDataOutput.get(), summaryPath);
     summaryDir->cd();
 
     h2TriggerSignal->Write(nullptr, TObject::kOverwrite);
@@ -156,7 +156,7 @@ class PhiFitTask : public IAnalysisTask
     // stamp is needed here - both axes of the matrices are the real binnings.
     RootIO::WriteProvenance(filePhiDataOutput.get(), globalCfgs.binningName, provenance);
 
-    fitQuality.Write(RootIO::GetOrCreatePath(filePhiDataOutput.get(), {globalCfgs.binningName}, false), GetName());
+    fitQuality.Write(RootIO::MakePath(filePhiDataOutput.get(), {globalCfgs.binningName}), GetName());
 
     filePhiDataOutput->Close();
 

@@ -676,16 +676,19 @@ class CanvasManager
   // Static helper to write any canvas into baseDir/pathNodes; baseDir itself for an empty path.
   static void WriteCanvas(TCanvas* canvas, TDirectory* baseDir, const std::vector<std::string>& pathNodes)
   {
-    if (!canvas || !baseDir)
+    if (!canvas)
       return;
-    WriteCanvas(canvas, RootIO::GetOrCreatePath(baseDir, pathNodes, false));
+    WriteCanvas(canvas, RootIO::MakePath(baseDir, pathNodes));
   }
 
   // Static helper to write a canvas directly into a target TDirectory
   static void WriteCanvas(TCanvas* canvas, TDirectory* targetDir)
   {
-    if (!canvas || !targetDir)
+    if (!canvas)
       return;
+    // A canvas with nowhere to go is lost, as a missing directory is for RootIO::MakePath.
+    if (!targetDir)
+      throw std::runtime_error(std::format("[FATAL] CanvasManager: no directory to write canvas '{}' into.", canvas->GetName()));
     targetDir->cd();
     canvas->Write(nullptr, TObject::kOverwrite);
   }
@@ -712,8 +715,6 @@ class CanvasManager
   // Writes all managed canvases, using each canvas's registered targetPath (or baseDir if none)
   void WriteAll(TDirectory* baseDir) const
   {
-    if (!baseDir)
-      return;
     for (const auto& name : canvasOrder) {
       if (auto it = canvases.find(name); it != canvases.end() && it->second) {
         ApplyAutoYRange(name);

@@ -334,9 +334,9 @@ class CorrelationCalculator
     // 5. Uncut QA (if requested)
     if (qaDir && doMoreQA) {
       qaDir->cd();
-      h2Signal->Write((histNameBase + "Signal2D_MECorrected_Uncut").c_str());
+      h2Signal->Write((histNameBase + "Signal2D_MECorrected_Uncut").c_str(), TObject::kOverwrite);
       if (h2Sideband)
-        h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Uncut").c_str());
+        h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Uncut").c_str(), TObject::kOverwrite);
 
       // QA: X axis (Delta Phi)
       std::unique_ptr<TH1> h1QA_X_Sig(h2Signal->ProjectionX((histNameBase + "Signal1D_dPhi_Uncut").c_str()));
@@ -420,9 +420,9 @@ class CorrelationCalculator
 
       if (qaDir && doMoreQA && orthogonalCut) {
         qaDir->cd();
-        h2Signal->Write((histNameBase + "Signal2D_MECorrected_Cut").c_str());
+        h2Signal->Write((histNameBase + "Signal2D_MECorrected_Cut").c_str(), TObject::kOverwrite);
         if (h2Sideband)
-          h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Cut").c_str());
+          h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Cut").c_str(), TObject::kOverwrite);
         h1Sig1D->Write(nullptr, TObject::kOverwrite);
         if (h1Sideband1D)
           h1Sideband1D->Write(nullptr, TObject::kOverwrite);
