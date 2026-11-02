@@ -211,7 +211,7 @@ class CorrelationTaskBase : public IAnalysisTask
         const bool doExtrapRatio = numHasExtrap || denHasExtrap;
 
         std::string canvasName = std::format("canvasRatio_{}_{}_MultTrend", num.name, den.name);
-        TCanvas* canvasRatio = canvasManager.CreateCanvas(canvasName, "Ratio Mult Trend " + ratioCfg.label, ratioPath, 800, 600);
+        TCanvas* canvasRatio = canvasManager.CreateCanvas(canvasName, std::format("Ratio Mult Trend {}", ratioCfg.label), ratioPath, 800, 600);
         canvasRatio->cd();
 
         TLegend* legend = CanvasManager::CreateLegend(0.7, 0.7, 0.9, 0.9, 2);
@@ -221,7 +221,7 @@ class CorrelationTaskBase : public IAnalysisTask
           const std::string dyTitleStr = BinningUtils::FormatDeltaY(dyLimit);
 
           std::string ratioMeasName = OutputNames::ParticleRatioMeasured(num.name, den.name, dyLimit);
-          std::string ratioMeasTitle = "Measured Ratio; Multiplicity percentile (%);" + ratioCfg.label;
+          std::string ratioMeasTitle = std::format("Measured Ratio; Multiplicity percentile (%);{}", ratioCfg.label);
           std::unique_ptr<TH1> hRatioMeas = HistogramUtils::MakeRatioHist(h1MultTrends[*idxNum][yIdx].get(), h1MultTrends[*idxDen][yIdx].get(),
                                                                          ratioMeasName, ratioMeasTitle, numScale, denScale);
 
@@ -236,7 +236,7 @@ class CorrelationTaskBase : public IAnalysisTask
             TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[*idxDen][yIdx].get() : h1MultTrends[*idxDen][yIdx].get();
 
             std::string ratioExtrapName = OutputNames::ParticleRatioExtrapolated(num.name, den.name, dyLimit);
-            std::string ratioExtrapTitle = "Extrapolated Ratio; Multiplicity percentile (%);" + ratioCfg.label;
+            std::string ratioExtrapTitle = std::format("Extrapolated Ratio; Multiplicity percentile (%);{}", ratioCfg.label);
             hRatioExtrap = HistogramUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
 
             CanvasManager::SetHistogramStyle(hRatioExtrap.get(), globalCfgs.GetMultTrendColor(yIdx), 20);
@@ -435,7 +435,7 @@ class CorrelationTaskBase : public IAnalysisTask
         YieldRatioConfig ratio;
         ratio.num = JsonConfig::RequireString(r, "numerator", ctx);
         ratio.den = JsonConfig::RequireString(r, "denominator", ctx);
-        ratio.label = JsonConfig::OptionalString(r, "label", ratio.num + "/" + ratio.den, ctx);
+        ratio.label = JsonConfig::OptionalString(r, "label", std::format("{}/{}", ratio.num, ratio.den), ctx);
         requestedRatios.push_back(ratio);
       }
     }
@@ -591,7 +591,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
       ParticleCorrections pc;
       if (const rapidjson::Value* efficiencyNode = JsonConfig::TryObject(entry, "acceptance_efficiency", pctx)) {
-        const std::string actx = pctx + ".acceptance_efficiency";
+        const std::string actx = std::format("{}.acceptance_efficiency", pctx);
         pc.efficiency = EfficiencyCorrection{JsonConfig::RequireEnum<MultDependence>(
           *efficiencyNode, "mult", {{"binned", MultDependence::Binned}, {"integrated", MultDependence::Integrated}}, actx)};
       }
@@ -658,7 +658,7 @@ class CorrelationTaskBase : public IAnalysisTask
       const char* axis = of == MapOf::EventLoss ? "multiplicity" : "pT";
 
       // By path from the file: a missing directory and a missing map are one message, naming the file and the path.
-      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(fileCorrections.get(), RootIO::MakeDirPath(path) + name, GetName());
+      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(fileCorrections.get(), std::format("{}{}", RootIO::MakeDirPath(path), name), GetName());
 
       // Verified, NOT rebinned. An efficiency is a ratio, and merging bins of a
       // ratio sums them: two bins of 0.5 would give 1.0. A coarser efficiency can
@@ -1389,7 +1389,7 @@ class CorrelationTaskBase : public IAnalysisTask
             double assocCorrection = Correction(config.name, multBin, ptAssocBin);
             double totalCorrection = phiCorrection * assocCorrection;
 
-            std::string histNameBase = "h1Phi" + config.name + "Data";
+            std::string histNameBase = std::format("h1Phi{}Data", config.name);
             std::string suffix = CellSuffix(config, multBin, ptPhiBin, ptAssocBin);
 
             std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, {.axesToCut = axesToCut, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .histNameBase = histNameBase + suffix, .ioDir = targetDir});

@@ -118,7 +118,7 @@ inline std::string MakeDirPath(const std::vector<std::string>& path)
 {
   std::string fullPath = "";
   for (const auto& dir : path) {
-    fullPath += dir + "/";
+    fullPath += std::format("{}/", dir);
   }
   return fullPath;
 }
@@ -198,7 +198,7 @@ inline void ClearPath(TDirectory* baseDir, const std::vector<std::string>& pathN
   const std::vector<std::string> parentPath(pathNodes.begin(), pathNodes.end() - 1);
   TDirectory* parent = parentPath.empty() ? baseDir : FindPath(baseDir, parentPath);
 
-  parent->Delete((pathNodes.back() + ";*").c_str());
+  parent->Delete(std::format("{};*", pathNodes.back()).c_str());
 }
 
 // -----------------------------------------------------------------------------

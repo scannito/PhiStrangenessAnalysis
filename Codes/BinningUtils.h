@@ -68,7 +68,7 @@ inline std::string FormatEdge(double value)
 // 'index' is 0-based, the interval edges[index]..edges[index + 1]; its ROOT bin is RootBin(index).
 inline std::string BinLabel(std::span<const double> edges, int index)
 {
-  return FormatEdge(edges[index]) + "-" + FormatEdge(edges[index + 1]);
+  return std::format("{}-{}", FormatEdge(edges[index]), FormatEdge(edges[index + 1]));
 }
 
 // A delta-y limit as written in titles and messages, to two decimals ("0.80"). The form used

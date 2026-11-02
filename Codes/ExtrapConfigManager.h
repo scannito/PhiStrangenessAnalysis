@@ -30,7 +30,7 @@ class ExtrapConfigManager : public BaseConfigManager
     for (int multBin : BinningUtils::BinIndices(multBinning))
       classes.insert(OutputNames::MultTag(multBinning, multBin));
     if (const rapidjson::Value* bins = JsonConfig::TryObject(Section(particle), "bins", SectionCtx(particle)))
-      JsonConfig::RequireKnownKeys(*bins, classes, SectionCtx(particle) + ".bins (the keys are the multiplicity classes)");
+      JsonConfig::RequireKnownKeys(*bins, classes, std::format("{}.bins (the keys are the multiplicity classes)", SectionCtx(particle)));
     // Every class read once now, at Init, for the reason given at FitConfigManager::DeclareCells.
     for (const std::string& multTag : classes)
       (void)GetConfig(particle, multTag);
@@ -82,13 +82,13 @@ class ExtrapConfigManager : public BaseConfigManager
       // it out would keep the default's. Replaced whole, it has nothing to keep from a
       // previous pass, so its three keys are required.
       if (const rapidjson::Value* value = JsonConfig::OptionalMember(node, "high")) {
-        const std::string ctx = nodeCtx + ".high";
+        const std::string ctx = std::format("{}.high", nodeCtx);
         config.high.reset();
         if (const rapidjson::Value* high = JsonConfig::ToObjectOrNull(*value, "high", ctx)) {
           for (const char* key : {"model", "fit_range", "params"})
             JsonConfig::RequireMember(*high, key, ctx);
           loadFit(*high, config.high.emplace(), ctx);
-          config.high->source = read + ".high";
+          config.high->source = std::format("{}.high", read);
         }
       }
     };
@@ -98,7 +98,7 @@ class ExtrapConfigManager : public BaseConfigManager
       loadNodeIntoConfig(*defaults, "default");
 
     const rapidjson::Value* bins = JsonConfig::TryObject(partNode, "bins", sectionCtx);
-    if (const rapidjson::Value* classNode = bins ? JsonConfig::TryObject(*bins, multTag.c_str(), sectionCtx + ".bins") : nullptr) {
+    if (const rapidjson::Value* classNode = bins ? JsonConfig::TryObject(*bins, multTag.c_str(), std::format("{}.bins", sectionCtx)) : nullptr) {
       Logger::Debug("{}: Found custom parameters for bin: {}", managerName, multTag);
       loadNodeIntoConfig(*classNode, std::format("bins['{}']", multTag));
     }

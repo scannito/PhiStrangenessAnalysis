@@ -63,7 +63,7 @@ class MCTask : public IAnalysisTask
     // CCDB-ready per-particle maps live under outputDirectory/{binningName}/ on disk,
     // since the ROOT object inside must be named literally "ccdb_object" with no
     // internal subfolder. Ensure the directory exists — TFile won't create it.
-    ccdbOutputDir = outputDirectory + globalCfgs.binningName + "/";
+    ccdbOutputDir = std::format("{}{}/", outputDirectory, globalCfgs.binningName);
     RootIO::CreateDirectoriesOrThrow(ccdbOutputDir, GetName());
 
     particleCorrectionMode = JsonConfig::OptionalEnum<CorrectionMode>(taskConfig, "particle_correction_mode", "efficiency_only",
@@ -117,9 +117,9 @@ class MCTask : public IAnalysisTask
       LoadedMC data;
       data.name = name;
 
-      std::string h3MCGenName = mcBasePath + dirName + "/h3" + name + "MCGen";
-      std::string h4MCGenAssocRecoName = mcBasePath + dirName + "/h4" + name + "MCGenAssocReco";
-      std::string h4MCRecoName = mcBasePath + dirName + "/h4" + name + "MCReco";
+      std::string h3MCGenName = std::format("{}{}/h3{}MCGen", mcBasePath, dirName, name);
+      std::string h4MCGenAssocRecoName = std::format("{}{}/h4{}MCGenAssocReco", mcBasePath, dirName, name);
+      std::string h4MCRecoName = std::format("{}{}/h4{}MCReco", mcBasePath, dirName, name);
 
       data.h3MCGen = RootIO::GetUniqueOrThrow<TH3F>(getOrOpenFile(particleInputFile), h3MCGenName, GetName());
       data.h4MCGenAssocReco = RootIO::GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCGenAssocRecoName, GetName());
@@ -130,27 +130,27 @@ class MCTask : public IAnalysisTask
       // Checked directly between them: it holds even with nothing declared.
       // h3MCGen axes: (mult, pT, y) -- h4* axes: (zvtx, mult, pT, y)
       BinningUtils::RequireSameAxis(data.h3MCGen->GetYaxis(), data.h4MCReco->GetAxis(2),
-                                    h3MCGenName + " pT", h4MCRecoName + " pT");
+                                    std::format("{} pT", h3MCGenName), std::format("{} pT", h4MCRecoName));
       BinningUtils::RequireSameAxis(data.h4MCGenAssocReco->GetAxis(2), data.h4MCReco->GetAxis(2),
-                                    h4MCGenAssocRecoName + " pT", h4MCRecoName + " pT");
+                                    std::format("{} pT", h4MCGenAssocRecoName), std::format("{} pT", h4MCRecoName));
       BinningUtils::RequireSameAxis(data.h3MCGen->GetXaxis(), data.h4MCReco->GetAxis(1),
-                                    h3MCGenName + " multiplicity", h4MCRecoName + " multiplicity");
+                                    std::format("{} multiplicity", h3MCGenName), std::format("{} multiplicity", h4MCRecoName));
       BinningUtils::RequireSameAxis(data.h4MCGenAssocReco->GetAxis(1), data.h4MCReco->GetAxis(1),
-                                    h4MCGenAssocRecoName + " multiplicity", h4MCRecoName + " multiplicity");
+                                    std::format("{} multiplicity", h4MCGenAssocRecoName), std::format("{} multiplicity", h4MCRecoName));
       BinningUtils::RequireSameAxis(data.h4MCGenAssocReco->GetAxis(0), data.h4MCReco->GetAxis(0),
-                                    h4MCGenAssocRecoName + " zvtx", h4MCRecoName + " zvtx");
+                                    std::format("{} zvtx", h4MCGenAssocRecoName), std::format("{} zvtx", h4MCRecoName));
       BinningUtils::RequireSameAxis(data.h4MCGenAssocReco->GetAxis(3), data.h4MCReco->GetAxis(3),
-                                    h4MCGenAssocRecoName + " rapidity", h4MCRecoName + " rapidity");
+                                    std::format("{} rapidity", h4MCGenAssocRecoName), std::format("{} rapidity", h4MCRecoName));
       BinningUtils::RequireSameAxis(data.h3MCGen->GetZaxis(), data.h4MCReco->GetAxis(3),
-                                    h3MCGenName + " rapidity", h4MCRecoName + " rapidity");
+                                    std::format("{} rapidity", h3MCGenName), std::format("{} rapidity", h4MCRecoName));
 
       // The multiplicity binning is kept because the loops below address its
       // bins. The pT binning is not: this task consumes the pT dimension by
       // projecting the whole axis, so nothing here indexes it - it is resolved
       // only to have it verified against the declared production.
-      const std::string origin = "'" + particleInputFile + "'";
-      multBinning = globalCfgs.ResolveMultBinning(data.h3MCGen->GetXaxis(), h3MCGenName + " in " + origin);
-      globalCfgs.ResolvePtBinning(name, data.h3MCGen->GetYaxis(), h3MCGenName + " in " + origin);
+      const std::string origin = std::format("'{}'", particleInputFile);
+      multBinning = globalCfgs.ResolveMultBinning(data.h3MCGen->GetXaxis(), std::format("{} in {}", h3MCGenName, origin));
+      globalCfgs.ResolvePtBinning(name, data.h3MCGen->GetYaxis(), std::format("{} in {}", h3MCGenName, origin));
 
       if (auto rebin = JsonConfig::TryArray(p, "rebinning_pt", ctx)) {
         std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, std::format("rebinning_pt for '{}'", name), ctx);
@@ -181,8 +181,8 @@ class MCTask : public IAnalysisTask
     // it contains, so they're identical duplicates across all opened files —
     // simply read them from whichever file happens to be open already.
     if (!openInputFiles.empty()) {
-      std::string genAssocRecoEventPath = mcBasePath + "event/hGenMCAssocRecoMultiplicityPercent";
-      std::string genEventPath = mcBasePath + "event/hGenMCMultiplicityPercent";
+      std::string genAssocRecoEventPath = std::format("{}event/hGenMCAssocRecoMultiplicityPercent", mcBasePath);
+      std::string genEventPath = std::format("{}event/hGenMCMultiplicityPercent", mcBasePath);
 
       hEventMultGenAssocReco = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genAssocRecoEventPath, GetName());
       hEventMultGen = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genEventPath, GetName());
@@ -191,9 +191,9 @@ class MCTask : public IAnalysisTask
       // particle maps, so the two must share their axis.
       if (!dataCollection.empty()) {
         BinningUtils::RequireSameAxis(hEventMultGen->GetXaxis(), dataCollection.front().h3MCGen->GetXaxis(),
-                                      genEventPath + " multiplicity", "h3MCGen multiplicity");
+                                      std::format("{} multiplicity", genEventPath), "h3MCGen multiplicity");
         BinningUtils::RequireSameAxis(hEventMultGenAssocReco->GetXaxis(), hEventMultGen->GetXaxis(),
-                                      genAssocRecoEventPath + " multiplicity", genEventPath + " multiplicity");
+                                      std::format("{} multiplicity", genAssocRecoEventPath), std::format("{} multiplicity", genEventPath));
       }
 
       // OverEventLoss canvases are registered only when event histograms exist
@@ -267,7 +267,7 @@ class MCTask : public IAnalysisTask
       Logger::Info(" ---> Processing particle: {}", data.name);
 
       // Prepare the 3D generator-level histogram
-      data.h3MCGen->SetName(("h3" + data.name + "MCGen").c_str());
+      data.h3MCGen->SetName(std::format("h3{}MCGen", data.name).c_str());
       data.h3MCGen->GetZaxis()->SetRange(1, data.h3MCGen->GetZaxis()->GetNbins());
       // Only create the error structure if the histogram read from file lacks it
       if (data.h3MCGen->GetSumw2N() == 0)
@@ -285,8 +285,8 @@ class MCTask : public IAnalysisTask
       RootIO::WriteCcdbFile(fileMCOutputPerPartPath2D, h2CorrectionMap.get(), GetName());
 
       // QA: error/relative-error maps alongside the CCDB map
-      std::unique_ptr<TH2> h2CorrectionMapError = EfficiencyCalculator::BuildErrorMap(h2CorrectionMap.get(), "h2EffMapError" + data.name);
-      std::unique_ptr<TH2> h2CorrectionMapRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2CorrectionMap.get(), "h2EffMapRelError" + data.name);
+      std::unique_ptr<TH2> h2CorrectionMapError = EfficiencyCalculator::BuildErrorMap(h2CorrectionMap.get(), std::format("h2EffMapError{}", data.name));
+      std::unique_ptr<TH2> h2CorrectionMapRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2CorrectionMap.get(), std::format("h2EffMapRelError{}", data.name));
 
       std::string fileMCOutputPerPartErrorPath2D = std::format("{}{}h2EffMapError{}.root", ccdbOutputDir, outputPrefix, data.name);
       std::unique_ptr<TFile> fileMCOutputPerPartError2D = RootIO::OpenOrThrow(fileMCOutputPerPartErrorPath2D, "RECREATE", GetName());
@@ -370,7 +370,7 @@ class MCTask : public IAnalysisTask
 
           const std::string baseName = signalLoss->GetName();
 
-          std::unique_ptr<TH1> hEventLossConst{static_cast<TH1*>(signalLoss->Clone((baseName + "_evLossConst").c_str()))};
+          std::unique_ptr<TH1> hEventLossConst{static_cast<TH1*>(signalLoss->Clone(std::format("{}_evLossConst", baseName).c_str()))};
           hEventLossConst->SetDirectory(0);
           hEventLossConst->Reset();
           for (int bin = 1; bin <= hEventLossConst->GetNbinsX(); bin++) {
@@ -378,7 +378,7 @@ class MCTask : public IAnalysisTask
             hEventLossConst->SetBinError(bin, eventLossError);
           }
 
-          std::unique_ptr<TH1> ratio{static_cast<TH1*>(signalLoss->Clone((baseName + "_overEvLoss").c_str()))};
+          std::unique_ptr<TH1> ratio{static_cast<TH1*>(signalLoss->Clone(std::format("{}_overEvLoss", baseName).c_str()))};
           ratio->GetYaxis()->SetTitle("Signal Loss / Event Loss");
           ratio->SetDirectory(0);
           ratio->Divide(hEventLossConst.get());

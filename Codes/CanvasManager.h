@@ -257,12 +257,12 @@ class CanvasManager
     c->cd();
 
     // Top Pad (Distribution / Fit / Numerator & Denominator)
-    TPad* topPad = new TPad((name + "_top").c_str(), "top", 0.0, splitRatio, 1.0, 1.0);
+    TPad* topPad = new TPad(std::format("{}_top", name).c_str(), "top", 0.0, splitRatio, 1.0, 1.0);
     SetPadMargins(topPad, {.left = 0.14, .right = 0.05, .top = 0.08, .bottom = 0.02}); // Seamless junction with bottom pad
     topPad->Draw();
 
     // Bottom Pad (Ratio / Residuals / Pulls)
-    TPad* bottomPad = new TPad((name + "_bottom").c_str(), "bottom", 0.0, 0.0, 1.0, splitRatio);
+    TPad* bottomPad = new TPad(std::format("{}_bottom", name).c_str(), "bottom", 0.0, 0.0, 1.0, splitRatio);
     // Seamless junction with the top pad; ample space below for the X axis labels and title.
     SetPadMargins(bottomPad, {.left = 0.14, .right = 0.05, .top = 0.02, .bottom = 0.35});
     bottomPad->Draw();
@@ -728,7 +728,7 @@ class CanvasManager
     for (const auto& [name, c] : canvases) {
       if (c) {
         ApplyAutoYRange(name);
-        std::string path = (std::filesystem::path(outputDir) / (name + "." + extension)).string();
+        std::string path = (std::filesystem::path(outputDir) / std::format("{}.{}", name, extension)).string();
         c->SaveAs(path.c_str());
       }
     }
@@ -756,11 +756,11 @@ class CanvasManager
 
     // ROOT syntax for multi-page PDF generation:
     // first page with '[' begins document, last page with ']' closes it.
-    valid.front()->Print((pdfPath + "[").c_str());
+    valid.front()->Print(std::format("{}[", pdfPath).c_str());
     for (auto* c : valid) {
       c->Print(pdfPath.c_str());
     }
-    valid.back()->Print((pdfPath + "]").c_str());
+    valid.back()->Print(std::format("{}]", pdfPath).c_str());
   }
 
   // Exports managed canvases (either specified subset or all in insertion order) to a multi-page PDF

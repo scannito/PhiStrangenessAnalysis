@@ -58,15 +58,15 @@ class EfficiencyCalculator
     const std::vector<HistogramUtils::AxisToCut> cuts = {HistogramUtils::AxisToCut::Whole(0)}; // zvtx
 
     // Project 3D histograms safely from the THnSparse
-    std::unique_ptr<TH3> h3MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH3>(data.h4MCGenAssocReco.get(), cuts, {1, 2, 3}, "h3" + data.name + "MCGenAssocRecoTemp");
-    std::unique_ptr<TH3> h3MCReco = HistogramUtils::ProjectTHnSparse<TH3>(data.h4MCReco.get(), cuts, {1, 2, 3}, "h3" + data.name + "MCRecoTemp");
+    std::unique_ptr<TH3> h3MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH3>(data.h4MCGenAssocReco.get(), cuts, {1, 2, 3}, std::format("h3{}MCGenAssocRecoTemp", data.name));
+    std::unique_ptr<TH3> h3MCReco = HistogramUtils::ProjectTHnSparse<TH3>(data.h4MCReco.get(), cuts, {1, 2, 3}, std::format("h3{}MCRecoTemp", data.name));
 
     // Calculate 3D Efficiency (Reco / GenAssocReco)
-    std::unique_ptr<TH3> h3Efficiency(static_cast<TH3*>(h3MCReco->Clone(("h3" + data.name + "EfficiencyTemp").c_str())));
+    std::unique_ptr<TH3> h3Efficiency(static_cast<TH3*>(h3MCReco->Clone(std::format("h3{}EfficiencyTemp", data.name).c_str())));
     h3Efficiency->Divide(h3MCReco.get(), h3MCGenAssocReco.get(), 1.0, 1.0, "B");
 
     // Calculate 3D Signal Loss (GenAssocReco / Gen)
-    std::unique_ptr<TH3> h3SignalLoss(static_cast<TH3*>(h3MCGenAssocReco->Clone(("h3" + data.name + "SignalLossTemp").c_str())));
+    std::unique_ptr<TH3> h3SignalLoss(static_cast<TH3*>(h3MCGenAssocReco->Clone(std::format("h3{}SignalLossTemp", data.name).c_str())));
     h3SignalLoss->Divide(h3MCGenAssocReco.get(), data.h3MCGen.get(), 1.0, 1.0, "B");
 
     // Compute total 3D correction map: Efficiency, Signal Loss or Efficiency * Signal Loss
@@ -105,15 +105,15 @@ class EfficiencyCalculator
     h2MCGen->SetDirectory(0);
 
     // Project 2D histograms safely from the THnSparse
-    std::unique_ptr<TH2> h2MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH2>(data.h4MCGenAssocReco.get(), cuts, {3, 2}, "h2" + data.name + "MCGenAssocRecoTemp");
-    std::unique_ptr<TH2> h2MCReco = HistogramUtils::ProjectTHnSparse<TH2>(data.h4MCReco.get(), cuts, {3, 2}, "h2" + data.name + "MCRecoTemp");
+    std::unique_ptr<TH2> h2MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH2>(data.h4MCGenAssocReco.get(), cuts, {3, 2}, std::format("h2{}MCGenAssocRecoTemp", data.name));
+    std::unique_ptr<TH2> h2MCReco = HistogramUtils::ProjectTHnSparse<TH2>(data.h4MCReco.get(), cuts, {3, 2}, std::format("h2{}MCRecoTemp", data.name));
 
     // Calculate 2D Efficiency (Reco / GenAssocReco)
-    std::unique_ptr<TH2> h2Efficiency(static_cast<TH2*>(h2MCReco->Clone(("h2" + data.name + "EfficiencyTemp").c_str())));
+    std::unique_ptr<TH2> h2Efficiency(static_cast<TH2*>(h2MCReco->Clone(std::format("h2{}EfficiencyTemp", data.name).c_str())));
     h2Efficiency->Divide(h2MCReco.get(), h2MCGenAssocReco.get(), 1.0, 1.0, "B");
 
     // Calculate 2D Signal Loss (GenAssocReco / Gen)
-    std::unique_ptr<TH2> h2SignalLoss(static_cast<TH2*>(h2MCGenAssocReco->Clone(("h2" + data.name + "SignalLossTemp").c_str())));
+    std::unique_ptr<TH2> h2SignalLoss(static_cast<TH2*>(h2MCGenAssocReco->Clone(std::format("h2{}SignalLossTemp", data.name).c_str())));
     h2SignalLoss->Divide(h2MCGenAssocReco.get(), h2MCGen.get(), 1.0, 1.0, "B");
 
     // Compute total 2D correction map: Efficiency, Signal Loss or Efficiency * Signal Loss
@@ -254,7 +254,7 @@ class EfficiencyCalculator
 
     if (data.rebinningPt) {
       auto [effFine, lossFine] = DivideCounts(h1MCGen.get(), h1MCGenAssocReco.get(), h1MCReco.get(),
-                                              data.name, multTag + "_sourceBinning", color);
+                                              data.name, std::format("{}_sourceBinning", multTag), color);
       maps.efficiencySourceBinning = std::move(effFine);
       maps.signalLossSourceBinning = std::move(lossFine);
     }
@@ -299,7 +299,7 @@ class EfficiencyCalculator
                                                          HistogramUtils::AxisToCut::Whole(3)};
 
     // Project Generator level 1D (Integrated)
-    std::string h1GenName = "h1" + data.name + "MCGen_Integrated_temp";
+    std::string h1GenName = std::format("h1{}MCGen_Integrated_temp", data.name);
     std::unique_ptr<TH1> h1MCGen(data.h3MCGen->ProjectionY(h1GenName.c_str(), 1, data.h3MCGen->GetXaxis()->GetNbins(),
                                                            1, data.h3MCGen->GetZaxis()->GetNbins()));
     h1MCGen->SetDirectory(0);

@@ -88,20 +88,20 @@ inline std::string DyTag(double dyLimit)
 // A multiplicity class, "mult10-15": in object names and as the key of an extrapConfig.json override.
 inline std::string MultTag(std::span<const double> multBinning, int multBin)
 {
-  return "mult" + BinningUtils::BinLabel(multBinning, multBin);
+  return std::format("mult{}", BinningUtils::BinLabel(multBinning, multBin));
 }
 // The tag of what is integrated over every class, where a MultTag would stand.
 inline const std::string kMultIntegrated{"multIntegrated"};
 // A pT interval, "pt1.2-1.6"; the trigger's is "ptPhi" + BinLabel, where both appear in one name.
 inline std::string PtTag(std::span<const double> ptBinning, int ptBin)
 {
-  return "pt" + BinningUtils::BinLabel(ptBinning, ptBin);
+  return std::format("pt{}", BinningUtils::BinLabel(ptBinning, ptBin));
 }
 // A (multiplicity, pT) cell, "mult10-15_pt1.2-1.6": the fit projections and canvases, and the key of a
 // fitConfig.json override, which is therefore the suffix of the canvas of the fit it acts on.
 inline std::string CellTag(std::span<const double> multBinning, int multBin, std::span<const double> ptBinning, int ptBin)
 {
-  return MultTag(multBinning, multBin) + "_" + PtTag(ptBinning, ptBin);
+  return std::format("{}_{}", MultTag(multBinning, multBin), PtTag(ptBinning, ptBin));
 }
 
 // The same cell as a title, for a reader: "K0S, mult 10-15%, p_{T} 1.2-1.6 GeV/#it{c}" (TLatex). Not a name: it is

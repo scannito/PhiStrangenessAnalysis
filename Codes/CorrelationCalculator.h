@@ -88,7 +88,7 @@ class CorrelationCalculator
     static constexpr bool k2D = std::is_base_of_v<TH2, H>;
 
     explicit Inputs(const std::string& base)
-      : nameSig(base + "Signal" + Suffix()), nameSb(base + "Sideband" + Suffix()), nameMeSig(base + "MESignal" + Suffix()), nameMeSb(base + "MESideband" + Suffix()) {}
+      : nameSig(std::format("{}Signal{}", base, Suffix())), nameSb(std::format("{}Sideband{}", base, Suffix())), nameMeSig(std::format("{}MESignal{}", base, Suffix())), nameMeSb(std::format("{}MESideband{}", base, Suffix())) {}
 
     const std::string nameSig, nameSb, nameMeSig, nameMeSb;
     std::unique_ptr<H> sig, sb, meSig, meSb;
@@ -334,28 +334,28 @@ class CorrelationCalculator
     // 5. Uncut QA (if requested)
     if (qaDir && doMoreQA) {
       qaDir->cd();
-      h2Signal->Write((histNameBase + "Signal2D_MECorrected_Uncut").c_str(), TObject::kOverwrite);
+      h2Signal->Write(std::format("{}Signal2D_MECorrected_Uncut", histNameBase).c_str(), TObject::kOverwrite);
       if (h2Sideband)
-        h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Uncut").c_str(), TObject::kOverwrite);
+        h2Sideband->Write(std::format("{}Sideband2D_MECorrected_Uncut", histNameBase).c_str(), TObject::kOverwrite);
 
       // QA: X axis (Delta Phi)
-      std::unique_ptr<TH1> h1QA_X_Sig(h2Signal->ProjectionX((histNameBase + "Signal1D_dPhi_Uncut").c_str()));
+      std::unique_ptr<TH1> h1QA_X_Sig(h2Signal->ProjectionX(std::format("{}Signal1D_dPhi_Uncut", histNameBase).c_str()));
       h1QA_X_Sig->SetDirectory(0);
-      std::unique_ptr<TH1> h1QA_X_Sb = h2Sideband ? std::unique_ptr<TH1>(h2Sideband->ProjectionX((histNameBase + "Sideband1D_dPhi_Uncut").c_str())) : nullptr;
+      std::unique_ptr<TH1> h1QA_X_Sb = h2Sideband ? std::unique_ptr<TH1>(h2Sideband->ProjectionX(std::format("{}Sideband1D_dPhi_Uncut", histNameBase).c_str())) : nullptr;
       if (h1QA_X_Sb)
         h1QA_X_Sb->SetDirectory(0);
-      std::unique_ptr<TH1> h1QA_X_Final(static_cast<TH1*>(h1QA_X_Sig->Clone((histNameBase + "Final_dPhi_Uncut").c_str())));
+      std::unique_ptr<TH1> h1QA_X_Final(static_cast<TH1*>(h1QA_X_Sig->Clone(std::format("{}Final_dPhi_Uncut", histNameBase).c_str())));
       h1QA_X_Final->SetDirectory(0);
       if (h1QA_X_Sb && triggerBkgRatio > 0)
         h1QA_X_Final->Add(h1QA_X_Sb.get(), -1);
 
       // QA: Y axis (Delta y)
-      std::unique_ptr<TH1> h1QA_Y_Sig(h2Signal->ProjectionY((histNameBase + "Signal1D_dy_Uncut").c_str()));
+      std::unique_ptr<TH1> h1QA_Y_Sig(h2Signal->ProjectionY(std::format("{}Signal1D_dy_Uncut", histNameBase).c_str()));
       h1QA_Y_Sig->SetDirectory(0);
-      std::unique_ptr<TH1> h1QA_Y_Sb = h2Sideband ? std::unique_ptr<TH1>(h2Sideband->ProjectionY((histNameBase + "Sideband1D_dy_Uncut").c_str())) : nullptr;
+      std::unique_ptr<TH1> h1QA_Y_Sb = h2Sideband ? std::unique_ptr<TH1>(h2Sideband->ProjectionY(std::format("{}Sideband1D_dy_Uncut", histNameBase).c_str())) : nullptr;
       if (h1QA_Y_Sb)
         h1QA_Y_Sb->SetDirectory(0);
-      std::unique_ptr<TH1> h1QA_Y_Final(static_cast<TH1*>(h1QA_Y_Sig->Clone((histNameBase + "Final_dy_Uncut").c_str())));
+      std::unique_ptr<TH1> h1QA_Y_Final(static_cast<TH1*>(h1QA_Y_Sig->Clone(std::format("{}Final_dy_Uncut", histNameBase).c_str())));
       h1QA_Y_Final->SetDirectory(0);
       if (h1QA_Y_Sb && triggerBkgRatio > 0)
         h1QA_Y_Final->Add(h1QA_Y_Sb.get(), -1);
@@ -363,7 +363,7 @@ class CorrelationCalculator
       if (!orthogonalCut) {
         TH1* targetQA = (targetAxis == AxisTarget::DeltaPhi_X) ? h1QA_X_Final.get() : h1QA_Y_Final.get();
 
-        h1Final1D.reset(static_cast<TH1*>(targetQA->Clone((histNameBase + "Final" + ((targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy")).c_str())));
+        h1Final1D.reset(static_cast<TH1*>(targetQA->Clone(std::format("{}Final{}", histNameBase, (targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy").c_str())));
         h1Final1D->SetDirectory(0);
       }
 
@@ -400,19 +400,19 @@ class CorrelationCalculator
       }
 
       std::unique_ptr<TH1> h1Sig1D = (targetAxis == AxisTarget::DeltaPhi_X)
-                                       ? std::unique_ptr<TH1>(h2Signal->ProjectionX((histNameBase + "Signal1D_dPhi").c_str()))
-                                       : std::unique_ptr<TH1>(h2Signal->ProjectionY((histNameBase + "Signal1D_dy").c_str()));
+                                       ? std::unique_ptr<TH1>(h2Signal->ProjectionX(std::format("{}Signal1D_dPhi", histNameBase).c_str()))
+                                       : std::unique_ptr<TH1>(h2Signal->ProjectionY(std::format("{}Signal1D_dy", histNameBase).c_str()));
       h1Sig1D->SetDirectory(0);
 
       std::unique_ptr<TH1> h1Sideband1D;
       if (h2Sideband) {
         h1Sideband1D = (targetAxis == AxisTarget::DeltaPhi_X)
-                     ? std::unique_ptr<TH1>(h2Sideband->ProjectionX((histNameBase + "Sideband1D_dPhi").c_str()))
-                     : std::unique_ptr<TH1>(h2Sideband->ProjectionY((histNameBase + "Sideband1D_dy").c_str()));
+                     ? std::unique_ptr<TH1>(h2Sideband->ProjectionX(std::format("{}Sideband1D_dPhi", histNameBase).c_str()))
+                     : std::unique_ptr<TH1>(h2Sideband->ProjectionY(std::format("{}Sideband1D_dy", histNameBase).c_str()));
         h1Sideband1D->SetDirectory(0);
       }
 
-      h1Final1D.reset(static_cast<TH1*>(h1Sig1D->Clone((histNameBase + "Final" + ((targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy")).c_str())));
+      h1Final1D.reset(static_cast<TH1*>(h1Sig1D->Clone(std::format("{}Final{}", histNameBase, (targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy").c_str())));
       h1Final1D->SetDirectory(0);
       if (h1Sideband1D && triggerBkgRatio > 0) {
         h1Final1D->Add(h1Sideband1D.get(), -1);
@@ -420,9 +420,9 @@ class CorrelationCalculator
 
       if (qaDir && doMoreQA && orthogonalCut) {
         qaDir->cd();
-        h2Signal->Write((histNameBase + "Signal2D_MECorrected_Cut").c_str(), TObject::kOverwrite);
+        h2Signal->Write(std::format("{}Signal2D_MECorrected_Cut", histNameBase).c_str(), TObject::kOverwrite);
         if (h2Sideband)
-          h2Sideband->Write((histNameBase + "Sideband2D_MECorrected_Cut").c_str(), TObject::kOverwrite);
+          h2Sideband->Write(std::format("{}Sideband2D_MECorrected_Cut", histNameBase).c_str(), TObject::kOverwrite);
         h1Sig1D->Write(nullptr, TObject::kOverwrite);
         if (h1Sideband1D)
           h1Sideband1D->Write(nullptr, TObject::kOverwrite);

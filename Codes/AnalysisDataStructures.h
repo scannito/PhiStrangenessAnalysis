@@ -11,6 +11,7 @@
 #include "THnSparse.h"
 
 #include <array>
+#include <format>
 #include <map>
 #include <memory>
 #include <optional>
@@ -39,7 +40,7 @@ struct AssocParticleConfig {
   // Unlike the mass this is only a default, because several species can share one
   // directory - as Lambda and AntiLambda would, the histogram name still carrying
   // the species while the folder is shared.
-  static std::string DefaultDirName(const std::string& particle) { return "phi" + particle; }
+  static std::string DefaultDirName(const std::string& particle) { return std::format("phi{}", particle); }
 };
 
 // One vector, already built with the multiplicity dependence the configuration chose for

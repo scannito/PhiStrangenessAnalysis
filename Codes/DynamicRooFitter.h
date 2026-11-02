@@ -549,7 +549,7 @@ class DynamicRooFitter
 
     throw std::runtime_error(std::format(
       "[FATAL] {}: variable '{}' not found in the model{}",
-      Who(), name, fallbacks.size() ? " (tried: [" + tried + "])" : ""));
+      Who(), name, fallbacks.size() ? std::format(" (tried: [{}])", tried) : std::string{}));
   }
 
   // The K+K- threshold, 2*m_K: the phase-space backgrounds are built on (M - 2*m_K)
@@ -562,7 +562,7 @@ class DynamicRooFitter
   static int PolynomialOrder(const std::string& modelType, const std::string& family)
   {
     std::smatch match;
-    return std::regex_match(modelType, match, std::regex(family + "([1-9][0-9]*)")) ? std::stoi(match[1]) : 0;
+    return std::regex_match(modelType, match, std::regex(std::format("{}([1-9][0-9]*)", family))) ? std::stoi(match[1]) : 0;
   }
 
   // The values a parameter can take: a constant has no range (CreateVar builds it without one, limits +-inf).
@@ -596,10 +596,10 @@ class DynamicRooFitter
     const std::string q2 = std::format("TMath::Max(@0*@0/4-{},0.)", kaonMass2);
     const std::string q02 = std::format("(@1*@1/4-{})", kaonMass2);
     const std::string width = std::format("(@2*(@1/@0)*pow({}/{},1.5)*(1+{}*@3*@3)/(1+{}*@3*@3))", q2, q02, q02, q2);
-    auto* bw = Own<RooGenericPdf>((name + "_bw").c_str(), "P-wave Breit-Wigner",
+    auto* bw = Own<RooGenericPdf>(std::format("{}_bw", name).c_str(), "P-wave Breit-Wigner",
                                   std::format("@0*@1*{0}/(pow(@0*@0-@1*@1,2)+@1*@1*{0}*{0})", width).c_str(),
                                   RooArgList(*obs, m, w, r));
-    auto* resolution = Own<RooGaussian>((name + "_res").c_str(), "resolution", *obs, RooFit::RooConst(0.0), s);
+    auto* resolution = Own<RooGaussian>(std::format("{}_res", name).c_str(), "resolution", *obs, RooFit::RooConst(0.0), s);
 
     // Four cache bins per sigma at its lowest, and a buffer of five sigmas at its highest on each side: the limits of
     // sigma_sig set the grid, so a cell that overrides them also changes its precision (and its cost: a lower limit of
@@ -641,12 +641,12 @@ class DynamicRooFitter
 
     // Signal models
     if (modelType == "DSCB") {
-      RooRealVar* m = CreateVar("mean" + suffix);
-      RooRealVar* s = CreateVar("sigma" + suffix);
-      RooRealVar* a1 = CreateVar("alpha1" + suffix);
-      RooRealVar* n1 = CreateVar("n1" + suffix);
-      RooRealVar* a2 = CreateVar("alpha2" + suffix);
-      RooRealVar* n2 = CreateVar("n2" + suffix);
+      RooRealVar* m = CreateVar(std::format("mean{}", suffix));
+      RooRealVar* s = CreateVar(std::format("sigma{}", suffix));
+      RooRealVar* a1 = CreateVar(std::format("alpha1{}", suffix));
+      RooRealVar* n1 = CreateVar(std::format("n1{}", suffix));
+      RooRealVar* a2 = CreateVar(std::format("alpha2{}", suffix));
+      RooRealVar* n2 = CreateVar(std::format("n2{}", suffix));
       Stage({{a1, a1->getVal()}, {n1, n1->getVal()}, {a2, a2->getVal()}, {n2, n2->getVal()}}); // the tails as configured
       // A tail n at its upper limit is a tail as steep as an exponential, a shape the model can describe, and not a fit
       // that ran out of room; at its lower limit, the heaviest tail allowed, it is (the owner's choice, 24 October 2026).
@@ -654,13 +654,13 @@ class DynamicRooFitter
       upperIsShape.insert(upperIsShape.end(), {n1->GetName(), n2->GetName()});
       pdf = Own<RooCrystalBall>(name.c_str(), "DSCB", *obs, *m, *s, *a1, *n1, *a2, *n2);
     } else if (modelType == "Gaussian") {
-      RooRealVar* m = CreateVar("mean" + suffix);
-      RooRealVar* s = CreateVar("sigma" + suffix);
+      RooRealVar* m = CreateVar(std::format("mean{}", suffix));
+      RooRealVar* s = CreateVar(std::format("sigma{}", suffix));
       pdf = Own<RooGaussian>(name.c_str(), "Gaussian", *obs, *m, *s);
     } else if (modelType == "Voigtian") {
-      RooRealVar* m = CreateVar("mean" + suffix);
-      RooRealVar* w = CreateVar("width" + suffix); // Natural width (Gamma)
-      RooRealVar* s = CreateVar("sigma" + suffix); // Resolution (Gaussian part)
+      RooRealVar* m = CreateVar(std::format("mean{}", suffix));
+      RooRealVar* w = CreateVar(std::format("width{}", suffix)); // Natural width (Gamma)
+      RooRealVar* s = CreateVar(std::format("sigma{}", suffix)); // Resolution (Gaussian part)
       pdf = Own<RooVoigtian>(name.c_str(), "Voigtian", *obs, *m, *w, *s);
     } else if (modelType == "RelBWKK") {
       // The phi -> K+K- line shape: a P-wave relativistic Breit-Wigner, whose width grows with the kaon momentum, convolved
@@ -668,10 +668,10 @@ class DynamicRooFitter
       // data are not: in pp 2026 (mult 15-20%, from 0.8 GeV/c) chi2/ndf 4-9 with this shape against 26-48 with the
       // Voigtian, the same with either background. The same parameter names as the Voigtian, with the same meanings, plus
       // the Blatt-Weisskopf radius. Only for a pair of kaons: their mass is in the formula.
-      RooRealVar* m = CreateVar("mean" + suffix);
-      RooRealVar* w = CreateVar("width" + suffix);  // Gamma at the pole
-      RooRealVar* s = CreateVar("sigma" + suffix);  // resolution
-      RooRealVar* r = CreateVar("radius" + suffix); // Blatt-Weisskopf radius (GeV^-1)
+      RooRealVar* m = CreateVar(std::format("mean{}", suffix));
+      RooRealVar* w = CreateVar(std::format("width{}", suffix));  // Gamma at the pole
+      RooRealVar* s = CreateVar(std::format("sigma{}", suffix));  // resolution
+      RooRealVar* r = CreateVar(std::format("radius{}", suffix)); // Blatt-Weisskopf radius (GeV^-1)
       pdf = BuildRelBWKK(name, *m, *w, *s, *r);
     }
 
@@ -712,14 +712,14 @@ class DynamicRooFitter
       }
       pdf = Own<RooBernstein>(name.c_str(), modelType.c_str(), *obs, coefficients);
     } else if (modelType == "Exponential") {
-      RooRealVar* slope = CreateVar("slope" + suffix);
+      RooRealVar* slope = CreateVar(std::format("slope{}", suffix));
       pdf = Own<RooExponential>(name.c_str(), "Exponential", *obs, *slope);
     } else if (modelType == "BkgSourav1") {
       // Custom Phase-Space Background for Phi -> K+ K-
       // Formula: 1.0 + c1*M + c2*sqrt(M - 2*m_K)
       RequireThresholdBelowRange(modelType);
-      RooRealVar* c1 = CreateVar("c1" + suffix);
-      RooRealVar* c2 = CreateVar("c2" + suffix);
+      RooRealVar* c1 = CreateVar(std::format("c1{}", suffix));
+      RooRealVar* c2 = CreateVar(std::format("c2{}", suffix));
       pdf = Own<RooGenericPdf>(name.c_str(), "Sourav Background",
                                std::format("1.0 + @1*@0 + @2*sqrt(@0 - {})", TwoKaonThreshold()).c_str(),
                                RooArgList(*obs, *c1, *c2));
@@ -727,9 +727,9 @@ class DynamicRooFitter
       // Custom Phase-Space Background for Phi -> K+ K-
       // Formula: 1.0 + c1*M + c2*M^2 + c3*sqrt(M - 2*m_K)
       RequireThresholdBelowRange(modelType);
-      RooRealVar* c1 = CreateVar("c1" + suffix);
-      RooRealVar* c2 = CreateVar("c2" + suffix);
-      RooRealVar* c3 = CreateVar("c3" + suffix);
+      RooRealVar* c1 = CreateVar(std::format("c1{}", suffix));
+      RooRealVar* c2 = CreateVar(std::format("c2{}", suffix));
+      RooRealVar* c3 = CreateVar(std::format("c3{}", suffix));
       pdf = Own<RooGenericPdf>(name.c_str(), "Sourav Background",
                                std::format("1.0 + @1*@0 + @2*@0*@0 + @3*sqrt(@0 - {})", TwoKaonThreshold()).c_str(),
                                RooArgList(*obs, *c1, *c2, *c3));
@@ -742,10 +742,10 @@ class DynamicRooFitter
       // meanings are not, so this model belongs in its own block rather than as a
       // one-key override of a Sourav one.
       RequireThresholdBelowRange(modelType);
-      RooRealVar* n = CreateVar("n" + suffix);
-      RooRealVar* c1 = CreateVar("c1" + suffix);
-      RooRealVar* c2 = CreateVar("c2" + suffix);
-      RooRealVar* c3 = CreateVar("c3" + suffix);
+      RooRealVar* n = CreateVar(std::format("n{}", suffix));
+      RooRealVar* c1 = CreateVar(std::format("c1{}", suffix));
+      RooRealVar* c2 = CreateVar(std::format("c2{}", suffix));
+      RooRealVar* c3 = CreateVar(std::format("c3{}", suffix));
       const double thr = TwoKaonThreshold();
       pdf = Own<RooGenericPdf>(name.c_str(), "Mattia Background",
                                std::format("pow(@0 - {}, @1) * exp(@2*(@0 - {}) + @3*pow(@0 - {}, 2) + @4*pow(@0 - {}, 3))",
@@ -788,7 +788,7 @@ class DynamicRooFitter
         fracList.add(*CreateVar(fracName));
       }
 
-      return Own<RooAddPdf>(roleName.c_str(), ("Sum of " + roleName).c_str(), pdfList, fracList);
+      return Own<RooAddPdf>(roleName.c_str(), std::format("Sum of {}", roleName).c_str(), pdfList, fracList);
     }
 
     // 2. Product handling (*)
@@ -804,12 +804,12 @@ class DynamicRooFitter
       }
 
       // RooProdPdf does not need explicit fraction parameters, it multiplies the components directly
-      return Own<RooProdPdf>(roleName.c_str(), ("Product of " + roleName).c_str(), pdfList);
+      return Own<RooProdPdf>(roleName.c_str(), std::format("Product of {}", roleName).c_str(), pdfList);
     }
 
     // 3. Single model handling
     else {
-      return CreatePdfComponent(cleanStr, "_" + roleName);
+      return CreatePdfComponent(cleanStr, std::format("_{}", roleName));
     }
   }
 

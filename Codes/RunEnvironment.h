@@ -12,6 +12,7 @@
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <map>
 #include <string>
@@ -43,7 +44,7 @@ inline std::uint64_t Fnv1a(std::string_view data, std::uint64_t hash = kFnvOffse
 // to answer.
 inline std::string GitCommit(const std::string& gitDir = "../.git")
 {
-  std::ifstream head(gitDir + "/HEAD");
+  std::ifstream head(std::format("{}/HEAD", gitDir));
   if (!head)
     return "";
 
@@ -54,7 +55,7 @@ inline std::string GitCommit(const std::string& gitDir = "../.git")
 
   const std::string ref = line.substr(5);
 
-  std::ifstream loose(gitDir + "/" + ref);
+  std::ifstream loose(std::format("{}/{}", gitDir, ref));
   if (loose) {
     std::string sha;
     std::getline(loose, sha);
@@ -62,7 +63,7 @@ inline std::string GitCommit(const std::string& gitDir = "../.git")
   }
 
   // Freshly cloned or garbage-collected repositories keep refs in one file.
-  std::ifstream packed(gitDir + "/packed-refs");
+  std::ifstream packed(std::format("{}/packed-refs", gitDir));
   while (std::getline(packed, line)) {
     const size_t space = line.find(' ');
     if (space != std::string::npos && line.substr(space + 1) == ref)

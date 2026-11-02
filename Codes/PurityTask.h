@@ -57,7 +57,7 @@ class PurityTask : public IAnalysisTask
     // CCDB-ready maps live under outputDir/{binningName}/ on disk, since the ROOT
     // object inside must be named literally "ccdb_object" with no subfolder.
     // Same layout as MCTask, so the two kinds of correction sit side by side.
-    ccdbOutputDir = outputDir + globalCfgs.binningName + "/";
+    ccdbOutputDir = std::format("{}{}/", outputDir, globalCfgs.binningName);
     RootIO::CreateDirectoriesOrThrow(ccdbOutputDir, GetName());
 
     auto particles = JsonConfig::RequireArray(taskConfig, "purity_particles", GetName());
@@ -95,7 +95,7 @@ class PurityTask : public IAnalysisTask
 
       // Real bin edges on both axes: the map leaves this framework, so the pT
       // interval a bin stands for must be readable from the object itself.
-      std::string ccdbName = "h2" + purityKey + "Purity";
+      std::string ccdbName = std::format("h2{}Purity", purityKey);
       auto h2CCDB = std::make_unique<TH2F>(ccdbName.c_str(), ";Multiplicity percentile (%);p_{T} (GeV/#it{c})",
                                            BinningUtils::NBins(multBinning), multBinning.data(),
                                            BinningUtils::NBins(sourceBinning), sourceBinning.data());
@@ -108,11 +108,11 @@ class PurityTask : public IAnalysisTask
                                  std::move(rebinningPt), std::move(h2CCDB));
 
       // Each summary canvas declares its Y range here; the manager applies it when it writes.
-      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(purityKey, SpectrumBinning::Analysis), purityKey + " Purity",
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(purityKey, SpectrumBinning::Analysis), std::format("{} Purity", purityKey),
                                                              summaryPath, 800, 600));
       if (particleTasks.back().rebinningPt) {
         canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(purityKey, SpectrumBinning::Source),
-                                                               purityKey + " Purity (source binning)",
+                                                               std::format("{} Purity (source binning)", purityKey),
                                                                OutputNames::SourceBinningPath(summaryPath), 800, 600));
       }
     }
@@ -264,7 +264,7 @@ class PurityTask : public IAnalysisTask
     std::string label = task.purityKey;
     std::ranges::replace(label, '_', ' ');
 
-    std::string hName = OutputNames::Purity(task.purityKey, OutputNames::MultTag(multBinning, multBin)) + nameSuffix;
+    std::string hName = std::format("{}{}", OutputNames::Purity(task.purityKey, OutputNames::MultTag(multBinning, multBin)), nameSuffix);
     std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
                                                                    BinningUtils::NBins(binning), binning.data());
     h1PuritySpectrum->SetDirectory(0);
@@ -293,7 +293,7 @@ class PurityTask : public IAnalysisTask
       // per fit, as in PhiFitTask: holding them all for the WriteAll in Terminate would
       // only cost memory, since nothing reads a fit canvas back.
       const std::string cName = std::format("cFit_{}_{}{}", task.purityKey, cell, nameSuffix);
-      const std::string title = OutputNames::CellTitle(label, multBinning, multBin, binning, ptBin) + titleSuffix;
+      const std::string title = std::format("{}{}", OutputNames::CellTitle(label, multBinning, multBin, binning, ptBin), titleSuffix);
       TCanvas* cFit = canvasManager.CreateCanvas(cName, title, 800, 800);
       // log: the background under a peak of 1e5-1e8 counts is at 1e-2-1e-4 of it, and it decides the purity
       fitter.DrawFit(cFit, title, /*logY=*/true);

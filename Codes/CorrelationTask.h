@@ -49,8 +49,8 @@ class CorrelationTask : public CorrelationTaskBase
 
     const std::string folderPath = RootIO::MakeDirPath(OutputNames::SummaryPath(globalCfgs.binningName));
 
-    h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + OutputNames::kTriggerSignal, GetName());
-    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + OutputNames::kTriggerBkgRatio, GetName());
+    h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), std::format("{}{}", folderPath, OutputNames::kTriggerSignal), GetName());
+    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), std::format("{}{}", folderPath, OutputNames::kTriggerBkgRatio), GetName());
 
     // The same exposure the WPDG task has, by a different route: this matrix is written
     // cell by cell by PhiFitTask, so a run where every fit failed leaves it present,
@@ -83,14 +83,14 @@ class CorrelationTask : public CorrelationTaskBase
       for (const auto& config : assocParticles) {
         LoadedAssocData data;
         data.name = config.name;
-        std::string baseData = basePathData + config.dirName + "/h5Phi" + config.name;
-        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSignal"), GetName());
-        data.h5DataSideband = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + "DataSideband"), GetName());
+        std::string baseData = std::format("{}{}/h5Phi{}", basePathData, config.dirName, config.name);
+        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), std::format("{}DataSignal", baseData), GetName());
+        data.h5DataSideband = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), std::format("{}DataSideband", baseData), GetName());
 
         if (applyME) {
-          std::string baseDataME = basePathDataME + config.dirName + "/h5Phi" + config.name;
-          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESignal"), GetName());
-          data.h5DataMESideband = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + "DataMESideband"), GetName());
+          std::string baseDataME = std::format("{}{}/h5Phi{}", basePathDataME, config.dirName, config.name);
+          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), std::format("{}DataMESignal", baseDataME), GetName());
+          data.h5DataMESideband = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), std::format("{}DataMESideband", baseDataME), GetName());
         }
 
         loadedDataCollection.push_back(std::move(data));
@@ -205,7 +205,7 @@ class CorrelationTask : public CorrelationTaskBase
 
 
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
-        std::string hName = folderPath + OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, multBin));
+        std::string hName = std::format("{}{}", folderPath, OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, multBin)));
         std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(filePurity.get(), hName, GetName());
 
         // Verified, NOT rebinned: a purity is a ratio, and merging its bins would
@@ -294,7 +294,7 @@ class CorrelationTask : public CorrelationTaskBase
             double assocCorrection = Correction(config.name, multBin, ptAssocBin);
             double totalCorrection = phiCorrection * assocCorrection;
 
-            std::string baseNameStd = "h1Phi" + config.name + "Data";
+            std::string baseNameStd = std::format("h1Phi{}Data", config.name);
             std::string suffix = CellSuffix(config, multBin, ptPhiBin, ptAssocBin);
 
             std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(

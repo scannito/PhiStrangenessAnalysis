@@ -86,7 +86,7 @@ class WorkflowManager
       if (!taskFound) {
         std::string knownPrefixes;
         for (const auto& [baseName, factory] : taskRegistry) {
-          knownPrefixes += (knownPrefixes.empty() ? "" : ", ") + baseName;
+          knownPrefixes += std::format("{}{}", knownPrefixes.empty() ? "" : ", ", baseName);
         }
         throw std::runtime_error(std::format("[FATAL] WorkflowManager: Unknown task requested: '{}'. "
                                              "A task name must start with one of the registered prefixes: {}",

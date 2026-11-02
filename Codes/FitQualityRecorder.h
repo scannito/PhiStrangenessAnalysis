@@ -121,10 +121,10 @@ class FitQualityRecorder
     if (fit.numInvalidNLL > 0)
       reasons.emplace_back("invalid NLL evaluations");
     for (const std::string& name : fit.atLowerLimit)
-      reasons.push_back(name + " at its lower limit");
+      reasons.push_back(std::format("{} at its lower limit", name));
     for (const std::string& name : fit.atUpperLimit) // not one its model calls a shape there (the DSCB's tail n)
       if (std::ranges::find(fit.upperIsShape, name) == fit.upperIsShape.end())
-        reasons.push_back(name + " at its upper limit");
+        reasons.push_back(std::format("{} at its upper limit", name));
     return reasons;
   }
 

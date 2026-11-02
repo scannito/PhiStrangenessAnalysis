@@ -37,9 +37,9 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
 
     if (!isPureGen) {
-      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", GetName());
+      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), std::format("{}phi/h3PhiData", basePathData), GetName());
     } else {
-      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiMCClosureGen", GetName());
+      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), std::format("{}phi/h3PhiMCClosureGen", basePathData), GetName());
     }
 
     // Checked here rather than left to the guard in GenerateSpectraAndTrends, which is
@@ -72,11 +72,11 @@ class CorrelationWPDGTask : public CorrelationTaskBase
       for (const auto& config : assocParticles) {
         LoadedAssocData data;
         data.name = config.name;
-        std::string baseData = basePathData + config.dirName + "/h5Phi" + config.name;
+        std::string baseData = std::format("{}{}/h5Phi{}", basePathData, config.dirName, config.name);
         data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + (isPureGen ? "ClosureMCGen" : "DataSignal")), GetName());
 
         if (applyME) {
-          std::string baseDataME = basePathDataME + config.dirName + "/h5Phi" + config.name;
+          std::string baseDataME = std::format("{}{}/h5Phi{}", basePathDataME, config.dirName, config.name);
           data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + (isPureGen ? "ClosureMCGenME" : "DataMESignal")), GetName());
         }
         loadedDataCollection.push_back(std::move(data));

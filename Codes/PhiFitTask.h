@@ -46,7 +46,7 @@ class PhiFitTask : public IAnalysisTask
     std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", GetName());
 
     basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
-    h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), basePathData + "phi/h3PhiData", GetName());
+    h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), std::format("{}phi/h3PhiData", basePathData), GetName());
 
     // The binning comes from the file, never from the configuration: the loops
     // below address these very bins. h3PhiData axes: (mult, pT, invariant mass).
@@ -102,7 +102,7 @@ class PhiFitTask : public IAnalysisTask
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
       for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
         const std::string cell = OutputNames::CellTag(multBinning, multBin, ptPhiBinning, ptPhiBin);
-        std::string phiHistName = "h1PhiData_" + cell;
+        std::string phiHistName = std::format("h1PhiData_{}", cell);
         const auto mult = BinningUtils::BinRange::Single(multBin), ptPhi = BinningUtils::BinRange::Single(ptPhiBin);
         std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), mult.first, mult.last, ptPhi.first, ptPhi.last)));
         h1PhiData->SetDirectory(0);
@@ -122,7 +122,7 @@ class PhiFitTask : public IAnalysisTask
         // task's. Written and destroyed here, per cell, and not left to a WriteAll in
         // Terminate: nothing reads a fit canvas back, and holding all of them until
         // the end would only cost memory.
-        const std::string canvasName = "cFit_Phi_" + cell;
+        const std::string canvasName = std::format("cFit_Phi_{}", cell);
         const std::string title = OutputNames::CellTitle("#phi", multBinning, multBin, ptPhiBinning, ptPhiBin);
         TCanvas* cFit = canvasManager.CreateCanvas(canvasName, title, 800, 800);
         fitter.DrawFit(cFit, title, /*logY=*/false); // a peak on a smooth background, which log scale flattens

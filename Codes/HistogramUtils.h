@@ -313,7 +313,7 @@ inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, s
   }
 
   const int nTargetBins = BinningUtils::NBins(targetBinning);
-  return std::unique_ptr<THType>(static_cast<THType*>(h->Rebin(nTargetBins, (std::string(h->GetName()) + "_rebinned").c_str(), targetBinning.data())));
+  return std::unique_ptr<THType>(static_cast<THType*>(h->Rebin(nTargetBins, std::format("{}_rebinned", h->GetName()).c_str(), targetBinning.data())));
 }
 
 } // namespace HistogramUtils
