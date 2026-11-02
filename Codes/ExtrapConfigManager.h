@@ -27,7 +27,8 @@ class ExtrapConfigManager : public BaseConfigManager
     std::set<std::string> classes;
     for (int multBin : BinningUtils::BinIndices(multBinning))
       classes.insert(OutputNames::MultTag(multBinning, multBin));
-    for (const std::string& multTag : DeclareTags(particle, classes, &Section(particle), SectionCtx(particle), "the multiplicity classes"))
+    DeclareTags(particle, classes, &Section(particle), SectionCtx(particle), "the multiplicity classes");
+    for (const std::string& multTag : classes)
       (void)GetConfig(particle, multTag); // every class read once, at Init (BaseConfigManager::DeclareTags)
   }
 

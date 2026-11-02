@@ -31,37 +31,36 @@ class BaseConfigManager
 
   // The overrides of a section are keyed by tag: a cell named by its interval (OutputNames). They sit under "bins"
   // in the node that also holds the section's "default" ('layered': fit_setup for the fits, the section itself for
-  // the extrapolation). Every manager declares the tags its task will read, in its DeclareCells, before reading any:
-  // - every key of "bins" must be a declared tag: a typo, or a key written for another binning, would never be
+  // the extrapolation). Every manager declares, in its DeclareCells, the tags its task reads in a section, before
+  // reading any:
+  // - every key of "bins" must be one of them: a typo, or a key written for another binning, would never be
   //   applied, so it stops the run;
-  // - LoadLayered, the only reader of "bins", refuses a tag that was not declared, so the check cannot be skipped;
-  // - DeclareCells reads every declared tag once, at Init: a mistake in a node then stops the run before the task
-  //   has cleared its output, and not in Run, after the previous production was already gone.
-  // Declared tags add up over calls; the keys are checked against all of them, which this returns. 'keysAre' says in
-  // the message what the keys are.
-  const std::set<std::string>& DeclareTags(const std::string& section, const std::set<std::string>& tags,
-                                           const rapidjson::Value* layered, std::string_view layeredCtx, std::string_view keysAre)
+  // - DeclareCells then reads each tag once, at Init: a mistake in a node stops the run before the task has cleared
+  //   its output, and not in Run, after the previous production was already gone;
+  // - LoadLayered, the only reader of "bins", refuses a section that was not declared, so the check cannot be
+  //   skipped. A tag is not remembered: an override for a tag the task did not declare is already refused here.
+  // 'keysAre' says in the message what the keys are.
+  void DeclareTags(const std::string& section, const std::set<std::string>& tags, const rapidjson::Value* layered,
+                   std::string_view layeredCtx, std::string_view keysAre)
   {
-    std::set<std::string>& declared = declaredTags[section];
-    declared.insert(tags.begin(), tags.end());
+    declaredSections.insert(section);
     if (const rapidjson::Value* bins = layered ? JsonConfig::TryObject(*layered, "bins", layeredCtx) : nullptr)
-      JsonConfig::RequireKnownKeys(*bins, declared, std::format("{}.bins (the keys are {})", layeredCtx, keysAre));
-    return declared;
+      JsonConfig::RequireKnownKeys(*bins, tags, std::format("{}.bins (the keys are {})", layeredCtx, keysAre));
   }
 
   // The two layers of 'tag' in 'section': the "default" of 'layered', then its "bins"[tag] over it, each handed to
   // load(node, where), 'where' naming it ("default", "bins['mult10-15']"); either may be absent, and the second
-  // carries only what it changes. The keys of 'layered' must be exactly those two, and 'tag' must have been declared.
+  // carries only what it changes. The keys of 'layered' must be exactly those two, and 'section' must have been
+  // declared.
   // 'layered' may be null: a section without overrides, nothing to read. Returns whether 'tag' had an override.
   template <class Load>
   bool LoadLayered(const std::string& section, const rapidjson::Value* layered, std::string_view layeredCtx,
                    const std::string& tag, Load&& load) const
   {
-    const auto declared = declaredTags.find(section);
-    if (declared == declaredTags.end() || !declared->second.contains(tag))
-      throw std::runtime_error(std::format("[FATAL] {}: '{}' of section '{}' read without being declared with DeclareCells, "
-                                           "so the overrides were not checked against it.",
-                                           managerName, tag, section));
+    if (!declaredSections.contains(section))
+      throw std::runtime_error(std::format("[FATAL] {}: section '{}' read without being declared with DeclareCells, "
+                                           "so its overrides were not checked.",
+                                           managerName, section));
     if (!layered)
       return false;
 
@@ -111,6 +110,6 @@ class BaseConfigManager
     return {.val = JsonConfig::ToNumber(value, paramName, errCtx), .isConstant = true};
   }
 
-  // section -> the tags declared for it, every DeclareTags call together
-  std::map<std::string, std::set<std::string>> declaredTags;
+  // The sections whose overrides DeclareTags has checked
+  std::set<std::string> declaredSections;
 };

@@ -17,10 +17,9 @@ class FitConfigManager : public BaseConfigManager
 
   // The cells a task fits in a section, each by OutputNames::CellTag: every pT binning in 'ptBinnings' (PurityTask
   // fits the source and the analysis one) crossed with 'multBinning'. Declared once per section, before the fits,
-  // every binning in the same call: the overrides are checked against the union of their cells, and a call per
-  // binning would refuse a key valid only for a binning not declared yet.
-  // The overrides are fit_setup.bins, checked and read as BaseConfigManager::DeclareTags says; a task cannot fit a
-  // binning it did not declare.
+  // every binning in the same call: the overrides are checked against the cells of that call, and a call per
+  // binning would refuse a key valid for another one. The overrides are fit_setup.bins, checked and read as
+  // BaseConfigManager::DeclareTags says.
   void DeclareCells(const std::string& section, std::span<const double> multBinning,
                     std::initializer_list<std::span<const double>> ptBinnings)
   {
@@ -30,8 +29,9 @@ class FitConfigManager : public BaseConfigManager
         for (int ptBin : BinningUtils::BinIndices(ptBinning))
           cells.insert(OutputNames::CellTag(multBinning, multBin, ptBinning, ptBin));
     const std::string fitCtx = std::format("{}.fit_setup", SectionCtx(section));
-    for (const std::string& cell : DeclareTags(section, cells, JsonConfig::TryObject(Section(section), "fit_setup", SectionCtx(section)),
-                                               fitCtx, "the cells this task fits"))
+    DeclareTags(section, cells, JsonConfig::TryObject(Section(section), "fit_setup", SectionCtx(section)), fitCtx,
+                "the cells this task fits");
+    for (const std::string& cell : cells)
       (void)GetConfig(section, cell); // every cell read once, at Init (BaseConfigManager::DeclareTags)
   }
 
