@@ -1218,7 +1218,10 @@ tried, and ROOT refused with an error of its own outside `Logger`; now it does n
 `use_signal_cache` run reads the signals of whatever run last wrote them, and says so with a `Logger::Warn`, in
 the run whose numbers are at risk. The fix belongs on the reading side: a provenance record (or a fingerprint of the
 corrections and settings that shape the signal) written with the signals and compared when they are read, so
-that a stale cache stops the run as a binning mismatch does. Not done: the owner to decide.
+that a stale cache stops the run as a binning mismatch does. The other way out is to remove the signal cache:
+`use_signal_cache` is `false` in both base configurations (`globalConfigBasepp.json`, `globalConfigBaseppref.json`)
+and no configuration turns it on, so a feature nobody uses would no longer need defending (suggested on 2 November
+2026). Not done: the owner to decide between the fingerprint and the removal.
 
 ---
 
