@@ -1184,6 +1184,41 @@ of a multiplicity class (trigger pT, associated pT), once written twice, is one 
 (`AccumulateSignals`, called by `CorrelationTask::RunOptimized` and `RunLegacy`); its `pIdx` loop is one of those the
 struct would change.
 
+*Is it needed without `drop_particle`? (analysis of 2 November 2026, on main 77e282c.)* Not yet; what follows is what
+was looked at, so that the question need not be reopened from scratch.
+
+- **The state, by how it is addressed.** By index, filled in `Init` in the order of `assocParticles`:
+  `assocParticles` (configuration, plus the pT binning `ResolveBinningAndCache` writes into it), `loadedDataCollection`,
+  `projectionFiles`, `qaFiles` (empty without `do_more_qa`), and once sized in `SetupTrendHistograms`
+  `h1PhiAssocNoPtPhi`, `h1MultTrends`, `h1MultTrendsExtrap` (empty without extrapolation, and per particle empty for
+  one that is not extrapolated). By name: `correctionCollection`, `purityCollection` (`CorrelationTask`),
+  `extrapolatedParticles`; `AssocIndex` goes from a name to an index for the ratios. About 55 lines use `pIdx`
+  (43 in `CorrelationTaskBase.h`, 12 in `CorrelationTask.h`).
+- **No path today desynchronises them.** Nothing erases or reorders an element after `InitAssocParticles`: the only
+  writes are the `clear()` with which it starts, `push_back` in loops over `assocParticles`, and
+  `resize(assocParticles.size())`.
+  The two containers of a different size are guarded where they are read (`!qaFiles.empty()` in `AccumulateSignals`,
+  `!h1MultTrendsExtrap.empty() && !h1MultTrendsExtrap[pIdx].empty()` in `Terminate`). The name copied into
+  `LoadedAssocData::name` is filled from the same loop and read only in the calculator's exception messages.
+- **What a struct would still buy.** A container added later and not filled would be caught by being a field to
+  initialise, instead of failing on an index (an empty vector read at `[pIdx]` is undefined behaviour, in practice a
+  crash, not a wrong number); `for (auto& p : particles)` where a loop needs no other index (a minority: the results
+  are also indexed by multiplicity class and |Δy|); one name instead of two. Readability and future-proofing, no
+  defect fixed.
+- **Why not before the split of section 1.** That split moves the trends, the extrapolation, the cross-species
+  ratios and `extrapolatedParticles` to a second task. Three of the seven containers leave with them, and Task A's
+  per-particle record becomes configuration, loaded data, projection and QA files, and the signals summed over the
+  trigger pT. A struct drawn now would be redrawn then.
+- **When to do it.** Whichever comes first: a feature that changes the set of particles after `Init`
+  (`drop_particle`, or skipping a particle whose input is missing); the split of section 1, together with it; a new
+  per-particle container. Cost then: the `pIdx` loops of the two task files and the loading of both tasks, a pure
+  refactoring checked by comparing every output file against main, plus a separate check of `RunOptimized`, which
+  no configuration runs (every one uses `run_mode` legacy).
+- **Smaller, independent of the struct.** The loading of `loadedDataCollection` is written in both tasks, the
+  cache branch included (an entry with only the name); the two differ in which containers they read (signal and
+  sideband against signal only, `ClosureMCGen` in closure). One base function taking the kinds to read would remove
+  the copy whenever either is touched.
+
 **Writing into a directory without `cd()` (30 October 2026).** The framework writes an object by moving
 `gDirectory` there and calling `Write`: `dir->cd(); obj->Write(nullptr, TObject::kOverwrite)`. `TObject::Write`
 is nothing more than `gDirectory->WriteTObject(this, name, "OverWrite", bufsize)` (ROOT 6.36, `TObject.cxx`
