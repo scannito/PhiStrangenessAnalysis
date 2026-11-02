@@ -6,6 +6,7 @@
 #include <format>
 #include <iostream>
 #include <map>
+#include <ranges>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -155,6 +156,22 @@ template <class... Args>
 void Error(std::string_view fmt, Args&&... args)
 {
   Detail::Dispatch(Level::Error, fmt, args...);
+}
+
+// A list in a message, "a, b, c": what a message names when it says what it expected or what it tried, whether
+// the message is logged or thrown. Each item as {} formats it.
+template <std::ranges::input_range R>
+std::string Join(R&& items, std::string_view separator = ", ")
+{
+  std::string joined;
+  bool first = true;
+  for (auto&& item : items) {
+    if (!first)
+      joined += separator;
+    joined += std::format("{}", item);
+    first = false;
+  }
+  return joined;
 }
 
 inline std::size_t WarningCount() { return Detail::GetState().totalWarnings; }

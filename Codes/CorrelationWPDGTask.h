@@ -73,11 +73,11 @@ class CorrelationWPDGTask : public CorrelationTaskBase
         AnalysisStructures::LoadedAssocData data;
         data.name = config.name;
         data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(
-          inputFile.get(), std::format("{}{}/h5Phi{}{}", basePathData, config.dirName, config.name, isPureGen ? "ClosureMCGen" : "DataSignal"), GetName());
+          inputFile.get(), AssocContainerPath(basePathData, config, isPureGen ? "ClosureMCGen" : "DataSignal"), GetName());
 
         if (applyME) {
           data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(
-            inputMEFile.get(), std::format("{}{}/h5Phi{}{}", basePathDataME, config.dirName, config.name, isPureGen ? "ClosureMCGenME" : "DataMESignal"), GetName());
+            inputMEFile.get(), AssocContainerPath(basePathDataME, config, isPureGen ? "ClosureMCGenME" : "DataMESignal"), GetName());
         }
         loadedDataCollection.push_back(std::move(data));
       }

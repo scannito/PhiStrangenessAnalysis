@@ -47,17 +47,18 @@ class CorrelationTask : public CorrelationTaskBase
     RootIO::PrintProvenance(triggerFile.get(), globalCfgs.binningName,
                             std::format("trigger file '{}'", triggerPath));
 
-    const std::string folderPath = RootIO::MakeDirPath(OutputNames::SummaryPath(globalCfgs.binningName));
+    const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
+    const std::string triggerSignalPath = RootIO::ObjectPath(summaryPath, OutputNames::kTriggerSignal);
 
-    h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(triggerFile.get(), folderPath + OutputNames::kTriggerSignal, GetName());
-    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(triggerFile.get(), folderPath + OutputNames::kTriggerBkgRatio, GetName());
+    h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(triggerFile.get(), triggerSignalPath, GetName());
+    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(triggerFile.get(), RootIO::ObjectPath(summaryPath, OutputNames::kTriggerBkgRatio), GetName());
 
     // The same exposure the WPDG task has, by a different route: this matrix is written
     // cell by cell by PhiFitTask, so a run where every fit failed leaves it present,
     // correctly binned and entirely zero. From there the normalisation is skipped and
     // the spectra come out as raw counts, which is exactly the failure that went
     // unnoticed in the closure - the object is not missing, it is empty.
-    RequireNonEmptyTrigger(h2TriggerSignal.get(), std::format("'{}{}'", folderPath, OutputNames::kTriggerSignal), triggerPath,
+    RequireNonEmptyTrigger(h2TriggerSignal.get(), std::format("'{}'", triggerSignalPath), triggerPath,
                            "It is written by phi_fit_task: check its log for fits that did not "
                            "converge, and that it ran on the production this task is reading.");
 
@@ -83,14 +84,12 @@ class CorrelationTask : public CorrelationTaskBase
       for (const auto& config : assocParticles) {
         AnalysisStructures::LoadedAssocData data;
         data.name = config.name;
-        std::string baseData = std::format("{}{}/h5Phi{}", basePathData, config.dirName, config.name);
-        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(inputFile.get(), std::format("{}DataSignal", baseData), GetName());
-        data.h5DataSideband = RootIO::GetUniqueOrThrow<THnSparseF>(inputFile.get(), std::format("{}DataSideband", baseData), GetName());
+        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(inputFile.get(), AssocContainerPath(basePathData, config, "DataSignal"), GetName());
+        data.h5DataSideband = RootIO::GetUniqueOrThrow<THnSparseF>(inputFile.get(), AssocContainerPath(basePathData, config, "DataSideband"), GetName());
 
         if (applyME) {
-          std::string baseDataME = std::format("{}{}/h5Phi{}", basePathDataME, config.dirName, config.name);
-          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(inputMEFile.get(), std::format("{}DataMESignal", baseDataME), GetName());
-          data.h5DataMESideband = RootIO::GetUniqueOrThrow<THnSparseF>(inputMEFile.get(), std::format("{}DataMESideband", baseDataME), GetName());
+          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(inputMEFile.get(), AssocContainerPath(basePathDataME, config, "DataMESignal"), GetName());
+          data.h5DataMESideband = RootIO::GetUniqueOrThrow<THnSparseF>(inputMEFile.get(), AssocContainerPath(basePathDataME, config, "DataMESideband"), GetName());
         }
 
         loadedDataCollection.push_back(std::move(data));
@@ -179,7 +178,7 @@ class CorrelationTask : public CorrelationTaskBase
     std::string purityDir = JsonConfig::RequireString(taskConfig, "input_dir_purity", GetName());
     auto puritySources = JsonConfig::RequireArray(taskConfig, "purity_sources", GetName());
 
-    const std::string folderPath = RootIO::MakeDirPath(OutputNames::SummaryPath(globalCfgs.binningName));
+    const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
 
     purityCollection.clear();
 
@@ -205,7 +204,7 @@ class CorrelationTask : public CorrelationTaskBase
 
 
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
-        std::string hName = folderPath + OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, multBin));
+        std::string hName = RootIO::ObjectPath(summaryPath, OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, multBin)));
         std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(purityFile.get(), hName, GetName());
 
         // Verified, NOT rebinned: a purity is a ratio, and merging its bins would
@@ -273,40 +272,7 @@ class CorrelationTask : public CorrelationTaskBase
     CorrelationCalculator corrCalculator(CalculatorOptions(doMoreQA));
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
-      for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
-        double triggerBkgRatio = GetTriggerBkgRatio(multBin, ptPhiBin);
-        double phiCorrection = Correction("Phi", multBin, ptPhiBin);
-
-        for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-          const auto& config = assocParticles[pIdx];
-          const auto& data = loadedDataCollection[pIdx];
-
-          TDirectory* targetDir = ProjectionCacheDir(pIdx, logicalPath);
-
-          TDirectory* currentQADir{nullptr};
-          if (doMoreQA && pIdx < qaFiles.size()) {
-            currentQADir = RootIO::MakePath(qaFiles[pIdx].get(), logicalPath);
-          }
-
-          for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
-            const std::vector<HistogramUtils::AxisToCut> axesToCut = CellCuts(multBin, ptPhiBin, ptAssocBin);
-
-            double assocCorrection = Correction(config.name, multBin, ptAssocBin);
-            double totalCorrection = phiCorrection * assocCorrection;
-
-            std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
-              data, {.axesToCut = axesToCut, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .histNameBase = std::format("h1Phi{}Data{}", config.name, CellSuffix(config, multBin, ptPhiBin, ptAssocBin)), .ioDir = targetDir, .qaDir = currentQADir});
-
-            if (ptPhiBin == 0) {
-              std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, multBin, ptAssocBin));
-              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
-              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetDirectory(0);
-            } else {
-              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->Add(h1FinalSignal.get());
-            }
-          }
-        }
-      }
+      AccumulateSignals(corrCalculator, multBin, logicalPath, doMoreQA);
 
       // =======================================================================
       // BATCH WRITE: SAVING AGGREGATED SIGNALS FOR L2 CACHE

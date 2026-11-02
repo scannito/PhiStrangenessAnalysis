@@ -538,17 +538,13 @@ class DynamicRooFitter
     if (auto* v = dynamic_cast<RooRealVar*>(vars.find(name)))
       return v;
 
-    std::string tried = name;
-    for (const char* alt : fallbacks) {
+    for (const char* alt : fallbacks)
       if (auto* v = dynamic_cast<RooRealVar*>(vars.find(alt)))
         return v;
-      tried += ", ";
-      tried += alt;
-    }
 
     throw std::runtime_error(std::format(
       "[FATAL] {}: variable '{}' not found in the model{}",
-      Who(), name, fallbacks.size() ? std::format(" (tried: [{}])", tried) : std::string{}));
+      Who(), name, fallbacks.size() ? std::format(" (tried: [{}, {}])", name, Logger::Join(fallbacks)) : std::string{}));
   }
 
   // The K+K- threshold, 2*m_K: the phase-space backgrounds are built on (M - 2*m_K)

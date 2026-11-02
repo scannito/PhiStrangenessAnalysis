@@ -1179,9 +1179,10 @@ files) held in one vector, so that erasing an element removes all of it; that to
 more things the drop met, which the struct does not solve by itself: the projection cache of the dropped
 particle has already been stamped by `ResolveBinningAndCache` with this run's provenance (the stamping has to
 move after the corrections are loaded), and its QA file has already been opened with `RECREATE`. So
-`drop_particle` was deferred to after the struct, and the key has `warn` and `stop` only. The triple loop over
-(multiplicity, trigger pT, associated pT) written twice, in `CorrelationTask::RunOptimized` and in `RunLegacy`,
-belongs to the same refactoring.
+`drop_particle` was deferred to after the struct, and the key has `warn` and `stop` only. The loop over the cells
+of a multiplicity class (trigger pT, associated pT), once written twice, is one function since 2 November 2026
+(`AccumulateSignals`, called by `CorrelationTask::RunOptimized` and `RunLegacy`); its `pIdx` loop is one of those the
+struct would change.
 
 **Writing into a directory without `cd()` (30 October 2026).** The framework writes an object by moving
 `gDirectory` there and calling `Write`: `dir->cd(); obj->Write(nullptr, TObject::kOverwrite)`. `TObject::Write`

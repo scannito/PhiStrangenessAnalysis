@@ -666,7 +666,7 @@ class CorrelationTaskBase : public IAnalysisTask
       const char* axis = of == MapOf::EventLoss ? "multiplicity" : "pT";
 
       // By path from the file: a missing directory and a missing map are one message, naming the file and the path.
-      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(correctionsFile.get(), RootIO::MakeDirPath(path) + name, GetName());
+      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(correctionsFile.get(), RootIO::ObjectPath(path, name), GetName());
 
       // Verified, NOT rebinned. An efficiency is a ratio, and merging bins of a
       // ratio sums them: two bins of 0.5 would give 1.0. A coarser efficiency can
@@ -1381,36 +1381,51 @@ class CorrelationTaskBase : public IAnalysisTask
     const std::vector<std::string> logicalPath = SectionPath();
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
-      for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
-        double triggerBkgRatio = GetTriggerBkgRatio(multBin, ptPhiBin);
-        double phiCorrection = Correction("Phi", multBin, ptPhiBin);
+      AccumulateSignals(corrCalculator, multBin, logicalPath, false);
+      GenerateSpectraAndTrends(multBin);
+    }
+  }
 
-        for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
-          const auto& config = assocParticles[pIdx];
-          const auto& data = loadedDataCollection[pIdx];
+  // The corrected signal of every cell of one multiplicity class, summed over the trigger pT into h1PhiAssocNoPtPhi:
+  // the loop of both run modes (RunLegacy, CorrelationTask::RunOptimized), written once so that a change to the cell,
+  // its correction or its names is not made in one and forgotten in the other. withQA: the 2D engine's QA objects
+  // into the QA files (CorrelationTask's do_more_qa).
+  void AccumulateSignals(const CorrelationCalculator& corrCalculator, int multBin, const std::vector<std::string>& logicalPath,
+                         bool withQA)
+  {
+    for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
+      double triggerBkgRatio = GetTriggerBkgRatio(multBin, ptPhiBin);
+      double phiCorrection = Correction("Phi", multBin, ptPhiBin);
 
-          TDirectory* targetDir = ProjectionCacheDir(pIdx, logicalPath);
+      for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
+        const auto& config = assocParticles[pIdx];
+        const auto& data = loadedDataCollection[pIdx];
 
-          for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
-            const std::vector<HistogramUtils::AxisToCut> axesToCut = CellCuts(multBin, ptPhiBin, ptAssocBin);
+        TDirectory* targetDir = ProjectionCacheDir(pIdx, logicalPath);
 
-            double assocCorrection = Correction(config.name, multBin, ptAssocBin);
-            double totalCorrection = phiCorrection * assocCorrection;
+        TDirectory* qaDir{nullptr};
+        if (withQA && pIdx < qaFiles.size()) {
+          qaDir = RootIO::MakePath(qaFiles[pIdx].get(), logicalPath);
+        }
 
-            std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, {.axesToCut = axesToCut, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .histNameBase = std::format("h1Phi{}Data{}", config.name, CellSuffix(config, multBin, ptPhiBin, ptAssocBin)), .ioDir = targetDir});
+        for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
+          const std::vector<HistogramUtils::AxisToCut> axesToCut = CellCuts(multBin, ptPhiBin, ptAssocBin);
 
-            if (ptPhiBin == 0) {
-              std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, multBin, ptAssocBin));
-              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
-              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetDirectory(0);
-            } else {
-              h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->Add(h1FinalSignal.get());
-            }
+          double assocCorrection = Correction(config.name, multBin, ptAssocBin);
+          double totalCorrection = phiCorrection * assocCorrection;
+
+          std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
+            data, {.axesToCut = axesToCut, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .histNameBase = std::format("h1Phi{}Data{}", config.name, CellSuffix(config, multBin, ptPhiBin, ptAssocBin)), .ioDir = targetDir, .qaDir = qaDir});
+
+          if (ptPhiBin == 0) {
+            std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, multBin, ptAssocBin));
+            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin].reset(static_cast<TH1*>(h1FinalSignal->Clone(accumName.c_str())));
+            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->SetDirectory(0);
+          } else {
+            h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin]->Add(h1FinalSignal.get());
           }
         }
       }
-
-      GenerateSpectraAndTrends(multBin);
     }
   }
 
@@ -1535,6 +1550,15 @@ class CorrelationTaskBase : public IAnalysisTask
       "[FATAL] {}: use_projection_cache is on, but '{}' has no '{}': the projections of {} were never cached "
       "for this binning and section ({}). Run once with use_projection_cache false to build the cache.",
       GetName(), RootIO::FileNameOf(file), RootIO::MakeDirPath(logicalPath), assocParticles[pIdx].name, SectionDirName()));
+  }
+
+  // Where an associated particle's container is in the O2Physics output: "<base><dirName>/h5Phi<name><kind>", with
+  // 'kind' as the producer names it (DataSignal, DataMESideband, ClosureMCGen, ...). The rule changes when O2Physics
+  // renames a directory, so it is written here once for both tasks.
+  static std::string AssocContainerPath(std::string_view basePath, const AnalysisStructures::AssocParticleConfig& config,
+                                        std::string_view kind)
+  {
+    return std::format("{}{}/h5Phi{}{}", basePath, config.dirName, config.name, kind);
   }
 
   static double GetYieldScaleFactor(const std::string& name)

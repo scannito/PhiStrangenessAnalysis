@@ -16,6 +16,7 @@
 #include <iostream>
 #include <map>
 #include <memory>
+#include <ranges>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -84,15 +85,9 @@ class WorkflowManager
       // An unrecognized name means the workflow would silently run fewer tasks
       // than requested: abort instead, listing what the registry accepts.
       if (!taskFound) {
-        std::string knownPrefixes;
-        for (const auto& [baseName, factory] : taskRegistry) {
-          if (!knownPrefixes.empty())
-            knownPrefixes += ", ";
-          knownPrefixes += baseName;
-        }
         throw std::runtime_error(std::format("[FATAL] WorkflowManager: Unknown task requested: '{}'. "
                                              "A task name must start with one of the registered prefixes: {}",
-                                             taskName, knownPrefixes));
+                                             taskName, Logger::Join(taskRegistry | std::views::keys)));
       }
     }
 

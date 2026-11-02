@@ -124,6 +124,14 @@ inline std::string MakeDirPath(const std::vector<std::string>& path)
   return fullPath;
 }
 
+// The path of an object below those directories, "node1/node2/name", as Get() takes it.
+inline std::string ObjectPath(const std::vector<std::string>& path, std::string_view name)
+{
+  std::string objectPath = MakeDirPath(path);
+  objectPath += name;
+  return objectPath;
+}
+
 // The directory at baseDir/pathNodes if it exists, or nullptr: read-only, so a missing directory is an
 // answer and the caller decides what it means (a cache miss, an optional section).
 inline TDirectory* FindPath(TDirectory* baseDir, const std::vector<std::string>& pathNodes)

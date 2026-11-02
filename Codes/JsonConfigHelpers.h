@@ -14,6 +14,7 @@
 #include <memory>
 #include <initializer_list>
 #include <optional>
+#include <ranges>
 #include <set>
 #include <stdexcept>
 #include <string>
@@ -267,17 +268,12 @@ template <typename E>
 inline E ResolveEnum(std::string_view requested, std::initializer_list<std::pair<std::string_view, E>> options,
                      std::string_view key, std::string_view errCtx)
 {
-  std::string available;
-  for (const auto& [name, value] : options) {
+  for (const auto& [name, value] : options)
     if (name == requested)
       return value;
-    if (!available.empty())
-      available += ", ";
-    available += name;
-  }
 
   throw std::runtime_error(std::format("[FATAL] {}: key '{}' has unknown value '{}'. Available: {}",
-                                       errCtx, key, requested, available));
+                                       errCtx, key, requested, Logger::Join(options | std::views::keys)));
 }
 
 // The usual case: read the name, then resolve it. The default is looked up in the
@@ -438,14 +434,8 @@ inline void RequireKnownKeys(const rapidjson::Value& node, std::initializer_list
     if (found)
       continue;
 
-    std::string available;
-    for (std::string_view k : known) {
-      if (!available.empty())
-        available += ", ";
-      available += k;
-    }
     throw std::runtime_error(std::format("[FATAL] {}: unknown key '{}', it would be silently ignored. Known: {}",
-                                         errCtx, name, available));
+                                         errCtx, name, Logger::Join(known)));
   }
 }
 
