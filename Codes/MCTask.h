@@ -57,13 +57,13 @@ class MCTask : public IAnalysisTask
     // 2. Allow JSON to override the internal ROOT directory base path
     mcBasePath = JsonConfig::RequireString(taskConfig, "mc_base_path", GetName());
 
-    outputDirectory = JsonConfig::RequireString(taskConfig, "output_dir", GetName());
+    outputDir = JsonConfig::RequireString(taskConfig, "output_dir", GetName());
     outputPrefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
 
-    // CCDB-ready per-particle maps live under outputDirectory/{binningName}/ on disk,
+    // CCDB-ready per-particle maps live under outputDir/{binningName}/ on disk,
     // since the ROOT object inside must be named literally "ccdb_object" with no
     // internal subfolder. Ensure the directory exists — TFile won't create it.
-    ccdbOutputDir = std::format("{}{}/", outputDirectory, globalCfgs.binningName);
+    ccdbOutputDir = std::format("{}{}/", outputDir, globalCfgs.binningName);
     RootIO::CreateDirectoriesOrThrow(ccdbOutputDir, GetName());
 
     particleCorrectionMode = JsonConfig::OptionalEnum<CorrectionMode>(taskConfig, "particle_correction_mode", "efficiency_only",
@@ -217,8 +217,8 @@ class MCTask : public IAnalysisTask
     }
 
     // 6. Open the master output file for corrections
-    std::string outPath = std::format("{}{}Corrections.root", outputDirectory, outputPrefix);
-    fileMCOutput = RootIO::OpenOrThrow(outPath, "UPDATE", GetName());
+    std::string outPath = std::format("{}{}Corrections.root", outputDir, outputPrefix);
+    outputFile = RootIO::OpenOrThrow(outPath, "UPDATE", GetName());
 
     // This run rewrites its whole scheme directory - AccEff, SigLoss, EvLoss and the
     // stamps - so anything a previous one left there would sit beside the new maps
@@ -228,7 +228,7 @@ class MCTask : public IAnalysisTask
     //
     // UPDATE and not RECREATE because only this subtree is ours: a run under a
     // different 'binning_name' writing to the same file keeps its own.
-    RootIO::ClearPath(fileMCOutput.get(), {globalCfgs.binningName});
+    RootIO::ClearPath(outputFile.get(), {globalCfgs.binningName});
 
     Logger::Info("{}: Initialization complete.", GetName());
   }
@@ -241,7 +241,7 @@ class MCTask : public IAnalysisTask
     auto writeInto = [&](const std::vector<std::string>& path, TH1* h) {
       if (!h)
         return;
-      RootIO::MakePath(fileMCOutput.get(), path)->cd();
+      RootIO::MakePath(outputFile.get(), path)->cd();
       h->Write(nullptr, TObject::kOverwrite);
     };
 
@@ -427,17 +427,17 @@ class MCTask : public IAnalysisTask
 
     // The pT binning of every correction is its own axis; the multiplicity binning is
     // in the names, and stamped (RootIO::RequireMatchingBinningStamp).
-    RootIO::WriteBinningStamp(RootIO::MakePath(fileMCOutput.get(), {globalCfgs.binningName}), RootIO::kStampMult,
+    RootIO::WriteBinningStamp(RootIO::MakePath(outputFile.get(), {globalCfgs.binningName}), RootIO::kStampMult,
                               multBinning);
 
-    RootIO::WriteProvenance(fileMCOutput.get(), globalCfgs.binningName, provenance);
+    RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
 
     // Save all diagnostic canvases into their registered subdirectories; the Y ranges
     // declared at creation are applied on the way out.
-    canvasManager.WriteAll(fileMCOutput.get());
+    canvasManager.WriteAll(outputFile.get());
 
-    if (fileMCOutput)
-      fileMCOutput->Close();
+    if (outputFile)
+      outputFile->Close();
 
     Logger::Info("{}: DONE.", GetName());
   }
@@ -464,9 +464,9 @@ class MCTask : public IAnalysisTask
   // Read from the input files in Init(), never from the configuration
   std::vector<double> multBinning;
 
-  std::unique_ptr<TFile> fileMCOutput;
+  std::unique_ptr<TFile> outputFile;
 
-  std::string outputDirectory;
+  std::string outputDir;
   std::string ccdbOutputDir;
 
   // Filled in Init, written into the output file in Terminate

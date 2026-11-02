@@ -7,6 +7,15 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## `use_2d_me_normalization` renamed `use_2d_engine`
+
+**30 October 2026.** The key chose the engine of `CorrelationCalculator` (the 2D one, which divides SE by ME bin by
+bin in (Δφ, Δy), or the 1D one), not a normalisation, and the README row had to begin with "Despite the name".
+Renamed at the owner's choice; required as before, so a configuration still using the old name stops at the
+missing key. The member is `use2DEngine`, named after its key as every other flag of the task.
+
+---
+
 ## One way per situation: missing directories, configuration messages, file prefixes
 
 **30 October 2026.** Points 3-5 of the audit of 28 October, at the owner's choice, through three rounds of review:

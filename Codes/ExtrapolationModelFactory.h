@@ -32,8 +32,8 @@ class ExtrapolationModelFactory
   {
     std::unique_ptr<TF1> f1;
 
-    double dMin = config.domainRange.first;
-    double dMax = config.domainRange.second;
+    double dMin = config.domainRange.min;
+    double dMax = config.domainRange.max;
 
     if (config.model == "LevyTsallis") {
       f1 = std::make_unique<TF1>(std::format("fLevyTsallis_{}", suffix).c_str(), LevyTsallisFunc, dMin, dMax, 4);

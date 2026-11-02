@@ -43,10 +43,10 @@ class PhiFitTask : public IAnalysisTask
 
     // 1. Input Configuration
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
-    std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", GetName());
+    std::unique_ptr<TFile> fileInput = RootIO::OpenOrThrow(inputFile, "READ", GetName());
 
     basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
-    h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), std::format("{}phi/h3PhiData", basePathData), GetName());
+    h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileInput.get(), std::format("{}phi/h3PhiData", basePathData), GetName());
 
     // The binning comes from the file, never from the configuration: the loops
     // below address these very bins. h3PhiData axes: (mult, pT, invariant mass).
@@ -65,14 +65,14 @@ class PhiFitTask : public IAnalysisTask
 
     // 3. Output Configuration
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
-    std::string prefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
+    std::string outputPrefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
 
     // UPDATE and this binning's subtree cleared, not RECREATE: the file holds one subtree per
     // binning_name, and another scheme's must survive this one's run (CLAUDE.md, How a task
     // opens the file it writes).
-    std::string phiDataName = std::format("{}{}{}", basePathProj, prefix, OutputNames::kPhiDataFile);
-    filePhiDataOutput = RootIO::OpenOrThrow(phiDataName, "UPDATE", GetName());
-    RootIO::ClearPath(filePhiDataOutput.get(), {globalCfgs.binningName});
+    std::string phiDataName = std::format("{}{}{}", basePathProj, outputPrefix, OutputNames::kPhiDataFile);
+    outputFile = RootIO::OpenOrThrow(phiDataName, "UPDATE", GetName());
+    RootIO::ClearPath(outputFile.get(), {globalCfgs.binningName});
 
     // Real bin edges on both axes, not 0..N counters: these matrices cross the
     // boundary to CorrelationTask, and with index axes the association to a pT
@@ -97,7 +97,7 @@ class PhiFitTask : public IAnalysisTask
   {
     Logger::Info("{}: RUNNING TRIGGER SIGNAL EXTRACTION...", GetName());
 
-    TDirectory* fitDir = RootIO::MakePath(filePhiDataOutput.get(), {globalCfgs.binningName, "Fits"});
+    TDirectory* fitDir = RootIO::MakePath(outputFile.get(), {globalCfgs.binningName, "Fits"});
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
       for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
@@ -143,7 +143,7 @@ class PhiFitTask : public IAnalysisTask
     Logger::Info("{}: TERMINATING...", GetName());
 
     const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
-    TDirectory* summaryDir = RootIO::MakePath(filePhiDataOutput.get(), summaryPath);
+    TDirectory* summaryDir = RootIO::MakePath(outputFile.get(), summaryPath);
     summaryDir->cd();
 
     h2TriggerSignal->Write(nullptr, TObject::kOverwrite);
@@ -154,11 +154,11 @@ class PhiFitTask : public IAnalysisTask
     // The trigger matrices cross into CorrelationTask, so this file is a link in
     // the chain and not a by-product: it has to say what produced it. No binning
     // stamp is needed here - both axes of the matrices are the real binnings.
-    RootIO::WriteProvenance(filePhiDataOutput.get(), globalCfgs.binningName, provenance);
+    RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
 
-    fitQuality.Write(RootIO::MakePath(filePhiDataOutput.get(), {globalCfgs.binningName}), GetName());
+    fitQuality.Write(RootIO::MakePath(outputFile.get(), {globalCfgs.binningName}), GetName());
 
-    filePhiDataOutput->Close();
+    outputFile->Close();
 
     Logger::Info("{}: DONE.", GetName());
   }
@@ -175,7 +175,7 @@ class PhiFitTask : public IAnalysisTask
   std::vector<double> ptPhiBinning;
   std::unique_ptr<TH3F> h3PhiData;
 
-  std::unique_ptr<TFile> filePhiDataOutput;
+  std::unique_ptr<TFile> outputFile;
   FitQualityRecorder fitQuality;
 
   // Filled in Init, written into the output file in Terminate

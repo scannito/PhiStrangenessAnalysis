@@ -292,7 +292,7 @@ class CorrelationTaskBase : public IAnalysisTask
   std::string basePathData, basePathDataME;
 
   bool applyME{false}, applyExtrapolation{false};
-  bool useProjectionCache{false}, use2DMENormalization{false};
+  bool useProjectionCache{false}, use2DEngine{false};
   std::optional<CorrectionsConfig> corrections; // Empty: no correction is applied here
 
   std::unique_ptr<TH1> hEventLoss;
@@ -398,7 +398,7 @@ class CorrelationTaskBase : public IAnalysisTask
     provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
-    use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());
+    use2DEngine = JsonConfig::RequireBool(taskConfig, "use_2d_engine", GetName());
     // Required, with no default: it changes the numbers (CLAUDE.md, Configuration).
     meNormalization = JsonConfig::RequireEnum<CorrelationCalculator::MENormalization>(
       taskConfig, "me_normalization",
@@ -451,29 +451,29 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   // Which engine of CorrelationCalculator runs, decided once. A task says whether it can build
   // the 2D engine at all (CorrelationTask in run_mode "optimized"; RunLegacy, which the WPDG task
-  // always runs, builds the 1D one); use_2d_me_normalization asks for it. Everything that depends
+  // always runs, builds the 1D one); use_2d_engine asks for it. Everything that depends
   // on the engine - the calculators, SectionDirName, the checks below - asks Engine2D().
   // -------------------------------------------------------------------------
   virtual bool CanBuild2DEngine() const { return false; }
-  bool Engine2D() const { return use2DMENormalization && CanBuild2DEngine(); }
+  bool Engine2D() const { return use2DEngine && CanBuild2DEngine(); }
 
   // The settings that need an engine this run will not build. Both used to pass in silence:
-  // use_2d_me_normalization true where only the 1D engine runs (the results went under
+  // use_2d_engine true where only the 1D engine runs (the results went under
   // "Extract2D"), and projection_axis "delta_phi" with the 1D engine, which projects on Delta y
   // only and gave Delta y spectra (Delta phi in the 1D engine is open: DESIGN_NOTES.md section 6). Delta phi is, for
   // now, refused in every engine before this, in InitCommonFlags.
   // Refused at Init, before any data is loaded.
   void RequireEngineSettingsSupported() const
   {
-    if (use2DMENormalization && !CanBuild2DEngine())
+    if (use2DEngine && !CanBuild2DEngine())
       throw std::runtime_error(std::format(
-        "[FATAL] {}: use_2d_me_normalization is true, but this run builds the 1D engine (run_mode 'legacy', "
+        "[FATAL] {}: use_2d_engine is true, but this run builds the 1D engine (run_mode 'legacy', "
         "or the WPDG task, which always does). Set it to false, or use run_mode 'optimized' for the 2D engine.",
         GetName()));
     if (!CorrelationCalculator::Supports(Engine2D(), projectionAxis))
       throw std::runtime_error(std::format(
         "[FATAL] {}: projection_axis 'delta_phi' needs the 2D engine (run_mode 'optimized' with "
-        "use_2d_me_normalization true); with this configuration the 1D engine runs, and it projects on "
+        "use_2d_engine true); with this configuration the 1D engine runs, and it projects on "
         "Delta y only. See DESIGN_NOTES.md section 6.",
         GetName()));
   }
@@ -1090,15 +1090,15 @@ class CorrelationTaskBase : public IAnalysisTask
     const double firstMeasuredPt = config.binning[0];
 
     SpectrumExtrapolator extrapolator(hSpec, extrapModel.get());
-    extrapolator.SetFitRange(eCfg.fitRange.first, eCfg.fitRange.second);
+    extrapolator.SetFitRange(eCfg.fitRange.min, eCfg.fitRange.max);
     // The limits especially: without this call the class kept its own 0..10 and
     // 'domain_range' looked like it controlled the integration while controlling
     // only the range of the TF1.
-    extrapolator.SetExtrapolationLimits(eCfg.domainRange.first, eCfg.domainRange.second);
+    extrapolator.SetExtrapolationLimits(eCfg.domainRange.min, eCfg.domainRange.max);
     extrapolator.SetFitOption(kFitOption);
     extrapolator.SetIntegrationPrecisions(kLoPrecision, kHiPrecision);
     if (highModel)
-      extrapolator.SetHighModel(highModel.get(), eCfg.high->fitRange.first, eCfg.high->fitRange.second);
+      extrapolator.SetHighModel(highModel.get(), eCfg.high->fitRange.min, eCfg.high->fitRange.max);
 
     // No SetSystematicSpectrum: nothing in this chain produces per-bin systematic
     // uncertainties yet, so the four variations stay switched off and the result
@@ -1158,10 +1158,10 @@ class CorrelationTaskBase : public IAnalysisTask
     // With a high fit, each curve is drawn only on its side of where the high fit starts,
     // the high one dashed: drawn over the whole domain, the plot would show two tails on
     // each side and nothing would say which one entered the yield.
-    const double split = eCfg.high ? eCfg.high->fitRange.first : eCfg.domainRange.second;
-    attachCurve(extrapModel.get(), 1, eCfg.domainRange.first, split);
+    const double split = eCfg.high ? eCfg.high->fitRange.min : eCfg.domainRange.max;
+    attachCurve(extrapModel.get(), 1, eCfg.domainRange.min, split);
     if (highModel)
-      attachCurve(highModel.get(), 2, split, eCfg.domainRange.second);
+      attachCurve(highModel.get(), 2, split, eCfg.domainRange.max);
 
     targetDir->cd();
     hSpecExt->Write(nullptr, TObject::kOverwrite);
@@ -1226,7 +1226,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // the data. See DESIGN_NOTES.md, which still lists that as open.
     auto reportFit = [](const char* label, const ExtrapFit& fit, const FitQuality& quality) {
       Logger::Debug("  -> {} {} over [{:g}, {:g}]: chi2/ndf = {:g}/{} = {:g}", label, fit.model,
-                    fit.fitRange.first, fit.fitRange.second, quality.chi2, quality.ndf, quality.ReducedChi2());
+                    fit.fitRange.min, fit.fitRange.max, quality.chi2, quality.ndf, quality.ReducedChi2());
     };
     reportFit("Fit", eCfg, res.fit);
     if (eCfg.high)
@@ -1296,7 +1296,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
         std::string spectraName = OutputNames::Spectrum(config.name, dyLimit, multBinning, multBin);
 
-        std::vector<TH1*> views;
+        std::vector<const TH1*> views;
         views.reserve(h1PhiAssocNoPtPhi[pIdx][multBin].size());
         for (const auto& h : h1PhiAssocNoPtPhi[pIdx][multBin])
           views.push_back(h.get());
@@ -1368,7 +1368,7 @@ class CorrelationTaskBase : public IAnalysisTask
   void RunLegacy()
   {
     Logger::Info("{}: RUNNING CORRELATIONS (Legacy)...", GetName());
-    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .meNorm = meNormalization, .targetAxis = projectionAxis});
+    CorrelationCalculator corrCalculator({.applyME = applyME, .useProjectionCache = useProjectionCache, .engine2D = Engine2D(), .meNormalization = meNormalization, .projectionAxis = projectionAxis});
 
     const std::vector<std::string> logicalPath = SectionPath();
 

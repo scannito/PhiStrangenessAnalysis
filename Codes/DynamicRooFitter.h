@@ -197,8 +197,8 @@ class DynamicRooFitter
 
     // --- 4. OPTIONAL BACKGROUND IN SIDEBAND YIELD & ERROR ---
     if (config.integration.sideband) {
-      double sbMin = config.integration.sideband->range.first;
-      double sbMax = config.integration.sideband->range.second;
+      double sbMin = config.integration.sideband->range.min;
+      double sbMax = config.integration.sideband->range.max;
       obs->setRange("sidebandRegion", sbMin, sbMax);
 
       if (config.integration.sideband->fromFit) {
@@ -446,8 +446,8 @@ class DynamicRooFitter
     // Integration and Sideband boundary lines
     CanvasManager::DrawVerticalRange(mainPad, minRange, maxRange, yMin, yMax);
     if (config.integration.sideband) {
-      CanvasManager::DrawVerticalRange(mainPad, config.integration.sideband->range.first,
-                                       config.integration.sideband->range.second, yMin, yMax);
+      CanvasManager::DrawVerticalRange(mainPad, config.integration.sideband->range.min,
+                                       config.integration.sideband->range.max, yMin, yMax);
     }
 
     // The legend stays here, unlike the ALICE label: its entries are looked up by the

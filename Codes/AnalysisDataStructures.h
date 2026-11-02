@@ -190,17 +190,14 @@ struct ModelConfig {
   std::map<std::string, MathParam> params; // Uses the unified MathParam
 };
 
-struct FixedRange {
-  double min{0.0};
-  double max{0.0};
-};
+using FixedRange = BinningUtils::Range;
 
 struct NSigma {
   double n{3.0};
 };
 
 struct SidebandConfig {
-  std::pair<double, double> range{0.0, 0.0};
+  BinningUtils::Range range;
   bool fromFit{true};
 };
 
@@ -244,7 +241,7 @@ struct FitDiagnostics {
 // One fit of a spectrum: what extrapConfig.json says per fit, the main one and "high".
 struct ExtrapFit {
   std::string model;
-  std::pair<double, double> fitRange{0.0, 0.0};
+  BinningUtils::Range fitRange;
   std::map<std::string, MathParam> params; // Uses the unified MathParam
   // Where in extrapConfig.json the parameters came from, said by the manager that merged them, for the messages: a
   // high fit is replaced whole and the main one merged over the default, so the place to fix differs.
@@ -253,7 +250,7 @@ struct ExtrapFit {
 
 // The main fit, and what belongs to the species rather than to a fit.
 struct ExtrapConfig : ExtrapFit {
-  std::pair<double, double> domainRange{0.0, 15.0};
+  BinningUtils::Range domainRange{0.0, 15.0};
   double mass{0.0}; // Injected dynamically at runtime by the Task
 
   // When set, the part above the last measured point comes from this fit instead of the

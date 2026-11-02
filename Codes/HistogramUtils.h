@@ -177,7 +177,7 @@ inline std::unique_ptr<THType> ProjectTHnSparse(THnSparse* hnSparse,
 // -----------------------------------------------------------------------------
 
 // Construct pT spectrum from a vector of histograms
-inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
+inline std::unique_ptr<TH1> ConstructSpectrum(std::span<const TH1* const> hContainer,
                                               std::span<const double> binning,
                                               const std::string& histName,
                                               double absLimToIntegrate)
@@ -204,7 +204,7 @@ inline std::unique_ptr<TH1> ConstructSpectrum(std::span<TH1* const> hContainer,
 }
 
 // The measured trend: the bin of class 'multBin' gets the integral of the spectrum.
-inline void FillTrendFromSpectrum(TH1* hTrend, TH1* hSpectrum, int multBin)
+inline void FillTrendFromSpectrum(TH1* hTrend, const TH1* hSpectrum, int multBin)
 {
   auto [content, error] = IntegralAndErrorWholeBins(hSpectrum, hSpectrum->GetXaxis()->GetXmin(),
                                                     hSpectrum->GetXaxis()->GetXmax(), "width");
@@ -232,7 +232,7 @@ inline void FillTrendFromExtrapolation(TH1* hTrend, const ExtrapolationResult& r
 // 'option' is TH1::Divide's: pass "B" whenever the numerator counts a subset of
 // the denominator, as for an efficiency, otherwise the errors come out too large
 // and can exceed the range the ratio is bounded to.
-inline std::unique_ptr<TH1> MakeRatioHist(TH1* num, TH1* den, const std::string& name,
+inline std::unique_ptr<TH1> MakeRatioHist(const TH1* num, const TH1* den, const std::string& name,
                                           const std::string& title,
                                           double numScale = 1.0, double denScale = 1.0,
                                           Option_t* option = "")
@@ -248,6 +248,9 @@ inline std::unique_ptr<TH1> MakeRatioHist(TH1* num, TH1* den, const std::string&
 // Rebinning utilities
 // -----------------------------------------------------------------------------
 
+// Only RebinToTargetBinning reads these: kept out of the namespace's public names.
+namespace Detail
+{
 struct RebinEdgeMismatch {
   double targetEdge{0.0};
   int sourceBin{-1};
@@ -276,6 +279,7 @@ inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, st
   }
   return mismatches;
 }
+} // namespace Detail
 
 // The target binning may cover less than the source: an efficiency computed up to
 // 10 GeV/c merged onto an analysis binning that stops at 6.4 is the normal case.
@@ -291,7 +295,7 @@ inline std::vector<RebinEdgeMismatch> FindRebinMismatches(const TH1* hSource, st
 template <RootHistogram THType>
 inline std::unique_ptr<THType> RebinToTargetBinning(std::unique_ptr<THType> h, std::span<const double> targetBinning, std::string_view errCtx)
 {
-  std::vector<RebinEdgeMismatch> mismatches = FindRebinMismatches(h.get(), targetBinning);
+  const std::vector<Detail::RebinEdgeMismatch> mismatches = Detail::FindRebinMismatches(h.get(), targetBinning);
 
   if (!mismatches.empty()) {
     std::string msg = std::format(

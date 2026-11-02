@@ -15,7 +15,7 @@ class CorrelationTask : public CorrelationTaskBase
                        Optimized };
 
   std::string GetName() const override { return "correlation_task"; }
-  // RunOptimized builds the engine use_2d_me_normalization asks for; RunLegacy builds the 1D one.
+  // RunOptimized builds the engine use_2d_engine asks for; RunLegacy builds the 1D one.
   bool CanBuild2DEngine() const override { return runMode == RunMode::Optimized; }
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
@@ -270,7 +270,7 @@ class CorrelationTask : public CorrelationTaskBase
     // MODE B: STANDARD CALCULATION (If L2 Cache is disabled)
     // The CorrelationCalculator is invoked here (managing L1 Cache internally)
     // =========================================================================
-    CorrelationCalculator corrCalculator({.mixedEvents = applyME, .fromCache = useProjectionCache, .engine2D = Engine2D(), .moreQA = doMoreQA, .meNorm = meNormalization, .targetAxis = projectionAxis});
+    CorrelationCalculator corrCalculator({.applyME = applyME, .useProjectionCache = useProjectionCache, .engine2D = Engine2D(), .doMoreQA = doMoreQA, .meNormalization = meNormalization, .projectionAxis = projectionAxis});
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
       for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {

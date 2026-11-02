@@ -11,7 +11,7 @@
 // it, not here.
 namespace AnalysisConstants
 {
-inline const std::map<std::string, double> particleMass{
+inline const std::map<std::string, double> kParticleMass{
   {"Phi", 1.019461},  // PDG mass of Phi meson in GeV/c^2
   {"K", 0.493677},    // PDG mass of charged kaon in GeV/c^2
   {"K0S", 0.497611},  // PDG mass of K0S in GeV/c^2
@@ -22,8 +22,8 @@ inline const std::map<std::string, double> particleMass{
 
 inline double GetMass(const std::string& name)
 {
-  auto it = particleMass.find(name);
-  if (it == particleMass.end())
+  auto it = kParticleMass.find(name);
+  if (it == kParticleMass.end())
     throw std::runtime_error(std::format("[FATAL] AnalysisConstants: Unknown particle '{}'", name));
   return it->second;
 }

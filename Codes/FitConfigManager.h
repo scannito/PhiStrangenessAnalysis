@@ -98,7 +98,7 @@ class FitConfigManager : public BaseConfigManager
         // The two are alternatives, and an explicit range wins: reaching the second
         // branch means no range was given, not that n_sigma has priority.
         if (auto range = JsonConfig::TryRange(node, "integration_range", ctx)) {
-          config.integration.signalWindow = FixedRange{range->first, range->second};
+          config.integration.signalWindow = *range;
         } else if (auto nSigma = JsonConfig::TryDouble(node, "n_sigma_integration", ctx)) {
           config.integration.signalWindow = NSigma{*nSigma};
         }
@@ -131,7 +131,7 @@ class FitConfigManager : public BaseConfigManager
 
       // A sideband needs its range, after the default and the cell are merged: absent it stays {0, 0}, an empty range
       // that the histogram count refuses and the fit integrates to nothing, an R of 0 or infinity.
-      if (const auto& sb = config.integration.sideband; sb && !(sb->range.first < sb->range.second))
+      if (const auto& sb = config.integration.sideband; sb && !(sb->range.min < sb->range.max))
         throw std::runtime_error(std::format("[FATAL] {}, cell '{}': 'sideband' has no 'range' [low, high].",
                                              sectionCtx, cell));
     }

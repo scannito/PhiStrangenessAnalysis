@@ -251,7 +251,7 @@ silently ignored.
 |---|---|---|
 | `apply_mixed_events`, `apply_extrapolation`, `apply_purity` | required | |
 | `use_projection_cache` | required | |
-| `use_2d_me_normalization` | required | Despite the name, it chooses the engine: `true` builds the 2D one (SE/ME projected on (Δφ, Δy), divided bin by bin), but only in `correlation_task` with `run_mode: "optimized"`; with `legacy` or in `correlation_wpdg_task`, which always build the 1D engine, `true` is refused at `Init`. The engine also chooses the output section, `Extract2D` or `Extract1D`. |
+| `use_2d_engine` | required | The engine: `true` builds the 2D one (SE/ME projected on (Δφ, Δy), divided bin by bin), but only in `correlation_task` with `run_mode: "optimized"`; with `legacy` or in `correlation_wpdg_task`, which always build the 1D engine, `true` is refused at `Init`. The engine also chooses the output section, `Extract2D` or `Extract1D`. |
 | `me_normalization` | required | `bins_at_zero` or `fit`: how the mixed event is scaled to 1 at zero separation, in either engine. See `DESIGN_NOTES.md` section 6. The base configurations say `bins_at_zero`, which is what the 1D engine always did; the 2D engine always used `fit`, so a block that switches the 2D engine on must say `fit` to reproduce its past numbers. |
 | `projections_dir` | required | Where the trigger file of `phi_fit_task` is read and the projection caches are written. |
 | `input_dir_purity`, `output_dir_final` | required | |

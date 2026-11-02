@@ -205,7 +205,7 @@ class ComparisonTask : public IAnalysisTask
         "Remove it.", GetName()));
 
     std::string outName = std::format("{}{}Comparisons.root", outputDir, outputPrefix);
-    fileOutput = RootIO::OpenOrThrow(outName, "RECREATE", GetName());
+    outputFile = RootIO::OpenOrThrow(outName, "RECREATE", GetName());
 
     provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
@@ -233,10 +233,10 @@ class ComparisonTask : public IAnalysisTask
   {
     Logger::Info("{}: TERMINATING AND CLEANING UP...", GetName());
 
-    RootIO::WriteProvenance(fileOutput.get(), "", provenance);
+    RootIO::WriteProvenance(outputFile.get(), "", provenance);
 
-    if (fileOutput) {
-      fileOutput->Close();
+    if (outputFile) {
+      outputFile->Close();
     }
 
     Logger::Info("{}: DONE.", GetName());
@@ -281,7 +281,7 @@ class ComparisonTask : public IAnalysisTask
   std::string outputPrefix;
 
   std::vector<Comparison> comparisons;
-  std::unique_ptr<TFile> fileOutput;
+  std::unique_ptr<TFile> outputFile;
   std::map<std::string, std::string> provenance;
 
   // ---------------------------------------------------------------------------
@@ -296,7 +296,7 @@ class ComparisonTask : public IAnalysisTask
     pair.num = RootIO::OpenOrThrow(comp.numeratorFile, "READ", ctx);
     pair.den = RootIO::OpenOrThrow(comp.denominatorFile, "READ", ctx);
 
-    pair.outDir = RootIO::MakePath(fileOutput.get(), {comp.label});
+    pair.outDir = RootIO::MakePath(outputFile.get(), {comp.label});
 
     // What was divided, travelling with the result. Provenance never throws: a path
     // that moved is not a reason to fail a comparison that is otherwise fine.
@@ -314,7 +314,7 @@ class ComparisonTask : public IAnalysisTask
         facts["no_provenance"] = std::format("'{}' carries no provenance for '{}': either it was not "
                                              "produced by this framework, or it predates the provenance records.",
                                              fileName, inputScheme);
-      RootIO::WriteProvenance(fileOutput.get(), comp.label, facts, record);
+      RootIO::WriteProvenance(outputFile.get(), comp.label, facts, record);
     };
 
     copyProvenance(pair.num.get(), "numerator", comp.numeratorFile);

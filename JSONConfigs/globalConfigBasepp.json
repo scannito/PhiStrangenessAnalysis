@@ -387,7 +387,7 @@
             }
         ],
         "use_projection_cache": true,
-        "use_2d_me_normalization": false,
+        "use_2d_engine": false,
         "me_normalization": "bins_at_zero",
         "projection_axis": "delta_y",
         "use_signal_cache": false,
@@ -497,7 +497,7 @@
         "base_path_data": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "base_path_me": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "corrections": null,
-        "use_2d_me_normalization": false,
+        "use_2d_engine": false,
         "do_more_qa": false
     },
     "correlation_task_online_efficiency_no_phi": {
@@ -629,7 +629,7 @@
         },
         "apply_extrapolation": true,
         "use_projection_cache": false,
-        "use_2d_me_normalization": false,
+        "use_2d_engine": false,
         "projection_axis": "delta_y",
         "me_normalization": "bins_at_zero",
         "is_pure_gen": false,
@@ -685,7 +685,7 @@
         "base_path_data": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "base_path_me": "phi-strange-correlation_OnlineEfficiency/phiStrangenessCorrelation/",
         "corrections": null,
-        "use_2d_me_normalization": false
+        "use_2d_engine": false
     },
     "correlation_wpdg_task_online_efficiency_no_phi": {
         "inherits": "correlation_wpdg_base_settings",

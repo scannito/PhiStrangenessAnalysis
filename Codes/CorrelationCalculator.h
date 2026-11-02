@@ -35,12 +35,13 @@ class CorrelationCalculator
   // What the calculator does, fixed for a run. Built with designated initialisers, so the
   // call site says which switch is which; what it does not write is off.
   struct Options {
-    bool mixedEvents{false}; // divide by the mixed event
-    bool fromCache{false};   // read the projections from ioDir instead of projecting the THnSparse
-    bool engine2D{false};    // the 2D engine (Extract2D) instead of the 1D one (Extract1D)
-    bool moreQA{false};      // write the 2D and 1D QA objects into qaDir (2D engine only)
-    MENormalization meNorm{MENormalization::BinsAtZero}; // always set from me_normalization by the tasks
-    AxisTarget targetAxis{AxisTarget::DeltaY_Y};         // the same for every cell of a run; Delta phi only with the 2D engine, and refused by the tasks for now
+    // Named as the tasks name them, after their configuration keys, so one switch has one name in both layers.
+    bool applyME{false};            // apply_mixed_events: divide by the mixed event
+    bool useProjectionCache{false}; // use_projection_cache: read the projections from ioDir instead of projecting the THnSparse
+    bool engine2D{false};           // the 2D engine (Extract2D) instead of the 1D one (Extract1D)
+    bool doMoreQA{false};           // do_more_qa: write the 2D and 1D QA objects into qaDir (2D engine only)
+    MENormalization meNormalization{MENormalization::BinsAtZero}; // me_normalization, always set by the tasks
+    AxisTarget projectionAxis{AxisTarget::DeltaY_Y};              // projection_axis, the same for every cell of a run; Delta phi only with the 2D engine, and refused by the tasks for now
   };
 
   // One extraction: the cell to cut, the corrections to apply, where to read and write.
@@ -50,8 +51,8 @@ class CorrelationCalculator
     double triggerBkgRatio;
     std::string histNameBase;
     TDirectory* ioDir{nullptr};                                // projections cache, written or read
-    TDirectory* qaDir{nullptr};                                // QA objects (2D engine with moreQA)
-    std::optional<std::pair<double, double>> orthogonalCut{};  // range on the other axis (2D engine)
+    TDirectory* qaDir{nullptr};                                // QA objects (2D engine with doMoreQA)
+    std::optional<BinningUtils::Range> orthogonalCut{};  // range on the other axis (2D engine)
   };
 
   explicit CorrelationCalculator(Options options) : opt(options) {}
@@ -65,7 +66,7 @@ class CorrelationCalculator
   // would otherwise answer with a Delta y projection.
   static bool Supports(bool engine2D, AxisTarget axis) { return engine2D || axis == AxisTarget::DeltaY_Y; }
 
-  // The corrected, sideband-subtracted correlation of one cell, projected on targetAxis.
+  // The corrected, sideband-subtracted correlation of one cell, projected on projectionAxis.
   std::unique_ptr<TH1> ExtractCorrectedSignal(const LoadedAssocData& data, const Request& req) const
   {
     return opt.engine2D ? Extract2D(data, req) : Extract1D(data, req);
@@ -105,7 +106,7 @@ class CorrelationCalculator
   template <typename H>
   Inputs<H> LoadOrProject(const LoadedAssocData& data, const Request& req) const
   {
-    return opt.fromCache ? ReadFromCache<H>(req) : ProjectAndCache<H>(data, req);
+    return opt.useProjectionCache ? ReadFromCache<H>(req) : ProjectAndCache<H>(data, req);
   }
 
   // Reads only. The sideband may be missing (a warning, not an error); with mixed events, a
@@ -120,7 +121,7 @@ class CorrelationCalculator
     Inputs<H> in(req.histNameBase);
     in.sig = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameSig, "CorrelationCalculator");
     in.sb = RootIO::GetUniqueOrWarn<H>(req.ioDir, in.nameSb, "CorrelationCalculator");
-    if (opt.mixedEvents) {
+    if (opt.applyME) {
       in.meSig = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameMeSig, "CorrelationCalculator");
       if (in.sb)
         in.meSb = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameMeSb, "CorrelationCalculator");
@@ -142,7 +143,7 @@ class CorrelationCalculator
     if (data.h5DataSideband)
       in.sb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSideband.get(), req.axesToCut, projAxes, in.nameSb);
 
-    if (opt.mixedEvents) {
+    if (opt.applyME) {
       if (!data.h5DataMESignal)
         throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: missing mixed-event signal THnSparse for {}", data.name));
       in.meSig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESignal.get(), req.axesToCut, projAxes, in.nameMeSig);
@@ -158,7 +159,7 @@ class CorrelationCalculator
       in.sig->Write(nullptr, TObject::kOverwrite);
       if (in.sb)
         in.sb->Write(nullptr, TObject::kOverwrite);
-      if (opt.mixedEvents) {
+      if (opt.applyME) {
         in.meSig->Write(nullptr, TObject::kOverwrite);
         if (in.meSb)
           in.meSb->Write(nullptr, TObject::kOverwrite);
@@ -167,7 +168,7 @@ class CorrelationCalculator
     return in;
   }
 
-  // The normalisation of the mixed event, chosen by opt.meNorm, is the same idea in the two
+  // The normalisation of the mixed event, chosen by opt.meNormalization, is the same idea in the two
   // engines: the mixed event is scaled to 1 at zero separation.
 
   // 1D. BinsAtZero: the bins at Delta y = 0 (GetZeroAvg). With an even, symmetric binning,
@@ -178,7 +179,7 @@ class CorrelationCalculator
   void NormalizeME1D(TH1* me) const
   {
     double norm = 0.0;
-    if (opt.meNorm == MENormalization::Fit) {
+    if (opt.meNormalization == MENormalization::Fit) {
       std::unique_ptr<TH1> copy(static_cast<TH1*>(me->Clone("tempME1D_fit")));
       copy->SetDirectory(0);
       norm = GetZeroAvgFromFit(copy.get(), me->GetName());
@@ -195,7 +196,7 @@ class CorrelationCalculator
   void NormalizeME2D(TH2* me, const char* tempName) const
   {
     double norm = 0.0;
-    if (opt.meNorm == MENormalization::Fit) {
+    if (opt.meNormalization == MENormalization::Fit) {
       std::unique_ptr<TH1> projY(static_cast<TH1*>(me->ProjectionY(tempName)));
       projY->SetDirectory(0);
       const double a0 = GetZeroAvgFromFit(projY.get(), me->GetName());
@@ -295,10 +296,10 @@ class CorrelationCalculator
     const double totalCorrection = req.totalCorrection;
     const double triggerBkgRatio = req.triggerBkgRatio;
     TDirectory* qaDir = req.qaDir;
-    const AxisTarget targetAxis = opt.targetAxis;
+    const AxisTarget projectionAxis = opt.projectionAxis;
     const auto& orthogonalCut = req.orthogonalCut;
-    const bool applyME = opt.mixedEvents;
-    const bool doMoreQA = opt.moreQA;
+    const bool applyME = opt.applyME;
+    const bool doMoreQA = opt.doMoreQA;
 
     // 1. Loading / Projection. Y = Delta y, X = Delta phi.
     Inputs<TH2> in = LoadOrProject<TH2>(data, req);
@@ -361,9 +362,9 @@ class CorrelationCalculator
         h1QA_Y_Final->Add(h1QA_Y_Sb.get(), -1);
 
       if (!orthogonalCut) {
-        TH1* targetQA = (targetAxis == AxisTarget::DeltaPhi_X) ? h1QA_X_Final.get() : h1QA_Y_Final.get();
+        TH1* targetQA = (projectionAxis == AxisTarget::DeltaPhi_X) ? h1QA_X_Final.get() : h1QA_Y_Final.get();
 
-        h1Final1D.reset(static_cast<TH1*>(targetQA->Clone(std::format("{}Final{}", histNameBase, (targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy").c_str())));
+        h1Final1D.reset(static_cast<TH1*>(targetQA->Clone(std::format("{}Final{}", histNameBase, (projectionAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy").c_str())));
         h1Final1D->SetDirectory(0);
       }
 
@@ -382,7 +383,7 @@ class CorrelationCalculator
       // 6. Orthogonal Cut (If requested)
       if (orthogonalCut) {
         auto [cutMin, cutMax] = *orthogonalCut;
-        if (targetAxis == AxisTarget::DeltaPhi_X) {
+        if (projectionAxis == AxisTarget::DeltaPhi_X) {
           // If projecting onto X, cut the Y axis (Delta y)
           int binMin = h2Signal->GetYaxis()->FindBin(cutMin + 1e-6);
           int binMax = h2Signal->GetYaxis()->FindBin(cutMax - 1e-6);
@@ -399,20 +400,20 @@ class CorrelationCalculator
         }
       }
 
-      std::unique_ptr<TH1> h1Sig1D = (targetAxis == AxisTarget::DeltaPhi_X)
+      std::unique_ptr<TH1> h1Sig1D = (projectionAxis == AxisTarget::DeltaPhi_X)
                                        ? std::unique_ptr<TH1>(h2Signal->ProjectionX(std::format("{}Signal1D_dPhi", histNameBase).c_str()))
                                        : std::unique_ptr<TH1>(h2Signal->ProjectionY(std::format("{}Signal1D_dy", histNameBase).c_str()));
       h1Sig1D->SetDirectory(0);
 
       std::unique_ptr<TH1> h1Sideband1D;
       if (h2Sideband) {
-        h1Sideband1D = (targetAxis == AxisTarget::DeltaPhi_X)
+        h1Sideband1D = (projectionAxis == AxisTarget::DeltaPhi_X)
                      ? std::unique_ptr<TH1>(h2Sideband->ProjectionX(std::format("{}Sideband1D_dPhi", histNameBase).c_str()))
                      : std::unique_ptr<TH1>(h2Sideband->ProjectionY(std::format("{}Sideband1D_dy", histNameBase).c_str()));
         h1Sideband1D->SetDirectory(0);
       }
 
-      h1Final1D.reset(static_cast<TH1*>(h1Sig1D->Clone(std::format("{}Final{}", histNameBase, (targetAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy").c_str())));
+      h1Final1D.reset(static_cast<TH1*>(h1Sig1D->Clone(std::format("{}Final{}", histNameBase, (projectionAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy").c_str())));
       h1Final1D->SetDirectory(0);
       if (h1Sideband1D && triggerBkgRatio > 0) {
         h1Final1D->Add(h1Sideband1D.get(), -1);
@@ -445,13 +446,13 @@ class CorrelationCalculator
     in.sig->Scale(1.0 / req.totalCorrection);
 
     // 3. Mixed Event Correction
-    if (opt.mixedEvents) {
+    if (opt.applyME) {
       NormalizeME1D(in.meSig.get());
       in.sig->Divide(in.meSig.get());
     }
 
     if (in.sb) {
-      if (opt.mixedEvents && in.meSb) {
+      if (opt.applyME && in.meSb) {
         NormalizeME1D(in.meSb.get());
         in.sb->Divide(in.meSb.get());
       }
