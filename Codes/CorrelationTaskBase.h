@@ -289,7 +289,6 @@ class CorrelationTaskBase : public IAnalysisTask
  protected:
   AnalysisSettings globalCfgs;
 
-  std::string basePathData, basePathDataME;
 
   bool applyME{false}, applyExtrapolation{false};
   bool useProjectionCache{false}, use2DEngine{false};
@@ -1554,8 +1553,9 @@ class CorrelationTaskBase : public IAnalysisTask
     return std::format("{}{}/h5Phi{}{}", basePath, config.dirName, config.name, kind);
   }
 
-  // The containers a task reads per associated particle, each by its 'kind' in AssocContainerPath; one left empty is
-  // not read, and its pointer in LoadedAssocData stays null.
+  // The containers a task reads per associated particle, each by its 'kind' in AssocContainerPath. The signal and,
+  // with mixed events, its mixed event are always read; the sideband and its mixed event are a pair a task may leave
+  // empty (the WPDG task has no sideband), and their pointers in LoadedAssocData then stay null.
   struct AssocContainerKinds {
     std::string_view signal;
     std::string_view sideband;
@@ -1563,42 +1563,36 @@ class CorrelationTaskBase : public IAnalysisTask
     std::string_view meSideband;
   };
 
-  // loadedDataCollection, one entry per associated particle in their order: the containers 'kinds' names, from
-  // inputFile (under basePathData, set by the caller) and from the mixed-event file when applyME; or, when the
-  // projections come from the cache, the name alone, since nothing else is read then. Both tasks load this way.
-  void LoadAssocData(const rapidjson::Value& taskConfig, TFile* inputFile, const AssocContainerKinds& kinds)
+  // loadedDataCollection, one entry per associated particle in their order. The containers come from inputFile, under
+  // basePath, and from the mixed-event file when applyME; with use_projection_cache nothing is read, the entry holds
+  // the name alone, and inputFile may be null.
+  void LoadAssocData(const rapidjson::Value& taskConfig, TFile* inputFile, std::string_view basePath, const AssocContainerKinds& kinds)
   {
-    if (useProjectionCache) {
-      Logger::Info("{}: Cache ENABLED. Skipping THnSparse loading.", GetName());
-      for (const auto& config : assocParticles) {
-        AnalysisStructures::LoadedAssocData data;
-        data.name = config.name;
-        loadedDataCollection.push_back(std::move(data));
-      }
-      return;
-    }
+    const bool readContainers = !useProjectionCache;
+    Logger::Info("{}: {}", GetName(), readContainers ? "Cache DISABLED. Loading heavy THnSparse data..." : "Cache ENABLED. Skipping THnSparse loading.");
 
-    Logger::Info("{}: Cache DISABLED. Loading heavy THnSparse data...", GetName());
     std::unique_ptr<TFile> inputMEFile;
-    if (applyME) {
+    std::string basePathME;
+    if (readContainers && applyME) {
       inputMEFile = RootIO::OpenOrThrow(JsonConfig::RequireString(taskConfig, "input_me_file", GetName()), "READ", GetName());
-      basePathDataME = JsonConfig::RequireString(taskConfig, "base_path_me", GetName());
+      basePathME = JsonConfig::RequireString(taskConfig, "base_path_me", GetName());
     }
 
-    auto read = [&](TFile* file, const std::string& basePath, const AnalysisStructures::AssocParticleConfig& config,
-                    std::string_view kind) -> std::unique_ptr<THnSparseF> {
-      if (kind.empty())
-        return nullptr;
-      return RootIO::GetUniqueOrThrow<THnSparseF>(file, AssocContainerPath(basePath, config, kind), GetName());
+    auto read = [&](TFile* file, std::string_view path, const AnalysisStructures::AssocParticleConfig& config, std::string_view kind) {
+      return RootIO::GetUniqueOrThrow<THnSparseF>(file, AssocContainerPath(path, config, kind), GetName());
     };
     for (const auto& config : assocParticles) {
       AnalysisStructures::LoadedAssocData data;
       data.name = config.name;
-      data.h5DataSignal = read(inputFile, basePathData, config, kinds.signal);
-      data.h5DataSideband = read(inputFile, basePathData, config, kinds.sideband);
-      if (applyME) {
-        data.h5DataMESignal = read(inputMEFile.get(), basePathDataME, config, kinds.meSignal);
-        data.h5DataMESideband = read(inputMEFile.get(), basePathDataME, config, kinds.meSideband);
+      if (readContainers) {
+        data.h5DataSignal = read(inputFile, basePath, config, kinds.signal);
+        if (!kinds.sideband.empty())
+          data.h5DataSideband = read(inputFile, basePath, config, kinds.sideband);
+        if (applyME) {
+          data.h5DataMESignal = read(inputMEFile.get(), basePathME, config, kinds.meSignal);
+          if (!kinds.meSideband.empty())
+            data.h5DataMESideband = read(inputMEFile.get(), basePathME, config, kinds.meSideband);
+        }
       }
       loadedDataCollection.push_back(std::move(data));
     }

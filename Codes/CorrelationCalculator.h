@@ -131,21 +131,18 @@ class CorrelationCalculator
 
   // Projects the THnSparse and, when ioDir is given, writes the result to the cache: the only
   // place the cache is written. The sideband is optional; with mixed events, a sideband comes
-  // with its mixed event (the loaders require the two together), and one without stops here.
+  // with its mixed event (CorrelationTaskBase::AssocContainerKinds declares them as a pair), and one without stops here.
+  // The signal and its mixed event are always loaded (LoadAssocData), so they are not checked.
   template <typename H>
   Inputs<H> ProjectAndCache(const AnalysisStructures::LoadedAssocData& data, const Request& req) const
   {
     const std::vector<int> projAxes = Inputs<H>::ProjAxes();
     Inputs<H> in(req.histNameBase);
-    if (!data.h5DataSignal)
-      throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: missing signal THnSparse for {}", data.name));
     in.sig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSignal.get(), req.axesToCut, projAxes, in.nameSig);
     if (data.h5DataSideband)
       in.sb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSideband.get(), req.axesToCut, projAxes, in.nameSb);
 
     if (opt.applyME) {
-      if (!data.h5DataMESignal)
-        throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: missing mixed-event signal THnSparse for {}", data.name));
       in.meSig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESignal.get(), req.axesToCut, projAxes, in.nameMeSig);
       if (in.sb) {
         if (!data.h5DataMESideband)

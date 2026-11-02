@@ -34,7 +34,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     std::string inputPath = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
     std::unique_ptr<TFile> inputFile = RootIO::OpenOrThrow(inputPath, "READ", GetName());
 
-    basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
+    const std::string basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
 
     // One path, read and named in the message below alike.
     const std::string triggerObjectPath = std::format("{}phi/{}", basePathData, isPureGen ? "h3PhiMCClosureGen" : "h3PhiData");
@@ -57,7 +57,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     InitAssocParticles(taskConfig);
 
     // The signal only: this task has no sideband to subtract.
-    LoadAssocData(taskConfig, inputFile.get(),
+    LoadAssocData(taskConfig, inputFile.get(), basePathData,
                   isPureGen ? AssocContainerKinds{.signal = "ClosureMCGen", .meSignal = "ClosureMCGenME"}
                             : AssocContainerKinds{.signal = "DataSignal", .meSignal = "DataMESignal"});
 

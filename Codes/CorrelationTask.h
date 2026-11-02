@@ -67,11 +67,12 @@ class CorrelationTask : public CorrelationTaskBase
 
     // The data file is needed only for the containers, which the projection cache replaces.
     std::unique_ptr<TFile> inputFile;
+    std::string basePathData;
     if (!useProjectionCache) {
       inputFile = RootIO::OpenOrThrow(JsonConfig::RequireString(taskConfig, "input_data_file", GetName()), "READ", GetName());
       basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
     }
-    LoadAssocData(taskConfig, inputFile.get(),
+    LoadAssocData(taskConfig, inputFile.get(), basePathData,
                   {.signal = "DataSignal", .sideband = "DataSideband", .meSignal = "DataMESignal", .meSideband = "DataMESideband"});
 
     // 4. Output files (opened before the corrections: the cache carries the

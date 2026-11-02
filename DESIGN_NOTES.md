@@ -1214,10 +1214,9 @@ was looked at, so that the question need not be reopened from scratch.
   per-particle container. Cost then: the `pIdx` loops of the two task files and the loading of both tasks, a pure
   refactoring checked by comparing every output file against main, plus a separate check of `RunOptimized`, which
   no configuration runs (every one uses `run_mode` legacy).
-- **Smaller, independent of the struct.** The loading of `loadedDataCollection` is written in both tasks, the
-  cache branch included (an entry with only the name); the two differ in which containers they read (signal and
-  sideband against signal only, `ClosureMCGen` in closure). One base function taking the kinds to read would remove
-  the copy whenever either is touched.
+- **Smaller, independent of the struct, done the same day.** The loading of `loadedDataCollection`, once written in
+  both tasks, is `CorrelationTaskBase::LoadAssocData`, given the kinds of container each task reads
+  (`AssocContainerKinds`).
 
 **Writing into a directory without `cd()` (30 October 2026).** The framework writes an object by moving
 `gDirectory` there and calling `Write`: `dir->cd(); obj->Write(nullptr, TObject::kOverwrite)`. `TObject::Write`
