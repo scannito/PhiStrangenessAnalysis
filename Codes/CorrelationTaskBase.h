@@ -457,6 +457,14 @@ class CorrelationTaskBase : public IAnalysisTask
   virtual bool CanBuild2DEngine() const { return false; }
   bool Engine2D() const { return use2DEngine && CanBuild2DEngine(); }
 
+  // The options of CorrelationCalculator, from the task's switches, built once for both run modes: a switch added to
+  // Options and set in one place only would stay off in the other. doMoreQA is CorrelationTask's alone.
+  CorrelationCalculator::Options CalculatorOptions(bool doMoreQA = false) const
+  {
+    return {.applyME = applyME, .useProjectionCache = useProjectionCache, .engine2D = Engine2D(), .doMoreQA = doMoreQA,
+            .meNormalization = meNormalization, .projectionAxis = projectionAxis};
+  }
+
   // The settings that need an engine this run will not build. Both used to pass in silence:
   // use_2d_engine true where only the 1D engine runs (the results went under
   // "Extract2D"), and projection_axis "delta_phi" with the 1D engine, which projects on Delta y
@@ -1368,7 +1376,7 @@ class CorrelationTaskBase : public IAnalysisTask
   void RunLegacy()
   {
     Logger::Info("{}: RUNNING CORRELATIONS (Legacy)...", GetName());
-    CorrelationCalculator corrCalculator({.applyME = applyME, .useProjectionCache = useProjectionCache, .engine2D = Engine2D(), .meNormalization = meNormalization, .projectionAxis = projectionAxis});
+    CorrelationCalculator corrCalculator(CalculatorOptions());
 
     const std::vector<std::string> logicalPath = SectionPath();
 

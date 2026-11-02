@@ -223,7 +223,7 @@ class EfficiencyCalculator
   };
 
   // The two divisions, shared by the per-multiplicity and the integrated case.
-  // Takes the counts by pointer to const because it only reads them.
+  // Raw pointers: it reads the counts, neither owning nor keeping them.
   static std::pair<std::unique_ptr<TH1>, std::unique_ptr<TH1>>
     DivideCounts(const TH1* h1MCGen, const TH1* h1MCGenAssocReco, const TH1* h1MCReco,
                  const std::string& particle, const std::string& multTag, int color)

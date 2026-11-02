@@ -174,7 +174,7 @@ class DynamicRooFitter
     // Retrieve integration limits dynamically based on the configuration logic
     auto [minRange, maxRange] = CalculateIntegrationLimits();
 
-    std::string modeLog = std::holds_alternative<FixedRange>(config.integration.signalWindow) ? "FIXED" : "N-SIGMA";
+    std::string modeLog = std::holds_alternative<BinningUtils::Range>(config.integration.signalWindow) ? "FIXED" : "N-SIGMA";
     Logger::Debug("Integrating in {} range: [{:g} , {:g}]", modeLog, minRange, maxRange);
 
     obs->setRange("signalRegion", minRange, maxRange);
@@ -197,8 +197,7 @@ class DynamicRooFitter
 
     // --- 4. OPTIONAL BACKGROUND IN SIDEBAND YIELD & ERROR ---
     if (config.integration.sideband) {
-      double sbMin = config.integration.sideband->range.min;
-      double sbMax = config.integration.sideband->range.max;
+      const auto [sbMin, sbMax] = config.integration.sideband->range;
       obs->setRange("sidebandRegion", sbMin, sbMax);
 
       if (config.integration.sideband->fromFit) {
@@ -816,25 +815,16 @@ class DynamicRooFitter
   }
 
   // Helper method to centralize the logic for integration limits
-  std::pair<double, double> CalculateIntegrationLimits() const
+  BinningUtils::Range CalculateIntegrationLimits() const
   {
-    double minRange = 0.0;
-    double maxRange = 0.0;
-
     // The limits from the configured mode
-    if (const auto* fixed = std::get_if<FixedRange>(&config.integration.signalWindow)) {
-      minRange = fixed->min;
-      maxRange = fixed->max;
-    } else {
-      const auto& nSigma = std::get<NSigma>(config.integration.signalWindow);
-      std::unique_ptr<RooArgSet> vars(model->getVariables());
-      double m = FindVar(*vars, "mean_sig", {"mean_sig_0", "mean"})->getVal();
-      double s = FindVar(*vars, "sigma_sig", {"sigma_sig_0", "sigma"})->getVal();
+    if (const auto* fixed = std::get_if<BinningUtils::Range>(&config.integration.signalWindow))
+      return *fixed;
 
-      minRange = m - (nSigma.n * s);
-      maxRange = m + (nSigma.n * s);
-    }
-
-    return {minRange, maxRange};
+    const auto& nSigma = std::get<NSigma>(config.integration.signalWindow);
+    std::unique_ptr<RooArgSet> vars(model->getVariables());
+    double m = FindVar(*vars, "mean_sig", {"mean_sig_0", "mean"})->getVal();
+    double s = FindVar(*vars, "sigma_sig", {"sigma_sig_0", "sigma"})->getVal();
+    return {m - (nSigma.n * s), m + (nSigma.n * s)};
   }
 };

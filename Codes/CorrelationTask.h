@@ -270,7 +270,7 @@ class CorrelationTask : public CorrelationTaskBase
     // MODE B: STANDARD CALCULATION (If L2 Cache is disabled)
     // The CorrelationCalculator is invoked here (managing L1 Cache internally)
     // =========================================================================
-    CorrelationCalculator corrCalculator({.applyME = applyME, .useProjectionCache = useProjectionCache, .engine2D = Engine2D(), .doMoreQA = doMoreQA, .meNormalization = meNormalization, .projectionAxis = projectionAxis});
+    CorrelationCalculator corrCalculator(CalculatorOptions(doMoreQA));
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
       for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {

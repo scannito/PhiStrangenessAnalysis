@@ -296,10 +296,7 @@ class CorrelationCalculator
     const double totalCorrection = req.totalCorrection;
     const double triggerBkgRatio = req.triggerBkgRatio;
     TDirectory* qaDir = req.qaDir;
-    const AxisTarget projectionAxis = opt.projectionAxis;
     const auto& orthogonalCut = req.orthogonalCut;
-    const bool applyME = opt.applyME;
-    const bool doMoreQA = opt.doMoreQA;
 
     // 1. Loading / Projection. Y = Delta y, X = Delta phi.
     Inputs<TH2> in = LoadOrProject<TH2>(data, req);
@@ -309,7 +306,7 @@ class CorrelationCalculator
     std::unique_ptr<TH2>& h2MESideband = in.meSb;
 
     // 2. ME normalization (if requested)
-    if (applyME) {
+    if (opt.applyME) {
       NormalizeME2D(h2MESignal.get(), "tempMEProjY_Sig");
       if (h2MESideband)
         NormalizeME2D(h2MESideband.get(), "tempMEProjY_Sb");
@@ -322,18 +319,18 @@ class CorrelationCalculator
       h2Sideband->Scale(triggerBkgRatio / totalCorrection);
 
     // 4. 2D Division
-    if (applyME && h2MESignal)
+    if (opt.applyME && h2MESignal)
       h2Signal->Divide(h2MESignal.get());
 
     if (h2Sideband) {
-      if (applyME && h2MESideband)
+      if (opt.applyME && h2MESideband)
         h2Sideband->Divide(h2MESideband.get());
     }
 
     std::unique_ptr<TH1> h1Final1D;
 
     // 5. Uncut QA (if requested)
-    if (qaDir && doMoreQA) {
+    if (qaDir && opt.doMoreQA) {
       qaDir->cd();
       h2Signal->Write(std::format("{}Signal2D_MECorrected_Uncut", histNameBase).c_str(), TObject::kOverwrite);
       if (h2Sideband)
@@ -362,9 +359,9 @@ class CorrelationCalculator
         h1QA_Y_Final->Add(h1QA_Y_Sb.get(), -1);
 
       if (!orthogonalCut) {
-        TH1* targetQA = (projectionAxis == AxisTarget::DeltaPhi_X) ? h1QA_X_Final.get() : h1QA_Y_Final.get();
+        TH1* targetQA = (opt.projectionAxis == AxisTarget::DeltaPhi_X) ? h1QA_X_Final.get() : h1QA_Y_Final.get();
 
-        h1Final1D.reset(static_cast<TH1*>(targetQA->Clone(std::format("{}Final{}", histNameBase, (projectionAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy").c_str())));
+        h1Final1D.reset(static_cast<TH1*>(targetQA->Clone(std::format("{}Final{}", histNameBase, (opt.projectionAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy").c_str())));
         h1Final1D->SetDirectory(0);
       }
 
@@ -383,7 +380,7 @@ class CorrelationCalculator
       // 6. Orthogonal Cut (If requested)
       if (orthogonalCut) {
         auto [cutMin, cutMax] = *orthogonalCut;
-        if (projectionAxis == AxisTarget::DeltaPhi_X) {
+        if (opt.projectionAxis == AxisTarget::DeltaPhi_X) {
           // If projecting onto X, cut the Y axis (Delta y)
           int binMin = h2Signal->GetYaxis()->FindBin(cutMin + 1e-6);
           int binMax = h2Signal->GetYaxis()->FindBin(cutMax - 1e-6);
@@ -400,26 +397,26 @@ class CorrelationCalculator
         }
       }
 
-      std::unique_ptr<TH1> h1Sig1D = (projectionAxis == AxisTarget::DeltaPhi_X)
+      std::unique_ptr<TH1> h1Sig1D = (opt.projectionAxis == AxisTarget::DeltaPhi_X)
                                        ? std::unique_ptr<TH1>(h2Signal->ProjectionX(std::format("{}Signal1D_dPhi", histNameBase).c_str()))
                                        : std::unique_ptr<TH1>(h2Signal->ProjectionY(std::format("{}Signal1D_dy", histNameBase).c_str()));
       h1Sig1D->SetDirectory(0);
 
       std::unique_ptr<TH1> h1Sideband1D;
       if (h2Sideband) {
-        h1Sideband1D = (projectionAxis == AxisTarget::DeltaPhi_X)
+        h1Sideband1D = (opt.projectionAxis == AxisTarget::DeltaPhi_X)
                      ? std::unique_ptr<TH1>(h2Sideband->ProjectionX(std::format("{}Sideband1D_dPhi", histNameBase).c_str()))
                      : std::unique_ptr<TH1>(h2Sideband->ProjectionY(std::format("{}Sideband1D_dy", histNameBase).c_str()));
         h1Sideband1D->SetDirectory(0);
       }
 
-      h1Final1D.reset(static_cast<TH1*>(h1Sig1D->Clone(std::format("{}Final{}", histNameBase, (projectionAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy").c_str())));
+      h1Final1D.reset(static_cast<TH1*>(h1Sig1D->Clone(std::format("{}Final{}", histNameBase, (opt.projectionAxis == AxisTarget::DeltaPhi_X) ? "_dPhi" : "_dy").c_str())));
       h1Final1D->SetDirectory(0);
       if (h1Sideband1D && triggerBkgRatio > 0) {
         h1Final1D->Add(h1Sideband1D.get(), -1);
       }
 
-      if (qaDir && doMoreQA && orthogonalCut) {
+      if (qaDir && opt.doMoreQA && orthogonalCut) {
         qaDir->cd();
         h2Signal->Write(std::format("{}Signal2D_MECorrected_Cut", histNameBase).c_str(), TObject::kOverwrite);
         if (h2Sideband)

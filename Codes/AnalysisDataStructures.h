@@ -190,8 +190,6 @@ struct ModelConfig {
   std::map<std::string, MathParam> params; // Uses the unified MathParam
 };
 
-using FixedRange = BinningUtils::Range;
-
 struct NSigma {
   double n{3.0};
 };
@@ -202,7 +200,7 @@ struct SidebandConfig {
 };
 
 struct IntegrationConfig {
-  std::variant<FixedRange, NSigma> signalWindow{FixedRange{0.0, 0.0}};
+  std::variant<BinningUtils::Range, NSigma> signalWindow{BinningUtils::Range{0.0, 0.0}};
   bool calculatePurity{false};
   std::optional<SidebandConfig> sideband{std::nullopt};
 };
