@@ -148,9 +148,8 @@ class MCTask : public IAnalysisTask
       // bins. The pT binning is not: this task consumes the pT dimension by
       // projecting the whole axis, so nothing here indexes it - it is resolved
       // only to have it verified against the declared production.
-      const std::string origin = std::format("'{}'", particleInputFile);
-      multBinning = globalCfgs.ResolveMultBinning(data.h3MCGen->GetXaxis(), std::format("{} in {}", h3MCGenName, origin));
-      globalCfgs.ResolvePtBinning(name, data.h3MCGen->GetYaxis(), std::format("{} in {}", h3MCGenName, origin));
+      multBinning = globalCfgs.ResolveMultBinning(data.h3MCGen->GetXaxis(), std::format("{} in '{}'", h3MCGenName, particleInputFile));
+      globalCfgs.ResolvePtBinning(name, data.h3MCGen->GetYaxis(), std::format("{} in '{}'", h3MCGenName, particleInputFile));
 
       if (auto rebin = JsonConfig::TryArray(p, "rebinning_pt", ctx)) {
         std::vector<double> bins = JsonConfig::ReadNumberArray(*rebin, std::format("rebinning_pt for '{}'", name), ctx);

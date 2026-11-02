@@ -637,16 +637,18 @@ class DynamicRooFitter
   RooAbsPdf* CreatePdfComponent(const std::string& modelType, const std::string& suffix)
   {
     std::string name = modelType + suffix;
+    // The parameters of a component are named by their role in the model and the component's suffix.
+    auto param = [&](const char* role) { return CreateVar(role + suffix); };
     RooAbsPdf* pdf{nullptr};
 
     // Signal models
     if (modelType == "DSCB") {
-      RooRealVar* m = CreateVar(std::format("mean{}", suffix));
-      RooRealVar* s = CreateVar(std::format("sigma{}", suffix));
-      RooRealVar* a1 = CreateVar(std::format("alpha1{}", suffix));
-      RooRealVar* n1 = CreateVar(std::format("n1{}", suffix));
-      RooRealVar* a2 = CreateVar(std::format("alpha2{}", suffix));
-      RooRealVar* n2 = CreateVar(std::format("n2{}", suffix));
+      RooRealVar* m = param("mean");
+      RooRealVar* s = param("sigma");
+      RooRealVar* a1 = param("alpha1");
+      RooRealVar* n1 = param("n1");
+      RooRealVar* a2 = param("alpha2");
+      RooRealVar* n2 = param("n2");
       Stage({{a1, a1->getVal()}, {n1, n1->getVal()}, {a2, a2->getVal()}, {n2, n2->getVal()}}); // the tails as configured
       // A tail n at its upper limit is a tail as steep as an exponential, a shape the model can describe, and not a fit
       // that ran out of room; at its lower limit, the heaviest tail allowed, it is (the owner's choice, 24 October 2026).
@@ -654,13 +656,13 @@ class DynamicRooFitter
       upperIsShape.insert(upperIsShape.end(), {n1->GetName(), n2->GetName()});
       pdf = Own<RooCrystalBall>(name.c_str(), "DSCB", *obs, *m, *s, *a1, *n1, *a2, *n2);
     } else if (modelType == "Gaussian") {
-      RooRealVar* m = CreateVar(std::format("mean{}", suffix));
-      RooRealVar* s = CreateVar(std::format("sigma{}", suffix));
+      RooRealVar* m = param("mean");
+      RooRealVar* s = param("sigma");
       pdf = Own<RooGaussian>(name.c_str(), "Gaussian", *obs, *m, *s);
     } else if (modelType == "Voigtian") {
-      RooRealVar* m = CreateVar(std::format("mean{}", suffix));
-      RooRealVar* w = CreateVar(std::format("width{}", suffix)); // Natural width (Gamma)
-      RooRealVar* s = CreateVar(std::format("sigma{}", suffix)); // Resolution (Gaussian part)
+      RooRealVar* m = param("mean");
+      RooRealVar* w = param("width"); // Natural width (Gamma)
+      RooRealVar* s = param("sigma"); // Resolution (Gaussian part)
       pdf = Own<RooVoigtian>(name.c_str(), "Voigtian", *obs, *m, *w, *s);
     } else if (modelType == "RelBWKK") {
       // The phi -> K+K- line shape: a P-wave relativistic Breit-Wigner, whose width grows with the kaon momentum, convolved
@@ -668,10 +670,10 @@ class DynamicRooFitter
       // data are not: in pp 2026 (mult 15-20%, from 0.8 GeV/c) chi2/ndf 4-9 with this shape against 26-48 with the
       // Voigtian, the same with either background. The same parameter names as the Voigtian, with the same meanings, plus
       // the Blatt-Weisskopf radius. Only for a pair of kaons: their mass is in the formula.
-      RooRealVar* m = CreateVar(std::format("mean{}", suffix));
-      RooRealVar* w = CreateVar(std::format("width{}", suffix));  // Gamma at the pole
-      RooRealVar* s = CreateVar(std::format("sigma{}", suffix));  // resolution
-      RooRealVar* r = CreateVar(std::format("radius{}", suffix)); // Blatt-Weisskopf radius (GeV^-1)
+      RooRealVar* m = param("mean");
+      RooRealVar* w = param("width");  // Gamma at the pole
+      RooRealVar* s = param("sigma");  // resolution
+      RooRealVar* r = param("radius"); // Blatt-Weisskopf radius (GeV^-1)
       pdf = BuildRelBWKK(name, *m, *w, *s, *r);
     }
 
@@ -712,14 +714,14 @@ class DynamicRooFitter
       }
       pdf = Own<RooBernstein>(name.c_str(), modelType.c_str(), *obs, coefficients);
     } else if (modelType == "Exponential") {
-      RooRealVar* slope = CreateVar(std::format("slope{}", suffix));
+      RooRealVar* slope = param("slope");
       pdf = Own<RooExponential>(name.c_str(), "Exponential", *obs, *slope);
     } else if (modelType == "BkgSourav1") {
       // Custom Phase-Space Background for Phi -> K+ K-
       // Formula: 1.0 + c1*M + c2*sqrt(M - 2*m_K)
       RequireThresholdBelowRange(modelType);
-      RooRealVar* c1 = CreateVar(std::format("c1{}", suffix));
-      RooRealVar* c2 = CreateVar(std::format("c2{}", suffix));
+      RooRealVar* c1 = param("c1");
+      RooRealVar* c2 = param("c2");
       pdf = Own<RooGenericPdf>(name.c_str(), "Sourav Background",
                                std::format("1.0 + @1*@0 + @2*sqrt(@0 - {})", TwoKaonThreshold()).c_str(),
                                RooArgList(*obs, *c1, *c2));
@@ -727,9 +729,9 @@ class DynamicRooFitter
       // Custom Phase-Space Background for Phi -> K+ K-
       // Formula: 1.0 + c1*M + c2*M^2 + c3*sqrt(M - 2*m_K)
       RequireThresholdBelowRange(modelType);
-      RooRealVar* c1 = CreateVar(std::format("c1{}", suffix));
-      RooRealVar* c2 = CreateVar(std::format("c2{}", suffix));
-      RooRealVar* c3 = CreateVar(std::format("c3{}", suffix));
+      RooRealVar* c1 = param("c1");
+      RooRealVar* c2 = param("c2");
+      RooRealVar* c3 = param("c3");
       pdf = Own<RooGenericPdf>(name.c_str(), "Sourav Background",
                                std::format("1.0 + @1*@0 + @2*@0*@0 + @3*sqrt(@0 - {})", TwoKaonThreshold()).c_str(),
                                RooArgList(*obs, *c1, *c2, *c3));
@@ -742,10 +744,10 @@ class DynamicRooFitter
       // meanings are not, so this model belongs in its own block rather than as a
       // one-key override of a Sourav one.
       RequireThresholdBelowRange(modelType);
-      RooRealVar* n = CreateVar(std::format("n{}", suffix));
-      RooRealVar* c1 = CreateVar(std::format("c1{}", suffix));
-      RooRealVar* c2 = CreateVar(std::format("c2{}", suffix));
-      RooRealVar* c3 = CreateVar(std::format("c3{}", suffix));
+      RooRealVar* n = param("n");
+      RooRealVar* c1 = param("c1");
+      RooRealVar* c2 = param("c2");
+      RooRealVar* c3 = param("c3");
       const double thr = TwoKaonThreshold();
       pdf = Own<RooGenericPdf>(name.c_str(), "Mattia Background",
                                std::format("pow(@0 - {}, @1) * exp(@2*(@0 - {}) + @3*pow(@0 - {}, 2) + @4*pow(@0 - {}, 3))",

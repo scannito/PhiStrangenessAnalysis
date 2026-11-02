@@ -264,7 +264,7 @@ class PurityTask : public IAnalysisTask
     std::string label = task.purityKey;
     std::ranges::replace(label, '_', ' ');
 
-    std::string hName = std::format("{}{}", OutputNames::Purity(task.purityKey, OutputNames::MultTag(multBinning, multBin)), nameSuffix);
+    std::string hName = OutputNames::Purity(task.purityKey, OutputNames::MultTag(multBinning, multBin)) + nameSuffix;
     std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
                                                                    BinningUtils::NBins(binning), binning.data());
     h1PuritySpectrum->SetDirectory(0);
@@ -293,7 +293,7 @@ class PurityTask : public IAnalysisTask
       // per fit, as in PhiFitTask: holding them all for the WriteAll in Terminate would
       // only cost memory, since nothing reads a fit canvas back.
       const std::string cName = std::format("cFit_{}_{}{}", task.purityKey, cell, nameSuffix);
-      const std::string title = std::format("{}{}", OutputNames::CellTitle(label, multBinning, multBin, binning, ptBin), titleSuffix);
+      const std::string title = OutputNames::CellTitle(label, multBinning, multBin, binning, ptBin) + titleSuffix;
       TCanvas* cFit = canvasManager.CreateCanvas(cName, title, 800, 800);
       // log: the background under a peak of 1e5-1e8 counts is at 1e-2-1e-4 of it, and it decides the purity
       fitter.DrawFit(cFit, title, /*logY=*/true);

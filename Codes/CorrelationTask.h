@@ -49,8 +49,8 @@ class CorrelationTask : public CorrelationTaskBase
 
     const std::string folderPath = RootIO::MakeDirPath(OutputNames::SummaryPath(globalCfgs.binningName));
 
-    h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), std::format("{}{}", folderPath, OutputNames::kTriggerSignal), GetName());
-    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), std::format("{}{}", folderPath, OutputNames::kTriggerBkgRatio), GetName());
+    h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + OutputNames::kTriggerSignal, GetName());
+    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(filePhiDataInput.get(), folderPath + OutputNames::kTriggerBkgRatio, GetName());
 
     // The same exposure the WPDG task has, by a different route: this matrix is written
     // cell by cell by PhiFitTask, so a run where every fit failed leaves it present,
@@ -205,7 +205,7 @@ class CorrelationTask : public CorrelationTaskBase
 
 
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
-        std::string hName = std::format("{}{}", folderPath, OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, multBin)));
+        std::string hName = folderPath + OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, multBin));
         std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(filePurity.get(), hName, GetName());
 
         // Verified, NOT rebinned: a purity is a ratio, and merging its bins would
@@ -294,11 +294,8 @@ class CorrelationTask : public CorrelationTaskBase
             double assocCorrection = Correction(config.name, multBin, ptAssocBin);
             double totalCorrection = phiCorrection * assocCorrection;
 
-            std::string baseNameStd = std::format("h1Phi{}Data", config.name);
-            std::string suffix = CellSuffix(config, multBin, ptPhiBin, ptAssocBin);
-
             std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
-              data, {.axesToCut = axesToCut, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .histNameBase = baseNameStd + suffix, .ioDir = targetDir, .qaDir = currentQADir});
+              data, {.axesToCut = axesToCut, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .histNameBase = std::format("h1Phi{}Data{}", config.name, CellSuffix(config, multBin, ptPhiBin, ptAssocBin)), .ioDir = targetDir, .qaDir = currentQADir});
 
             if (ptPhiBin == 0) {
               std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, multBin, ptAssocBin));

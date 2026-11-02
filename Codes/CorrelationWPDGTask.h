@@ -72,12 +72,12 @@ class CorrelationWPDGTask : public CorrelationTaskBase
       for (const auto& config : assocParticles) {
         LoadedAssocData data;
         data.name = config.name;
-        std::string baseData = std::format("{}{}/h5Phi{}", basePathData, config.dirName, config.name);
-        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataInput.get(), (baseData + (isPureGen ? "ClosureMCGen" : "DataSignal")), GetName());
+        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(
+          fileDataInput.get(), std::format("{}{}/h5Phi{}{}", basePathData, config.dirName, config.name, isPureGen ? "ClosureMCGen" : "DataSignal"), GetName());
 
         if (applyME) {
-          std::string baseDataME = std::format("{}{}/h5Phi{}", basePathDataME, config.dirName, config.name);
-          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(fileDataMEInput.get(), (baseDataME + (isPureGen ? "ClosureMCGenME" : "DataMESignal")), GetName());
+          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(
+            fileDataMEInput.get(), std::format("{}{}/h5Phi{}{}", basePathDataME, config.dirName, config.name, isPureGen ? "ClosureMCGenME" : "DataMESignal"), GetName());
         }
         loadedDataCollection.push_back(std::move(data));
       }

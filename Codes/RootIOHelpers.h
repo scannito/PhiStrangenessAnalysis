@@ -118,7 +118,8 @@ inline std::string MakeDirPath(const std::vector<std::string>& path)
 {
   std::string fullPath = "";
   for (const auto& dir : path) {
-    fullPath += std::format("{}/", dir);
+    fullPath += dir;
+    fullPath += '/';
   }
   return fullPath;
 }

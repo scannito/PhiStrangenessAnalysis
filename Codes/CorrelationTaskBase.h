@@ -658,7 +658,7 @@ class CorrelationTaskBase : public IAnalysisTask
       const char* axis = of == MapOf::EventLoss ? "multiplicity" : "pT";
 
       // By path from the file: a missing directory and a missing map are one message, naming the file and the path.
-      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(fileCorrections.get(), std::format("{}{}", RootIO::MakeDirPath(path), name), GetName());
+      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(fileCorrections.get(), RootIO::MakeDirPath(path) + name, GetName());
 
       // Verified, NOT rebinned. An efficiency is a ratio, and merging bins of a
       // ratio sums them: two bins of 0.5 would give 1.0. A coarser efficiency can
@@ -1389,10 +1389,7 @@ class CorrelationTaskBase : public IAnalysisTask
             double assocCorrection = Correction(config.name, multBin, ptAssocBin);
             double totalCorrection = phiCorrection * assocCorrection;
 
-            std::string histNameBase = std::format("h1Phi{}Data", config.name);
-            std::string suffix = CellSuffix(config, multBin, ptPhiBin, ptAssocBin);
-
-            std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, {.axesToCut = axesToCut, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .histNameBase = histNameBase + suffix, .ioDir = targetDir});
+            std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(data, {.axesToCut = axesToCut, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .histNameBase = std::format("h1Phi{}Data{}", config.name, CellSuffix(config, multBin, ptPhiBin, ptAssocBin)), .ioDir = targetDir});
 
             if (ptPhiBin == 0) {
               std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, multBin, ptAssocBin));
