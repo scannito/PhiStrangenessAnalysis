@@ -29,42 +29,48 @@ class BaseConfigManager
     Logger::Info("{}: JSON successfully loaded into RAM.", managerName);
   }
 
-  // The overrides of a section are keyed by cell, named by its interval (OutputNames): the task declares the cells it
-  // will read before reading any, every key of the section's "bins" must be one of them (a typo, or a key written for
-  // another binning, would never be applied), and RequireDeclared refuses a cell that was not declared, so the check
-  // cannot be skipped. Declared cells add up over calls; the keys are checked against all of them, which this returns.
+  // The overrides of a section are keyed by tag: a cell named by its interval (OutputNames). They sit under "bins"
+  // in the node that also holds the section's "default" ('layered': fit_setup for the fits, the section itself for
+  // the extrapolation). Every manager declares the tags its task will read, in its DeclareCells, before reading any:
+  // - every key of "bins" must be a declared tag: a typo, or a key written for another binning, would never be
+  //   applied, so it stops the run;
+  // - LoadLayered, the only reader of "bins", refuses a tag that was not declared, so the check cannot be skipped;
+  // - DeclareCells reads every declared tag once, at Init: a mistake in a node then stops the run before the task
+  //   has cleared its output, and not in Run, after the previous production was already gone.
+  // Declared tags add up over calls; the keys are checked against all of them, which this returns. 'keysAre' says in
+  // the message what the keys are.
   const std::set<std::string>& DeclareTags(const std::string& section, const std::set<std::string>& tags,
-                                           const rapidjson::Value* bins, std::string_view binsCtx)
+                                           const rapidjson::Value* layered, std::string_view layeredCtx, std::string_view keysAre)
   {
     std::set<std::string>& declared = declaredTags[section];
     declared.insert(tags.begin(), tags.end());
-    if (bins)
-      JsonConfig::RequireKnownKeys(*bins, declared, binsCtx);
+    if (const rapidjson::Value* bins = layered ? JsonConfig::TryObject(*layered, "bins", layeredCtx) : nullptr)
+      JsonConfig::RequireKnownKeys(*bins, declared, std::format("{}.bins (the keys are {})", layeredCtx, keysAre));
     return declared;
   }
 
-  // 'what' names a tag in the message: "cell", "class".
-  void RequireDeclared(const std::string& section, const std::string& tag, std::string_view what) const
+  // The two layers of 'tag' in 'section': the "default" of 'layered', then its "bins"[tag] over it, each handed to
+  // load(node, where), 'where' naming it ("default", "bins['mult10-15']"); either may be absent, and the second
+  // carries only what it changes. The keys of 'layered' must be exactly those two, and 'tag' must have been declared.
+  // 'layered' may be null: a section without overrides, nothing to read. Returns whether 'tag' had an override.
+  template <class Load>
+  bool LoadLayered(const std::string& section, const rapidjson::Value* layered, std::string_view layeredCtx,
+                   const std::string& tag, Load&& load) const
   {
     const auto declared = declaredTags.find(section);
     if (declared == declaredTags.end() || !declared->second.contains(tag))
-      throw std::runtime_error(std::format("[FATAL] {}: GetConfig('{}', '{}') for a {} that was not declared with DeclareCells, "
+      throw std::runtime_error(std::format("[FATAL] {}: '{}' of section '{}' read without being declared with DeclareCells, "
                                            "so the overrides were not checked against it.",
-                                           managerName, section, tag, what));
-  }
+                                           managerName, tag, section));
+    if (!layered)
+      return false;
 
-  // The two layers of a node with overrides: its "default", then "bins"[tag] over it, each handed to
-  // load(node, where), 'where' naming it ("default", "bins['mult10-15']"); either may be absent, and the second
-  // carries only what it changes. Returns whether 'tag' had an override.
-  template <class Load>
-  bool LoadLayered(const rapidjson::Value& parent, std::string_view parentCtx, const std::string& tag, Load&& load) const
-  {
-    JsonConfig::RequireKnownKeys(parent, {"default", "bins"}, parentCtx);
-    if (const rapidjson::Value* defaults = JsonConfig::TryObject(parent, "default", parentCtx))
+    JsonConfig::RequireKnownKeys(*layered, {"default", "bins"}, layeredCtx);
+    if (const rapidjson::Value* defaults = JsonConfig::TryObject(*layered, "default", layeredCtx))
       load(*defaults, std::string("default"));
 
-    const rapidjson::Value* bins = JsonConfig::TryObject(parent, "bins", parentCtx);
-    const rapidjson::Value* node = bins ? JsonConfig::TryObject(*bins, tag.c_str(), std::format("{}.bins", parentCtx)) : nullptr;
+    const rapidjson::Value* bins = JsonConfig::TryObject(*layered, "bins", layeredCtx);
+    const rapidjson::Value* node = bins ? JsonConfig::TryObject(*bins, tag.c_str(), std::format("{}.bins", layeredCtx)) : nullptr;
     if (!node)
       return false;
     Logger::Debug("{}: Found custom parameters for bin: {}", managerName, tag);

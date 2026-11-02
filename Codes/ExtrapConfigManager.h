@@ -2,11 +2,9 @@
 
 #include "BaseConfigManager.h"
 #include "BinningUtils.h"
-#include "Logger.h"
 #include "OutputNames.h"
 
 #include <format>
-#include <map>
 #include <set>
 #include <span>
 
@@ -22,28 +20,24 @@ class ExtrapConfigManager : public BaseConfigManager
   }
 
   // The multiplicity classes a task extrapolates for a particle that HasConfig, each by OutputNames::MultTag.
-  // Declared once, before the extrapolations: an override of 'bins' that names none of them stops the run, since
-  // it would never be applied; GetConfig refuses a class that was not declared, as in FitConfigManager.
+  // Declared once, before the extrapolations; the overrides are the section's 'bins', checked and read as
+  // BaseConfigManager::DeclareTags says.
   void DeclareCells(const std::string& particle, std::span<const double> multBinning)
   {
     std::set<std::string> classes;
     for (int multBin : BinningUtils::BinIndices(multBinning))
       classes.insert(OutputNames::MultTag(multBinning, multBin));
-    const rapidjson::Value* bins = JsonConfig::TryObject(Section(particle), "bins", SectionCtx(particle));
-    // Every class read once now, at Init, for the reason given at FitConfigManager::DeclareCells.
-    for (const std::string& multTag : DeclareTags(particle, classes, bins, std::format("{}.bins (the keys are the multiplicity classes)", SectionCtx(particle))))
-      (void)GetConfig(particle, multTag);
+    for (const std::string& multTag : DeclareTags(particle, classes, &Section(particle), SectionCtx(particle), "the multiplicity classes"))
+      (void)GetConfig(particle, multTag); // every class read once, at Init (BaseConfigManager::DeclareTags)
   }
 
   // The configuration of one class, 'multTag' as OutputNames::MultTag gives it.
   AnalysisStructures::ExtrapConfig GetConfig(const std::string& particle, const std::string& multTag) const
   {
-    RequireDeclared(particle, multTag, "class");
-
     AnalysisStructures::ExtrapConfig config;
     const rapidjson::Value& partNode = Section(particle);
-    // Closed sets of keys, as in FitConfigManager: a misspelled key is refused, not skipped.
-    // Every error inside the section names it, the high fit included.
+    // Every error inside the section names it, the high fit included. Its keys are checked by LoadLayered (default,
+    // bins) and below, per node: closed sets, so a misspelled key is refused, not skipped.
     const std::string sectionCtx = SectionCtx(particle);
 
     // The keys of one fit, read into 'fit' over what it already holds. Every key here is
@@ -88,7 +82,7 @@ class ExtrapConfigManager : public BaseConfigManager
     };
 
     // The default first, then the override of this class over it.
-    LoadLayered(partNode, sectionCtx, multTag, loadNodeIntoConfig);
+    LoadLayered(particle, &partNode, sectionCtx, multTag, loadNodeIntoConfig);
 
     return config;
   }
