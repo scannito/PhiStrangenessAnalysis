@@ -1183,7 +1183,7 @@ being chosen.
 
 **One struct per associated particle, before anything removes a particle mid-`Init` (29 October 2026).** The
 per-particle state of the correlation tasks lives in parallel containers indexed alike: `assocParticles`,
-`loadedDataCollection`, `filesPhiAssocDataOutput`, `filesPhiAssocQAOutput` (only with `do_more_qa`), then
+`loadedDataCollection`, `projectionFiles`, `qaFiles` (only with `do_more_qa`), then
 `h1PhiAssocNoPtPhi`, `h1MultTrends`, `h1MultTrendsExtrap` once sized. Nothing goes wrong while the set is
 fixed after `InitAssocParticles`. It was not with `on_invalid_correction_bin`'s third value, `drop_particle`
 (take an associated particle with an invalid map bin out of the task and go on): the drop had to erase from
@@ -1560,7 +1560,7 @@ for Cling to accept; check the interpreted mode (if it runs by then) before the 
   `for (auto [pIdx, config] : std::views::enumerate(assocParticles))`: the index named once, the element without a
   subscript. The same reason as `BinIndices`.
 - **`std::views::zip`** — containers kept parallel to `assocParticles` (`loadedDataCollection`,
-  `filesPhiAssocDataOutput`, `h1MultTrends`, ...) walked together without an index. Only a palliative: the fix those
+  `projectionFiles`, `h1MultTrends`, ...) walked together without an index. Only a palliative: the fix those
   need is one struct per particle (the `invalid-bin-policy` reviews, 28 October), after which zip has nothing to do.
 - **`std::views::join_with` / `std::ranges::to`** — the ", " joins written by hand (`JsonConfigHelpers.h`, twice:
   the enum and the known-keys messages; `DynamicRooFitter::FindVar`'s fallbacks; `WorkflowManager`) become

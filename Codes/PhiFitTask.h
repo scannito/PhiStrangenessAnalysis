@@ -42,15 +42,15 @@ class PhiFitTask : public IAnalysisTask
     provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     // 1. Input Configuration
-    std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
-    std::unique_ptr<TFile> fileInput = RootIO::OpenOrThrow(inputFile, "READ", GetName());
+    std::string inputPath = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
+    std::unique_ptr<TFile> inputFile = RootIO::OpenOrThrow(inputPath, "READ", GetName());
 
     basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
-    h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileInput.get(), std::format("{}phi/h3PhiData", basePathData), GetName());
+    h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(inputFile.get(), std::format("{}phi/h3PhiData", basePathData), GetName());
 
     // The binning comes from the file, never from the configuration: the loops
     // below address these very bins. h3PhiData axes: (mult, pT, invariant mass).
-    const std::string origin = std::format("h3PhiData in '{}'", inputFile);
+    const std::string origin = std::format("h3PhiData in '{}'", inputPath);
     multBinning = globalCfgs.ResolveMultBinning(h3PhiData->GetXaxis(), origin);
     ptPhiBinning = globalCfgs.ResolvePtBinning("Phi", h3PhiData->GetYaxis(), origin);
 
@@ -70,8 +70,8 @@ class PhiFitTask : public IAnalysisTask
     // UPDATE and this binning's subtree cleared, not RECREATE: the file holds one subtree per
     // binning_name, and another scheme's must survive this one's run (CLAUDE.md, How a task
     // opens the file it writes).
-    std::string phiDataName = std::format("{}{}{}", basePathProj, outputPrefix, OutputNames::kPhiDataFile);
-    outputFile = RootIO::OpenOrThrow(phiDataName, "UPDATE", GetName());
+    std::string outputPath = std::format("{}{}{}", basePathProj, outputPrefix, OutputNames::kPhiDataFile);
+    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
     RootIO::ClearPath(outputFile.get(), {globalCfgs.binningName});
 
     // Real bin edges on both axes, not 0..N counters: these matrices cross the

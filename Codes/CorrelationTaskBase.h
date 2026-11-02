@@ -80,13 +80,13 @@ class CorrelationTaskBase : public IAnalysisTask
       std::vector<std::string> trendsPath = particlePath;
       trendsPath.push_back(OutputNames::kTrendsDir);
 
-      TDirectory* trendsDir = RootIO::MakePath(fileOutputSpectra.get(), trendsPath);
+      TDirectory* trendsDir = RootIO::MakePath(outputFile.get(), trendsPath);
 
       // The associated pT binning, with the particle it belongs to rather than
       // encoded in the object name. What it guards is the Trends directory next to
       // it: those are integrals over pT, so a disagreement there does not show up in
       // any axis. See the note by the scheme-level stamps below.
-      RootIO::WriteBinningStamp(RootIO::MakePath(fileOutputSpectra.get(), particlePath),
+      RootIO::WriteBinningStamp(RootIO::MakePath(outputFile.get(), particlePath),
                                 RootIO::kStampPtAssoc, assocParticles[pIdx].binning);
       trendsDir->cd();
 
@@ -161,7 +161,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // but the TRENDS are integrated over pT and carry multiplicity on theirs, so two
     // productions with different pT binnings would produce trends whose axes agree
     // perfectly and whose contents are integrals over different ranges.
-    TDirectory* schemeDir = RootIO::MakePath(fileOutputSpectra.get(), {globalCfgs.binningName});
+    TDirectory* schemeDir = RootIO::MakePath(outputFile.get(), {globalCfgs.binningName});
     RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
     RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhiBinning);
 
@@ -173,12 +173,12 @@ class CorrelationTaskBase : public IAnalysisTask
     // which errors enter, the phi efficiency's not, how they combine - that a reader would otherwise have to
     // re-implement outside the framework. The trigger count itself is not written, for the opposite reason:
     // it is those inputs and a sum, with nothing to choose.
-    RootIO::MakePath(fileOutputSpectra.get(), baseLogicalPath)->cd();
+    RootIO::MakePath(outputFile.get(), baseLogicalPath)->cd();
     hNormalisationRelError->Write(nullptr, TObject::kOverwrite);
 
     // The spectra leave this task and, once the trends and ratios move to a task
     // of their own, this is what will say which method produced them.
-    RootIO::WriteProvenance(fileOutputSpectra.get(), globalCfgs.binningName, provenance);
+    RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
 
     // =========================================================================
     // 2. Write Yield Ratios across species (into a dedicated "Ratios" directory)
@@ -187,7 +187,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Create or access the "Ratios" directory inside Extract1D/2D
       std::vector<std::string> ratioPath = baseLogicalPath;
       ratioPath.push_back(OutputNames::kRatiosDir);
-      TDirectory* ratioDir = RootIO::MakePath(fileOutputSpectra.get(), ratioPath);
+      TDirectory* ratioDir = RootIO::MakePath(outputFile.get(), ratioPath);
 
       ratioDir->cd();
 
@@ -266,20 +266,20 @@ class CorrelationTaskBase : public IAnalysisTask
     // =========================================================================
     // 3. Save all registered canvases into their respective subdirectories
     // =========================================================================
-    canvasManager.WriteAll(fileOutputSpectra.get());
+    canvasManager.WriteAll(outputFile.get());
 
     // =========================================================================
     // 4. Close Files
     // =========================================================================
-    if (fileOutputSpectra) {
-      fileOutputSpectra->Close();
+    if (outputFile) {
+      outputFile->Close();
     }
 
-    for (auto& file : filesPhiAssocDataOutput) {
+    for (auto& file : projectionFiles) {
       file->Close();
     }
 
-    for (auto& file : filesPhiAssocQAOutput) {
+    for (auto& file : qaFiles) {
       file->Close();
     }
 
@@ -326,9 +326,9 @@ class CorrelationTaskBase : public IAnalysisTask
 
   std::unique_ptr<ExtrapConfigManager> extrapConfigManager;
 
-  std::unique_ptr<TFile> fileOutputSpectra;
-  std::vector<std::unique_ptr<TFile>> filesPhiAssocDataOutput;
-  std::vector<std::unique_ptr<TFile>> filesPhiAssocQAOutput;
+  std::unique_ptr<TFile> outputFile;
+  std::vector<std::unique_ptr<TFile>> projectionFiles;
+  std::vector<std::unique_ptr<TFile>> qaFiles;
   CanvasManager canvasManager;
 
   std::vector<YieldRatioConfig> requestedRatios;
@@ -643,15 +643,15 @@ class CorrelationTaskBase : public IAnalysisTask
   void LoadCorrections()
   {
     const CorrectionsConfig& cfg = *corrections;
-    const std::string& correctionsFilePath = cfg.file;
-    std::unique_ptr<TFile> fileCorrections = RootIO::OpenOrThrow(correctionsFilePath, "READ", GetName());
+    const std::string& correctionsPath = cfg.file;
+    std::unique_ptr<TFile> correctionsFile = RootIO::OpenOrThrow(correctionsPath, "READ", GetName());
 
-    RootIO::PrintProvenance(fileCorrections.get(), globalCfgs.binningName,
-                            std::format("corrections file '{}'", correctionsFilePath));
+    RootIO::PrintProvenance(correctionsFile.get(), globalCfgs.binningName,
+                            std::format("corrections file '{}'", correctionsPath));
 
     RootIO::RequireMatchingBinningStamp(
-      RootIO::FindPath(fileCorrections.get(), {globalCfgs.binningName}),
-      RootIO::kStampMult, multBinning, std::format("corrections file '{}'", correctionsFilePath));
+      RootIO::FindPath(correctionsFile.get(), {globalCfgs.binningName}),
+      RootIO::kStampMult, multBinning, std::format("corrections file '{}'", correctionsPath));
 
     // What a map corrects: its axis, and what an invalid bin of it does under on_invalid_correction_bin 'warn'.
     enum class MapOf { EventLoss, Phi, Associated };
@@ -666,7 +666,7 @@ class CorrelationTaskBase : public IAnalysisTask
       const char* axis = of == MapOf::EventLoss ? "multiplicity" : "pT";
 
       // By path from the file: a missing directory and a missing map are one message, naming the file and the path.
-      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(fileCorrections.get(), RootIO::MakeDirPath(path) + name, GetName());
+      std::unique_ptr<TH1> h = RootIO::GetUniqueOrThrow<TH1>(correctionsFile.get(), RootIO::MakeDirPath(path) + name, GetName());
 
       // Verified, NOT rebinned. An efficiency is a ratio, and merging bins of a
       // ratio sums them: two bins of 0.5 would give 1.0. A coarser efficiency can
@@ -681,7 +681,7 @@ class CorrelationTaskBase : public IAnalysisTask
           "is not binned like the data being corrected:\n{}"
           "Re-run the production whose axis does not match; for a pT map, 'rebinning_pt' in the MC configuration "
           "sets the binning the efficiency is produced at.",
-          GetName(), name, correctionsFilePath, diff));
+          GetName(), name, correctionsPath, diff));
       }
 
       // A bin at or below zero, or not a number, has no correct correction: it is not a correction of 1 (CLAUDE.md,
@@ -697,7 +697,7 @@ class CorrelationTaskBase : public IAnalysisTask
         throw std::runtime_error(std::format(
           "[FATAL] {}: '{}' in '{}' is{} and a correction that cannot be computed is not a correction of 1. The MC has "
           "nothing there: more MC statistics in that interval, or data and MC productions whose binning merges it.",
-          GetName(), name, correctionsFilePath, invalid));
+          GetName(), name, correctionsPath, invalid));
 
       // The event loss is skipped in those classes (GenerateSpectraAndTrends), the owner's choice of 28 October 2026;
       // the other maps are divided by as they are.
@@ -706,7 +706,7 @@ class CorrelationTaskBase : public IAnalysisTask
         : of == MapOf::Phi     ? "applied as it is: the triggers and the pairs of those trigger-pT bins are divided by it, so no "
                                  "result of this task is right in the multiplicity classes the map applies to"
                                : "applied as it is: the cells it corrects are divided by it, and what they give is not a result";
-      Logger::Warn("{}: '{}' in '{}' is{} (on_invalid_correction_bin: warn): {}", GetName(), name, correctionsFilePath,
+      Logger::Warn("{}: '{}' in '{}' is{} (on_invalid_correction_bin: warn): {}", GetName(), name, correctionsPath,
                    invalid, consequence);
       // Next to the results as well, one line per map: the log is not kept with them, and they must say why.
       provenance["invalid_correction_bins"] += std::format("{}:{}\n", name, invalid);
@@ -840,7 +840,7 @@ class CorrelationTaskBase : public IAnalysisTask
   {
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       auto& particle = assocParticles[pIdx];
-      TFile* cacheFile = filesPhiAssocDataOutput[pIdx].get();
+      TFile* cacheFile = projectionFiles[pIdx].get();
       const std::string ctx = std::format("{}, scheme '{}'", cacheFile->GetName(), globalCfgs.binningName);
 
       // Resolved for THIS particle, then merged into the common ones below.
@@ -1296,7 +1296,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Per particle, alongside the Trends written in Terminate(). Resolved inside
       // the loop and not once outside it, because the directory now depends on which
       // species this iteration is producing.
-      TDirectory* targetSpectraDir = RootIO::MakePath(fileOutputSpectra.get(), SectionPath({config.name, OutputNames::kSpectraDir}));
+      TDirectory* targetSpectraDir = RootIO::MakePath(outputFile.get(), SectionPath({config.name, OutputNames::kSpectraDir}));
       const bool doExtrapForThis = extrapolatedParticles.contains(config.name);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
@@ -1456,11 +1456,11 @@ class CorrelationTaskBase : public IAnalysisTask
   {
     // One key for both tasks (input_output_prefix, the WPDG spelling, was renamed on 30 October 2026): it names the
     // file whose section is cleared below.
-    const std::string prefix = JsonConfig::RequireString(taskConfig, "output_prefix", GetName());
+    const std::string outputPrefix = JsonConfig::RequireString(taskConfig, "output_prefix", GetName());
 
     const std::string projectionsDir = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
     const std::string finalDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
-    fileOutputSpectra = RootIO::OpenOrThrow(std::format("{}{}{}", finalDir, prefix, OutputNames::kSpectraFile), "UPDATE", GetName());
+    outputFile = RootIO::OpenOrThrow(std::format("{}{}{}", finalDir, outputPrefix, OutputNames::kSpectraFile), "UPDATE", GetName());
 
 
     // UPDATE and not RECREATE here too, and for a different reason: the cache is
@@ -1469,11 +1469,11 @@ class CorrelationTaskBase : public IAnalysisTask
     // in ResolveBinningAndCache and only has something to guard if the file survives.
     const char* projMode = ProjectionFilesReadOnly() ? "READ" : "UPDATE";
     for (const auto& p : assocParticles) {
-      filesPhiAssocDataOutput.push_back(
-        RootIO::OpenOrThrow(std::format("{}{}{}", projectionsDir, prefix, OutputNames::ProjectionFile(p.name)), projMode, GetName()));
+      projectionFiles.push_back(
+        RootIO::OpenOrThrow(std::format("{}{}{}", projectionsDir, outputPrefix, OutputNames::ProjectionFile(p.name)), projMode, GetName()));
       if (withQA)
-        filesPhiAssocQAOutput.push_back(
-          RootIO::OpenOrThrow(std::format("{}{}Phi{}QAHistograms.root", projectionsDir, prefix, p.name), "RECREATE", GetName()));
+        qaFiles.push_back(
+          RootIO::OpenOrThrow(std::format("{}{}Phi{}QAHistograms.root", projectionsDir, outputPrefix, p.name), "RECREATE", GetName()));
     }
   }
 
@@ -1485,7 +1485,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // a previous one left there - produced when the layout or the object names were different - would sit beside the
   // new objects with nothing to tell them apart. UPDATE and not RECREATE because only this subtree is ours: another
   // 'binning_name', or the other Extract1D/2D, belongs to somebody else and stays.
-  void ClearOwnSection() { RootIO::ClearPath(fileOutputSpectra.get(), SectionPath()); }
+  void ClearOwnSection() { RootIO::ClearPath(outputFile.get(), SectionPath()); }
 
   // Where the associated particle of that name is in assocParticles, if it is one: the configuration names particles.
   std::optional<size_t> AssocIndex(std::string_view name) const
@@ -1526,7 +1526,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // directory, and what to do.
   TDirectory* ProjectionCacheDir(size_t pIdx, const std::vector<std::string>& logicalPath) const
   {
-    TFile* file = filesPhiAssocDataOutput[pIdx].get();
+    TFile* file = projectionFiles[pIdx].get();
     if (!useProjectionCache)
       return RootIO::MakePath(file, logicalPath);
     if (TDirectory* dir = RootIO::FindPath(file, logicalPath))

@@ -204,8 +204,8 @@ class ComparisonTask : public IAnalysisTask
         "here lists its objects explicitly, so it selects nothing - it would be inert, not wrong. "
         "Remove it.", GetName()));
 
-    std::string outName = std::format("{}{}Comparisons.root", outputDir, outputPrefix);
-    outputFile = RootIO::OpenOrThrow(outName, "RECREATE", GetName());
+    std::string outputPath = std::format("{}{}Comparisons.root", outputDir, outputPrefix);
+    outputFile = RootIO::OpenOrThrow(outputPath, "RECREATE", GetName());
 
     provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 

@@ -31,15 +31,15 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
     // 2. Load Data
 
-    std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
-    std::unique_ptr<TFile> fileDataInput = RootIO::OpenOrThrow(inputFile, "READ", GetName());
+    std::string inputPath = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
+    std::unique_ptr<TFile> inputFile = RootIO::OpenOrThrow(inputPath, "READ", GetName());
 
     basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
 
     if (!isPureGen) {
-      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), std::format("{}phi/h3PhiData", basePathData), GetName());
+      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(inputFile.get(), std::format("{}phi/h3PhiData", basePathData), GetName());
     } else {
-      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(fileDataInput.get(), std::format("{}phi/h3PhiMCClosureGen", basePathData), GetName());
+      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(inputFile.get(), std::format("{}phi/h3PhiMCClosureGen", basePathData), GetName());
     }
 
     // Checked here rather than left to the guard in GenerateSpectraAndTrends, which is
@@ -49,7 +49,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     RequireNonEmptyTrigger(
       h3PhiData.get(),
       std::format("'{}phi/{}'", basePathData, isPureGen ? "h3PhiMCClosureGen" : "h3PhiData"),
-      inputFile,
+      inputPath,
       isPureGen
         ? "It is filled by the O2 process function 'processMCGenClosure' - check it was enabled "
           "in the production this file comes from. Note that 'h3PhiMCGen' is a different "
@@ -61,10 +61,10 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     if (!useProjectionCache) {
       Logger::Info("{}: Cache DISABLED. Loading heavy THnSparse data...", GetName());
 
-      std::unique_ptr<TFile> fileDataMEInput{nullptr};
+      std::unique_ptr<TFile> inputMEFile{nullptr};
       if (applyME) {
-        std::string inputMEFile = JsonConfig::RequireString(taskConfig, "input_me_file", GetName());
-        fileDataMEInput = RootIO::OpenOrThrow(inputMEFile, "READ", GetName());
+        std::string inputMEPath = JsonConfig::RequireString(taskConfig, "input_me_file", GetName());
+        inputMEFile = RootIO::OpenOrThrow(inputMEPath, "READ", GetName());
 
         basePathDataME = JsonConfig::RequireString(taskConfig, "base_path_me", GetName());
       }
@@ -73,11 +73,11 @@ class CorrelationWPDGTask : public CorrelationTaskBase
         LoadedAssocData data;
         data.name = config.name;
         data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(
-          fileDataInput.get(), std::format("{}{}/h5Phi{}{}", basePathData, config.dirName, config.name, isPureGen ? "ClosureMCGen" : "DataSignal"), GetName());
+          inputFile.get(), std::format("{}{}/h5Phi{}{}", basePathData, config.dirName, config.name, isPureGen ? "ClosureMCGen" : "DataSignal"), GetName());
 
         if (applyME) {
           data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(
-            fileDataMEInput.get(), std::format("{}{}/h5Phi{}{}", basePathDataME, config.dirName, config.name, isPureGen ? "ClosureMCGenME" : "DataMESignal"), GetName());
+            inputMEFile.get(), std::format("{}{}/h5Phi{}{}", basePathDataME, config.dirName, config.name, isPureGen ? "ClosureMCGenME" : "DataMESignal"), GetName());
         }
         loadedDataCollection.push_back(std::move(data));
       }

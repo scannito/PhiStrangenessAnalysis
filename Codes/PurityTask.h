@@ -42,8 +42,8 @@ class PurityTask : public IAnalysisTask
     provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     // 1. Open input file, extract 3D histograms to RAM, and immediately close it
-    std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
-    std::unique_ptr<TFile> fileInput = RootIO::OpenOrThrow(inputFile, "READ", GetName());
+    std::string inputPath = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
+    std::unique_ptr<TFile> inputFile = RootIO::OpenOrThrow(inputPath, "READ", GetName());
 
     // 2. Open the output file: one for every particle of the block. UPDATE and this binning's
     // subtree cleared, not RECREATE: the file holds one subtree per binning_name, and another
@@ -72,12 +72,12 @@ class PurityTask : public IAnalysisTask
       std::string purityKey = JsonConfig::RequireString(entry, "purity_key", ctx);
       std::string histName = JsonConfig::RequireString(entry, "hist_name", ctx);
 
-      std::unique_ptr<TH3F> h3Source = RootIO::GetUniqueOrThrow<TH3F>(fileInput.get(), histName, GetName());
+      std::unique_ptr<TH3F> h3Source = RootIO::GetUniqueOrThrow<TH3F>(inputFile.get(), histName, GetName());
 
       // The binning comes from the file, never from the configuration: the loops
       // below address these very bins, and the purity spectrum is built on these
       // very edges. h3 axes: (mult, pT, invariant mass).
-      const std::string origin = std::format("{} in '{}'", histName, inputFile);
+      const std::string origin = std::format("{} in '{}'", histName, inputPath);
       multBinning = globalCfgs.ResolveMultBinning(h3Source->GetXaxis(), origin);
       std::vector<double> sourceBinning = globalCfgs.ResolvePtBinning(particle, h3Source->GetYaxis(), origin);
 

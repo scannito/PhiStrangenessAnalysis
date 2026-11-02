@@ -217,8 +217,8 @@ class MCTask : public IAnalysisTask
     }
 
     // 6. Open the master output file for corrections
-    std::string outPath = std::format("{}{}Corrections.root", outputDir, outputPrefix);
-    outputFile = RootIO::OpenOrThrow(outPath, "UPDATE", GetName());
+    std::string outputPath = std::format("{}{}Corrections.root", outputDir, outputPrefix);
+    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
 
     // This run rewrites its whole scheme directory - AccEff, SigLoss, EvLoss and the
     // stamps - so anything a previous one left there would sit beside the new maps
@@ -275,28 +275,28 @@ class MCTask : public IAnalysisTask
       // 1. Compute and save the 3D and 2D correction map
       std::unique_ptr<TH3> h3CorrectionMap = EfficiencyCalculator::Compute3DCorrectionMap(data, particleCorrectionMode);
 
-      std::string fileMCOutputPerPartPath3D = std::format("{}{}h3EffMap{}.root", ccdbOutputDir, outputPrefix, data.name);
-      RootIO::WriteCcdbFile(fileMCOutputPerPartPath3D, h3CorrectionMap.get(), GetName());
+      std::string ccdbPath3D = std::format("{}{}h3EffMap{}.root", ccdbOutputDir, outputPrefix, data.name);
+      RootIO::WriteCcdbFile(ccdbPath3D, h3CorrectionMap.get(), GetName());
 
       std::unique_ptr<TH2> h2CorrectionMap = EfficiencyCalculator::Compute2DCorrectionMapMultIntegrated(data, particleCorrectionMode);
 
-      std::string fileMCOutputPerPartPath2D = std::format("{}{}h2EffMap{}.root", ccdbOutputDir, outputPrefix, data.name);
-      RootIO::WriteCcdbFile(fileMCOutputPerPartPath2D, h2CorrectionMap.get(), GetName());
+      std::string ccdbPath2D = std::format("{}{}h2EffMap{}.root", ccdbOutputDir, outputPrefix, data.name);
+      RootIO::WriteCcdbFile(ccdbPath2D, h2CorrectionMap.get(), GetName());
 
       // QA: error/relative-error maps alongside the CCDB map
       std::unique_ptr<TH2> h2CorrectionMapError = EfficiencyCalculator::BuildErrorMap(h2CorrectionMap.get(), std::format("h2EffMapError{}", data.name));
       std::unique_ptr<TH2> h2CorrectionMapRelError = EfficiencyCalculator::BuildRelativeErrorMap(h2CorrectionMap.get(), std::format("h2EffMapRelError{}", data.name));
 
-      std::string fileMCOutputPerPartErrorPath2D = std::format("{}{}h2EffMapError{}.root", ccdbOutputDir, outputPrefix, data.name);
-      std::unique_ptr<TFile> fileMCOutputPerPartError2D = RootIO::OpenOrThrow(fileMCOutputPerPartErrorPath2D, "RECREATE", GetName());
-      fileMCOutputPerPartError2D->cd();
+      std::string errorMapPath = std::format("{}{}h2EffMapError{}.root", ccdbOutputDir, outputPrefix, data.name);
+      std::unique_ptr<TFile> errorMapFile = RootIO::OpenOrThrow(errorMapPath, "RECREATE", GetName());
+      errorMapFile->cd();
       // h2CorrectionMapError->SetName("ccdb_object");
       if (h2CorrectionMapError)
         h2CorrectionMapError->Write(nullptr, TObject::kOverwrite);
       // h2CorrectionMapRelError->SetName("ccdb_object");
       if (h2CorrectionMapRelError)
         h2CorrectionMapRelError->Write(nullptr, TObject::kOverwrite);
-      fileMCOutputPerPartError2D->Close();
+      errorMapFile->Close();
 
       // 2. Compute 1D Spectra across multiplicity bins
       //
@@ -471,7 +471,7 @@ class MCTask : public IAnalysisTask
 
   // Filled in Init, written into the output file in Terminate
   std::map<std::string, std::string> provenance;
-  std::string outputPrefix{""};
+  std::string outputPrefix;
   std::string mcBasePath;
 
   // --- Variables for Global Event Loss ---
