@@ -162,14 +162,14 @@ class MCTask : public IAnalysisTask
 
       // Register particle summary canvases with their target ROOT subdirectories.
       // Each one declares its Y range here; the manager applies it when it writes.
-      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::Efficiency), name + " Acceptance x Efficiency",
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::Efficiency), std::format("{} Acceptance x Efficiency", name),
                                                              {globalCfgs.binningName, "AccEff", "Summary"}));
-      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::SignalLoss), name + " Signal Loss",
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::SignalLoss), std::format("{} Signal Loss", name),
                                                              {globalCfgs.binningName, "SigLoss", "Summary"}));
       if (data.rebinningPt) {
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::Efficiency, OutputNames::SpectrumBinning::Source), name + " Efficiency (Source Binning)",
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::Efficiency, OutputNames::SpectrumBinning::Source), std::format("{} Efficiency (Source Binning)", name),
                                                                OutputNames::SourceBinningPath({globalCfgs.binningName, "AccEff", "Summary"})));
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::SignalLoss, OutputNames::SpectrumBinning::Source), name + " Signal Loss (Source Binning)",
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::SignalLoss, OutputNames::SpectrumBinning::Source), std::format("{} Signal Loss (Source Binning)", name),
                                                                OutputNames::SourceBinningPath({globalCfgs.binningName, "SigLoss", "Summary"})));
       }
 
@@ -199,11 +199,11 @@ class MCTask : public IAnalysisTask
       // OverEventLoss canvases are registered only when event histograms exist
       for (const auto& data : dataCollection) {
         canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(data.name, SummaryMap::SignalLossOverEventLoss),
-                                                               data.name + " Signal Loss / Event Loss",
+                                                               std::format("{} Signal Loss / Event Loss", data.name),
                                                                {globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"}));
         if (data.rebinningPt) {
           canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(data.name, SummaryMap::SignalLossOverEventLoss, OutputNames::SpectrumBinning::Source),
-                                                                 data.name + " Signal Loss / Event Loss (Source Binning)",
+                                                                 std::format("{} Signal Loss / Event Loss (Source Binning)", data.name),
                                                                  OutputNames::SourceBinningPath({globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"})));
         }
       }
