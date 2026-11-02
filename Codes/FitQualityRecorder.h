@@ -10,7 +10,6 @@
 #include <format>
 #include <map>
 #include <memory>
-#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -100,10 +99,9 @@ class FitQualityRecorder
     for (const auto& [key, tally] : fTallies) {
       if (!tally.flagged)
         continue;
-      const std::string details =
-        Logger::Join(tally.reasons | std::views::transform([](const auto& reasonAndCount) {
-                       return std::format("{} {}", reasonAndCount.first, reasonAndCount.second);
-                     }));
+      std::string details;
+      for (const auto& [reason, n] : tally.reasons)
+        details += std::format("{}{} {}", details.empty() ? "" : ", ", reason, n);
       Logger::Warn("{}: {} of {} fits of '{}' ({} binning) flagged: {}; the rows are in {}", who, tally.flagged, tally.fits, key.first,
                    key.second, details, where);
     }

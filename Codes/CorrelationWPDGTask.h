@@ -36,11 +36,9 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
     basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
 
-    if (!isPureGen) {
-      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(inputFile.get(), std::format("{}phi/h3PhiData", basePathData), GetName());
-    } else {
-      h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(inputFile.get(), std::format("{}phi/h3PhiMCClosureGen", basePathData), GetName());
-    }
+    // One path, read and named in the message below alike.
+    const std::string triggerObjectPath = std::format("{}phi/{}", basePathData, isPureGen ? "h3PhiMCClosureGen" : "h3PhiData");
+    h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(inputFile.get(), triggerObjectPath, GetName());
 
     // Checked here rather than left to the guard in GenerateSpectraAndTrends, which is
     // correct but only fires after every projection has been built: this fails in
@@ -48,7 +46,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     // cannot because by then the container is out of scope.
     RequireNonEmptyTrigger(
       h3PhiData.get(),
-      std::format("'{}phi/{}'", basePathData, isPureGen ? "h3PhiMCClosureGen" : "h3PhiData"),
+      std::format("'{}'", triggerObjectPath),
       inputPath,
       isPureGen
         ? "It is filled by the O2 process function 'processMCGenClosure' - check it was enabled "

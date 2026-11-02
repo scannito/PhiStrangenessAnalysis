@@ -850,7 +850,7 @@ class CorrelationTaskBase : public IAnalysisTask
       if (!useProjectionCache) {
         // h5Phi{X}Data* axes: (mult, pT(phi), pT(assoc), dy, dphi)
         const THnSparse* source = loadedDataCollection[pIdx].h5DataSignal.get();
-        const std::string origin = std::format("h5Phi{}DataSignal", particle.name);
+        const std::string origin = source->GetName();
 
         mult = globalCfgs.ResolveMultBinning(source->GetAxis(0), origin);
         ptPhi = globalCfgs.ResolvePtBinning("Phi", source->GetAxis(1), origin);
@@ -1367,32 +1367,28 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
-  // Shared "simple" run: one pass over mult/ptPhi/pt-assoc bins, no L2 cache.
-  // Relies on GetTriggerSignal/GetTriggerBkgRatio hooks for the data-source-
-  // specific part. This is what CorrelationWPDGTask uses directly as its Run(),
-  // and what CorrelationTask::RunLegacy() is when apply_purity/QA aren't needed
-  // beyond what the hooks already provide.
+  // The run with the 1D engine and no signal cache: CorrelationWPDGTask's Run(), and CorrelationTask's in run_mode
+  // "legacy". The data-source-specific part comes from the GetTriggerSignal/GetTriggerBkgRatio hooks.
   // -------------------------------------------------------------------------
   void RunLegacy()
   {
     Logger::Info("{}: RUNNING CORRELATIONS (Legacy)...", GetName());
     CorrelationCalculator corrCalculator(CalculatorOptions());
 
-    const std::vector<std::string> logicalPath = SectionPath();
-
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
-      AccumulateSignals(corrCalculator, multBin, logicalPath, false);
+      AccumulateSignals(corrCalculator, multBin);
       GenerateSpectraAndTrends(multBin);
     }
   }
 
   // The corrected signal of every cell of one multiplicity class, summed over the trigger pT into h1PhiAssocNoPtPhi:
   // the loop of both run modes (RunLegacy, CorrelationTask::RunOptimized), written once so that a change to the cell,
-  // its correction or its names is not made in one and forgotten in the other. withQA: the 2D engine's QA objects
-  // into the QA files (CorrelationTask's do_more_qa).
-  void AccumulateSignals(const CorrelationCalculator& corrCalculator, int multBin, const std::vector<std::string>& logicalPath,
-                         bool withQA)
+  // its correction or its names is not made in one and forgotten in the other. The QA objects, which only the 2D
+  // engine writes, go into the QA files, open only with do_more_qa.
+  void AccumulateSignals(const CorrelationCalculator& corrCalculator, int multBin)
   {
+    const std::vector<std::string> logicalPath = SectionPath();
+    const bool withQA = !qaFiles.empty() && Engine2D();
     for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
       double triggerBkgRatio = GetTriggerBkgRatio(multBin, ptPhiBin);
       double phiCorrection = Correction("Phi", multBin, ptPhiBin);
@@ -1403,10 +1399,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
         TDirectory* targetDir = ProjectionCacheDir(pIdx, logicalPath);
 
-        TDirectory* qaDir{nullptr};
-        if (withQA && pIdx < qaFiles.size()) {
-          qaDir = RootIO::MakePath(qaFiles[pIdx].get(), logicalPath);
-        }
+        TDirectory* qaDir = withQA ? RootIO::MakePath(qaFiles.at(pIdx).get(), logicalPath) : nullptr;
 
         for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
           const std::vector<HistogramUtils::AxisToCut> axesToCut = CellCuts(multBin, ptPhiBin, ptAssocBin);

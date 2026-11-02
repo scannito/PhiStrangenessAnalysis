@@ -112,8 +112,8 @@ inline std::unique_ptr<T> GetUniqueOrWarn(TDirectory* dir, const std::string& ob
 // Navigation inside a TFile
 // ---------------------------------------------------------------------------
 
-// Builds the ROOT directory prefix "node1/node2/", trailing slash included, so
-// that the caller can append the object name and hand the result to Get().
+// The ROOT directory prefix "node1/node2/", trailing slash included: a directory as a message names it. The path
+// of an object below it, as Get() takes it, is ObjectPath.
 inline std::string MakeDirPath(const std::vector<std::string>& path)
 {
   std::string fullPath = "";

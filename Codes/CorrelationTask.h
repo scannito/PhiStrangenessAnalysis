@@ -272,7 +272,7 @@ class CorrelationTask : public CorrelationTaskBase
     CorrelationCalculator corrCalculator(CalculatorOptions(doMoreQA));
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
-      AccumulateSignals(corrCalculator, multBin, logicalPath, doMoreQA);
+      AccumulateSignals(corrCalculator, multBin);
 
       // =======================================================================
       // BATCH WRITE: SAVING AGGREGATED SIGNALS FOR L2 CACHE
