@@ -44,7 +44,7 @@ class MCTask : public IAnalysisTask
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
-    provenance = RootIO::StartProvenance(taskConfig);
+    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     // 1. Check if a list of particle to compute MC corrections is provided
     auto particles = JsonConfig::RequireArray(taskConfig, "mc_particles", GetName());

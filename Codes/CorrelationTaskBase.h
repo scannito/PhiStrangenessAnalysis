@@ -395,7 +395,7 @@ class CorrelationTaskBase : public IAnalysisTask
     applyME = JsonConfig::RequireBool(taskConfig, "apply_mixed_events", GetName());
     applyExtrapolation = JsonConfig::RequireBool(taskConfig, "apply_extrapolation", GetName());
 
-    provenance = RootIO::StartProvenance(taskConfig);
+    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
     use2DMENormalization = JsonConfig::RequireBool(taskConfig, "use_2d_me_normalization", GetName());

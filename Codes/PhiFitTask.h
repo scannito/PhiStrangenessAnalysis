@@ -39,7 +39,7 @@ class PhiFitTask : public IAnalysisTask
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
-    provenance = RootIO::StartProvenance(taskConfig);
+    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     // 1. Input Configuration
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());

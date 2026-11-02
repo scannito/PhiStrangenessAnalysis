@@ -39,7 +39,7 @@ class PurityTask : public IAnalysisTask
 
     globalCfgs = globalSettings; // Store the global settings for later use
 
-    provenance = RootIO::StartProvenance(taskConfig);
+    provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
     // 1. Open input file, extract 3D histograms to RAM, and immediately close it
     std::string inputFile = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());

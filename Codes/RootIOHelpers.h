@@ -1,7 +1,6 @@
 #pragma once
 
 #include "BinningUtils.h"
-#include "JsonConfigHelpers.h"
 #include "Logger.h"
 #include "RunEnvironment.h"
 
@@ -23,6 +22,7 @@
 #include <string_view>
 #include <vector>
 #include <type_traits>
+#include <utility>
 
 namespace RootIO
 {
@@ -330,12 +330,13 @@ inline std::string ProvenanceDirName(std::string_view record)
 
 // What every task records before anything of its own: when, its whole merged configuration block (so a key
 // added to the JSON tomorrow is recorded without touching the task), and the facts about the run itself.
-// Documentation, not a check: see WriteProvenance.
-inline std::map<std::string, std::string> StartProvenance(const rapidjson::Value& taskConfig)
+// 'configBlock' is that block already serialised (JsonConfig::Serialize), so that RootIO, which writes files,
+// does not depend on the format of the configuration. Documentation, not a check: see WriteProvenance.
+inline std::map<std::string, std::string> StartProvenance(std::string configBlock)
 {
   std::map<std::string, std::string> facts = RunEnvironment::Facts();
   facts["produced_at"] = RunEnvironment::TimestampNow();
-  facts["config_block"] = JsonConfig::Serialize(taskConfig);
+  facts["config_block"] = std::move(configBlock);
   return facts;
 }
 
