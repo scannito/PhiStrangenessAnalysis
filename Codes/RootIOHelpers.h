@@ -45,6 +45,15 @@ inline std::unique_ptr<TFile> OpenOrThrow(const std::string& path, const char* m
   std::unique_ptr<TFile> f(TFile::Open(path.c_str(), mode));
   if (!f || f->IsZombie())
     throw std::runtime_error(std::format("[FATAL] {}: Cannot open '{}'", errCtx, path));
+  // A file a run did not close, because it was interrupted while writing it, is opened by ROOT in recovery: the keys
+  // it can find are rebuilt, with a Warning and nothing else, and what was written last may be missing. On
+  // 2 November 2026 a phi fit written into such a file lost h2TriggerSignal, and the run stopped one task later, on
+  // the missing object. Stopped here instead, on the file that is damaged.
+  if (f->TestBit(TFile::kRecovered))
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' was not closed properly (a run was interrupted while writing it): "
+                                         "ROOT recovered what it could, and objects may be missing. Delete it and re-run the "
+                                         "task that writes it, or restore it from a copy.",
+                                         errCtx, path));
   return f;
 }
 
