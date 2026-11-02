@@ -174,7 +174,7 @@ class DynamicRooFitter
     // Retrieve integration limits dynamically based on the configuration logic
     auto [minRange, maxRange] = CalculateIntegrationLimits();
 
-    std::string modeLog = std::holds_alternative<BinningUtils::Range>(config.integration.signalWindow) ? "FIXED" : "N-SIGMA";
+    std::string modeLog = std::holds_alternative<Range>(config.integration.signalWindow) ? "FIXED" : "N-SIGMA";
     Logger::Debug("Integrating in {} range: [{:g} , {:g}]", modeLog, minRange, maxRange);
 
     obs->setRange("signalRegion", minRange, maxRange);
@@ -815,10 +815,10 @@ class DynamicRooFitter
   }
 
   // Helper method to centralize the logic for integration limits
-  BinningUtils::Range CalculateIntegrationLimits() const
+  Range CalculateIntegrationLimits() const
   {
     // The limits from the configured mode
-    if (const auto* fixed = std::get_if<BinningUtils::Range>(&config.integration.signalWindow))
+    if (const auto* fixed = std::get_if<Range>(&config.integration.signalWindow))
       return *fixed;
 
     const auto& nSigma = std::get<NSigma>(config.integration.signalWindow);

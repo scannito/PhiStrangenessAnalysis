@@ -1005,7 +1005,7 @@ today, and the comment above `TryObject` says all of this in place.
 
 **`AnalysisDataStructures.h` has no namespace.** Every other shared header lives in
 one (`AnalysisConstants`, `BinningUtils`, `HistogramUtils`); this one pours
-`NSigma`, `FixedRange`, `ModelConfig`, `FitConfig`, `MathParam`, `ObservableConfig`
+`NSigma`, `Range`, `ModelConfig`, `FitConfig`, `MathParam`, `ObservableConfig`
 and a dozen more into the global namespace, next to ROOT and RooFit. They are
 generic names, so a collision with a dependency is plausible, and when it happens it
 depends on include order and the message points nowhere useful. A qualified name

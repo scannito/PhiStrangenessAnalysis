@@ -59,7 +59,7 @@ class ExtrapConfigManager : public BaseConfigManager
     auto loadFit = [](const rapidjson::Value& node, ExtrapFit& fit, std::string_view ctx) {
       fit.model = JsonConfig::OptionalString(node, "model", fit.model, ctx);
 
-      if (auto range = JsonConfig::TryRange(node, "fit_range", ctx))
+      if (auto range = JsonConfig::TryRange<Range>(node, "fit_range", ctx))
         fit.fitRange = *range;
 
       MergeParams(node, fit.params, ctx);
@@ -74,7 +74,7 @@ class ExtrapConfigManager : public BaseConfigManager
       const std::string read = std::format("{}.{}", particle, where);
       config.source = config.source.empty() ? read : std::format("{} and {}", config.source, read);
 
-      if (auto range = JsonConfig::TryRange(node, "domain_range", nodeCtx))
+      if (auto range = JsonConfig::TryRange<Range>(node, "domain_range", nodeCtx))
         config.domainRange = *range;
 
       // The separate fit of the high side (ExtrapConfig::high). Replaced whole when a bin

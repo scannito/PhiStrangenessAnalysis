@@ -1,6 +1,5 @@
 #pragma once
 
-#include "BinningUtils.h"
 #include "Logger.h"
 
 #include "rapidjson/document.h"
@@ -357,7 +356,10 @@ inline const rapidjson::Value* TryObject(const rapidjson::Value& node, const cha
 // A range written as [lo, hi]. Present but not a pair of numbers is an error and
 // not something to skip: "fit_range": 6.4 means someone meant something, and the
 // old "HasMember && IsArray && Size()==2" idiom would have ignored it in silence.
-inline std::optional<BinningUtils::Range> TryRange(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+// The caller names the type it fills ({low, high}, Range of AnalysisDataStructures), so that this header, which reads
+// configurations, does not depend on the analysis types and on ROOT through them.
+template <typename RangeType>
+std::optional<RangeType> TryRange(const rapidjson::Value& node, const char* key, std::string_view errCtx)
 {
   auto array = TryArray(node, key, errCtx);
   if (!array)
@@ -372,7 +374,7 @@ inline std::optional<BinningUtils::Range> TryRange(const rapidjson::Value& node,
   if (!(values[0] < values[1]))
     throw std::runtime_error(std::format("[FATAL] {}: '{}' must be [low, high] with low < high, but is [{}, {}].",
                                          errCtx, key, values[0], values[1]));
-  return BinningUtils::Range{values[0], values[1]};
+  return RangeType{values[0], values[1]};
 }
 
 inline std::optional<double> TryDouble(const rapidjson::Value& node, const char* key, std::string_view errCtx)

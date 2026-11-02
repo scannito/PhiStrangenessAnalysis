@@ -52,7 +52,7 @@ class CorrelationCalculator
     std::string histNameBase;
     TDirectory* ioDir{nullptr};                                // projections cache, written or read
     TDirectory* qaDir{nullptr};                                // QA objects (2D engine with doMoreQA)
-    std::optional<BinningUtils::Range> orthogonalCut{};  // range on the other axis (2D engine)
+    std::optional<Range> orthogonalCut{};  // range on the other axis (2D engine)
   };
 
   explicit CorrelationCalculator(Options options) : opt(options) {}

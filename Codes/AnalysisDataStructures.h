@@ -190,17 +190,25 @@ struct ModelConfig {
   std::map<std::string, MathParam> params; // Uses the unified MathParam
 };
 
+// An interval of values on an axis, [min, max]: a fit range, a domain, a window. Named fields and not a std::pair:
+// these are stored and read far from where they were filled, where .first and .second would not say which end.
+// Not BinningUtils::BinRange, which counts bins.
+struct Range {
+  double min{0.0};
+  double max{0.0};
+};
+
 struct NSigma {
   double n{3.0};
 };
 
 struct SidebandConfig {
-  BinningUtils::Range range;
+  Range range;
   bool fromFit{true};
 };
 
 struct IntegrationConfig {
-  std::variant<BinningUtils::Range, NSigma> signalWindow{BinningUtils::Range{0.0, 0.0}};
+  std::variant<Range, NSigma> signalWindow{Range{0.0, 0.0}};
   bool calculatePurity{false};
   std::optional<SidebandConfig> sideband{std::nullopt};
 };
@@ -239,7 +247,7 @@ struct FitDiagnostics {
 // One fit of a spectrum: what extrapConfig.json says per fit, the main one and "high".
 struct ExtrapFit {
   std::string model;
-  BinningUtils::Range fitRange;
+  Range fitRange;
   std::map<std::string, MathParam> params; // Uses the unified MathParam
   // Where in extrapConfig.json the parameters came from, said by the manager that merged them, for the messages: a
   // high fit is replaced whole and the main one merged over the default, so the place to fix differs.
@@ -248,7 +256,7 @@ struct ExtrapFit {
 
 // The main fit, and what belongs to the species rather than to a fit.
 struct ExtrapConfig : ExtrapFit {
-  BinningUtils::Range domainRange{0.0, 15.0};
+  Range domainRange{0.0, 15.0};
   double mass{0.0}; // Injected dynamically at runtime by the Task
 
   // When set, the part above the last measured point comes from this fit instead of the

@@ -157,14 +157,6 @@ inline int EdgeIndex(std::span<const double> edges, double x, std::string_view w
                                        above == edges.end() ? "-" : FormatEdge(*above)));
 }
 
-// An interval of values on an axis, [min, max]: a fit range, a domain, a window. Named fields and not a std::pair:
-// these are stored and read far from where they were filled, where .first and .second would not say which end.
-// Not BinRange, which counts bins.
-struct Range {
-  double min{0.0};
-  double max{0.0};
-};
-
 // A range of bins in ROOT numbering (1-based, both ends inclusive), as ProjectionZ, IntegralAndError and
 // THnSparse::SetRange expect them: one bin (Single), or the source bins one target bin covers (MapToSourceBins).
 struct BinRange {

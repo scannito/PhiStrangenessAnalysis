@@ -97,7 +97,7 @@ class FitConfigManager : public BaseConfigManager
 
         // The two are alternatives, and an explicit range wins: reaching the second
         // branch means no range was given, not that n_sigma has priority.
-        if (auto range = JsonConfig::TryRange(node, "integration_range", ctx)) {
+        if (auto range = JsonConfig::TryRange<Range>(node, "integration_range", ctx)) {
           config.integration.signalWindow = *range;
         } else if (auto nSigma = JsonConfig::TryDouble(node, "n_sigma_integration", ctx)) {
           config.integration.signalWindow = NSigma{*nSigma};
@@ -110,7 +110,7 @@ class FitConfigManager : public BaseConfigManager
           JsonConfig::RequireKnownKeys(*sbNode, {"from_fit", "range"}, sbCtx);
           SidebandConfig sb = config.integration.sideband.value_or(SidebandConfig{});
           sb.fromFit = JsonConfig::OptionalBool(*sbNode, "from_fit", sb.fromFit, sbCtx);
-          if (auto r = JsonConfig::TryRange(*sbNode, "range", sbCtx))
+          if (auto r = JsonConfig::TryRange<Range>(*sbNode, "range", sbCtx))
             sb.range = *r;
           config.integration.sideband = sb;
         }
