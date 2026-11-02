@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AnalysisConstants.h"
-#include "AnalysisDataStructures.h"
+#include "AnalysisStructures.h"
 #include "AnalysisSettings.h"
 #include "CanvasManager.h"
 #include "DynamicRooFitter.h"
@@ -127,7 +127,7 @@ class PurityTask : public IAnalysisTask
 
     // 4. Initialize specific mathematical tools
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
-    for (const ParticleTask& task : particleTasks)
+    for (const AnalysisStructures::ParticleTask& task : particleTasks)
       fitConfigManager->DeclareCells(task.purityKey, multBinning, {task.sourceBinning, task.AnalysisBinning()});
 
     // Last, once the whole configuration has been read: a mistake in it must not cost the previous production.
@@ -231,7 +231,7 @@ class PurityTask : public IAnalysisTask
   std::map<std::string, std::string> provenance;
 
   std::unique_ptr<TFile> outputFile;
-  std::vector<ParticleTask> particleTasks;
+  std::vector<AnalysisStructures::ParticleTask> particleTasks;
   FitQualityRecorder fitQuality; // every fit of every particle, both binnings
 
   // Read from the input file in Init(), never from the configuration
@@ -254,7 +254,7 @@ class PurityTask : public IAnalysisTask
   // Builds one purity spectrum: for every bin, fits the mass distribution obtained
   // by merging the source bins it covers and reads S/(S+B) off the fit. At the
   // source binning each bin covers exactly itself.
-  std::unique_ptr<TH1> FitPuritySpectrum(ParticleTask& task, int multBin, SpectrumBinning which, TDirectory* fitDir)
+  std::unique_ptr<TH1> FitPuritySpectrum(AnalysisStructures::ParticleTask& task, int multBin, SpectrumBinning which, TDirectory* fitDir)
   {
     const bool atSource = (which == SpectrumBinning::Source);
     const std::vector<double>& binning = atSource ? task.sourceBinning : task.AnalysisBinning();
@@ -279,7 +279,7 @@ class PurityTask : public IAnalysisTask
       h1Data->SetDirectory(0);
 
       // Run Fitter using JSON-based configuration
-      FitConfig cfg = fitConfigManager->GetConfig(task.purityKey, cell);
+      AnalysisStructures::FitConfig cfg = fitConfigManager->GetConfig(task.purityKey, cell);
       DynamicRooFitter fitter(h1Data.get(), cfg);
 
       fitter.DoFit();
@@ -309,7 +309,7 @@ class PurityTask : public IAnalysisTask
   // candidates, so a coarser binning there would be this framework's choice
   // leaking into a correction that is not its own. Edges are compared, not bin
   // counts: two different binnings can have the same number of bins.
-  static void FillCCDBColumn(ParticleTask& task, int multBin, const TH1* h1Purity)
+  static void FillCCDBColumn(AnalysisStructures::ParticleTask& task, int multBin, const TH1* h1Purity)
   {
     BinningUtils::RequireSameAxis(h1Purity->GetXaxis(), task.h2PurityCCDB->GetYaxis(),
                                   std::format("spectrum given to the '{}' CCDB map", task.purityKey),

@@ -81,7 +81,7 @@ class CorrelationTask : public CorrelationTaskBase
       }
 
       for (const auto& config : assocParticles) {
-        LoadedAssocData data;
+        AnalysisStructures::LoadedAssocData data;
         data.name = config.name;
         std::string baseData = std::format("{}{}/h5Phi{}", basePathData, config.dirName, config.name);
         data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(inputFile.get(), std::format("{}DataSignal", baseData), GetName());
@@ -98,7 +98,7 @@ class CorrelationTask : public CorrelationTaskBase
     } else {
       Logger::Info("{}: Cache ENABLED. Skipping THnSparse loading.", GetName());
       for (const auto& config : assocParticles) {
-        LoadedAssocData data;
+        AnalysisStructures::LoadedAssocData data;
         data.name = config.name;
         loadedDataCollection.push_back(std::move(data));
       }
@@ -171,7 +171,7 @@ class CorrelationTask : public CorrelationTaskBase
   std::unique_ptr<TH2D> h2TriggerSignal;
   std::unique_ptr<TH2D> h2TriggerBkgRatio;
 
-  std::map<std::string, LoadedPurity> purityCollection;
+  std::map<std::string, AnalysisStructures::LoadedPurity> purityCollection;
 
   void LoadPurities(const rapidjson::Value& taskConfig)
   {
@@ -197,7 +197,7 @@ class CorrelationTask : public CorrelationTaskBase
       std::string particle = JsonConfig::RequireString(src, "name", ctx);
       std::string purityKey = JsonConfig::RequireString(src, "purity_key", ctx);
 
-      LoadedPurity purity;
+      AnalysisStructures::LoadedPurity purity;
       purity.name = particle;
       purity.h1Purity.resize(BinningUtils::NBins(multBinning));
 

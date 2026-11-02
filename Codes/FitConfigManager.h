@@ -42,7 +42,7 @@ class FitConfigManager : public BaseConfigManager
 
   // The configuration of one cell, 'cell' as OutputNames::CellTag gives it: the section's default, then the
   // override of that cell if there is one.
-  FitConfig GetConfig(const std::string& section, const std::string& cell) const
+  AnalysisStructures::FitConfig GetConfig(const std::string& section, const std::string& cell) const
   {
     const auto declared = declaredCells.find(section);
     if (declared == declaredCells.end() || !declared->second.contains(cell))
@@ -50,7 +50,7 @@ class FitConfigManager : public BaseConfigManager
                                            "so the overrides were not checked against it.",
                                            managerName, section, cell));
 
-    FitConfig config;
+    AnalysisStructures::FitConfig config;
     const rapidjson::Value& sectionNode = Section(section);
 
     // Every block below has a closed set of keys, so a misspelled one is refused instead
@@ -97,10 +97,10 @@ class FitConfigManager : public BaseConfigManager
 
         // The two are alternatives, and an explicit range wins: reaching the second
         // branch means no range was given, not that n_sigma has priority.
-        if (auto range = JsonConfig::TryRange<Range>(node, "integration_range", ctx)) {
+        if (auto range = JsonConfig::TryRange<AnalysisStructures::Range>(node, "integration_range", ctx)) {
           config.integration.signalWindow = *range;
         } else if (auto nSigma = JsonConfig::TryDouble(node, "n_sigma_integration", ctx)) {
-          config.integration.signalWindow = NSigma{*nSigma};
+          config.integration.signalWindow = AnalysisStructures::NSigma{*nSigma};
         }
 
         config.integration.calculatePurity = JsonConfig::OptionalBool(node, "calculate_purity", config.integration.calculatePurity, ctx);
@@ -108,9 +108,9 @@ class FitConfigManager : public BaseConfigManager
         if (const rapidjson::Value* sbNode = JsonConfig::TryObject(node, "sideband", ctx)) {
           const std::string sbCtx = std::format("{}.sideband", ctx);
           JsonConfig::RequireKnownKeys(*sbNode, {"from_fit", "range"}, sbCtx);
-          SidebandConfig sb = config.integration.sideband.value_or(SidebandConfig{});
+          AnalysisStructures::SidebandConfig sb = config.integration.sideband.value_or(AnalysisStructures::SidebandConfig{});
           sb.fromFit = JsonConfig::OptionalBool(*sbNode, "from_fit", sb.fromFit, sbCtx);
-          if (auto r = JsonConfig::TryRange<Range>(*sbNode, "range", sbCtx))
+          if (auto r = JsonConfig::TryRange<AnalysisStructures::Range>(*sbNode, "range", sbCtx))
             sb.range = *r;
           config.integration.sideband = sb;
         }

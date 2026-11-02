@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AnalysisConstants.h"
-#include "AnalysisDataStructures.h"
+#include "AnalysisStructures.h"
 #include "AnalysisSettings.h"
 #include "CanvasManager.h"
 #include "EfficiencyCalculator.h"
@@ -114,7 +114,7 @@ class MCTask : public IAnalysisTask
         throw std::runtime_error(std::format("[FATAL] {}: empty 'input_mc_file' for particle '{}'!", ctx, name));
       }
 
-      LoadedMC data;
+      AnalysisStructures::LoadedMC data;
       data.name = name;
 
       std::string h3MCGenName = std::format("{}{}/h3{}MCGen", mcBasePath, dirName, name);
@@ -459,7 +459,7 @@ class MCTask : public IAnalysisTask
 
   CanvasManager canvasManager;
 
-  std::vector<LoadedMC> dataCollection;
+  std::vector<AnalysisStructures::LoadedMC> dataCollection;
 
   // Read from the input files in Init(), never from the configuration
   std::vector<double> multBinning;

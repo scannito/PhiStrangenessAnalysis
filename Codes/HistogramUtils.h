@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AnalysisDataStructures.h"
+#include "AnalysisStructures.h"
 #include "BinningUtils.h"
 
 #include "TH1.h"
@@ -217,7 +217,7 @@ inline void FillTrendFromSpectrum(TH1* hTrend, const TH1* hSpectrum, int multBin
 // the extrapolated parts together, with their correlation, so an error taken from the
 // histogram plus something for the model would either double count or throw that
 // correlation away.
-inline void FillTrendFromExtrapolation(TH1* hTrend, const ExtrapolationResult& res, int multBin)
+inline void FillTrendFromExtrapolation(TH1* hTrend, const AnalysisStructures::ExtrapolationResult& res, int multBin)
 {
   SetBinValueAndError(hTrend, multBin, {res.yield, res.yieldStatErr});
 }

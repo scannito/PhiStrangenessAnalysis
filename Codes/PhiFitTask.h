@@ -108,7 +108,7 @@ class PhiFitTask : public IAnalysisTask
         h1PhiData->SetDirectory(0);
 
         // Fetch configuration dynamically from JSON
-        FitConfig cfg = fitConfigManager->GetConfig(kFitSection, cell);
+        AnalysisStructures::FitConfig cfg = fitConfigManager->GetConfig(kFitSection, cell);
 
         // Initialize RooFit Engine
         DynamicRooFitter fitter(h1PhiData.get(), cfg);

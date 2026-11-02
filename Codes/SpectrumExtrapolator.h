@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AnalysisDataStructures.h"
+#include "AnalysisStructures.h"
 #include "Logger.h"
 
 #include "TF1.h"
@@ -135,9 +135,9 @@ class SpectrumExtrapolator
   // with the extrapolated regions, estimates the statistical uncertainty by toy MC
   // and, if a systematic spectrum was supplied, propagates the systematic band
   // through all of it.
-  ExtrapolationResult Extrapolate()
+  AnalysisStructures::ExtrapolationResult Extrapolate()
   {
-    ExtrapolationResult res;
+    AnalysisStructures::ExtrapolationResult res;
 
     // The domain has to cover the fit range, as in YieldMean. Integrating only up
     // to fMaxPt while the fit was performed up to a larger fMaxFit would drop the
@@ -167,7 +167,7 @@ class SpectrumExtrapolator
 
     res.fit = {fFitModel->GetChisquare(), fFitModel->GetNDF()};
     if (fHighModel)
-      res.highFit = FitQuality{fHighModel->GetChisquare(), fHighModel->GetNDF()};
+      res.highFit = AnalysisStructures::FitQuality{fHighModel->GetChisquare(), fHighModel->GetNDF()};
 
     double integral = 0.0, mean = 0.0, extraLow = 0.0, extraHigh = 0.0;
     double skippedData = 0.0;
@@ -392,7 +392,7 @@ class SpectrumExtrapolator
   // +-sigma shift moves the integral while barely touching the shape, and a tilt
   // does the opposite, so each pair is read where it is sensitive. Taking all four
   // numbers from all four variations would not be more conservative, only noisier.
-  void ComputeSystematics(ExtrapolationResult& res, double minPt, double maxPt)
+  void ComputeSystematics(AnalysisStructures::ExtrapolationResult& res, double minPt, double maxPt)
   {
     if (!fSysSpectrum)
       return;

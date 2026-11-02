@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AnalysisConstants.h"
-#include "AnalysisDataStructures.h"
+#include "AnalysisStructures.h"
 #include "BinningUtils.h"
 #include "OutputNames.h"
 #include "CanvasManager.h"
@@ -53,7 +53,7 @@ class EfficiencyCalculator
   }
 
   // Computes the 3D correction map: efficiency, signal loss or their product, by mode
-  static std::unique_ptr<TH3> Compute3DCorrectionMap(const LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
+  static std::unique_ptr<TH3> Compute3DCorrectionMap(const AnalysisStructures::LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
   {
     const std::vector<HistogramUtils::AxisToCut> cuts = {HistogramUtils::AxisToCut::Whole(0)}; // zvtx
 
@@ -95,7 +95,7 @@ class EfficiencyCalculator
   }
 
   // Computes the 2D correction map (efficiency, signal loss or their product, by mode) integrated over multiplicity
-  static std::unique_ptr<TH2> Compute2DCorrectionMapMultIntegrated(const LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
+  static std::unique_ptr<TH2> Compute2DCorrectionMapMultIntegrated(const AnalysisStructures::LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
   {
     // zvtx, and the whole multiplicity axis: "integrated"
     const std::vector<HistogramUtils::AxisToCut> cuts = {HistogramUtils::AxisToCut::Whole(0), HistogramUtils::AxisToCut::Whole(1)};
@@ -191,7 +191,7 @@ class EfficiencyCalculator
   // which is also the efficiency weighted by the generated spectrum.
   //
   // Nothing happens when no target binning is configured for this particle.
-  static void RebinCountsIfRequested(const LoadedMC& data, std::unique_ptr<TH1>& h1MCGen,
+  static void RebinCountsIfRequested(const AnalysisStructures::LoadedMC& data, std::unique_ptr<TH1>& h1MCGen,
                                      std::unique_ptr<TH1>& h1MCGenAssocReco, std::unique_ptr<TH1>& h1MCReco)
   {
     if (!data.rebinningPt)
@@ -246,7 +246,7 @@ class EfficiencyCalculator
   // Divides at the source binning first when a merge is requested, then merges
   // counts and divides again. Order matters: DivideCounts only reads, but
   // RebinCountsIfRequested replaces the histograms.
-  static Maps1D BuildMaps1D(const LoadedMC& data, std::unique_ptr<TH1>& h1MCGen,
+  static Maps1D BuildMaps1D(const AnalysisStructures::LoadedMC& data, std::unique_ptr<TH1>& h1MCGen,
                             std::unique_ptr<TH1>& h1MCGenAssocReco, std::unique_ptr<TH1>& h1MCReco,
                             const std::string& multTag, int color)
   {
@@ -271,7 +271,7 @@ class EfficiencyCalculator
 
   // Returns the maps for one multiplicity bin, named by its interval in 'multBinning':
   // CorrelationTaskBase::LoadCorrections reads them back by that name.
-  static Maps1D Compute1DMaps(const LoadedMC& data, std::span<const double> multBinning, int multBin, int color)
+  static Maps1D Compute1DMaps(const AnalysisStructures::LoadedMC& data, std::span<const double> multBinning, int multBin, int color)
   {
     // zvtx, this multiplicity class, y
     const std::vector<HistogramUtils::AxisToCut> cuts = {HistogramUtils::AxisToCut::Whole(0), HistogramUtils::AxisToCut::Bin(1, multBin),
@@ -292,7 +292,7 @@ class EfficiencyCalculator
   }
 
   // Same, integrated over ALL multiplicity bins.
-  static Maps1D Compute1DMapsMultIntegrated(const LoadedMC& data)
+  static Maps1D Compute1DMapsMultIntegrated(const AnalysisStructures::LoadedMC& data)
   {
     // zvtx, the whole multiplicity axis ("integrated"), y
     const std::vector<HistogramUtils::AxisToCut> cuts = {HistogramUtils::AxisToCut::Whole(0), HistogramUtils::AxisToCut::Whole(1),

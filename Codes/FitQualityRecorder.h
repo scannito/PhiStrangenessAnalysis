@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AnalysisDataStructures.h"
+#include "AnalysisStructures.h"
 #include "Logger.h"
 
 #include "TDirectory.h"
@@ -69,7 +69,7 @@ class FitQualityRecorder
   // fit_setup.bins override that applied. Only the edges are recorded: the canvas and the override are named by
   // them, and a cut on an index across two productions is the mismatch the framework is built against.
   void Add(const std::string& section, const std::string& binning, const std::vector<double>& multBinning, int multBin,
-           const std::vector<double>& ptBinning, int ptBin, const std::string& binOverride, const FitDiagnostics& fit)
+           const std::vector<double>& ptBinning, int ptBin, const std::string& binOverride, const AnalysisStructures::FitDiagnostics& fit)
   {
     fRow = {.section = section, .binning = binning, .multLow = multBinning[multBin],
             .multHigh = multBinning[multBin + 1], .ptLow = ptBinning[ptBin], .ptHigh = ptBinning[ptBin + 1],
@@ -111,7 +111,7 @@ class FitQualityRecorder
   // An empty cell, a covariance that is not accurate, NaN evaluations of the likelihood, a parameter sitting at a
   // limit of its range. The status is not one: with the fit as it is today, status 3 is the outcome of most cells,
   // good and bad alike. Each reason is the label it is counted and printed under, next to its test.
-  static std::vector<std::string> Reasons(const FitDiagnostics& fit)
+  static std::vector<std::string> Reasons(const AnalysisStructures::FitDiagnostics& fit)
   {
     if (fit.counts <= 0.0)
       return {"empty"}; // nothing else means anything without data
@@ -134,7 +134,7 @@ class FitQualityRecorder
     std::string binning;
     double multLow{0.0}, multHigh{0.0}, ptLow{0.0}, ptHigh{0.0};
     std::string binOverride; // empty for none
-    FitDiagnostics fit;
+    AnalysisStructures::FitDiagnostics fit;
   };
 
   struct Tally {

@@ -20,6 +20,9 @@
 #include <variant>
 #include <vector>
 
+namespace AnalysisStructures
+{
+
 struct AssocParticleConfig {
   std::string name;            // e.g., "K0S", "Pi"
   std::string dirName;         // e.g., "phiK0S", "phiPi"
@@ -339,3 +342,5 @@ struct YieldRatioConfig {
   std::string den;
   std::string label;
 };
+
+} // namespace AnalysisStructures

@@ -1003,27 +1003,13 @@ Two ways to make it principled, neither urgent:
 The signal to act is a caller that suffers from the current shape. There is none
 today, and the comment above `TryObject` says all of this in place.
 
-**`AnalysisDataStructures.h` has no namespace.** Every other shared header lives in
-one (`AnalysisConstants`, `BinningUtils`, `HistogramUtils`); this one pours
-`NSigma`, `Range`, `ModelConfig`, `FitConfig`, `MathParam`, `ObservableConfig`
-and a dozen more into the global namespace, next to ROOT and RooFit. They are
-generic names, so a collision with a dependency is plausible, and when it happens it
-depends on include order and the message points nowhere useful. A qualified name
-(`Analysis::FitConfig`) also says where a type comes from at the call site.
-
-Nine headers include it, so the change is mechanical but touches many lines; it is
-best done with the compiled build at hand, since the compiler is what finds the
-references that were missed. Check first that nothing outside the headers (the `.C`
-macro, `Macros/`, strings in the JSON) refers to these names, because the build
-would not report that.
-
-The single common header itself is fine. It holds the model shared across tasks,
+**`AnalysisStructures.h`, the common header, is fine as one header.** It holds the model shared across tasks,
 which is the case for a common header, and it should stay *physics* vocabulary:
 configurations, results, loaded data. Types that describe how something is drawn
 (`PadMargins`, `YRangeOptions`, `RatioCanvas`) belong with `CanvasManager`, whose
 interface they are, and `DynamicRooFitter` already depends on it. The signal to
 split the header by theme (fit and extrapolation / loaded data) is it growing well
-past today's 241 lines, or pulling ROOT includes that only one theme needs.
+past today's 346 lines, or pulling ROOT includes that only one theme needs.
 
 **What the logger still does not cover.** Every task and helper logs through `Logger::`
 (see `DESIGN_HISTORY.md`), but three things remain:

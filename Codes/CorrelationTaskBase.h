@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AnalysisConstants.h"
-#include "AnalysisDataStructures.h"
+#include "AnalysisStructures.h"
 #include "AnalysisSettings.h"
 #include "BinningUtils.h"
 #include "CanvasManager.h"
@@ -293,21 +293,21 @@ class CorrelationTaskBase : public IAnalysisTask
 
   bool applyME{false}, applyExtrapolation{false};
   bool useProjectionCache{false}, use2DEngine{false};
-  std::optional<CorrectionsConfig> corrections; // Empty: no correction is applied here
+  std::optional<AnalysisStructures::CorrectionsConfig> corrections; // Empty: no correction is applied here
 
   std::unique_ptr<TH1> hEventLoss;
 
-  std::vector<AssocParticleConfig> assocParticles;
+  std::vector<AnalysisStructures::AssocParticleConfig> assocParticles;
 
   // Filled in Init, written into the spectra file in Terminate
   std::map<std::string, std::string> provenance;
-  std::vector<LoadedAssocData> loadedDataCollection;
+  std::vector<AnalysisStructures::LoadedAssocData> loadedDataCollection;
 
   // Read from the input files in Init(), never from the configuration
   std::vector<double> multBinning;
   std::vector<double> ptPhiBinning;
 
-  std::map<std::string, LoadedCorrections> correctionCollection;
+  std::map<std::string, AnalysisStructures::LoadedCorrections> correctionCollection;
 
   // Always set from their required keys at Init: initialised only so that they are never indeterminate, not defaults.
   CorrelationCalculator::AxisTarget projectionAxis{CorrelationCalculator::AxisTarget::DeltaY_Y};
@@ -331,7 +331,7 @@ class CorrelationTaskBase : public IAnalysisTask
   std::vector<std::unique_ptr<TFile>> qaFiles;
   CanvasManager canvasManager;
 
-  std::vector<YieldRatioConfig> requestedRatios;
+  std::vector<AnalysisStructures::YieldRatioConfig> requestedRatios;
 
   // -------------------------------------------------------------------------
   // Hooks for derived-class-specific behavior in Terminate()
@@ -432,7 +432,7 @@ class CorrelationTaskBase : public IAnalysisTask
         const std::string ctx = std::format("{} yield_ratios[{}]", GetName(), idx++);
         JsonConfig::RequireKnownKeys(r, {"numerator", "denominator", "label"}, ctx);
 
-        YieldRatioConfig ratio;
+        AnalysisStructures::YieldRatioConfig ratio;
         ratio.num = JsonConfig::RequireString(r, "numerator", ctx);
         ratio.den = JsonConfig::RequireString(r, "denominator", ctx);
         ratio.label = JsonConfig::OptionalString(r, "label", std::format("{}/{}", ratio.num, ratio.den), ctx);
@@ -558,15 +558,15 @@ class CorrelationTaskBase : public IAnalysisTask
 
     const std::string ctx = std::format("{} corrections", GetName());
 
-    CorrectionsConfig cfg;
+    AnalysisStructures::CorrectionsConfig cfg;
     // Outside the block on purpose: the file changes per year and the corrections per
     // mode, and with a top-level merge a year block can then set the file alone.
     cfg.file = JsonConfig::RequireString(taskConfig, "corrections_file", GetName());
     // Next to corrections_file for the same reason, set once in the base settings instead of in every block that writes
     // its corrections. Required: it decides whether results that cannot be right are produced at all, and 'warn' is
     // the owner's choice (28 October 2026), so that one map with an empty bin does not stop a run of many blocks.
-    cfg.onInvalidBin = JsonConfig::RequireEnum<InvalidBinPolicy>(
-      taskConfig, "on_invalid_correction_bin", {{"warn", InvalidBinPolicy::Warn}, {"stop", InvalidBinPolicy::Stop}}, GetName());
+    cfg.onInvalidBin = JsonConfig::RequireEnum<AnalysisStructures::InvalidBinPolicy>(
+      taskConfig, "on_invalid_correction_bin", {{"warn", AnalysisStructures::InvalidBinPolicy::Warn}, {"stop", AnalysisStructures::InvalidBinPolicy::Stop}}, GetName());
     cfg.eventLoss = JsonConfig::RequireBool(*node, "event_loss", ctx);
 
     // Required, and {} when only the event loss is applied here: absent could equally be a
@@ -597,14 +597,14 @@ class CorrelationTaskBase : public IAnalysisTask
       refuseNotImplemented("feed_down", {"Lambda", "AntiLambda"});
       refuseNotImplemented("primary_fraction", {"Pi"});
 
-      ParticleCorrections pc;
+      AnalysisStructures::ParticleCorrections pc;
       if (const rapidjson::Value* efficiencyNode = JsonConfig::TryObject(entry, "acceptance_efficiency", pctx)) {
         const std::string actx = std::format("{}.acceptance_efficiency", pctx);
-        pc.efficiency = EfficiencyCorrection{JsonConfig::RequireEnum<MultDependence>(
-          *efficiencyNode, "mult", {{"binned", MultDependence::Binned}, {"integrated", MultDependence::Integrated}}, actx)};
+        pc.efficiency = AnalysisStructures::EfficiencyCorrection{JsonConfig::RequireEnum<AnalysisStructures::MultDependence>(
+          *efficiencyNode, "mult", {{"binned", AnalysisStructures::MultDependence::Binned}, {"integrated", AnalysisStructures::MultDependence::Integrated}}, actx)};
       }
       if (JsonConfig::OptionalBool(entry, "signal_loss", false, pctx))
-        pc.signalLoss = SignalLossCorrection{};
+        pc.signalLoss = AnalysisStructures::SignalLossCorrection{};
 
       if (!pc.efficiency && !pc.signalLoss)
         throw std::runtime_error(std::format("[FATAL] {}: no correction is applied. To leave {} uncorrected, do not list it.", pctx, particle));
@@ -618,7 +618,7 @@ class CorrelationTaskBase : public IAnalysisTask
     for (const auto& [particle, pc] : cfg.perParticle) {
       std::string what;
       if (pc.efficiency)
-        what = std::format("acceptance x efficiency ({})", pc.efficiency->mult == MultDependence::Binned ? "per multiplicity class" : "multiplicity-integrated");
+        what = std::format("acceptance x efficiency ({})", pc.efficiency->mult == AnalysisStructures::MultDependence::Binned ? "per multiplicity class" : "multiplicity-integrated");
       if (pc.signalLoss)
         what += what.empty() ? "signal loss" : " + signal loss";
       Logger::Info("{}: {} corrected for {}.", GetName(), particle, what);
@@ -642,7 +642,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   void LoadCorrections()
   {
-    const CorrectionsConfig& cfg = *corrections;
+    const AnalysisStructures::CorrectionsConfig& cfg = *corrections;
     const std::string& correctionsPath = cfg.file;
     std::unique_ptr<TFile> correctionsFile = RootIO::OpenOrThrow(correctionsPath, "READ", GetName());
 
@@ -693,7 +693,7 @@ class CorrelationTaskBase : public IAnalysisTask
       if (invalid.empty())
         return h;
 
-      if (cfg.onInvalidBin == InvalidBinPolicy::Stop)
+      if (cfg.onInvalidBin == AnalysisStructures::InvalidBinPolicy::Stop)
         throw std::runtime_error(std::format(
           "[FATAL] {}: '{}' in '{}' is{} and a correction that cannot be computed is not a correction of 1. The MC has "
           "nothing there: more MC statistics in that interval, or data and MC productions whose binning merges it.",
@@ -731,7 +731,7 @@ class CorrelationTaskBase : public IAnalysisTask
     correctionCollection.clear();
 
     for (const auto& [particle, pc] : cfg.perParticle) {
-      LoadedCorrections corr;
+      AnalysisStructures::LoadedCorrections corr;
       corr.name = particle;
       corr.h1Corrections.resize(BinningUtils::NBins(multBinning));
 
@@ -739,8 +739,8 @@ class CorrelationTaskBase : public IAnalysisTask
       const MapOf of = particle == "Phi" ? MapOf::Phi : MapOf::Associated;
 
 
-      const bool applyEfficiencyBinned = pc.efficiency && pc.efficiency->mult == MultDependence::Binned;
-      const bool applyEfficiencyIntegrated = pc.efficiency && pc.efficiency->mult == MultDependence::Integrated;
+      const bool applyEfficiencyBinned = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Binned;
+      const bool applyEfficiencyIntegrated = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Integrated;
 
       std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(of, OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(particle, OutputNames::kMultIntegrated), applyEfficiencyIntegrated, targetBinning);
 
@@ -782,7 +782,7 @@ class CorrelationTaskBase : public IAnalysisTask
             HistogramUtils::AxisToCut::Bin(2, ptAssocBin)};
   }
 
-  std::string CellSuffix(const AssocParticleConfig& config, int multBin, int ptPhiBin, int ptAssocBin) const
+  std::string CellSuffix(const AnalysisStructures::AssocParticleConfig& config, int multBin, int ptPhiBin, int ptAssocBin) const
   {
     return std::format("_{}_ptPhi{}_{}",
                        OutputNames::MultTag(multBinning, multBin),
@@ -791,7 +791,7 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // For the objects accumulated over the trigger pT bins.
-  std::string CellSuffix(const AssocParticleConfig& config, int multBin, int ptAssocBin) const
+  std::string CellSuffix(const AnalysisStructures::AssocParticleConfig& config, int multBin, int ptAssocBin) const
   {
     return std::format("_{}", OutputNames::CellTag(multBinning, multBin, config.binning, ptAssocBin));
   }
@@ -1041,11 +1041,11 @@ class CorrelationTaskBase : public IAnalysisTask
   // function knows the spectrum but not which particle or delta-y index it belongs to,
   // and the alternative - handing it the two indices so it can look the canvas up - is
   // giving it a way to reach objects that are none of its business.
-  ExtrapolationResult ExtrapolateSpectrum(TH1* hSpec, const AssocParticleConfig& config, int multBin,
+  AnalysisStructures::ExtrapolationResult ExtrapolateSpectrum(TH1* hSpec, const AnalysisStructures::AssocParticleConfig& config, int multBin,
                                           TDirectory* targetDir, TCanvas* overlay)
   {
     // 1. Fetch configuration for THIS particle and THIS multBin from JSON
-    ExtrapConfig eCfg = extrapConfigManager->GetConfig(config.name, OutputNames::MultTag(multBinning, multBin));
+    AnalysisStructures::ExtrapConfig eCfg = extrapConfigManager->GetConfig(config.name, OutputNames::MultTag(multBinning, multBin));
     eCfg.mass = config.mass; // Inject physical mass
 
     // 2. Generate configured TF1 model
@@ -1113,7 +1113,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // reports hasSystematics == false. This is the one line to change once a
     // systematics driver exists - see DESIGN_NOTES.md.
 
-    ExtrapolationResult res = extrapolator.Extrapolate();
+    AnalysisStructures::ExtrapolationResult res = extrapolator.Extrapolate();
 
     // 4. Report what happened. Reads nothing back into the result.
     ReportExtrapolation(hSpec, res, eCfg, extrapModel.get(), firstMeasuredPt);
@@ -1194,8 +1194,8 @@ class CorrelationTaskBase : public IAnalysisTask
   // cross-check below has to be taken HERE, by a different route from the one
   // Extrapolate() used - a number computed once and passed in would compare a value
   // with itself.
-  static void ReportExtrapolation(const TH1* hSpec, const ExtrapolationResult& res,
-                                  const ExtrapConfig& eCfg, TF1* model, double firstMeasuredPt)
+  static void ReportExtrapolation(const TH1* hSpec, const AnalysisStructures::ExtrapolationResult& res,
+                                  const AnalysisStructures::ExtrapConfig& eCfg, TF1* model, double firstMeasuredPt)
   {
     const double rawIntegral = hSpec->Integral(1, hSpec->GetNbinsX(), "width");
 
@@ -1232,7 +1232,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // decoration. It used to be printed only by YieldMean, which meant retiring that
     // path would have silently removed the only sign that the fit does not describe
     // the data. See DESIGN_NOTES.md, which still lists that as open.
-    auto reportFit = [](const char* label, const ExtrapFit& fit, const FitQuality& quality) {
+    auto reportFit = [](const char* label, const AnalysisStructures::ExtrapFit& fit, const AnalysisStructures::FitQuality& quality) {
       Logger::Debug("  -> {} {} over [{:g}, {:g}]: chi2/ndf = {:g}/{} = {:g}", label, fit.model,
                     fit.fitRange.min, fit.fitRange.max, quality.chi2, quality.ndf, quality.ReducedChi2());
     };
@@ -1359,7 +1359,7 @@ class CorrelationTaskBase : public IAnalysisTask
         if (doExtrapForThis) {
           std::string cExtName = OutputNames::SpectraExtrapCanvas(config.name, dyLimit);
           TCanvas* overlay = canvasManager.GetCanvas(cExtName);
-          ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir, overlay);
+          AnalysisStructures::ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir, overlay);
           HistogramUtils::FillTrendFromExtrapolation(h1MultTrendsExtrap[pIdx][yIdx].get(), res, multBin);
         }
       }
@@ -1490,7 +1490,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // Where the associated particle of that name is in assocParticles, if it is one: the configuration names particles.
   std::optional<size_t> AssocIndex(std::string_view name) const
   {
-    const auto it = std::ranges::find(assocParticles, name, &AssocParticleConfig::name);
+    const auto it = std::ranges::find(assocParticles, name, &AnalysisStructures::AssocParticleConfig::name);
     if (it == assocParticles.end())
       return std::nullopt;
     return static_cast<size_t>(it - assocParticles.begin());

@@ -459,7 +459,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 |---|---|
 | `BinningUtils.h` | Bin edges, comparison and diff reports, mapping a target binning onto source bins. Depends only on `TAxis`, so diagnostic macros can share it. |
 | `AnalysisConstants.h` | PDG masses and `GetMass`. |
-| `AnalysisDataStructures.h` | The structs passed between tasks and calculators (`LoadedMC`, `LoadedAssocData`, `FitConfig`, `ExtrapolationResult`, …). |
+| `AnalysisStructures.h` | The structs passed between tasks and calculators, in namespace `AnalysisStructures` (`LoadedMC`, `LoadedAssocData`, `FitConfig`, `ExtrapolationResult`, …). |
 | `AnalysisSettings.h` | Global settings and binning resolution: reads the binning from an axis and verifies it against what the JSON declares. |
 
 ### Helpers

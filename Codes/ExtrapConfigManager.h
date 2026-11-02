@@ -37,7 +37,7 @@ class ExtrapConfigManager : public BaseConfigManager
   }
 
   // The configuration of one class, 'multTag' as OutputNames::MultTag gives it.
-  ExtrapConfig GetConfig(const std::string& particle, const std::string& multTag) const
+  AnalysisStructures::ExtrapConfig GetConfig(const std::string& particle, const std::string& multTag) const
   {
     const auto declared = declaredCells.find(particle);
     if (declared == declaredCells.end() || !declared->second.contains(multTag))
@@ -45,7 +45,7 @@ class ExtrapConfigManager : public BaseConfigManager
                                            "so the overrides were not checked against it.",
                                            managerName, particle, multTag));
 
-    ExtrapConfig config;
+    AnalysisStructures::ExtrapConfig config;
     const rapidjson::Value& partNode = Section(particle);
     // Closed sets of keys, as in FitConfigManager: a misspelled key is refused, not skipped.
     // Every error inside the section names it, the high fit included.
@@ -56,10 +56,10 @@ class ExtrapConfigManager : public BaseConfigManager
     // optional because the main fit is read twice: once from "default" and once from the
     // bin override, which only carries what it changes. Absent therefore means "keep what
     // the previous pass set", never "reset".
-    auto loadFit = [](const rapidjson::Value& node, ExtrapFit& fit, std::string_view ctx) {
+    auto loadFit = [](const rapidjson::Value& node, AnalysisStructures::ExtrapFit& fit, std::string_view ctx) {
       fit.model = JsonConfig::OptionalString(node, "model", fit.model, ctx);
 
-      if (auto range = JsonConfig::TryRange<Range>(node, "fit_range", ctx))
+      if (auto range = JsonConfig::TryRange<AnalysisStructures::Range>(node, "fit_range", ctx))
         fit.fitRange = *range;
 
       MergeParams(node, fit.params, ctx);
@@ -74,7 +74,7 @@ class ExtrapConfigManager : public BaseConfigManager
       const std::string read = std::format("{}.{}", particle, where);
       config.source = config.source.empty() ? read : std::format("{} and {}", config.source, read);
 
-      if (auto range = JsonConfig::TryRange<Range>(node, "domain_range", nodeCtx))
+      if (auto range = JsonConfig::TryRange<AnalysisStructures::Range>(node, "domain_range", nodeCtx))
         config.domainRange = *range;
 
       // The separate fit of the high side (ExtrapConfig::high). Replaced whole when a bin

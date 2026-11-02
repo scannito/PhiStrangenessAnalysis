@@ -356,7 +356,7 @@ inline const rapidjson::Value* TryObject(const rapidjson::Value& node, const cha
 // A range written as [lo, hi]. Present but not a pair of numbers is an error and
 // not something to skip: "fit_range": 6.4 means someone meant something, and the
 // old "HasMember && IsArray && Size()==2" idiom would have ignored it in silence.
-// The caller names the type it fills ({low, high}, Range of AnalysisDataStructures), so that this header, which reads
+// The caller names the type it fills ({low, high}, AnalysisStructures::Range), so that this header, which reads
 // configurations, does not depend on the analysis types and on ROOT through them.
 template <typename RangeType>
 std::optional<RangeType> TryRange(const rapidjson::Value& node, const char* key, std::string_view errCtx)

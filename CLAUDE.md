@@ -258,7 +258,7 @@ strings.
   `ParticleTask::AnalysisBinning`).
 - One namespace per helper header, in `PascalCase` and named after the file, without
   `Helpers` when the file has it: `BinningUtils`, `RootIO` (`RootIOHelpers.h`),
-  `JsonConfig` (`JsonConfigHelpers.h`), `HistogramUtils`, `RunEnvironment`, `Logger`, `OutputNames`.
+  `JsonConfig` (`JsonConfigHelpers.h`), `HistogramUtils`, `RunEnvironment`, `Logger`, `OutputNames`, `AnalysisStructures`.
   What a namespace keeps to itself goes in a nested `Detail`, capitalised like the rest.
   Dedicated managers: `WorkflowManager`,
   `CanvasManager`, `BaseConfigManager`, `FitConfigManager`, `ExtrapConfigManager`.

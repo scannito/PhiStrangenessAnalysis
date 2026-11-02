@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AnalysisDataStructures.h"
+#include "AnalysisStructures.h"
 #include "HistogramUtils.h"
 #include "Logger.h"
 #include "RootIOHelpers.h"
@@ -52,7 +52,7 @@ class CorrelationCalculator
     std::string histNameBase;
     TDirectory* ioDir{nullptr};                                // projections cache, written or read
     TDirectory* qaDir{nullptr};                                // QA objects (2D engine with doMoreQA)
-    std::optional<Range> orthogonalCut{};  // range on the other axis (2D engine)
+    std::optional<AnalysisStructures::Range> orthogonalCut{};  // range on the other axis (2D engine)
   };
 
   explicit CorrelationCalculator(Options options) : opt(options) {}
@@ -67,7 +67,7 @@ class CorrelationCalculator
   static bool Supports(bool engine2D, AxisTarget axis) { return engine2D || axis == AxisTarget::DeltaY_Y; }
 
   // The corrected, sideband-subtracted correlation of one cell, projected on projectionAxis.
-  std::unique_ptr<TH1> ExtractCorrectedSignal(const LoadedAssocData& data, const Request& req) const
+  std::unique_ptr<TH1> ExtractCorrectedSignal(const AnalysisStructures::LoadedAssocData& data, const Request& req) const
   {
     return opt.engine2D ? Extract2D(data, req) : Extract1D(data, req);
   }
@@ -104,7 +104,7 @@ class CorrelationCalculator
   // Shared by the two engines: the four inputs, read from the cache or projected. Only freshly
   // projected histograms are written to the cache; what was read from it is already there.
   template <typename H>
-  Inputs<H> LoadOrProject(const LoadedAssocData& data, const Request& req) const
+  Inputs<H> LoadOrProject(const AnalysisStructures::LoadedAssocData& data, const Request& req) const
   {
     return opt.useProjectionCache ? ReadFromCache<H>(req) : ProjectAndCache<H>(data, req);
   }
@@ -133,7 +133,7 @@ class CorrelationCalculator
   // place the cache is written. The sideband is optional; with mixed events, a sideband comes
   // with its mixed event (the loaders require the two together), and one without stops here.
   template <typename H>
-  Inputs<H> ProjectAndCache(const LoadedAssocData& data, const Request& req) const
+  Inputs<H> ProjectAndCache(const AnalysisStructures::LoadedAssocData& data, const Request& req) const
   {
     const std::vector<int> projAxes = Inputs<H>::ProjAxes();
     Inputs<H> in(req.histNameBase);
@@ -289,7 +289,7 @@ class CorrelationCalculator
   // =========================================================================
   // UNIVERSAL 2D ENGINE
   // =========================================================================
-  std::unique_ptr<TH1> Extract2D(const LoadedAssocData& data, const Request& req) const
+  std::unique_ptr<TH1> Extract2D(const AnalysisStructures::LoadedAssocData& data, const Request& req) const
   {
     // Short names for the body below, which is the engine as it was.
     const std::string& histNameBase = req.histNameBase;
@@ -434,7 +434,7 @@ class CorrelationCalculator
   // =========================================================================
   // 1D ENGINE (used if opt.engine2D is false): projects on Delta y only, see ExtractCorrectedSignal
   // =========================================================================
-  std::unique_ptr<TH1> Extract1D(const LoadedAssocData& data, const Request& req) const
+  std::unique_ptr<TH1> Extract1D(const AnalysisStructures::LoadedAssocData& data, const Request& req) const
   {
     // 1. Load from cache or project THnSparse on the fly
     Inputs<TH1> in = LoadOrProject<TH1>(data, req);

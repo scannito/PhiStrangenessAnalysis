@@ -1,7 +1,7 @@
 #pragma once
 
 #include "AnalysisConstants.h"
-#include "AnalysisDataStructures.h"
+#include "AnalysisStructures.h"
 #include "CanvasManager.h"
 #include "FitConfigManager.h"
 #include "HistogramUtils.h"
@@ -54,7 +54,7 @@
 class DynamicRooFitter
 {
  public:
-  DynamicRooFitter(TH1* h, const FitConfig& cfg) : h1Data(h), config(cfg)
+  DynamicRooFitter(TH1* h, const AnalysisStructures::FitConfig& cfg) : h1Data(h), config(cfg)
   {
     // Suppress verbose RooFit INFO/DEBUG messages during batch fitting
     RooMsgService::instance().setGlobalKillBelow(RooFit::WARNING);
@@ -127,7 +127,7 @@ class DynamicRooFitter
     auto start = [&](std::string label, auto fits) {
       parameters->assign(*configured);
       std::unique_ptr<RooFitResult> result = fits();
-      FitDiagnostics d = DiagnosticsOf(*result, counts);
+      AnalysisStructures::FitDiagnostics d = DiagnosticsOf(*result, counts);
       d.minNll = nll->getVal();
       d.start = std::move(label);
       starts.push_back({std::move(result), std::move(d)});
@@ -150,7 +150,7 @@ class DynamicRooFitter
   }
 
   // What the last fit was: the winning start's facts, and the NLL the "config" start reached next to its.
-  FitDiagnostics Diagnostics() const
+  AnalysisStructures::FitDiagnostics Diagnostics() const
   {
     RequireFit();
     return diagnostics;
@@ -174,7 +174,7 @@ class DynamicRooFitter
     // Retrieve integration limits dynamically based on the configuration logic
     auto [minRange, maxRange] = CalculateIntegrationLimits();
 
-    std::string modeLog = std::holds_alternative<Range>(config.integration.signalWindow) ? "FIXED" : "N-SIGMA";
+    std::string modeLog = std::holds_alternative<AnalysisStructures::Range>(config.integration.signalWindow) ? "FIXED" : "N-SIGMA";
     Logger::Debug("Integrating in {} range: [{:g} , {:g}]", modeLog, minRange, maxRange);
 
     obs->setRange("signalRegion", minRange, maxRange);
@@ -255,7 +255,7 @@ class DynamicRooFitter
 
  private:
   TH1* h1Data;
-  FitConfig config;
+  AnalysisStructures::FitConfig config;
 
   // The class and the histogram of the fit, at the head of every message: which cell failed is what the reader needs.
   std::string Who() const { return std::format("DynamicRooFitter, '{}'", h1Data->GetName()); }
@@ -283,12 +283,12 @@ class DynamicRooFitter
 
   // The winning start's result, kept alive to use its covariance matrix later, and its facts
   std::unique_ptr<RooFitResult> fitResult;
-  FitDiagnostics diagnostics;
+  AnalysisStructures::FitDiagnostics diagnostics;
 
   // One start of DoFit: its result, and its facts with the NLL it reached.
   struct Start {
     std::unique_ptr<RooFitResult> result;
-    FitDiagnostics diagnostics;
+    AnalysisStructures::FitDiagnostics diagnostics;
   };
 
   // One fit of the model to 'data', from wherever the parameters are; it leaves them at its minimum.
@@ -366,9 +366,9 @@ class DynamicRooFitter
   // tried as the scale first, and cut through the first group (0.003 counts in a cell of 25000). Which end is recorded,
   // and which parameters their model calls a shape at the upper end: whether that is a problem is
   // FitQualityRecorder::Reasons' to say.
-  FitDiagnostics DiagnosticsOf(const RooFitResult& result, double counts) const
+  AnalysisStructures::FitDiagnostics DiagnosticsOf(const RooFitResult& result, double counts) const
   {
-    FitDiagnostics d;
+    AnalysisStructures::FitDiagnostics d;
     d.status = result.status();
     d.covQual = result.covQual();
     d.edm = result.edm();
@@ -516,7 +516,7 @@ class DynamicRooFitter
     }
 
     // Extract the [val, min, max, isConstant] struct from the map
-    const MathParam& p = config.model.params.at(name);
+    const AnalysisStructures::MathParam& p = config.model.params.at(name);
 
     // No setConstant() here, and none is needed: which RooRealVar
     // constructor is called IS the choice (DoFit holds the staged parameters for one
@@ -815,13 +815,13 @@ class DynamicRooFitter
   }
 
   // Helper method to centralize the logic for integration limits
-  Range CalculateIntegrationLimits() const
+  AnalysisStructures::Range CalculateIntegrationLimits() const
   {
     // The limits from the configured mode
-    if (const auto* fixed = std::get_if<Range>(&config.integration.signalWindow))
+    if (const auto* fixed = std::get_if<AnalysisStructures::Range>(&config.integration.signalWindow))
       return *fixed;
 
-    const auto& nSigma = std::get<NSigma>(config.integration.signalWindow);
+    const auto& nSigma = std::get<AnalysisStructures::NSigma>(config.integration.signalWindow);
     std::unique_ptr<RooArgSet> vars(model->getVariables());
     double m = FindVar(*vars, "mean_sig", {"mean_sig_0", "mean"})->getVal();
     double s = FindVar(*vars, "sigma_sig", {"sigma_sig_0", "sigma"})->getVal();

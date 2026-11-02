@@ -70,7 +70,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
       }
 
       for (const auto& config : assocParticles) {
-        LoadedAssocData data;
+        AnalysisStructures::LoadedAssocData data;
         data.name = config.name;
         data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(
           inputFile.get(), std::format("{}{}/h5Phi{}{}", basePathData, config.dirName, config.name, isPureGen ? "ClosureMCGen" : "DataSignal"), GetName());
@@ -84,7 +84,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     } else {
       Logger::Info("{}: Cache ENABLED. Skipping THnSparse loading.", GetName());
       for (const auto& config : assocParticles) {
-        LoadedAssocData data;
+        AnalysisStructures::LoadedAssocData data;
         data.name = config.name;
         loadedDataCollection.push_back(std::move(data));
       }

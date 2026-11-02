@@ -28,7 +28,7 @@ class ExtrapolationModelFactory
   // extended spectrum and an overlay canvas; under one name per model they would pile up there - the rule in CLAUDE.md
   // about ROOT's global lists, which cost a segfault once already through TCanvas. Named here, before anything clones
   // it, so the unique name propagates to every copy; the same name is the fit's name in the messages.
-  static std::unique_ptr<TF1> CreateModel(const ExtrapConfig& config, double histMaxVal, std::string_view suffix)
+  static std::unique_ptr<TF1> CreateModel(const AnalysisStructures::ExtrapConfig& config, double histMaxVal, std::string_view suffix)
   {
     std::unique_ptr<TF1> f1;
 
@@ -126,7 +126,7 @@ class ExtrapolationModelFactory
 
  private:
   // AUTOMATED PARAMETER INJECTION HELPER
-  static void ConfigureTF1(TF1* f1, const ExtrapConfig& config, double histMaxVal, const std::vector<std::string>& paramNames)
+  static void ConfigureTF1(TF1* f1, const AnalysisStructures::ExtrapConfig& config, double histMaxVal, const std::vector<std::string>& paramNames)
   {
     for (size_t i = 0; i < paramNames.size(); ++i) {
       const std::string& name = paramNames[i];
@@ -146,7 +146,7 @@ class ExtrapolationModelFactory
         throw std::runtime_error(std::format("[FATAL] ExtrapolationModelFactory, '{}': model '{}' needs the parameter '{}', "
                                              "which extrapConfig.json does not set in {}.",
                                              f1->GetName(), config.model, name, config.source));
-      const MathParam& param = found->second;
+      const AnalysisStructures::MathParam& param = found->second;
 
       // Auto-scale ONLY the normalization parameter based on the histogram's maximum value
       double scale = (name == "norm") ? histMaxVal : 1.0;

@@ -7,6 +7,18 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## `AnalysisDataStructures.h` renamed `AnalysisStructures.h`, with its namespace
+
+**2 November 2026.** It was the one shared header without a namespace: `NSigma`, `FitConfig`, `ModelConfig` and two
+dozen more generic names sat in the global namespace next to ROOT and RooFit, where a collision depends on the
+include order and its message points nowhere useful. Moving `Range` there from `BinningUtils` (where nothing used it)
+added the most generic name of all and settled it. The header is renamed after its namespace, as every helper header
+is (CLAUDE.md, Conventions), and shorter than `AnalysisDataStructures::` at each of the ~100 uses, the owner's choice.
+The compiler found every unqualified use; nothing outside the headers (the macro, `Macros/`, the JSON) names these
+types. `OldCodes/`, the RooFit notes and the entries above keep the old name: they record what was.
+
+---
+
 ## `use_2d_me_normalization` renamed `use_2d_engine`
 
 **30 October 2026.** The key chose the engine of `CorrelationCalculator` (the 2D one, which divides SE by ME bin by

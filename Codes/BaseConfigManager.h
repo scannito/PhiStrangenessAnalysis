@@ -1,6 +1,6 @@
 #pragma once
 
-#include "AnalysisDataStructures.h"
+#include "AnalysisStructures.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
 
@@ -31,7 +31,7 @@ class BaseConfigManager
   // The entries of the "params" object of 'node', merged by name into 'params': an entry
   // replaces the parameter of that name and the others stay, since a bin override carries
   // only what it changes. Absent "params" leaves them all.
-  static void MergeParams(const rapidjson::Value& node, std::map<std::string, MathParam>& params, std::string_view errCtx)
+  static void MergeParams(const rapidjson::Value& node, std::map<std::string, AnalysisStructures::MathParam>& params, std::string_view errCtx)
   {
     if (const rapidjson::Value* entries = JsonConfig::TryObject(node, "params", errCtx)) {
       for (auto& m : entries->GetObject()) {
@@ -45,7 +45,7 @@ class BaseConfigManager
   // [value, min, max] to let it float, a single value to fix it. Both forms accept numbers
   // written as strings, like every other number in these configurations. A whole parameter
   // every time: a fixed one has min and max at zero, not whatever an earlier pass left.
-  static MathParam ReadParam(const rapidjson::Value& value, std::string_view paramName, std::string_view errCtx)
+  static AnalysisStructures::MathParam ReadParam(const rapidjson::Value& value, std::string_view paramName, std::string_view errCtx)
   {
     if (value.IsArray()) {
       const std::vector<double> values = JsonConfig::ReadNumberArray(value.GetArray(), paramName, errCtx);
