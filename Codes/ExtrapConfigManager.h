@@ -26,31 +26,25 @@ class ExtrapConfigManager : public BaseConfigManager
   // it would never be applied; GetConfig refuses a class that was not declared, as in FitConfigManager.
   void DeclareCells(const std::string& particle, std::span<const double> multBinning)
   {
-    std::set<std::string>& classes = declaredCells[particle];
+    std::set<std::string> classes;
     for (int multBin : BinningUtils::BinIndices(multBinning))
       classes.insert(OutputNames::MultTag(multBinning, multBin));
-    if (const rapidjson::Value* bins = JsonConfig::TryObject(Section(particle), "bins", SectionCtx(particle)))
-      JsonConfig::RequireKnownKeys(*bins, classes, std::format("{}.bins (the keys are the multiplicity classes)", SectionCtx(particle)));
+    const rapidjson::Value* bins = JsonConfig::TryObject(Section(particle), "bins", SectionCtx(particle));
     // Every class read once now, at Init, for the reason given at FitConfigManager::DeclareCells.
-    for (const std::string& multTag : classes)
+    for (const std::string& multTag : DeclareTags(particle, classes, bins, std::format("{}.bins (the keys are the multiplicity classes)", SectionCtx(particle))))
       (void)GetConfig(particle, multTag);
   }
 
   // The configuration of one class, 'multTag' as OutputNames::MultTag gives it.
   AnalysisStructures::ExtrapConfig GetConfig(const std::string& particle, const std::string& multTag) const
   {
-    const auto declared = declaredCells.find(particle);
-    if (declared == declaredCells.end() || !declared->second.contains(multTag))
-      throw std::runtime_error(std::format("[FATAL] {}: GetConfig('{}', '{}') for a class that was not declared with DeclareCells, "
-                                           "so the overrides were not checked against it.",
-                                           managerName, particle, multTag));
+    RequireDeclared(particle, multTag, "class");
 
     AnalysisStructures::ExtrapConfig config;
     const rapidjson::Value& partNode = Section(particle);
     // Closed sets of keys, as in FitConfigManager: a misspelled key is refused, not skipped.
     // Every error inside the section names it, the high fit included.
     const std::string sectionCtx = SectionCtx(particle);
-    JsonConfig::RequireKnownKeys(partNode, {"default", "bins"}, sectionCtx);
 
     // The keys of one fit, read into 'fit' over what it already holds. Every key here is
     // optional because the main fit is read twice: once from "default" and once from the
@@ -93,15 +87,8 @@ class ExtrapConfigManager : public BaseConfigManager
       }
     };
 
-    // The default first, then the override of this bin over it; either may be absent.
-    if (const rapidjson::Value* defaults = JsonConfig::TryObject(partNode, "default", sectionCtx))
-      loadNodeIntoConfig(*defaults, "default");
-
-    const rapidjson::Value* bins = JsonConfig::TryObject(partNode, "bins", sectionCtx);
-    if (const rapidjson::Value* classNode = bins ? JsonConfig::TryObject(*bins, multTag.c_str(), std::format("{}.bins", sectionCtx)) : nullptr) {
-      Logger::Debug("{}: Found custom parameters for bin: {}", managerName, multTag);
-      loadNodeIntoConfig(*classNode, std::format("bins['{}']", multTag));
-    }
+    // The default first, then the override of this class over it.
+    LoadLayered(partNode, sectionCtx, multTag, loadNodeIntoConfig);
 
     return config;
   }
@@ -119,7 +106,4 @@ class ExtrapConfigManager : public BaseConfigManager
                                            managerName, particle));
     return *node;
   }
-
-  // section -> the MultTags its task extrapolates ("mult10-15"); filled by DeclareCells
-  std::map<std::string, std::set<std::string>> declaredCells;
 };

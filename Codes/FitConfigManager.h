@@ -27,16 +27,14 @@ class FitConfigManager : public BaseConfigManager
   void DeclareCells(const std::string& section, std::span<const double> multBinning,
                     std::initializer_list<std::span<const double>> ptBinnings)
   {
-    std::set<std::string>& cells = declaredCells[section];
+    std::set<std::string> cells;
     for (std::span<const double> ptBinning : ptBinnings)
       for (int multBin : BinningUtils::BinIndices(multBinning))
         for (int ptBin : BinningUtils::BinIndices(ptBinning))
           cells.insert(OutputNames::CellTag(multBinning, multBin, ptBinning, ptBin));
-    if (const rapidjson::Value* bins = Bins(section))
-      JsonConfig::RequireKnownKeys(*bins, cells, std::format("{}.fit_setup.bins (the keys are the cells this task fits)", SectionCtx(section)));
     // Every cell read once now, at Init: a mistake in a node then stops the run before the task has cleared its
     // output, and not in Run, after the previous production was already gone.
-    for (const std::string& cell : cells)
+    for (const std::string& cell : DeclareTags(section, cells, Bins(section), std::format("{}.fit_setup.bins (the keys are the cells this task fits)", SectionCtx(section))))
       (void)GetConfig(section, cell);
   }
 
@@ -44,11 +42,7 @@ class FitConfigManager : public BaseConfigManager
   // override of that cell if there is one.
   AnalysisStructures::FitConfig GetConfig(const std::string& section, const std::string& cell) const
   {
-    const auto declared = declaredCells.find(section);
-    if (declared == declaredCells.end() || !declared->second.contains(cell))
-      throw std::runtime_error(std::format("[FATAL] {}: GetConfig('{}', '{}') for a cell that was not declared with DeclareCells, "
-                                           "so the overrides were not checked against it.",
-                                           managerName, section, cell));
+    RequireDeclared(section, cell, "cell");
 
     AnalysisStructures::FitConfig config;
     const rapidjson::Value& sectionNode = Section(section);
@@ -81,7 +75,6 @@ class FitConfigManager : public BaseConfigManager
     if (const rapidjson::Value* fitSetup = JsonConfig::TryObject(sectionNode, "fit_setup", sectionCtx)) {
       const auto& fitNode = *fitSetup;
       const std::string fitCtx = std::format("{}.fit_setup", sectionCtx);
-      JsonConfig::RequireKnownKeys(fitNode, {"default", "bins"}, fitCtx);
 
       // Local Lambda function to populate the nested ModelConfig struct
       // Every key is optional because this runs twice, on "default" and then on the
@@ -118,16 +111,11 @@ class FitConfigManager : public BaseConfigManager
         MergeParams(node, config.model.params, ctx);
       };
 
-      // The default first, then the override of this cell over it; either may be absent, the cell's always may.
-      if (const rapidjson::Value* defaults = JsonConfig::TryObject(fitNode, "default", fitCtx))
-        loadNodeIntoModel(*defaults, std::format("{}.default", fitCtx));
-
-      const rapidjson::Value* bins = Bins(section);
-      if (const rapidjson::Value* cellNode = bins ? JsonConfig::TryObject(*bins, cell.c_str(), std::format("{}.bins", fitCtx)) : nullptr) {
-        Logger::Debug("{}: Found custom parameters for bin: {}", managerName, cell);
-        loadNodeIntoModel(*cellNode, std::format("{}.bins['{}']", fitCtx, cell));
+      // The default first, then the override of this cell over it.
+      if (LoadLayered(fitNode, fitCtx, cell, [&](const rapidjson::Value& node, const std::string& where) {
+            loadNodeIntoModel(node, std::format("{}.{}", fitCtx, where));
+          }))
         config.binOverride = cell;
-      }
 
       // A sideband needs its range, after the default and the cell are merged: absent it stays {0, 0}, an empty range
       // that the histogram count refuses and the fit integrates to nothing, an R of 0 or infinity.
@@ -160,7 +148,4 @@ class FitConfigManager : public BaseConfigManager
     const rapidjson::Value* fitSetup = JsonConfig::TryObject(Section(section), "fit_setup", SectionCtx(section));
     return fitSetup ? JsonConfig::TryObject(*fitSetup, "bins", std::format("{}.fit_setup", SectionCtx(section))) : nullptr;
   }
-
-  // section -> the CellTags its task fits ("mult0-1_pt0.7-0.8"), every declared binning together; filled by DeclareCells
-  std::map<std::string, std::set<std::string>> declaredCells;
 };
