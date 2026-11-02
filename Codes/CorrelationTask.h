@@ -65,43 +65,14 @@ class CorrelationTask : public CorrelationTaskBase
     // 3. Associated particles + data loading
     InitAssocParticles(taskConfig);
 
+    // The data file is needed only for the containers, which the projection cache replaces.
+    std::unique_ptr<TFile> inputFile;
     if (!useProjectionCache) {
-      Logger::Info("{}: Cache DISABLED. Loading heavy THnSparse data...", GetName());
-
-      std::string inputPath = JsonConfig::RequireString(taskConfig, "input_data_file", GetName());
-      std::unique_ptr<TFile> inputFile = RootIO::OpenOrThrow(inputPath, "READ", GetName());
-
+      inputFile = RootIO::OpenOrThrow(JsonConfig::RequireString(taskConfig, "input_data_file", GetName()), "READ", GetName());
       basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
-
-      std::unique_ptr<TFile> inputMEFile{nullptr};
-      if (applyME) {
-        std::string inputMEPath = JsonConfig::RequireString(taskConfig, "input_me_file", GetName());
-        inputMEFile = RootIO::OpenOrThrow(inputMEPath, "READ", GetName());
-
-        basePathDataME = JsonConfig::RequireString(taskConfig, "base_path_me", GetName());
-      }
-
-      for (const auto& config : assocParticles) {
-        AnalysisStructures::LoadedAssocData data;
-        data.name = config.name;
-        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(inputFile.get(), AssocContainerPath(basePathData, config, "DataSignal"), GetName());
-        data.h5DataSideband = RootIO::GetUniqueOrThrow<THnSparseF>(inputFile.get(), AssocContainerPath(basePathData, config, "DataSideband"), GetName());
-
-        if (applyME) {
-          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(inputMEFile.get(), AssocContainerPath(basePathDataME, config, "DataMESignal"), GetName());
-          data.h5DataMESideband = RootIO::GetUniqueOrThrow<THnSparseF>(inputMEFile.get(), AssocContainerPath(basePathDataME, config, "DataMESideband"), GetName());
-        }
-
-        loadedDataCollection.push_back(std::move(data));
-      }
-    } else {
-      Logger::Info("{}: Cache ENABLED. Skipping THnSparse loading.", GetName());
-      for (const auto& config : assocParticles) {
-        AnalysisStructures::LoadedAssocData data;
-        data.name = config.name;
-        loadedDataCollection.push_back(std::move(data));
-      }
     }
+    LoadAssocData(taskConfig, inputFile.get(),
+                  {.signal = "DataSignal", .sideband = "DataSideband", .meSignal = "DataMESignal", .meSideband = "DataMESideband"});
 
     // 4. Output files (opened before the corrections: the cache carries the
     //    binning that everything below is loaded against)

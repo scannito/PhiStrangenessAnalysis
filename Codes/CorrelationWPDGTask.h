@@ -56,37 +56,10 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
     InitAssocParticles(taskConfig);
 
-    if (!useProjectionCache) {
-      Logger::Info("{}: Cache DISABLED. Loading heavy THnSparse data...", GetName());
-
-      std::unique_ptr<TFile> inputMEFile{nullptr};
-      if (applyME) {
-        std::string inputMEPath = JsonConfig::RequireString(taskConfig, "input_me_file", GetName());
-        inputMEFile = RootIO::OpenOrThrow(inputMEPath, "READ", GetName());
-
-        basePathDataME = JsonConfig::RequireString(taskConfig, "base_path_me", GetName());
-      }
-
-      for (const auto& config : assocParticles) {
-        AnalysisStructures::LoadedAssocData data;
-        data.name = config.name;
-        data.h5DataSignal = RootIO::GetUniqueOrThrow<THnSparseF>(
-          inputFile.get(), AssocContainerPath(basePathData, config, isPureGen ? "ClosureMCGen" : "DataSignal"), GetName());
-
-        if (applyME) {
-          data.h5DataMESignal = RootIO::GetUniqueOrThrow<THnSparseF>(
-            inputMEFile.get(), AssocContainerPath(basePathDataME, config, isPureGen ? "ClosureMCGenME" : "DataMESignal"), GetName());
-        }
-        loadedDataCollection.push_back(std::move(data));
-      }
-    } else {
-      Logger::Info("{}: Cache ENABLED. Skipping THnSparse loading.", GetName());
-      for (const auto& config : assocParticles) {
-        AnalysisStructures::LoadedAssocData data;
-        data.name = config.name;
-        loadedDataCollection.push_back(std::move(data));
-      }
-    }
+    // The signal only: this task has no sideband to subtract.
+    LoadAssocData(taskConfig, inputFile.get(),
+                  isPureGen ? AssocContainerKinds{.signal = "ClosureMCGen", .meSignal = "ClosureMCGenME"}
+                            : AssocContainerKinds{.signal = "DataSignal", .meSignal = "DataMESignal"});
 
     // 4. Output files (opened before the corrections: the cache carries the
     //    binning that everything below is loaded against)

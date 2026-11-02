@@ -1554,6 +1554,56 @@ class CorrelationTaskBase : public IAnalysisTask
     return std::format("{}{}/h5Phi{}{}", basePath, config.dirName, config.name, kind);
   }
 
+  // The containers a task reads per associated particle, each by its 'kind' in AssocContainerPath; one left empty is
+  // not read, and its pointer in LoadedAssocData stays null.
+  struct AssocContainerKinds {
+    std::string_view signal;
+    std::string_view sideband;
+    std::string_view meSignal;
+    std::string_view meSideband;
+  };
+
+  // loadedDataCollection, one entry per associated particle in their order: the containers 'kinds' names, from
+  // inputFile (under basePathData, set by the caller) and from the mixed-event file when applyME; or, when the
+  // projections come from the cache, the name alone, since nothing else is read then. Both tasks load this way.
+  void LoadAssocData(const rapidjson::Value& taskConfig, TFile* inputFile, const AssocContainerKinds& kinds)
+  {
+    if (useProjectionCache) {
+      Logger::Info("{}: Cache ENABLED. Skipping THnSparse loading.", GetName());
+      for (const auto& config : assocParticles) {
+        AnalysisStructures::LoadedAssocData data;
+        data.name = config.name;
+        loadedDataCollection.push_back(std::move(data));
+      }
+      return;
+    }
+
+    Logger::Info("{}: Cache DISABLED. Loading heavy THnSparse data...", GetName());
+    std::unique_ptr<TFile> inputMEFile;
+    if (applyME) {
+      inputMEFile = RootIO::OpenOrThrow(JsonConfig::RequireString(taskConfig, "input_me_file", GetName()), "READ", GetName());
+      basePathDataME = JsonConfig::RequireString(taskConfig, "base_path_me", GetName());
+    }
+
+    auto read = [&](TFile* file, const std::string& basePath, const AnalysisStructures::AssocParticleConfig& config,
+                    std::string_view kind) -> std::unique_ptr<THnSparseF> {
+      if (kind.empty())
+        return nullptr;
+      return RootIO::GetUniqueOrThrow<THnSparseF>(file, AssocContainerPath(basePath, config, kind), GetName());
+    };
+    for (const auto& config : assocParticles) {
+      AnalysisStructures::LoadedAssocData data;
+      data.name = config.name;
+      data.h5DataSignal = read(inputFile, basePathData, config, kinds.signal);
+      data.h5DataSideband = read(inputFile, basePathData, config, kinds.sideband);
+      if (applyME) {
+        data.h5DataMESignal = read(inputMEFile.get(), basePathDataME, config, kinds.meSignal);
+        data.h5DataMESideband = read(inputMEFile.get(), basePathDataME, config, kinds.meSideband);
+      }
+      loadedDataCollection.push_back(std::move(data));
+    }
+  }
+
   static double GetYieldScaleFactor(const std::string& name)
   {
     return (name == "K0S") ? 2.0 : 1.0;
