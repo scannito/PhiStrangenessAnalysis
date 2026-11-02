@@ -1563,16 +1563,21 @@ class CorrelationTaskBase : public IAnalysisTask
     std::string_view meSideband;
   };
 
-  // loadedDataCollection, one entry per associated particle in their order. The containers come from inputFile, under
-  // basePath, and from the mixed-event file when applyME; with use_projection_cache nothing is read, the entry holds
-  // the name alone, and inputFile may be null.
-  void LoadAssocData(const rapidjson::Value& taskConfig, TFile* inputFile, std::string_view basePath, const AssocContainerKinds& kinds)
+  // loadedDataCollection, one entry per associated particle in their order. The containers come from the data file
+  // and, when applyME, from the mixed-event file, each opened here with its base path; with use_projection_cache
+  // nothing is opened or read, and the entry holds the name alone. (The WPDG task opens the data file once more, for
+  // its trigger: read-only, and cheaper than two ways of handing a file over.)
+  void LoadAssocData(const rapidjson::Value& taskConfig, const AssocContainerKinds& kinds)
   {
     const bool readContainers = !useProjectionCache;
     Logger::Info("{}: {}", GetName(), readContainers ? "Cache DISABLED. Loading heavy THnSparse data..." : "Cache ENABLED. Skipping THnSparse loading.");
 
-    std::unique_ptr<TFile> inputMEFile;
-    std::string basePathME;
+    std::unique_ptr<TFile> inputFile, inputMEFile;
+    std::string basePath, basePathME;
+    if (readContainers) {
+      inputFile = RootIO::OpenOrThrow(JsonConfig::RequireString(taskConfig, "input_data_file", GetName()), "READ", GetName());
+      basePath = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
+    }
     if (readContainers && applyME) {
       inputMEFile = RootIO::OpenOrThrow(JsonConfig::RequireString(taskConfig, "input_me_file", GetName()), "READ", GetName());
       basePathME = JsonConfig::RequireString(taskConfig, "base_path_me", GetName());
@@ -1585,9 +1590,9 @@ class CorrelationTaskBase : public IAnalysisTask
       AnalysisStructures::LoadedAssocData data;
       data.name = config.name;
       if (readContainers) {
-        data.h5DataSignal = read(inputFile, basePath, config, kinds.signal);
+        data.h5DataSignal = read(inputFile.get(), basePath, config, kinds.signal);
         if (!kinds.sideband.empty())
-          data.h5DataSideband = read(inputFile, basePath, config, kinds.sideband);
+          data.h5DataSideband = read(inputFile.get(), basePath, config, kinds.sideband);
         if (applyME) {
           data.h5DataMESignal = read(inputMEFile.get(), basePathME, config, kinds.meSignal);
           if (!kinds.meSideband.empty())

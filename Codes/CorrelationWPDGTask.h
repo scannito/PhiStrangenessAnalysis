@@ -57,7 +57,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     InitAssocParticles(taskConfig);
 
     // The signal only: this task has no sideband to subtract.
-    LoadAssocData(taskConfig, inputFile.get(), basePathData,
+    LoadAssocData(taskConfig,
                   isPureGen ? AssocContainerKinds{.signal = "ClosureMCGen", .meSignal = "ClosureMCGenME"}
                             : AssocContainerKinds{.signal = "DataSignal", .meSignal = "DataMESignal"});
 
