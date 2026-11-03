@@ -359,7 +359,7 @@ class ComparisonTask : public IAnalysisTask
     // trends alike - so it is an axis of nothing, and two productions summing over
     // different trigger ranges would compare cleanly and mean different things.
     // Checked here rather than per target because it applies to both.
-    RequireSameOptionalStamp(numScheme, denScheme, RootIO::kStampPtPhi, std::format("{}, numerator '{}'", ctx, comp.numeratorFile),
+    RootIO::RequireSameOptionalStamp(numScheme, denScheme, RootIO::kStampPtPhi, std::format("{}, numerator '{}'", ctx, comp.numeratorFile),
                              std::format("{}, denominator '{}'", ctx, comp.denominatorFile));
 
     pair.numDir = RootIO::FindPath(pair.num.get(), {inputScheme, inputDirName});
@@ -559,22 +559,9 @@ class ComparisonTask : public IAnalysisTask
     TDirectory* denParticle = RootIO::FindPath(pair.denDir, {particle});
     if (!denParticle)
       return;
-    RequireSameOptionalStamp(RootIO::FindPath(pair.numDir, {particle}), denParticle, RootIO::kStampPtAssoc,
+    RootIO::RequireSameOptionalStamp(RootIO::FindPath(pair.numDir, {particle}), denParticle, RootIO::kStampPtAssoc,
                              std::format("{} '{}', {}, numerator '{}'", GetName(), comp.label, particle, comp.numeratorFile),
                              std::format("{} '{}', {}, denominator '{}'", GetName(), comp.label, particle, comp.denominatorFile));
-  }
-
-  // A stamp the numerator may lack (it was produced before that stamp existed): required of the denominator when
-  // present, and said when not, so that a comparison never passes over a binning it could not check in silence.
-  static void RequireSameOptionalStamp(TDirectory* num, TDirectory* den, const std::string& stamp, const std::string& numCtx,
-                                       const std::string& denCtx)
-  {
-    const std::vector<double> stamped = RootIO::ReadBinningStamp(num, stamp, numCtx);
-    if (stamped.empty()) {
-      Logger::Warn("{}: no '{}' stamp, so the two binnings cannot be compared on it.", numCtx, stamp);
-      return;
-    }
-    RootIO::RequireMatchingBinningStamp(den, stamp, stamped, denCtx);
   }
 
   // ---------------------------------------------------------------------------
