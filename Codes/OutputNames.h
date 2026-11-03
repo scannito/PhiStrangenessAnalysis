@@ -119,11 +119,17 @@ inline std::string CellTitle(std::string_view particle, std::span<const double> 
 // MCTask -> CorrelationTask: the maps of one class (MultTag) or integrated (kMultIntegrated).
 inline std::string Efficiency(std::string_view particle, std::string_view multTag) { return std::format("h1{}Efficiency_{}", particle, multTag); }
 inline std::string SignalLoss(std::string_view particle, std::string_view multTag) { return std::format("h1{}SigLoss_{}", particle, multTag); }
+// The signal loss divided by the event loss of the same class: drawn as a summary, read by nothing else in the chain.
+inline std::string SignalLossOverEventLoss(std::string_view particle, std::string_view multTag)
+{
+  return std::format("h1{}SigLossOverEvLoss_{}", particle, multTag);
+}
 inline const std::string kEventLoss{"hEventLoss"};
 // Where they are in the corrections file.
 inline std::vector<std::string> EfficiencyPath(const std::string& binningName) { return {binningName, "AccEff", "MultBin"}; }
 inline std::vector<std::string> SignalLossPath(const std::string& binningName) { return {binningName, "SigLoss", "MultBin"}; }
 inline std::vector<std::string> EventLossPath(const std::string& binningName) { return {binningName, "EvLoss"}; }
+inline std::vector<std::string> SignalLossOverEventLossPath(const std::string& binningName) { return {binningName, "SigLoss", "OverEvLoss"}; }
 // PhiFitTask -> CorrelationTask: the trigger matrices that CorrelationTask reads, of the four PhiFitTask writes.
 inline const std::string kTriggerSignal{"h2TriggerSignal"};
 inline const std::string kTriggerBkgRatio{"h2TriggerBkgRatio"};

@@ -261,6 +261,8 @@ class MCTask : public IAnalysisTask
     const std::vector<std::string> lossPath = OutputNames::SignalLossPath(globalCfgs.binningName);
     const std::vector<std::string> effSourcePath = OutputNames::SourceBinningPath(effPath);
     const std::vector<std::string> lossSourcePath = OutputNames::SourceBinningPath(lossPath);
+    const std::vector<std::string> overEvLossPath = OutputNames::SignalLossOverEventLossPath(globalCfgs.binningName);
+    const std::vector<std::string> overEvLossSourcePath = OutputNames::SourceBinningPath(overEvLossPath);
 
     for (auto& data : dataCollection) {
       Logger::Info(" ---> Processing particle: {}", data.name);
@@ -304,14 +306,15 @@ class MCTask : public IAnalysisTask
       // counts. They go on their own pair of canvases: each canvas overlays the
       // multiplicity bins against each other, so mixing two binnings on one pad
       // would make exactly the comparison it is drawn for unreadable.
-      auto drawMaps = [&](const EfficiencyCalculator::Maps1D& maps, const char* drawOption) {
+      // The style goes on the drawn copy, never on the map that is written: data carry no presentation.
+      auto drawMaps = [&](const EfficiencyCalculator::Maps1D& maps, const char* drawOption, int color) {
         using OutputNames::SpectrumBinning;
         // A source-binning map exists only with 'rebinning_pt', and so does its canvas.
         auto drawOn = [&](SummaryMap map, SpectrumBinning binning, const TH1* h) {
           if (h)
             if (auto* c = canvasManager.GetCanvas(SummaryCanvas(data.name, map, binning))) {
               c->cd();
-              h->DrawCopy(drawOption);
+              CanvasManager::SetHistogramStyle(h->DrawCopy(drawOption), color);
             }
         };
         drawOn(SummaryMap::Efficiency, SpectrumBinning::Analysis, maps.efficiency.get());
@@ -320,17 +323,19 @@ class MCTask : public IAnalysisTask
         drawOn(SummaryMap::SignalLoss, SpectrumBinning::Source, maps.signalLossSourceBinning.get());
       };
 
-      // Signal loss over event loss, in the multiplicity bin the map belongs to
-      // (-1: the multiplicity-integrated one). The event loss is a constant in pT,
-      // so it is put in a histogram on the binning of the signal loss and divided
-      // with the default option: errors are propagated as if the two were
-      // independent. Not "B": that one assumes the numerator is a subset of the
-      // denominator, which is not the case for a ratio of two efficiencies. The
-      // division is done on a clone, so the maps written to file are untouched.
-      // The independence is still an approximation: both come from the same sample.
-      auto drawOverEventLoss = [&](const EfficiencyCalculator::Maps1D& maps, const char* drawOption, int multBin) {
+      // Signal loss over event loss, in the multiplicity class the map belongs to ('multTag'; multBin -1: the
+      // multiplicity-integrated one), at both binnings; written next to the maps, so that it is data and not only a
+      // canvas. The event loss is a constant in pT, so it is put in a histogram on the binning of the signal loss and
+      // divided with the default option: errors are propagated as if the two were independent. Not "B": that one
+      // assumes the numerator is a subset of the denominator, which is not the case for a ratio of two efficiencies.
+      // The division is done on a clone, so the maps written to file are untouched. The independence is still an
+      // approximation: both come from the same sample.
+      struct OverEventLoss {
+        std::unique_ptr<TH1> analysis, source;
+      };
+      auto overEventLoss = [&](const EfficiencyCalculator::Maps1D& maps, int multBin, const std::string& multTag) -> OverEventLoss {
         if (!hEventLoss || !maps.signalLoss)
-          return;
+          return {};
 
         std::pair<double, double> eventLossAndError;
         if (multBin >= 0) {
@@ -352,24 +357,22 @@ class MCTask : public IAnalysisTask
           auto reco = collapse(hEventMultGenAssocReco.get());
           auto integrated = EfficiencyCalculator::ComputeEventLoss(reco.get(), gen.get());
           if (!integrated)
-            return;
+            return {};
           eventLossAndError = HistogramUtils::BinValueAndError(integrated.get(), 0);
         }
         const auto [eventLoss, eventLossError] = eventLossAndError;
         if (eventLoss <= 0.) {
           Logger::Warn("{}: event loss is zero for {}, signal loss over event loss skipped.", GetName(), data.name);
-          return;
+          return {};
         }
 
         // The event loss does not depend on pT, so the same value divides the
         // signal loss at both binnings.
-        auto divideAndDraw = [&](const TH1* signalLoss, TCanvas* canvas) {
-          if (!signalLoss || !canvas)
-            return;
+        auto divide = [&](const TH1* signalLoss, const std::string& name) -> std::unique_ptr<TH1> {
+          if (!signalLoss)
+            return nullptr;
 
-          const std::string baseName = signalLoss->GetName();
-
-          std::unique_ptr<TH1> hEventLossConst{static_cast<TH1*>(signalLoss->Clone(std::format("{}_evLossConst", baseName).c_str()))};
+          std::unique_ptr<TH1> hEventLossConst{static_cast<TH1*>(signalLoss->Clone(std::format("{}_evLossConst", name).c_str()))};
           hEventLossConst->SetDirectory(0);
           hEventLossConst->Reset();
           for (int bin = 1; bin <= hEventLossConst->GetNbinsX(); bin++) {
@@ -377,17 +380,35 @@ class MCTask : public IAnalysisTask
             hEventLossConst->SetBinError(bin, eventLossError);
           }
 
-          std::unique_ptr<TH1> ratio{static_cast<TH1*>(signalLoss->Clone(std::format("{}_overEvLoss", baseName).c_str()))};
+          std::unique_ptr<TH1> ratio{static_cast<TH1*>(signalLoss->Clone(name.c_str()))};
           ratio->GetYaxis()->SetTitle("Signal Loss / Event Loss");
           ratio->SetDirectory(0);
           ratio->Divide(hEventLossConst.get());
-
-          canvas->cd();
-          ratio->DrawCopy(drawOption);
+          return ratio;
         };
 
-        divideAndDraw(maps.signalLoss.get(), canvasManager.GetCanvas(SummaryCanvas(data.name, SummaryMap::SignalLossOverEventLoss)));
-        divideAndDraw(maps.signalLossSourceBinning.get(), canvasManager.GetCanvas(SummaryCanvas(data.name, SummaryMap::SignalLossOverEventLoss, OutputNames::SpectrumBinning::Source)));
+        using OutputNames::SpectrumBinning;
+        return {divide(maps.signalLoss.get(), OutputNames::SignalLossOverEventLoss(data.name, multTag)),
+                divide(maps.signalLossSourceBinning.get(),
+                       OutputNames::SignalLossOverEventLoss(data.name, std::format("{}{}", multTag, OutputNames::BinningSuffix(SpectrumBinning::Source))))};
+      };
+
+      // Drawn on the summary canvases, and written next to the maps.
+      auto drawAndWriteOverEventLoss = [&](const EfficiencyCalculator::Maps1D& maps, const char* drawOption, int multBin,
+                                           const std::string& multTag, int color) {
+        using OutputNames::SpectrumBinning;
+        const OverEventLoss ratios = overEventLoss(maps, multBin, multTag);
+        auto drawOn = [&](SpectrumBinning binning, const TH1* h) {
+          if (h)
+            if (auto* c = canvasManager.GetCanvas(SummaryCanvas(data.name, SummaryMap::SignalLossOverEventLoss, binning))) {
+              c->cd();
+              CanvasManager::SetHistogramStyle(h->DrawCopy(drawOption), color);
+            }
+        };
+        drawOn(SpectrumBinning::Analysis, ratios.analysis.get());
+        drawOn(SpectrumBinning::Source, ratios.source.get());
+        writeInto(overEvLossPath, ratios.analysis.get());
+        writeInto(overEvLossSourcePath, ratios.source.get());
       };
 
       // The source-binning maps get a subdirectory of their own rather than
@@ -406,17 +427,18 @@ class MCTask : public IAnalysisTask
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
         // 'rebinning_pt' is applied inside the calculator, on the counts, before
         // they are divided: rebinning the ratio afterwards would sum efficiencies.
-        EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, multBinning, multBin, globalCfgs.GetSpectraColor(multBin));
+        EfficiencyCalculator::Maps1D maps = EfficiencyCalculator::Compute1DMaps(data, multBinning, multBin);
 
-        drawMaps(maps, multBin == 0 ? "" : "SAME");
-        drawOverEventLoss(maps, multBin == 0 ? "" : "SAME", multBin);
+        const int color = globalCfgs.GetSpectraColor(multBin);
+        drawMaps(maps, multBin == 0 ? "" : "SAME", color);
+        drawAndWriteOverEventLoss(maps, multBin == 0 ? "" : "SAME", multBin, OutputNames::MultTag(multBinning, multBin), color);
         writeMaps(maps);
       }
 
       EfficiencyCalculator::Maps1D mapsInt = EfficiencyCalculator::Compute1DMapsMultIntegrated(data);
 
-      drawMaps(mapsInt, "SAME");
-      drawOverEventLoss(mapsInt, "SAME", -1);
+      drawMaps(mapsInt, "SAME", kBlack);
+      drawAndWriteOverEventLoss(mapsInt, "SAME", -1, OutputNames::kMultIntegrated, kBlack);
       writeMaps(mapsInt);
     }
   }
