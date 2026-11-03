@@ -1,25 +1,24 @@
 #pragma once
 
 #include "BinningUtils.h"
+#include "CanvasManager.h"
 #include "HistogramUtils.h"
 #include "Logger.h"
 #include "OutputNames.h"
 #include "RootIOHelpers.h"
 
-#include "RunEnvironment.h"
-
 #include "TCanvas.h"
 #include "TFile.h"
 #include "TH1.h"
 
+#include <algorithm>
 #include <cmath>
 #include <filesystem>
 #include <format>
 #include <map>
 #include <memory>
 #include <optional>
-#include <set>
-#include <algorithm>
+#include <ranges>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -27,14 +26,15 @@
 
 // The series a plot is made of, found by what they are and never by a name built by hand: the deterministic half of
 // the plots (DESIGN_NOTES section 1, "Plots: deterministic components, composed"). What a series is, where it is read,
-// what may be compared with what and how two series are combined are decided here; a composition only chooses series
-// and how they look.
+// what may be compared with what, how two series are combined and how they are put on a pad are decided here; a
+// composition only chooses series and how they look.
 //
 // A name is built forward, with the OutputNames builders and the multiplicity interval found in the file's own
 // binning_mult stamp; a missing object stops the run with what was asked and what the file holds (NotInFiles), never a
 // series skipped in silence. Two series are compared by the stamps of the directories they were read from
-// (RootIO::CompareBinningStamps, the rule ComparisonTask uses) and by their X axes: dividing or summing needs them
-// equal; drawing them together does not, and a disagreement is warned and listed.
+// (RootIO::CompareBinningStamps, the rule ComparisonTask uses) and by their X axes: dividing or summing needs them equal
+// (RequireCombinable); drawing them together does not, and Draw says what differs. The data are kept as read, a
+// non-finite bin included, so that it propagates through a sum or a ratio; only the copy that is drawn leaves it empty.
 namespace PlotSeries
 {
 
@@ -50,30 +50,55 @@ struct Interval {
   double high{0.0};
 };
 
-struct Series {
-  std::shared_ptr<TH1> hist;   // detached; non-finite bins already set empty (NonFiniteBins counts them)
-  std::shared_ptr<TFile> file; // kept open: the stamps are read from it when the series is compared
+// What a series is, in words, for the legend (AutoLabels). The file is the origins'.
+struct Facts {
+  std::optional<std::string> kind, species, dy, mult, binning;
+};
+
+// Where a series was read: what its provenance records and what its stamps are compared on.
+struct Origin {
+  std::shared_ptr<TFile> file; // kept open: the stamps and the provenance are read from it
   std::string fileName;
-  std::string path;            // of the object in the file, "" for a series computed here
-  std::string label;           // the legend's text: the composition's, or AutoLabels'
-  TDirectory* schemeDir{nullptr};  // whose mult and ptPhi stamps describe the series
+  std::string path;                     // of the object in the file
+  TDirectory* schemeDir{nullptr};       // whose mult and ptPhi stamps describe it; null for a foreign file
   std::vector<TDirectory*> speciesDirs; // whose ptAssoc stamps do (one for a species, two for a species ratio)
+};
+
+struct Series {
+  std::shared_ptr<TH1> hist;   // detached, as read: a non-finite bin stays non-finite
+  std::vector<Origin> origins; // one when read, both operands' after Ratio or Sum
+  std::string label;           // the legend's text when the composition gives one; AutoLabels' otherwise
   int nonFiniteBins{0};
-  std::vector<std::string> notes; // what Describe reports besides the origin: operations, warnings
-  // What the series is, by meaning (file, kind, species, dy, mult, binning, ...): what AutoLabels puts in the legend.
-  std::map<std::string, std::string> facts;
+  std::vector<std::string> notes; // what Describe reports besides the origins: the operations
+  Facts facts;
+};
+
+// Which yield of a species against multiplicity.
+enum class TrendKind { Measured,
+                       Extrapolated,
+                       ExtrapOverMeas };
+
+// Where in a PhiAssocSpectra file: the binning scheme and the section (Extract1D, Extract2D); empty means the only one.
+struct Where {
+  std::string scheme;
+  std::string section;
 };
 
 namespace Detail
 {
+inline std::map<std::string, std::weak_ptr<TFile>>& OpenFiles()
+{
+  static std::map<std::string, std::weak_ptr<TFile>> open;
+  return open;
+}
+
 // One open file per name, shared by every series read from it.
 inline std::shared_ptr<TFile> Open(const std::string& fileName)
 {
-  static std::map<std::string, std::weak_ptr<TFile>> open;
-  if (auto file = open[fileName].lock())
+  if (auto file = OpenFiles()[fileName].lock())
     return file;
   std::shared_ptr<TFile> file(RootIO::OpenOrThrow(fileName, "READ", "PlotSeries").release());
-  open[fileName] = file;
+  OpenFiles()[fileName] = file;
   return file;
 }
 
@@ -99,166 +124,177 @@ TDirectory* PickDir(TDirectory* base, const std::string& name, const std::string
 
 inline TDirectory* Scheme(TFile* file, const std::string& scheme, const std::string& fileName)
 {
-  return PickDir(file, scheme, "binning scheme", fileName,
-                 [](TDirectory* dir) { return dir->Get(RootIO::kStampMult.c_str()) != nullptr; });
+  return PickDir(file, scheme, "binning scheme", fileName, RootIO::IsSchemeDir);
 }
 
-inline TDirectory* Section(TDirectory* schemeDir, const std::string& section, const std::string& fileName)
+inline TDirectory* Species(TDirectory* sectionDir, const std::string& species, const std::string& fileName)
 {
-  return PickDir(schemeDir, section, "section", fileName, [](TDirectory* dir) {
-    const std::string name = dir->GetName();
-    return name == OutputNames::kExtract1D || name == OutputNames::kExtract2D;
-  });
+  return PickDir(sectionDir, species, "species", fileName, OutputNames::IsSpeciesDir);
 }
 
-// The index of 'interval' in the multiplicity binning stamped in 'schemeDir'.
-inline int MultIndex(TDirectory* schemeDir, Interval interval, const std::string& fileName)
+// The multiplicity binning of a scheme, from its stamp: no interval can be looked up in a file without it.
+inline std::vector<double> MultBinning(TDirectory* schemeDir, const std::string& fileName)
 {
-  const std::vector<double> edges = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult, fileName);
+  std::vector<double> edges = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult, fileName);
   if (edges.empty())
     throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' carries no '{}' stamp, so no multiplicity interval can be "
                                  "looked up in it: re-run the task that wrote it.",
                                  fileName, RootIO::kStampMult));
-  for (int multBin : BinningUtils::BinIndices(edges))
-    if (edges[multBin] == interval.low && edges[multBin + 1] == interval.high)
-      return multBin;
-  std::string available;
-  for (int multBin : BinningUtils::BinIndices(edges))
-    available += std::format("{}{}", available.empty() ? "" : ", ", BinningUtils::BinLabel(edges, multBin));
+  return edges;
+}
+
+// The index of 'interval' in 'edges', by the framework's one test of "is an edge" (BinningUtils::FindEdgeIndex).
+inline int MultIndex(std::span<const double> edges, Interval interval, const std::string& fileName)
+{
+  const std::optional<int> low = BinningUtils::FindEdgeIndex(edges, interval.low);
+  if (low && BinningUtils::FindEdgeIndex(edges, interval.high) == *low + 1)
+    return *low;
   throw NotInFiles(std::format("[FATAL] PlotSeries: {}-{} is not a multiplicity interval of '{}'. Available: {}.",
-                               interval.low, interval.high, fileName, available));
+                               interval.low, interval.high, fileName,
+                               Logger::Join(BinningUtils::BinIndices(edges) | std::views::transform([&](int multBin) {
+                                              return BinningUtils::BinLabel(edges, multBin);
+                                            }))));
 }
 
-// 'dy' among the |dy| limits the section was produced with, when they were recorded (OutputNames::kDeltaYLimits); a
-// file written before they were is left to the missing object.
-inline void RequireDeltaY(TDirectory* sectionDir, double dy, const std::string& fileName)
+// A PhiAssocSpectra file opened at a scheme and a section that hold the |dy| limit 'dy', when the limits were recorded
+// (OutputNames::kDeltaYLimits); a file written before they were is left to the missing object.
+struct Located {
+  std::shared_ptr<TFile> file;
+  TDirectory* schemeDir{nullptr};
+  TDirectory* sectionDir{nullptr};
+};
+inline Located Locate(const std::string& fileName, const Where& where, double dy)
 {
-  const std::optional<std::vector<double>> limits = RootIO::ReadValueList(sectionDir, OutputNames::kDeltaYLimits, fileName);
-  if (!limits || std::find(limits->begin(), limits->end(), dy) != limits->end())
-    return;
-  std::string available;
-  for (double limit : *limits)
-    available += std::format("{}{}", available.empty() ? "" : ", ", BinningUtils::FormatDeltaY(limit));
-  throw NotInFiles(std::format("[FATAL] PlotSeries: |dy| < {} is not a limit of section '{}' of '{}'. Available: {}.",
-                               BinningUtils::FormatDeltaY(dy), sectionDir->GetName(), fileName, available));
+  Located at{.file = Open(fileName)};
+  at.schemeDir = Scheme(at.file.get(), where.scheme, fileName);
+  at.sectionDir = PickDir(at.schemeDir, where.section, "section", fileName, OutputNames::IsSectionDir);
+  const std::optional<std::vector<double>> limits = RootIO::ReadValueList(at.sectionDir, OutputNames::kDeltaYLimits, fileName);
+  if (limits && std::ranges::none_of(*limits, [&](double limit) { return std::abs(limit - dy) <= BinningUtils::kEdgeTolerance; }))
+    throw NotInFiles(std::format("[FATAL] PlotSeries: |dy| < {} is not a limit of section '{}' of '{}'. Available: {}.",
+                                 BinningUtils::FormatDeltaY(dy), at.sectionDir->GetName(), fileName,
+                                 Logger::Join(*limits | std::views::transform(BinningUtils::FormatDeltaY))));
+  return at;
 }
 
-// The object as a detached copy, its non-finite bins emptied (content and error 0: not drawn with the default
-// options) and counted, so that a failed fit never shows as a value of 0.
-inline Series Read(const std::shared_ptr<TFile>& file, const std::string& fileName, const std::vector<std::string>& dirs,
-                   const std::string& name, TDirectory* schemeDir, std::vector<TDirectory*> speciesDirs)
+// The histogram at 'path', detached and as it is; its non-finite visible bins counted and warned about. Absent is
+// NotInFiles; present but not a histogram (a TGraph) is said as such.
+inline Series Read(const std::shared_ptr<TFile>& file, const std::string& fileName, const std::string& path,
+                   TDirectory* schemeDir, std::vector<TDirectory*> speciesDirs)
 {
-  const std::string path = RootIO::ObjectPath(dirs, name);
-  auto* raw = dynamic_cast<TH1*>(file->Get(path.c_str()));
+  std::unique_ptr<TObject> obj(file->Get(path.c_str()));
+  if (!obj)
+    throw NotInFiles(std::format("[FATAL] PlotSeries: no object '{}' in '{}'.", path, fileName));
+  auto* raw = dynamic_cast<TH1*>(obj.get());
   if (!raw)
-    throw NotInFiles(std::format("[FATAL] PlotSeries: no histogram '{}' in '{}'.", path, fileName));
-  std::shared_ptr<TH1> hist(static_cast<TH1*>(raw->Clone()));
-  hist->SetDirectory(0);
-  delete raw;
+    throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' in '{}' is a {}, not a histogram.", path, fileName, obj->ClassName()));
+  obj.release();
+  raw->SetDirectory(0);
+  std::shared_ptr<TH1> hist(raw);
 
   int nonFinite = 0;
-  for (int bin = 0; bin <= hist->GetNcells(); ++bin)
-    if (!std::isfinite(hist->GetBinContent(bin)) || !std::isfinite(hist->GetBinError(bin))) {
-      hist->SetBinContent(bin, 0.);
-      hist->SetBinError(bin, 0.);
+  for (int bin = 1; bin <= hist->GetNbinsX(); ++bin)
+    if (!std::isfinite(hist->GetBinContent(bin)) || !std::isfinite(hist->GetBinError(bin)))
       ++nonFinite;
-    }
   if (nonFinite)
-    Logger::Warn("PlotSeries: '{}' in '{}' has {} non-finite bin(s), left empty in the plot.", path, fileName, nonFinite);
-  return Series{.hist = std::move(hist), .file = file, .fileName = fileName, .path = path, .schemeDir = schemeDir,
-                .speciesDirs = std::move(speciesDirs), .nonFiniteBins = nonFinite};
+    Logger::Warn("PlotSeries: '{}' in '{}' has {} non-finite bin(s): left empty where drawn, carried through any sum or ratio.",
+                 path, fileName, nonFinite);
+  return Series{.hist = std::move(hist),
+                .origins = {Origin{.file = file, .fileName = fileName, .path = path, .schemeDir = schemeDir, .speciesDirs = std::move(speciesDirs)}},
+                .nonFiniteBins = nonFinite};
+}
+
+inline std::string DyFact(double dy) { return std::format("|#Delta y| < {}", BinningUtils::FormatDeltaY(dy)); }
+inline std::string MultFact(std::span<const double> edges, int multBin) { return std::format("{}%", BinningUtils::BinLabel(edges, multBin)); }
+inline std::string BinningFact(OutputNames::SpectrumBinning binning)
+{
+  return binning == OutputNames::SpectrumBinning::Source ? "source binning" : "analysis binning";
+}
+
+inline Series SpectrumAt(const std::string& fileName, const std::string& species, double dy, Interval mult, bool extended,
+                         const Where& where)
+{
+  const Located at = Locate(fileName, where, dy);
+  TDirectory* speciesDir = Species(at.sectionDir, species, fileName);
+  const std::vector<double> edges = MultBinning(at.schemeDir, fileName);
+  const int multBin = MultIndex(edges, mult, fileName);
+  const std::string name = OutputNames::Spectrum(species, dy, edges, multBin);
+  Series s = Read(at.file, fileName,
+                  RootIO::ObjectPath({at.schemeDir->GetName(), at.sectionDir->GetName(), species, OutputNames::kSpectraDir},
+                                     extended ? OutputNames::SpectrumExtended(name) : name),
+                  at.schemeDir, {speciesDir});
+  s.facts = {.kind = extended ? "spectrum, extended to pT = 0" : "spectrum", .species = species, .dy = DyFact(dy),
+             .mult = MultFact(edges, multBin)};
+  return s;
 }
 } // namespace Detail
-
-// Where in a PhiAssocSpectra file: the binning scheme and the section (Extract1D, Extract2D); empty means the only one.
-struct Where {
-  std::string scheme;
-  std::string section;
-};
 
 // -----------------------------------------------------------------------------
 // The series of a PhiAssocSpectra file
 // -----------------------------------------------------------------------------
-inline Series Spectrum(const std::string& fileName, const std::string& species, double dy, Interval mult, bool extended = false,
-                       const Where& where = {})
+inline Series Spectrum(const std::string& fileName, const std::string& species, double dy, Interval mult, const Where& where = {})
 {
-  auto file = Detail::Open(fileName);
-  TDirectory* schemeDir = Detail::Scheme(file.get(), where.scheme, fileName);
-  TDirectory* sectionDir = Detail::Section(schemeDir, where.section, fileName);
-  Detail::RequireDeltaY(sectionDir, dy, fileName);
-  TDirectory* speciesDir = Detail::PickDir(sectionDir, species, "species", fileName, OutputNames::IsSpeciesDir);
-  const std::vector<double> multBinning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult, fileName);
-  const int multBin = Detail::MultIndex(schemeDir, mult, fileName);
-  const std::string name = OutputNames::Spectrum(species, dy, multBinning, multBin);
-  Series s = Detail::Read(file, fileName, {schemeDir->GetName(), sectionDir->GetName(), species, OutputNames::kSpectraDir},
-                          extended ? OutputNames::SpectrumExtended(name) : name, schemeDir, {speciesDir});
-  s.facts = {{"file", fileName}, {"kind", extended ? "spectrum, extended to pT = 0" : "spectrum"}, {"species", species},
-             {"dy", std::format("|#Delta y| < {}", BinningUtils::FormatDeltaY(dy))}, {"mult", std::format("{}%", BinningUtils::BinLabel(multBinning, multBin))}};
-  return s;
+  return Detail::SpectrumAt(fileName, species, dy, mult, false, where);
 }
 
-// The yield of a species against multiplicity: measured, or extrapolated to pT = 0.
-inline Series Trend(const std::string& fileName, const std::string& species, double dy, bool extrapolated = false,
+// The same spectrum with the extrapolated bin down to pT = 0 in front, its fitted curve attached.
+inline Series SpectrumExtended(const std::string& fileName, const std::string& species, double dy, Interval mult, const Where& where = {})
+{
+  return Detail::SpectrumAt(fileName, species, dy, mult, true, where);
+}
+
+// The yield of a species against multiplicity: measured, extrapolated to pT = 0, or the one over the other.
+inline Series Trend(const std::string& fileName, const std::string& species, double dy, TrendKind kind = TrendKind::Measured,
                     const Where& where = {})
 {
-  auto file = Detail::Open(fileName);
-  TDirectory* schemeDir = Detail::Scheme(file.get(), where.scheme, fileName);
-  TDirectory* sectionDir = Detail::Section(schemeDir, where.section, fileName);
-  Detail::RequireDeltaY(sectionDir, dy, fileName);
-  TDirectory* speciesDir = Detail::PickDir(sectionDir, species, "species", fileName, OutputNames::IsSpeciesDir);
-  Series s = Detail::Read(file, fileName, {schemeDir->GetName(), sectionDir->GetName(), species, OutputNames::kTrendsDir},
-                          extrapolated ? OutputNames::TrendExtrapolated(species, dy) : OutputNames::Trend(species, dy), schemeDir,
-                          {speciesDir});
-  s.facts = {{"file", fileName}, {"kind", extrapolated ? "yield, extrapolated" : "yield, measured"}, {"species", species},
-             {"dy", std::format("|#Delta y| < {}", BinningUtils::FormatDeltaY(dy))}};
+  const Detail::Located at = Detail::Locate(fileName, where, dy);
+  TDirectory* speciesDir = Detail::Species(at.sectionDir, species, fileName);
+  const std::string name = kind == TrendKind::Measured       ? OutputNames::Trend(species, dy)
+                           : kind == TrendKind::Extrapolated ? OutputNames::TrendExtrapolated(species, dy)
+                                                             : OutputNames::TrendExtrapOverMeas(species, dy);
+  Series s = Detail::Read(at.file, fileName,
+                          RootIO::ObjectPath({at.schemeDir->GetName(), at.sectionDir->GetName(), species, OutputNames::kTrendsDir}, name),
+                          at.schemeDir, {speciesDir});
+  s.facts = {.kind = kind == TrendKind::Measured       ? "yield, measured"
+                     : kind == TrendKind::Extrapolated ? "yield, extrapolated"
+                                                       : "extrapolated over measured yield",
+             .species = species,
+             .dy = Detail::DyFact(dy)};
   return s;
 }
 
-inline Series TrendExtrapOverMeas(const std::string& fileName, const std::string& species, double dy, const Where& where = {})
-{
-  auto file = Detail::Open(fileName);
-  TDirectory* schemeDir = Detail::Scheme(file.get(), where.scheme, fileName);
-  TDirectory* sectionDir = Detail::Section(schemeDir, where.section, fileName);
-  Detail::RequireDeltaY(sectionDir, dy, fileName);
-  TDirectory* speciesDir = Detail::PickDir(sectionDir, species, "species", fileName, OutputNames::IsSpeciesDir);
-  Series s = Detail::Read(file, fileName, {schemeDir->GetName(), sectionDir->GetName(), species, OutputNames::kTrendsDir},
-                          OutputNames::TrendExtrapOverMeas(species, dy), schemeDir, {speciesDir});
-  s.facts = {{"file", fileName}, {"kind", "extrapolated over measured yield"}, {"species", species}, {"dy", std::format("|#Delta y| < {}", BinningUtils::FormatDeltaY(dy))}};
-  return s;
-}
-
-// The ratio of two species' yields, as the correlation task wrote it (yield_ratios).
+// The ratio of two species' yields, measured or extrapolated, as the correlation task wrote it (yield_ratios).
 inline Series SpeciesRatio(const std::string& fileName, const std::string& num, const std::string& den, double dy,
-                           bool extrapolated = false, const Where& where = {})
+                           TrendKind kind = TrendKind::Measured, const Where& where = {})
 {
-  auto file = Detail::Open(fileName);
-  TDirectory* schemeDir = Detail::Scheme(file.get(), where.scheme, fileName);
-  TDirectory* sectionDir = Detail::Section(schemeDir, where.section, fileName);
-  Detail::RequireDeltaY(sectionDir, dy, fileName);
-  std::vector<TDirectory*> speciesDirs{Detail::PickDir(sectionDir, num, "species", fileName, OutputNames::IsSpeciesDir),
-                                       Detail::PickDir(sectionDir, den, "species", fileName, OutputNames::IsSpeciesDir)};
-  Series s = Detail::Read(file, fileName, {schemeDir->GetName(), sectionDir->GetName(), OutputNames::kRatiosDir},
-                          extrapolated ? OutputNames::ParticleRatioExtrapolated(num, den, dy) : OutputNames::ParticleRatioMeasured(num, den, dy),
-                          schemeDir, std::move(speciesDirs));
-  s.facts = {{"file", fileName}, {"kind", extrapolated ? "species ratio, extrapolated" : "species ratio, measured"},
-             {"species", std::format("{}/{}", num, den)}, {"dy", std::format("|#Delta y| < {}", BinningUtils::FormatDeltaY(dy))}};
+  if (kind == TrendKind::ExtrapOverMeas)
+    throw std::runtime_error("[FATAL] PlotSeries::SpeciesRatio: a species ratio is measured or extrapolated.");
+  const Detail::Located at = Detail::Locate(fileName, where, dy);
+  const bool extrapolated = kind == TrendKind::Extrapolated;
+  Series s = Detail::Read(at.file, fileName,
+                          RootIO::ObjectPath({at.schemeDir->GetName(), at.sectionDir->GetName(), OutputNames::kRatiosDir},
+                                             extrapolated ? OutputNames::ParticleRatioExtrapolated(num, den, dy)
+                                                          : OutputNames::ParticleRatioMeasured(num, den, dy)),
+                          at.schemeDir, {Detail::Species(at.sectionDir, num, fileName), Detail::Species(at.sectionDir, den, fileName)});
+  s.facts = {.kind = extrapolated ? "species ratio, extrapolated" : "species ratio, measured", .species = std::format("{}/{}", num, den),
+             .dy = Detail::DyFact(dy)};
   return s;
 }
 
 // -----------------------------------------------------------------------------
-// The series of a Purity file and of a Corrections file
+// The series of a Purity file and of a Corrections file (a scheme, no section)
 // -----------------------------------------------------------------------------
 inline Series Purity(const std::string& fileName, const std::string& purityKey, Interval mult,
                      OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
   TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
-  const std::vector<double> multBinning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult, fileName);
-  const int multBin = Detail::MultIndex(schemeDir, mult, fileName);
-  Series s = Detail::Read(file, fileName, OutputNames::SummaryPath(schemeDir->GetName(), binning),
-                          OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, multBin), binning), schemeDir, {});
-  s.facts = {{"file", fileName}, {"kind", "purity"}, {"species", purityKey}, {"mult", std::format("{}%", BinningUtils::BinLabel(multBinning, multBin))},
-             {"binning", binning == OutputNames::SpectrumBinning::Source ? "source binning" : "analysis binning"}};
+  const std::vector<double> edges = Detail::MultBinning(schemeDir, fileName);
+  const int multBin = Detail::MultIndex(edges, mult, fileName);
+  Series s = Detail::Read(file, fileName,
+                          RootIO::ObjectPath(OutputNames::SummaryPath(schemeDir->GetName(), binning),
+                                             OutputNames::Purity(purityKey, OutputNames::MultTag(edges, multBin), binning)),
+                          schemeDir, {});
+  s.facts = {.kind = "purity", .species = purityKey, .mult = Detail::MultFact(edges, multBin), .binning = Detail::BinningFact(binning)};
   return s;
 }
 
@@ -270,18 +306,19 @@ inline Series CorrectionMap(const std::string& fileName, const std::string& part
   auto file = Detail::Open(fileName);
   TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
   std::string multTag = OutputNames::kMultIntegrated;
-  std::string multLabel = "multiplicity-integrated";
+  std::string multFact = "multiplicity-integrated";
   if (mult) {
-    const std::vector<double> multBinning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult, fileName);
-    const int multBin = Detail::MultIndex(schemeDir, *mult, fileName);
-    multTag = OutputNames::MultTag(multBinning, multBin);
-    multLabel = std::format("{}%", BinningUtils::BinLabel(multBinning, multBin));
+    const std::vector<double> edges = Detail::MultBinning(schemeDir, fileName);
+    const int multBin = Detail::MultIndex(edges, *mult, fileName);
+    multTag = OutputNames::MultTag(edges, multBin);
+    multFact = Detail::MultFact(edges, multBin);
   }
-  Series s = Detail::Read(file, fileName, OutputNames::CorrectionMapPath(schemeDir->GetName(), map, binning),
-                          OutputNames::CorrectionMapName(particle, map, multTag, binning), schemeDir, {});
-  constexpr std::string_view kKinds[] = {"efficiency", "signal loss", "signal loss over event loss"};
-  s.facts = {{"file", fileName}, {"kind", std::string(kKinds[static_cast<int>(map)])}, {"species", particle}, {"mult", multLabel},
-             {"binning", binning == OutputNames::SpectrumBinning::Source ? "source binning" : "analysis binning"}};
+  Series s = Detail::Read(file, fileName,
+                          RootIO::ObjectPath(OutputNames::CorrectionMapPath(schemeDir->GetName(), map, binning),
+                                             OutputNames::CorrectionMapName(particle, map, multTag, binning)),
+                          schemeDir, {});
+  s.facts = {.kind = std::string(OutputNames::CorrectionMapTitle(map)), .species = particle, .mult = multFact,
+             .binning = Detail::BinningFact(binning)};
   return s;
 }
 
@@ -289,101 +326,112 @@ inline Series CorrectionMap(const std::string& fileName, const std::string& part
 // that only its X axis can be checked against another series.
 inline Series Object(const std::string& fileName, const std::string& path)
 {
-  auto file = Detail::Open(fileName);
-  const std::size_t slash = path.find_last_of('/');
-  std::vector<std::string> dirs;
-  if (slash != std::string::npos) {
-    std::string head = path.substr(0, slash);
-    for (std::size_t from = 0, to; from <= head.size(); from = to + 1) {
-      to = head.find('/', from);
-      if (to == std::string::npos)
-        to = head.size();
-      dirs.push_back(head.substr(from, to - from));
-    }
-  }
-  Series s = Detail::Read(file, fileName, dirs, slash == std::string::npos ? path : path.substr(slash + 1), nullptr, {});
-  s.facts = {{"file", fileName}, {"kind", path}};
+  Series s = Detail::Read(Detail::Open(fileName), fileName, path, nullptr, {});
+  s.facts = {.kind = path};
   return s;
 }
 
 // -----------------------------------------------------------------------------
 // Comparing and combining
 // -----------------------------------------------------------------------------
-// What a comparison of two series found, for Describe: the stamps that differ, and those that could not be checked.
+// What two series disagree on: the stamps that differ and those that could not be checked, and their X axes.
 struct Comparison {
   std::vector<std::string> differs;
   std::vector<std::string> notChecked;
 };
 
 // The stamps of the directories the two series were read from (mult and ptPhi of the scheme, ptAssoc of each species
-// they share), by the rule of ComparisonTask, and their X axes. 'strict' (dividing, summing): a difference stops the
-// run. Otherwise (drawing together): it is warned and returned.
-inline Comparison Compare(const Series& a, const Series& b, bool strict)
+// they share), by the rule of ComparisonTask, and their X axes. Only says: RequireCombinable stops, Draw warns,
+// Describe reports. A combined series is compared through its first origin, whose stamps its operands shared.
+inline Comparison Compare(const Series& a, const Series& b)
 {
   Comparison result;
+  const Origin& oa = a.origins.front();
+  const Origin& ob = b.origins.front();
   auto check = [&](TDirectory* da, TDirectory* db, const std::string& stamp, const std::string& where) {
     if (!da || !db) {
-      result.notChecked.push_back(std::format("{} ({})", stamp, where));
+      result.notChecked.push_back(std::format("{} ({}): a series of a foreign file has no stamp", stamp, where));
       return;
     }
-    const RootIO::StampComparison c = RootIO::CompareBinningStamps(da, db, stamp, std::format("'{}'", a.fileName), std::format("'{}'", b.fileName));
+    const RootIO::StampComparison c =
+      RootIO::CompareBinningStamps(da, db, stamp, std::format("'{}'", oa.fileName), std::format("'{}'", ob.fileName));
     if (c.outcome == RootIO::StampComparison::Outcome::NotChecked)
-      result.notChecked.push_back(std::format("{} ({})", stamp, where));
+      result.notChecked.push_back(std::format("{} ({}): {}", stamp, where, c.detail));
     else if (c.outcome == RootIO::StampComparison::Outcome::Differs)
-      result.differs.push_back(std::format("{} ({}):\n{}", stamp, where, c.detail));
+      result.differs.push_back(std::format("{} ({}): {}", stamp, where, c.detail));
   };
-  check(a.schemeDir, b.schemeDir, RootIO::kStampMult, "scheme");
-  check(a.schemeDir, b.schemeDir, RootIO::kStampPtPhi, "scheme");
-  for (TDirectory* sa : a.speciesDirs)
-    for (TDirectory* sb : b.speciesDirs)
+  check(oa.schemeDir, ob.schemeDir, RootIO::kStampMult, "scheme");
+  check(oa.schemeDir, ob.schemeDir, RootIO::kStampPtPhi, "scheme");
+  for (TDirectory* sa : oa.speciesDirs)
+    for (TDirectory* sb : ob.speciesDirs)
       if (std::string(sa->GetName()) == sb->GetName())
         check(sa, sb, RootIO::kStampPtAssoc, sa->GetName());
 
   const std::string axes = BinningUtils::Compare(BinningUtils::AxisEdges(a.hist->GetXaxis()), BinningUtils::AxisEdges(b.hist->GetXaxis()),
-                                                 a.fileName, b.fileName);
+                                                 oa.fileName, ob.fileName);
   if (!axes.empty())
     result.differs.push_back(std::format("X axis:\n{}", axes));
-
-  for (const std::string& what : result.notChecked)
-    Logger::Warn("PlotSeries: '{}' and '{}': {} not stamped in both, not checked.", a.path, b.path, what);
-  if (!result.differs.empty()) {
-    std::string all;
-    for (const std::string& d : result.differs)
-      all += d + "\n";
-    if (strict)
-      throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' of '{}' and '{}' of '{}' cannot be combined, their binnings "
-                                           "differ:\n{}",
-                                           a.path, a.fileName, b.path, b.fileName, all));
-    Logger::Warn("PlotSeries: '{}' of '{}' and '{}' of '{}' are drawn together with different binnings:\n{}", a.path,
-                 a.fileName, b.path, b.fileName, all);
-  }
   return result;
 }
+
+// Dividing or summing two series needs them to describe the same bins: a difference stops the run, a stamp that could
+// not be checked is warned.
+inline void RequireCombinable(const Series& a, const Series& b)
+{
+  const Comparison c = Compare(a, b);
+  for (const std::string& n : c.notChecked)
+    Logger::Warn("PlotSeries: '{}' and '{}', not checked: {}", a.origins.front().path, b.origins.front().path, n);
+  if (!c.differs.empty())
+    throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' of '{}' and '{}' of '{}' cannot be combined, their binnings "
+                                         "differ:\n{}",
+                                         a.origins.front().path, a.origins.front().fileName, b.origins.front().path,
+                                         b.origins.front().fileName, Logger::Join(c.differs, "\n")));
+}
+
+namespace Detail
+{
+// A series computed from two: both origins, the facts both share (the kind given), no label, the operation noted.
+inline Series Combined(const Series& a, const Series& b, std::unique_ptr<TH1> hist, const std::string& kind, const std::string& note)
+{
+  Series s{.hist = std::shared_ptr<TH1>(hist.release()), .origins = a.origins, .nonFiniteBins = 0, .notes = a.notes};
+  s.hist->SetDirectory(0);
+  s.origins.insert(s.origins.end(), b.origins.begin(), b.origins.end());
+  s.notes.insert(s.notes.end(), b.notes.begin(), b.notes.end());
+  s.notes.push_back(note);
+  auto common = [](const std::optional<std::string>& x, const std::optional<std::string>& y) { return x == y ? x : std::nullopt; };
+  s.facts = {.kind = kind, .species = common(a.facts.species, b.facts.species), .dy = common(a.facts.dy, b.facts.dy),
+             .mult = common(a.facts.mult, b.facts.mult), .binning = common(a.facts.binning, b.facts.binning)};
+  for (int bin = 1; bin <= s.hist->GetNbinsX(); ++bin)
+    if (!std::isfinite(s.hist->GetBinContent(bin)) || !std::isfinite(s.hist->GetBinError(bin)))
+      ++s.nonFiniteBins;
+  return s;
+}
+} // namespace Detail
 
 // num / den, with the option of TH1::Divide stated by the caller, never guessed: "" for independent samples (two
 // productions, two years), "B" when each numerator is a subset of the denominator (a closure).
 inline Series Ratio(const Series& num, const Series& den, const std::string& divideOption, const std::string& name = "")
 {
-  Compare(num, den, true);
-  Series r = num;
-  r.hist = std::shared_ptr<TH1>(HistogramUtils::MakeRatioHist(num.hist.get(), den.hist.get(), name.empty() ? std::format("{}_over_{}", num.hist->GetName(), den.hist->GetName()) : name,
-                                                               num.hist->GetTitle(), 1.0, 1.0, divideOption.c_str()).release());
-  r.path.clear();
-  r.notes.push_back(std::format("ratio of '{}' ({}) to '{}' ({}), Divide option \"{}\"", num.path, num.fileName, den.path,
-                                den.fileName, divideOption));
-  return r;
+  RequireCombinable(num, den);
+  return Detail::Combined(num, den,
+                          HistogramUtils::MakeRatioHist(num.hist.get(), den.hist.get(),
+                                                        name.empty() ? std::format("{}_over_{}", num.hist->GetName(), den.hist->GetName()) : name,
+                                                        num.hist->GetTitle(), 1.0, 1.0, divideOption.c_str()),
+                          "ratio",
+                          std::format("ratio of '{}' ({}) to '{}' ({}), Divide option \"{}\"", num.origins.front().path,
+                                      num.origins.front().fileName, den.origins.front().path, den.origins.front().fileName,
+                                      divideOption));
 }
 
 inline Series Sum(const Series& a, const Series& b, const std::string& name = "")
 {
-  Compare(a, b, true);
-  Series s = a;
-  s.hist = std::shared_ptr<TH1>(static_cast<TH1*>(a.hist->Clone(name.empty() ? std::format("{}_plus_{}", a.hist->GetName(), b.hist->GetName()).c_str() : name.c_str())));
-  s.hist->SetDirectory(0);
-  s.hist->Add(b.hist.get());
-  s.path.clear();
-  s.notes.push_back(std::format("sum of '{}' ({}) and '{}' ({})", a.path, a.fileName, b.path, b.fileName));
-  return s;
+  RequireCombinable(a, b);
+  std::unique_ptr<TH1> sum(static_cast<TH1*>(a.hist->Clone(name.empty() ? std::format("{}_plus_{}", a.hist->GetName(), b.hist->GetName()).c_str() : name.c_str())));
+  sum->SetDirectory(0);
+  sum->Add(b.hist.get());
+  return Detail::Combined(a, b, std::move(sum), "sum",
+                          std::format("sum of '{}' ({}) and '{}' ({})", a.origins.front().path, a.origins.front().fileName,
+                                      b.origins.front().path, b.origins.front().fileName));
 }
 
 inline Series Scale(const Series& a, double factor)
@@ -396,21 +444,55 @@ inline Series Scale(const Series& a, double factor)
   return s;
 }
 
+// -----------------------------------------------------------------------------
+// Putting series on a pad, describing them
+// -----------------------------------------------------------------------------
+// Each series on the current pad, the first one without SAME, a styled copy with its non-finite bins left empty (the
+// series keeps them); what the series drawn together disagree on is warned here, once. Returns the copies, for a
+// legend.
+inline std::vector<TH1*> Draw(const std::vector<Series>& series, const char* option = "E1",
+                              const std::vector<int>& markerStyles = {})
+{
+  for (std::size_t i = 1; i < series.size(); ++i) {
+    const Comparison c = Compare(series.front(), series[i]);
+    for (const std::string& d : c.differs)
+      Logger::Warn("PlotSeries: drawn together with a different binning, series 0 and {}: {}", i, d);
+    for (const std::string& n : c.notChecked)
+      Logger::Warn("PlotSeries: drawn together, not checked, series 0 and {}: {}", i, n);
+  }
+  std::vector<TH1*> drawn;
+  for (std::size_t i = 0; i < series.size(); ++i) {
+    std::unique_ptr<TH1> copy(static_cast<TH1*>(series[i].hist->Clone()));
+    copy->SetDirectory(0);
+    for (int bin = 1; bin <= copy->GetNbinsX(); ++bin)
+      if (!std::isfinite(copy->GetBinContent(bin)) || !std::isfinite(copy->GetBinError(bin))) {
+        copy->SetBinContent(bin, 0.);
+        copy->SetBinError(bin, 0.);
+      }
+    const std::string opt = i == 0 ? option : std::format("{} SAME", option);
+    drawn.push_back(CanvasManager::DrawStyledCopy(copy.get(), opt.c_str(), CanvasManager::ClassColor(static_cast<int>(i)),
+                                                  i < markerStyles.size() ? markerStyles[i] : 20));
+  }
+  return drawn;
+}
+
 // What was resolved, said before drawing: each series, where it comes from and what was done to it, and what the
-// series drawn together disagree on or could not be checked for.
+// series drawn together disagree on (DIFFERS) or could not be checked for (NOT checked).
 inline std::string Describe(const std::vector<Series>& series)
 {
   std::string out;
   for (std::size_t i = 0; i < series.size(); ++i) {
     const Series& s = series[i];
-    out += std::format("series {}: '{}'\n  {} in {}\n", i, s.label, s.path.empty() ? "(computed)" : s.path, s.fileName);
+    out += std::format("series {}: '{}'\n", i, s.label);
+    for (const Origin& o : s.origins)
+      out += std::format("  {} in {}\n", o.path, o.fileName);
     for (const std::string& note : s.notes)
       out += std::format("  {}\n", note);
     if (s.nonFiniteBins)
-      out += std::format("  {} non-finite bin(s) left empty\n", s.nonFiniteBins);
+      out += std::format("  {} non-finite bin(s), left empty where drawn\n", s.nonFiniteBins);
   }
   for (std::size_t i = 1; i < series.size(); ++i) {
-    const Comparison c = Compare(series.front(), series[i], false);
+    const Comparison c = Compare(series.front(), series[i]);
     for (const std::string& d : c.differs)
       out += std::format("DIFFERS, series 0 and {}: {}\n", i, d);
     for (const std::string& n : c.notChecked)
@@ -427,8 +509,10 @@ struct LegendText {
   std::vector<std::string> labels; // per series, what tells it apart (or the label the composition gave it)
 };
 
-// The facts that differ between the series label them; the ones they share go in the header. File names are cut to
-// the part that tells them apart: the words (between '/', '_' and '.') they all start or end with are removed.
+// The facts that differ between the series label them; the ones every series has, with the same value, go in the
+// header, in the order a reader expects (what it is, of what, where), the file last. A fact some series lack is not
+// shared. File names are cut to the part that tells them apart: the words (between '/', '_' and '.') they all start or
+// end with are removed.
 inline LegendText AutoLabels(const std::vector<Series>& series)
 {
   auto words = [](const std::string& name) {
@@ -443,67 +527,68 @@ inline LegendText AutoLabels(const std::vector<Series>& series)
   };
   std::vector<std::vector<std::string>> fileWords;
   for (const Series& s : series)
-    fileWords.push_back(words(s.facts.count("file") ? s.facts.at("file") : s.fileName));
+    fileWords.push_back(words(s.origins.front().fileName));
   std::size_t prefix = 0, suffix = 0;
   if (fileWords.size() > 1) {
-    const std::size_t shortest = std::min_element(fileWords.begin(), fileWords.end(), [](auto& a, auto& b) { return a.size() < b.size(); })->size();
-    auto sameAt = [&](auto at) { return std::all_of(fileWords.begin(), fileWords.end(), [&](auto& w) { return at(w) == at(fileWords[0]); }); };
+    const std::size_t shortest = std::ranges::min(fileWords | std::views::transform(&std::vector<std::string>::size));
+    auto sameAt = [&](auto at) { return std::ranges::all_of(fileWords, [&](auto& w) { return at(w) == at(fileWords[0]); }); };
     while (prefix < shortest && sameAt([&](auto& w) { return w[prefix]; }))
       ++prefix;
     while (suffix < shortest - prefix && sameAt([&](auto& w) { return w[w.size() - 1 - suffix]; }))
       ++suffix;
   }
-  std::vector<std::string> files;
-  for (const auto& w : fileWords) {
-    std::string kept;
-    for (std::size_t i = prefix; i + suffix < w.size(); ++i)
-      kept += std::format("{}{}", kept.empty() ? "" : "_", w[i]);
-    files.push_back(kept);
-  }
-  std::map<std::string, std::set<std::string>> values;
-  for (const Series& s : series)
-    for (const auto& [key, value] : s.facts)
-      values[key].insert(value);
 
-  // The order a reader expects: what it is, of what, where, then the file.
-  std::vector<std::string> order{"kind", "species", "dy", "mult", "binning"};
-  for (const auto& [key, set] : values)
-    if (std::find(order.begin(), order.end(), key) == order.end() && key != "file")
-      order.push_back(key);
-  order.push_back("file");
+  using Field = std::optional<std::string> Facts::*;
+  constexpr Field kOrder[] = {&Facts::kind, &Facts::species, &Facts::dy, &Facts::mult, &Facts::binning};
+  constexpr std::size_t kFile = std::size(kOrder); // the file, after the facts
+  std::vector<std::vector<std::optional<std::string>>> all;
+  for (std::size_t i = 0; i < series.size(); ++i) {
+    std::vector<std::optional<std::string>> values;
+    for (Field field : kOrder)
+      values.push_back(series[i].facts.*field);
+    std::string kept;
+    for (std::size_t w = prefix; w + suffix < fileWords[i].size(); ++w)
+      kept += std::format("{}{}", kept.empty() ? "" : "_", fileWords[i][w]);
+    values.push_back(kept.empty() ? std::nullopt : std::optional<std::string>(kept));
+    all.push_back(std::move(values));
+  }
+  auto shared = [&](std::size_t f) { return series.size() > 1 && std::ranges::all_of(all, [&](auto& v) { return v[f] == all[0][f]; }); };
 
   LegendText text;
-  for (const std::string& key : order)
-    if (values.count(key) && values[key].size() == 1 && series.size() > 1 && key != "file")
-      text.header += std::format("{}{}", text.header.empty() ? "" : ", ", *values[key].begin());
+  for (std::size_t f = 0; f < kFile; ++f)
+    if (shared(f) && all[0][f])
+      text.header += std::format("{}{}", text.header.empty() ? "" : ", ", *all[0][f]);
   for (std::size_t i = 0; i < series.size(); ++i) {
     if (!series[i].label.empty()) {
       text.labels.push_back(series[i].label);
       continue;
     }
     std::string label;
-    for (const std::string& key : order) {
-      const auto fact = series[i].facts.find(key);
-      if (fact == series[i].facts.end() || (values[key].size() < 2 && series.size() > 1))
-        continue;
-      label += std::format("{}{}", label.empty() ? "" : ", ", key == "file" ? files[i] : fact->second);
-    }
+    for (std::size_t f = 0; f <= kFile; ++f)
+      if (!shared(f) && all[i][f])
+        label += std::format("{}{}", label.empty() ? "" : ", ", *all[i][f]);
     text.labels.push_back(label);
   }
   return text;
 }
 
+// The owner of a plot's provenance in its .root.
+inline const std::string kPlotOwner{"Plot"};
+
 // The plot kept: 'outBase' with each extension of 'formats', and always 'outBase'.root with the canvas, a copy of each
-// series as it was drawn (Objects/series<i>), and the provenance: the recipe (the composition or the specification),
-// when, the code's commit and fingerprint, each input's own provenance. A .root that is not a plot written here is
-// never overwritten: an input above all.
+// series as it was computed (Objects/series<i>, a non-finite bin as it is), and the provenance: the recipe (the
+// composition or the specification, as the config_block), when, the code's commit and fingerprint, and per origin of
+// each series its file, its path and its own provenance (RootIO::CopyProvenance). A .root that is not a plot written
+// here, or that is open as an input, is never overwritten.
 inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<Series>& series, const std::string& recipe,
                  const std::vector<std::string>& formats = {"pdf", "png"})
 {
   const std::string rootName = outBase + ".root";
+  if (!Detail::OpenFiles()[rootName].expired())
+    throw std::runtime_error(std::format("[FATAL] PlotSeries::Save: '{}' is open as an input of this plot.", rootName));
   if (std::filesystem::exists(rootName)) {
     std::unique_ptr<TFile> existing(TFile::Open(rootName.c_str(), "READ"));
-    if (!existing || !RootIO::FindPath(existing.get(), {"Plot", RootIO::Detail::kProvenanceDir}))
+    if (!existing || RootIO::ReadProvenance(existing.get(), kPlotOwner).empty())
       throw std::runtime_error(std::format("[FATAL] PlotSeries::Save: '{}' exists and is not a plot written here; it is "
                                            "not overwritten. Choose another output.",
                                            rootName));
@@ -515,21 +600,18 @@ inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<
 
   std::unique_ptr<TFile> out = RootIO::OpenOrThrow(rootName, "RECREATE", "PlotSeries::Save");
   out->WriteTObject(canvas, canvas->GetName(), "Overwrite");
+  RootIO::WriteProvenance(out.get(), kPlotOwner, RootIO::StartProvenance(recipe));
   for (std::size_t i = 0; i < series.size(); ++i) {
-    TDirectory* dir = RootIO::MakePath(out.get(), {"Objects", std::format("series{}", i)});
-    dir->WriteTObject(series[i].hist.get(), series[i].hist->GetName(), "Overwrite");
-  }
-  std::map<std::string, std::string> facts = RunEnvironment::Facts();
-  facts["produced_at"] = RunEnvironment::TimestampNow();
-  facts["recipe"] = recipe;
-  RootIO::WriteProvenance(out.get(), "Plot", facts);
-  for (std::size_t i = 0; i < series.size(); ++i) {
-    std::map<std::string, std::string> input{{"file", series[i].fileName}, {"path", series[i].path}};
-    if (series[i].schemeDir)
-      for (const auto& [key, value] : RootIO::ReadProvenance(series[i].file.get(), series[i].schemeDir->GetName()))
-        if (key == "produced_at" || key == "git_commit" || key == "sources_fingerprint")
-          input[key] = value;
-    RootIO::WriteProvenance(out.get(), "Plot", input, std::format("series{}", i));
+    RootIO::MakePath(out.get(), {"Objects", std::format("series{}", i)})->WriteTObject(series[i].hist.get(), series[i].hist->GetName(), "Overwrite");
+    if (!series[i].notes.empty())
+      RootIO::WriteProvenance(out.get(), kPlotOwner, {{"operations", Logger::Join(series[i].notes, "\n")}}, std::format("series{}", i));
+    for (std::size_t j = 0; j < series[i].origins.size(); ++j) {
+      const Origin& o = series[i].origins[j];
+      const std::string record = std::format("series{}_origin{}", i, j);
+      RootIO::WriteProvenance(out.get(), kPlotOwner, {{"file", o.fileName}, {"path", o.path}}, record);
+      RootIO::CopyProvenance(o.file.get(), o.schemeDir ? o.schemeDir->GetName() : "", out.get(), kPlotOwner,
+                             std::format("{}_input", record), o.fileName);
+    }
   }
   out->Close();
 }
@@ -541,7 +623,8 @@ struct Catalog {
   struct Section {
     std::string name;
     std::vector<std::string> species;
-    std::optional<std::vector<double>> deltaYLimits; // none: written before they were recorded
+    std::map<std::string, std::vector<double>> ptAssocBinning; // per species, from its stamp
+    std::optional<std::vector<double>> deltaYLimits;           // none: written before they were recorded
   };
   struct Scheme {
     std::string name;
@@ -560,20 +643,23 @@ inline Catalog ReadCatalog(const std::string& fileName)
   Catalog catalog{.fileName = fileName};
   for (TObject* key : *file->GetListOfKeys()) {
     TDirectory* schemeDir = file->GetDirectory(key->GetName());
-    if (!schemeDir || !schemeDir->Get(RootIO::kStampMult.c_str()))
+    if (!RootIO::IsSchemeDir(schemeDir))
       continue;
     Catalog::Scheme scheme{.name = schemeDir->GetName(),
                            .multBinning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult, fileName),
                            .ptPhiBinning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtPhi, fileName),
                            .provenance = RootIO::ReadProvenance(file.get(), schemeDir->GetName())};
-    for (const std::string& sectionName : {OutputNames::kExtract1D, OutputNames::kExtract2D}) {
-      TDirectory* sectionDir = schemeDir->GetDirectory(sectionName.c_str());
-      if (!sectionDir)
+    for (TObject* k : *schemeDir->GetListOfKeys()) {
+      TDirectory* sectionDir = schemeDir->GetDirectory(k->GetName());
+      if (!OutputNames::IsSectionDir(sectionDir))
         continue;
-      Catalog::Section section{.name = sectionName, .deltaYLimits = RootIO::ReadValueList(sectionDir, OutputNames::kDeltaYLimits, fileName)};
-      for (TObject* k : *sectionDir->GetListOfKeys())
-        if (OutputNames::IsSpeciesDir(sectionDir->GetDirectory(k->GetName())))
-          section.species.emplace_back(k->GetName());
+      Catalog::Section section{.name = sectionDir->GetName(),
+                               .deltaYLimits = RootIO::ReadValueList(sectionDir, OutputNames::kDeltaYLimits, fileName)};
+      for (TObject* s : *sectionDir->GetListOfKeys())
+        if (TDirectory* speciesDir = sectionDir->GetDirectory(s->GetName()); OutputNames::IsSpeciesDir(speciesDir)) {
+          section.species.emplace_back(s->GetName());
+          section.ptAssocBinning[s->GetName()] = RootIO::ReadBinningStamp(speciesDir, RootIO::kStampPtAssoc, fileName);
+        }
       scheme.sections.push_back(std::move(section));
     }
     catalog.schemes.push_back(std::move(scheme));

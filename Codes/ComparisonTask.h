@@ -298,27 +298,10 @@ class ComparisonTask : public IAnalysisTask
 
     pair.outDir = RootIO::MakePath(outputFile.get(), {comp.label});
 
-    // What was divided, travelling with the result. Provenance never throws: a path
-    // that moved is not a reason to fail a comparison that is otherwise fine.
-    //
-    // An input may legitimately carry none - a denominator this framework did not
-    // write, or one produced before the records existed - and in that case the reason
-    // is written down instead of leaving the directory empty. An empty directory reads
-    // as "something failed while writing this"; a note reads as "there was nothing to
-    // write", which is what actually happened. Both possible causes are named because
-    // the task cannot tell them apart either, and the file name goes in because it is
-    // the only thing that identifies an input nothing else is known about.
-    const auto copyProvenance = [&](TFile* src, const char* record, const std::string& fileName) {
-      auto facts = RootIO::ReadProvenance(src, inputScheme);
-      if (facts.empty())
-        facts["no_provenance"] = std::format("'{}' carries no provenance for '{}': either it was not "
-                                             "produced by this framework, or it predates the provenance records.",
-                                             fileName, inputScheme);
-      RootIO::WriteProvenance(outputFile.get(), comp.label, facts, record);
-    };
-
-    copyProvenance(pair.num.get(), "numerator", comp.numeratorFile);
-    copyProvenance(pair.den.get(), "denominator", comp.denominatorFile);
+    // What was divided, travelling with the result (RootIO::CopyProvenance: a note where an input carries none).
+    // Provenance never throws: a path that moved is not a reason to fail a comparison that is otherwise fine.
+    RootIO::CopyProvenance(pair.num.get(), inputScheme, outputFile.get(), comp.label, "numerator", comp.numeratorFile);
+    RootIO::CopyProvenance(pair.den.get(), inputScheme, outputFile.get(), comp.label, "denominator", comp.denominatorFile);
 
     // A declared comparison stops here. Its denominator was not written by this
     // framework, so it has no scheme directory to navigate and no stamps to compare -
