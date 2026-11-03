@@ -267,6 +267,7 @@ strings.
 - **Decouple data from presentation**: Data structures (`LoadedMC`, `ParticleTask`)
   hold strictly physics inputs and binnings, never graphics or canvases. Tasks
   (`MCTask`, `PurityTask`, `CorrelationTaskBase`) own the presentation lifecycle via `CanvasManager`.
+  A histogram that is written carries no style: what is drawn is a styled copy (`CanvasManager::DrawStyledCopy`).
 - **ROOT's global lists know nothing about `TDirectory`.** `TCanvas` registers in
   one: two canvases with the same name alive at once collide even in different
   directories, which caused a segfault, so keep canvas names unique. `CanvasManager`

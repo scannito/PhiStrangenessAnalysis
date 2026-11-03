@@ -142,7 +142,10 @@ inline std::vector<std::string> SignalLossOverEventLossPath(const std::string& b
 inline const std::string kTriggerSignal{"h2TriggerSignal"};
 inline const std::string kTriggerBkgRatio{"h2TriggerBkgRatio"};
 // PurityTask -> CorrelationTask, by purity_key.
-inline std::string Purity(std::string_view purityKey, std::string_view multTag) { return std::format("h1{}Purity_{}", purityKey, multTag); }
+inline std::string Purity(std::string_view purityKey, std::string_view multTag, SpectrumBinning binning = SpectrumBinning::Analysis)
+{
+  return std::format("h1{}Purity_{}{}", purityKey, multTag, BinningSuffix(binning));
+}
 
 inline std::string Spectrum(std::string_view particle, double dy, std::span<const double> multBinning, int multBin)
 {

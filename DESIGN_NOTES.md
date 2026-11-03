@@ -141,10 +141,13 @@ data, and a TBrowser reader sees no change; redrawing an old file in a new style
 chain, with a file of its own, was considered and set aside: a second file, a block in every chain, and plots that
 outlive their data when a producer is rerun alone.
 
-**Before the summaries move:** `MCTask` writes the signal loss over the event loss as a histogram (today it exists
-only in its canvas); the style leaves the written objects (`SetHistogramStyle` on histograms that are then written,
-the colours of `AnalysisSettings`, the `color` parameter of `EfficiencyCalculator::Compute1DMaps`; the colours are
-also chosen by `multBin % 10`, so two classes share one beyond ten). The summaries then move one family at a time,
+**Before the summaries move** (done on branch `plots`, 3 November): `MCTask` writes the signal loss over the event
+loss as a histogram (`SigLoss/OverEvLoss`, computed by `EfficiencyCalculator::DivideByEventLoss`; it existed only in a
+canvas); the style left the written objects: it goes on the drawn copy, `CanvasManager::DrawStyledCopy`, and
+`EfficiencyCalculator` lost its `color` parameter. Not yet: the colours still live in `AnalysisSettings` and are chosen
+by `multBin % 10`, so two classes share one beyond ten; they move with the style component. The curves attached to the
+extended spectra keep their style (solid and dashed tell the main fit from the high one) until the function that draws
+that family decides it. The summaries then move one family at a time,
 each step checked for identical data and, since `CompareRootFiles` skips canvases, for identical histograms inside
 the old and the new canvases.
 
