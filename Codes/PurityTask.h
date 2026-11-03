@@ -150,10 +150,9 @@ class PurityTask : public IAnalysisTask
 
         std::unique_ptr<TH1> h1PurityAnalysis = FitPuritySpectrum(task, multBin, SpectrumBinning::Analysis, fitDir);
 
-        // Style and draw on the summary canvas
-        CanvasManager::SetHistogramStyle(h1PurityAnalysis.get(), globalCfgs.GetSpectraColor(multBin));
+        // Drawn on the summary canvas, the style on the drawn copy and not on the spectrum that is written
         canvasManager.RequireCanvas(SummaryCanvas(task.purityKey, SpectrumBinning::Analysis))->cd();
-        h1PurityAnalysis->DrawCopy(multBin == 0 ? "" : "SAME");
+        CanvasManager::SetHistogramStyle(h1PurityAnalysis->DrawCopy(multBin == 0 ? "" : "SAME"), globalCfgs.GetSpectraColor(multBin));
 
         summaryDir->cd();
         h1PurityAnalysis->Write(nullptr, TObject::kOverwrite);
@@ -168,9 +167,8 @@ class PurityTask : public IAnalysisTask
           TDirectory* fitDirSource = RootIO::MakePath(outputFile.get(), OutputNames::SourceBinningPath(fitPath));
           h1PuritySeparateSource = FitPuritySpectrum(task, multBin, SpectrumBinning::Source, fitDirSource);
 
-          CanvasManager::SetHistogramStyle(h1PuritySeparateSource.get(), globalCfgs.GetSpectraColor(multBin));
           canvasManager.RequireCanvas(SummaryCanvas(task.purityKey, SpectrumBinning::Source))->cd();
-          h1PuritySeparateSource->DrawCopy(multBin == 0 ? "" : "SAME");
+          CanvasManager::SetHistogramStyle(h1PuritySeparateSource->DrawCopy(multBin == 0 ? "" : "SAME"), globalCfgs.GetSpectraColor(multBin));
 
           // Own subdirectory rather than sitting next to the analysis spectra.
           // Created here, inside the branch that produces the spectrum, so it
