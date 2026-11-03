@@ -314,7 +314,7 @@ class MCTask : public IAnalysisTask
       // follow from the class.
       auto summarise = [&](EfficiencyCalculator::Maps1D maps, std::optional<int> multBin) {
         const std::string multTag = multBin ? OutputNames::MultTag(multBinning, *multBin) : OutputNames::kMultIntegrated;
-        const int color = multBin ? globalCfgs.GetSpectraColor(*multBin) : kBlack;
+        const int color = multBin ? CanvasManager::ClassColor(*multBin) : kBlack;
         const char* option = multBin == 0 ? "" : "SAME";
 
         if (hEventLoss) {

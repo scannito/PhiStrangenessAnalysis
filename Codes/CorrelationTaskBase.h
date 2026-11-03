@@ -97,7 +97,7 @@ class CorrelationTaskBase : public IAnalysisTask
         h1MultTrends[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
         cTrendMeas->cd();
-        CanvasManager::DrawStyledCopy(h1MultTrends[pIdx][yIdx].get(), yIdx == 0 ? "" : "SAME", globalCfgs.GetMultTrendColor(yIdx));
+        CanvasManager::DrawStyledCopy(h1MultTrends[pIdx][yIdx].get(), yIdx == 0 ? "" : "SAME", CanvasManager::VariantColor(yIdx));
       }
 
       // --- Save extrapolated trends ---
@@ -112,7 +112,7 @@ class CorrelationTaskBase : public IAnalysisTask
           h1MultTrendsExtrap[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
           cTrendExtrap->cd();
-          CanvasManager::DrawStyledCopy(h1MultTrendsExtrap[pIdx][yIdx].get(), yIdx == 0 ? "" : "SAME", globalCfgs.GetMultTrendColor(yIdx));
+          CanvasManager::DrawStyledCopy(h1MultTrendsExtrap[pIdx][yIdx].get(), yIdx == 0 ? "" : "SAME", CanvasManager::VariantColor(yIdx));
         }
       }
 
@@ -135,7 +135,7 @@ class CorrelationTaskBase : public IAnalysisTask
           hRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
 
           cRatioExtrapMeas->cd();
-          CanvasManager::DrawStyledCopy(hRatioExtrapMeas.get(), yIdx == 0 ? "" : "SAME", globalCfgs.GetMultTrendColor(yIdx));
+          CanvasManager::DrawStyledCopy(hRatioExtrapMeas.get(), yIdx == 0 ? "" : "SAME", CanvasManager::VariantColor(yIdx));
         }
       }
     }
@@ -168,6 +168,8 @@ class CorrelationTaskBase : public IAnalysisTask
     // it is those inputs and a sum, with nothing to choose.
     RootIO::MakePath(outputFile.get(), baseLogicalPath)->cd();
     hNormalisationRelError->Write(nullptr, TObject::kOverwrite);
+    // The |dy| limits of this section, for a reader that lists what the file holds (the plots' catalog).
+    RootIO::WriteValueList(RootIO::MakePath(outputFile.get(), baseLogicalPath), RootIO::kStampDeltaY, deltaYLimits);
 
     // The spectra leave this task and, once the trends and ratios move to a task
     // of their own, this is what will say which method produced them.
@@ -237,10 +239,10 @@ class CorrelationTaskBase : public IAnalysisTask
 
           canvasRatio->cd();
 
-          TH1* cloneMeas = CanvasManager::DrawStyledCopy(hRatioMeas.get(), yIdx == 0 ? "" : "SAME", globalCfgs.GetMultTrendColor(yIdx), 24);
+          TH1* cloneMeas = CanvasManager::DrawStyledCopy(hRatioMeas.get(), yIdx == 0 ? "" : "SAME", CanvasManager::VariantColor(yIdx), 24);
           legend->AddEntry(cloneMeas, std::format("Meas. |#Delta y| < {}", dyTitleStr).c_str(), "p");
           if (hRatioExtrap) {
-            TH1* cloneExtrap = CanvasManager::DrawStyledCopy(hRatioExtrap.get(), "SAME", globalCfgs.GetMultTrendColor(yIdx), 20);
+            TH1* cloneExtrap = CanvasManager::DrawStyledCopy(hRatioExtrap.get(), "SAME", CanvasManager::VariantColor(yIdx), 20);
             legend->AddEntry(cloneExtrap, std::format("Extrap. |#Delta y| < {}", dyTitleStr).c_str(), "p");
           }
         }
@@ -1143,7 +1145,7 @@ class CorrelationTaskBase : public IAnalysisTask
     auto attachCurve = [&](const TF1* model, Style_t style, double from, double to) {
       auto curve = std::make_unique<TF1>(*model);
       curve->SetNpx(1000);
-      curve->SetLineColor(globalCfgs.GetSpectraColor(multBin));
+      curve->SetLineColor(CanvasManager::ClassColor(multBin));
       curve->SetLineWidth(2);
       curve->SetLineStyle(style);
       curve->SetRange(from, to);
@@ -1165,7 +1167,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // on this canvas without a second explicit draw.
     if (overlay) {
       overlay->cd();
-      CanvasManager::DrawStyledCopy(hSpecExt.get(), multBin == 0 ? "" : "SAME", globalCfgs.GetSpectraColor(multBin));
+      CanvasManager::DrawStyledCopy(hSpecExt.get(), multBin == 0 ? "" : "SAME", CanvasManager::ClassColor(multBin));
     }
 
     return res;
@@ -1332,7 +1334,7 @@ class CorrelationTaskBase : public IAnalysisTask
         // Draw and Write
         std::string cSpecName = OutputNames::SpectraCanvas(config.name, dyLimit);
         canvasManager.RequireCanvas(cSpecName)->cd();
-        CanvasManager::DrawStyledCopy(h1Spectrum.get(), multBin == 0 ? "" : "SAME", globalCfgs.GetSpectraColor(multBin));
+        CanvasManager::DrawStyledCopy(h1Spectrum.get(), multBin == 0 ? "" : "SAME", CanvasManager::ClassColor(multBin));
 
         targetSpectraDir->cd();
         h1Spectrum->Write(nullptr, TObject::kOverwrite);

@@ -152,7 +152,7 @@ class PurityTask : public IAnalysisTask
 
         // Drawn on the summary canvas
         canvasManager.RequireCanvas(OutputNames::PuritySummaryCanvas(task.purityKey, SpectrumBinning::Analysis))->cd();
-        CanvasManager::DrawStyledCopy(h1PurityAnalysis.get(), multBin == 0 ? "" : "SAME", globalCfgs.GetSpectraColor(multBin));
+        CanvasManager::DrawStyledCopy(h1PurityAnalysis.get(), multBin == 0 ? "" : "SAME", CanvasManager::ClassColor(multBin));
 
         summaryDir->cd();
         h1PurityAnalysis->Write(nullptr, TObject::kOverwrite);
@@ -168,7 +168,7 @@ class PurityTask : public IAnalysisTask
           h1PuritySeparateSource = FitPuritySpectrum(task, multBin, SpectrumBinning::Source, fitDirSource);
 
           canvasManager.RequireCanvas(OutputNames::PuritySummaryCanvas(task.purityKey, SpectrumBinning::Source))->cd();
-          CanvasManager::DrawStyledCopy(h1PuritySeparateSource.get(), multBin == 0 ? "" : "SAME", globalCfgs.GetSpectraColor(multBin));
+          CanvasManager::DrawStyledCopy(h1PuritySeparateSource.get(), multBin == 0 ? "" : "SAME", CanvasManager::ClassColor(multBin));
 
           // Own subdirectory rather than sitting next to the analysis spectra.
           // Created here, inside the branch that produces the spectrum, so it
