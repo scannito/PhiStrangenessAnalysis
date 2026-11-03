@@ -74,11 +74,8 @@ class CorrelationTaskBase : public IAnalysisTask
       // spectra used to sit flat in the scheme directory while only the trends had a
       // per-particle folder, so a reader had to know the naming convention to tell
       // which spectrum belonged to which species. This makes the layout say it.
-      std::vector<std::string> particlePath = baseLogicalPath;
-      particlePath.push_back(pName);
-
-      std::vector<std::string> trendsPath = particlePath;
-      trendsPath.push_back(OutputNames::kTrendsDir);
+      const std::vector<std::string> particlePath = SectionPath({pName});
+      const std::vector<std::string> trendsPath = SectionPath({pName, OutputNames::kTrendsDir});
 
       TDirectory* trendsDir = RootIO::MakePath(outputFile.get(), trendsPath);
 
@@ -91,7 +88,7 @@ class CorrelationTaskBase : public IAnalysisTask
       trendsDir->cd();
 
       // --- Save measured trends ---
-      std::string cNameMeas = OutputNames::TrendCanvas(pName, false);
+      std::string cNameMeas = OutputNames::TrendCanvas(pName);
       TCanvas* cTrendMeas = canvasManager.CreateCanvas(cNameMeas, "Measured Yield Trend", trendsPath, 800, 600);
       canvasManager.SetAutoYRange(cTrendMeas);
 
@@ -106,7 +103,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // --- Save extrapolated trends ---
       bool hasExtrapTrend = !h1MultTrendsExtrap.empty() && !h1MultTrendsExtrap[pIdx].empty();
       if (hasExtrapTrend) {
-        std::string cNameExtrap = OutputNames::TrendCanvas(pName, true);
+        std::string cNameExtrap = OutputNames::TrendExtrapCanvas(pName);
         TCanvas* cTrendExtrap = canvasManager.CreateCanvas(cNameExtrap, "Extrapolated Yield Trend", trendsPath, 800, 600);
         canvasManager.SetAutoYRange(cTrendExtrap);
 
@@ -181,8 +178,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // =========================================================================
     if (!requestedRatios.empty()) {
       // Create or access the "Ratios" directory inside Extract1D/2D
-      std::vector<std::string> ratioPath = baseLogicalPath;
-      ratioPath.push_back(OutputNames::kRatiosDir);
+      const std::vector<std::string> ratioPath = SectionPath({OutputNames::kRatiosDir});
       TDirectory* ratioDir = RootIO::MakePath(outputFile.get(), ratioPath);
 
       ratioDir->cd();
@@ -733,12 +729,12 @@ class CorrelationTaskBase : public IAnalysisTask
       const bool applyEfficiencyBinned = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Binned;
       const bool applyEfficiencyIntegrated = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Integrated;
 
-      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(of, OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(particle, OutputNames::kMultIntegrated), applyEfficiencyIntegrated, targetBinning);
+      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::Efficiency), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::Efficiency, OutputNames::kMultIntegrated), applyEfficiencyIntegrated, targetBinning);
 
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
         const std::string multTag = OutputNames::MultTag(multBinning, multBin);
-        std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(of, OutputNames::EfficiencyPath(globalCfgs.binningName), OutputNames::Efficiency(particle, multTag), applyEfficiencyBinned, targetBinning);
-        std::unique_ptr<TH1> hSignalLossBinned = fetchHist(of, OutputNames::SignalLossPath(globalCfgs.binningName), OutputNames::SignalLoss(particle, multTag),
+        std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::Efficiency), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::Efficiency, multTag), applyEfficiencyBinned, targetBinning);
+        std::unique_ptr<TH1> hSignalLossBinned = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::SignalLoss), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::SignalLoss, multTag),
                                                                      pc.signalLoss.has_value(), // always per multiplicity class
                                                                      targetBinning);
 

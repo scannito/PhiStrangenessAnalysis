@@ -255,7 +255,7 @@ class EfficiencyCalculator
     auto divide = [&](const TH1* signalLoss, OutputNames::SpectrumBinning binning) -> std::unique_ptr<TH1> {
       if (!signalLoss)
         return nullptr;
-      const std::string name = OutputNames::SignalLossOverEventLoss(particle, multTag, binning);
+      const std::string name = OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::SignalLossOverEventLoss, multTag, binning);
 
       std::unique_ptr<TH1> hEventLossConst{static_cast<TH1*>(signalLoss->Clone(std::format("{}_evLossConst", name).c_str()))};
       hEventLossConst->SetDirectory(0);
@@ -284,11 +284,11 @@ class EfficiencyCalculator
     // "B" on both: the reconstructed are a subset of the generated-associated,
     // which are a subset of the generated, so the two ratios are binomial.
     std::unique_ptr<TH1> efficiency = HistogramUtils::MakeRatioHist(
-      h1MCReco, h1MCGenAssocReco, OutputNames::Efficiency(particle, multTag, binning),
+      h1MCReco, h1MCGenAssocReco, OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::Efficiency, multTag, binning),
       ";p_{T} (GeV/#it{c});Acc #times #epsilon", 1.0, 1.0, "B");
 
     std::unique_ptr<TH1> signalLoss = HistogramUtils::MakeRatioHist(
-      h1MCGenAssocReco, h1MCGen, OutputNames::SignalLoss(particle, multTag, binning),
+      h1MCGenAssocReco, h1MCGen, OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::SignalLoss, multTag, binning),
       ";p_{T} (GeV/#it{c});Signal loss", 1.0, 1.0, "B");
 
     return {std::move(efficiency), std::move(signalLoss)};

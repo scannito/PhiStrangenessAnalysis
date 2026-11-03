@@ -120,7 +120,7 @@ class PhiFitTask : public IAnalysisTask
 
         // The fitter draws; the canvas, the label, the file and the lifetime are the
         // task's. Written and destroyed here, per cell, and not left to a WriteAll in
-        // Terminate: nothing reads a fit canvas back, and holding all of them until
+        // Terminate: nothing in the run reads a fit canvas back, and holding all of them until
         // the end would only cost memory.
         const std::string canvasName = OutputNames::PhiFitCanvas(cell);
         const std::string title = OutputNames::CellTitle("#phi", multBinning, multBin, ptPhiBinning, ptPhiBin);
