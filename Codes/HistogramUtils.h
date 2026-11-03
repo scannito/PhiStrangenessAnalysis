@@ -226,9 +226,6 @@ inline void FillTrendFromExtrapolation(TH1* hTrend, const AnalysisStructures::Ex
 // Histogram ratios utility
 // -----------------------------------------------------------------------------
 
-// The caller styles the result itself (SetHistogramStyle, marker overrides),
-// so this only builds the ratio.
-//
 // 'option' is TH1::Divide's: pass "B" whenever the numerator counts a subset of
 // the denominator, as for an efficiency, otherwise the errors come out too large
 // and can exceed the range the ratio is bounded to.

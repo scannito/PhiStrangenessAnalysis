@@ -100,7 +100,7 @@ class CorrelationTaskBase : public IAnalysisTask
         h1MultTrends[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
         cTrendMeas->cd();
-        CanvasManager::SetHistogramStyle(h1MultTrends[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME"), globalCfgs.GetMultTrendColor(yIdx));
+        CanvasManager::DrawStyledCopy(h1MultTrends[pIdx][yIdx].get(), yIdx == 0 ? "" : "SAME", globalCfgs.GetMultTrendColor(yIdx));
       }
 
       // --- Save extrapolated trends ---
@@ -115,7 +115,7 @@ class CorrelationTaskBase : public IAnalysisTask
           h1MultTrendsExtrap[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
 
           cTrendExtrap->cd();
-          CanvasManager::SetHistogramStyle(h1MultTrendsExtrap[pIdx][yIdx]->DrawCopy(yIdx == 0 ? "" : "SAME"), globalCfgs.GetMultTrendColor(yIdx));
+          CanvasManager::DrawStyledCopy(h1MultTrendsExtrap[pIdx][yIdx].get(), yIdx == 0 ? "" : "SAME", globalCfgs.GetMultTrendColor(yIdx));
         }
       }
 
@@ -138,7 +138,7 @@ class CorrelationTaskBase : public IAnalysisTask
           hRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
 
           cRatioExtrapMeas->cd();
-          CanvasManager::SetHistogramStyle(hRatioExtrapMeas->DrawCopy(yIdx == 0 ? "" : "SAME"), globalCfgs.GetMultTrendColor(yIdx));
+          CanvasManager::DrawStyledCopy(hRatioExtrapMeas.get(), yIdx == 0 ? "" : "SAME", globalCfgs.GetMultTrendColor(yIdx));
         }
       }
     }
@@ -241,12 +241,10 @@ class CorrelationTaskBase : public IAnalysisTask
 
           canvasRatio->cd();
 
-          TH1* cloneMeas = hRatioMeas->DrawCopy(yIdx == 0 ? "" : "SAME");
-          CanvasManager::SetHistogramStyle(cloneMeas, globalCfgs.GetMultTrendColor(yIdx), 24);
+          TH1* cloneMeas = CanvasManager::DrawStyledCopy(hRatioMeas.get(), yIdx == 0 ? "" : "SAME", globalCfgs.GetMultTrendColor(yIdx), 24);
           legend->AddEntry(cloneMeas, std::format("Meas. |#Delta y| < {}", dyTitleStr).c_str(), "p");
           if (hRatioExtrap) {
-            TH1* cloneExtrap = hRatioExtrap->DrawCopy("SAME");
-            CanvasManager::SetHistogramStyle(cloneExtrap, globalCfgs.GetMultTrendColor(yIdx), 20);
+            TH1* cloneExtrap = CanvasManager::DrawStyledCopy(hRatioExtrap.get(), "SAME", globalCfgs.GetMultTrendColor(yIdx), 20);
             legend->AddEntry(cloneExtrap, std::format("Extrap. |#Delta y| < {}", dyTitleStr).c_str(), "p");
           }
         }
@@ -1171,7 +1169,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // on this canvas without a second explicit draw.
     if (overlay) {
       overlay->cd();
-      CanvasManager::SetHistogramStyle(hSpecExt->DrawCopy(multBin == 0 ? "" : "SAME"), globalCfgs.GetSpectraColor(multBin));
+      CanvasManager::DrawStyledCopy(hSpecExt.get(), multBin == 0 ? "" : "SAME", globalCfgs.GetSpectraColor(multBin));
     }
 
     return res;
@@ -1335,10 +1333,10 @@ class CorrelationTaskBase : public IAnalysisTask
           h1Spectrum->Multiply(hPurity);
         }
 
-        // Draw and Write; the style goes on the drawn copy, not on the spectrum that is written.
+        // Draw and Write
         std::string cSpecName = OutputNames::SpectraCanvas(config.name, dyLimit);
         canvasManager.RequireCanvas(cSpecName)->cd();
-        CanvasManager::SetHistogramStyle(h1Spectrum->DrawCopy(multBin == 0 ? "" : "SAME"), globalCfgs.GetSpectraColor(multBin));
+        CanvasManager::DrawStyledCopy(h1Spectrum.get(), multBin == 0 ? "" : "SAME", globalCfgs.GetSpectraColor(multBin));
 
         targetSpectraDir->cd();
         h1Spectrum->Write(nullptr, TObject::kOverwrite);
