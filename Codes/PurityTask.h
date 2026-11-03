@@ -219,7 +219,7 @@ class PurityTask : public IAnalysisTask
     auto fitAt = [&](SpectrumBinning which) {
       std::unique_ptr<TH1> h1Purity = FitPuritySpectrum(task, classes, classBin, which);
       canvasManager.RequireCanvas(OutputNames::PuritySummaryCanvas(task.purityKey, which))->cd();
-      CanvasManager::DrawStyledCopy(h1Purity.get(), option, globalCfgs.GetSpectraColor(multBin));
+      CanvasManager::DrawStyledCopy(h1Purity.get(), option, multBin ? CanvasManager::ClassColor(*multBin) : kBlack);
       // The source-binning spectrum in a subdirectory of its own rather than next to the analysis one, created by the
       // write itself: it exists if and only if something was written into it.
       RootIO::MakePath(outputFile.get(), OutputNames::SummaryPath(globalCfgs.binningName, which))->cd();

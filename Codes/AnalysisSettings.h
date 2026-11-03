@@ -7,7 +7,6 @@
 
 #include <format>
 #include <map>
-#include <optional>
 #include <set>
 #include <span>
 #include <stdexcept>
@@ -62,13 +61,6 @@ struct AnalysisSettings {
   //     {"K0S", {0.0, 0.3, 0.5, 0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0}},
   //     {"Xi",  {0.8, 1.2, 1.6, 2.0, 2.5, 3.0, 4.0, 6.0}},
   //     {"Pi",  {0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.2, 1.5, 2.0, 3.0}}}
-
-  // ---------------------------------------------------------------------------
-  // Presentation
-  // ---------------------------------------------------------------------------
-
-  std::vector<int> spectraColors = {634, 628, 807, 797, kOrange - 4, 815, 418, 429, 867, 856};
-  std::vector<int> multTrendColors = {kRed, kBlue, kGreen + 2};
 
   // ---------------------------------------------------------------------------
   // Resolution -- the only way the analysis obtains a binning
@@ -152,15 +144,6 @@ struct AnalysisSettings {
         context, diff));
     }
   }
-
-  // ---------------------------------------------------------------------------
-  // Presentation accessors
-  // ---------------------------------------------------------------------------
-
-  int GetSpectraColor(int index) const { return spectraColors[index % spectraColors.size()]; }
-  // A multiplicity class's colour; none is the union of the classes, drawn in black.
-  int GetSpectraColor(std::optional<int> multBin) const { return multBin ? GetSpectraColor(*multBin) : kBlack; }
-  int GetMultTrendColor(int index) const { return multTrendColors[index % multTrendColors.size()]; }
 
  private:
   // Bookkeeping for the "nothing declared" warnings, so that each one is said

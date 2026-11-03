@@ -4,6 +4,7 @@
 #include "RootIOHelpers.h"
 
 #include "TCanvas.h"
+#include "TColor.h"
 #include "TClass.h"
 #include "TDirectory.h"
 #include "TFile.h"
@@ -651,6 +652,13 @@ class CanvasManager
   }
 
   // Applies HEP/ALICE standard visual styling to 1D histograms
+  // The colours of the classes of a binning (one curve per multiplicity class: spectra, purities, maps) and of the
+  // variants of one quantity (the |dy| limits of a trend). The listed ones are the framework's colours; past them a
+  // colour is generated, spread around the hue circle, so that two classes never share one (the list used to repeat
+  // from the eleventh class on).
+  static int ClassColor(int index) { return PaletteColor(kClassColors, index); }
+  static int VariantColor(int index) { return PaletteColor(kVariantColors, index); }
+
   // Draws a styled copy of 'h' on the current pad and returns it (for a legend). The style goes on the copy only: the
   // histogram itself is data, often written, and carries no presentation.
   static TH1* DrawStyledCopy(const TH1* h, const char* option, int color, int markerStyle = 20)
@@ -831,6 +839,19 @@ class CanvasManager
   }
 
  private:
+  static constexpr int kClassColors[] = {634, 628, 807, 797, kOrange - 4, 815, 418, 429, 867, 856};
+  static constexpr int kVariantColors[] = {kRed, kBlue, kGreen + 2};
+
+  template <std::size_t N>
+  static int PaletteColor(const int (&listed)[N], int index)
+  {
+    if (index >= 0 && static_cast<std::size_t>(index) < N)
+      return listed[index];
+    float r = 0, g = 0, b = 0;
+    TColor::HLS2RGB(static_cast<float>(std::fmod(137.508 * index, 360.0)), 0.45f, 0.75f, r, g, b);
+    return TColor::GetColor(r, g, b);
+  }
+
   // Writes a canvas into baseDir/pathNodes; baseDir itself for an empty path. Private: its callers hold the
   // canvas (RequireCanvas, the managed map), so it is never null here.
   static void WriteCanvas(TCanvas* canvas, TDirectory* baseDir, const std::vector<std::string>& pathNodes)
