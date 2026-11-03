@@ -651,6 +651,15 @@ class CanvasManager
   }
 
   // Applies HEP/ALICE standard visual styling to 1D histograms
+  // Draws a styled copy of 'h' on the current pad and returns it (for a legend). The style goes on the copy only: the
+  // histogram itself is data, often written, and carries no presentation.
+  static TH1* DrawStyledCopy(const TH1* h, const char* option, int color, int markerStyle = 20)
+  {
+    TH1* copy = h->DrawCopy(option);
+    SetHistogramStyle(copy, color, markerStyle);
+    return copy;
+  }
+
   static void SetHistogramStyle(TH1* h, int color, int markerStyle = 20,
                                 double markerSize = 1.5, int lineWidth = 2,
                                 int fillStyle = 3001)

@@ -117,12 +117,20 @@ inline std::string CellTitle(std::string_view particle, std::span<const double> 
 // Builders, one per kind of object
 // ---------------------------------------------------------------------------
 // MCTask -> CorrelationTask: the maps of one class (MultTag) or integrated (kMultIntegrated).
-inline std::string Efficiency(std::string_view particle, std::string_view multTag) { return std::format("h1{}Efficiency_{}", particle, multTag); }
-inline std::string SignalLoss(std::string_view particle, std::string_view multTag) { return std::format("h1{}SigLoss_{}", particle, multTag); }
-// The signal loss divided by the event loss of the same class: drawn as a summary, read by nothing else in the chain.
-inline std::string SignalLossOverEventLoss(std::string_view particle, std::string_view multTag)
+// At the source binning (SpectrumBinning::Source) with its suffix, as every object kept at both binnings.
+inline std::string Efficiency(std::string_view particle, std::string_view multTag, SpectrumBinning binning = SpectrumBinning::Analysis)
 {
-  return std::format("h1{}SigLossOverEvLoss_{}", particle, multTag);
+  return std::format("h1{}Efficiency_{}{}", particle, multTag, BinningSuffix(binning));
+}
+inline std::string SignalLoss(std::string_view particle, std::string_view multTag, SpectrumBinning binning = SpectrumBinning::Analysis)
+{
+  return std::format("h1{}SigLoss_{}{}", particle, multTag, BinningSuffix(binning));
+}
+// The signal loss divided by the event loss of the same class: drawn as a summary, read by nothing else in the chain.
+inline std::string SignalLossOverEventLoss(std::string_view particle, std::string_view multTag,
+                                           SpectrumBinning binning = SpectrumBinning::Analysis)
+{
+  return std::format("h1{}SigLossOverEvLoss_{}{}", particle, multTag, BinningSuffix(binning));
 }
 inline const std::string kEventLoss{"hEventLoss"};
 // Where they are in the corrections file.

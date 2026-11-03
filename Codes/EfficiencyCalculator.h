@@ -225,16 +225,16 @@ class EfficiencyCalculator
   // Raw pointers: it reads the counts, neither owning nor keeping them.
   static std::pair<std::unique_ptr<TH1>, std::unique_ptr<TH1>>
     DivideCounts(const TH1* h1MCGen, const TH1* h1MCGenAssocReco, const TH1* h1MCReco,
-                 const std::string& particle, const std::string& multTag)
+                 const std::string& particle, const std::string& multTag, OutputNames::SpectrumBinning binning)
   {
     // "B" on both: the reconstructed are a subset of the generated-associated,
     // which are a subset of the generated, so the two ratios are binomial.
     std::unique_ptr<TH1> efficiency = HistogramUtils::MakeRatioHist(
-      h1MCReco, h1MCGenAssocReco, OutputNames::Efficiency(particle, multTag),
+      h1MCReco, h1MCGenAssocReco, OutputNames::Efficiency(particle, multTag, binning),
       ";p_{T} (GeV/#it{c});Acc #times #epsilon", 1.0, 1.0, "B");
 
     std::unique_ptr<TH1> signalLoss = HistogramUtils::MakeRatioHist(
-      h1MCGenAssocReco, h1MCGen, OutputNames::SignalLoss(particle, multTag),
+      h1MCGenAssocReco, h1MCGen, OutputNames::SignalLoss(particle, multTag, binning),
       ";p_{T} (GeV/#it{c});Signal loss", 1.0, 1.0, "B");
 
     return {std::move(efficiency), std::move(signalLoss)};
@@ -251,7 +251,7 @@ class EfficiencyCalculator
 
     if (data.rebinningPt) {
       auto [effFine, lossFine] = DivideCounts(h1MCGen.get(), h1MCGenAssocReco.get(), h1MCReco.get(),
-                                              data.name, std::format("{}{}", multTag, OutputNames::BinningSuffix(OutputNames::SpectrumBinning::Source)));
+                                              data.name, multTag, OutputNames::SpectrumBinning::Source);
       maps.efficiencySourceBinning = std::move(effFine);
       maps.signalLossSourceBinning = std::move(lossFine);
     }
@@ -259,7 +259,7 @@ class EfficiencyCalculator
     RebinCountsIfRequested(data, h1MCGen, h1MCGenAssocReco, h1MCReco);
 
     auto [efficiency, signalLoss] = DivideCounts(h1MCGen.get(), h1MCGenAssocReco.get(), h1MCReco.get(),
-                                                 data.name, multTag);
+                                                 data.name, multTag, OutputNames::SpectrumBinning::Analysis);
     maps.efficiency = std::move(efficiency);
     maps.signalLoss = std::move(signalLoss);
 
