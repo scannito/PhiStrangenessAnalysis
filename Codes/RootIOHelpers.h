@@ -244,6 +244,8 @@ inline void WriteCcdbFile(const std::string& path, TNamed* object, std::string_v
 inline const std::string kStampMult{"binning_mult"};
 inline const std::string kStampPtPhi{"binning_ptPhi"};
 inline const std::string kStampPtAssoc{"binning_ptAssoc"};
+// A binning scheme of a file: a directory that carries the multiplicity stamp.
+inline bool IsSchemeDir(TDirectory* dir) { return dir && dir->Get(kStampMult.c_str()) != nullptr; }
 
 // Records a binning inside a file as an empty TH1D whose axis IS the binning.
 // Storing it as a histogram rather than as a bare array means it reads back
@@ -298,30 +300,76 @@ inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& 
   return stamp ? BinningUtils::AxisEdges(stamp->GetXaxis()) : std::vector<double>{};
 }
 
+// The one comparison of a stamp: Same, Differs (with the edge that differs and both values), or NotChecked when a side
+// lacks the stamp because it was produced before the stamp existed - said in 'detail', never passed over in silence.
+// The Require* functions below stop on a difference and warn on a stamp missing; a plot that only draws two series
+// together reports both (PlotSeries).
+struct StampComparison {
+  enum class Outcome { Same,
+                       Differs,
+                       NotChecked };
+  Outcome outcome{Outcome::Same};
+  std::string detail;
+};
+
+// The stamp of 'dir' against a binning in hand, called 'currentLabel' in the message.
+inline StampComparison CompareBinningStamp(TDirectory* dir, const std::string& name, std::span<const double> current,
+                                           std::string_view errCtx, std::string_view currentLabel = "current run")
+{
+  using Outcome = StampComparison::Outcome;
+  const std::vector<double> stamped = ReadBinningStamp(dir, name, errCtx);
+  if (stamped.empty())
+    return {Outcome::NotChecked, std::format("{}: no '{}' stamp, so the binning it was produced with cannot be verified. "
+                                             "Re-produce it if the input production has changed since.",
+                                             errCtx, name)};
+  const std::string diff = BinningUtils::Compare(stamped, current, "that file", currentLabel);
+  if (!diff.empty())
+    return {Outcome::Differs, std::format("{}: it was produced with a different '{}':\n{}", errCtx, name, diff)};
+  return {};
+}
+
+// The same stamp of two directories produced apart (two files compared, two series drawn together): the reference's is
+// the binning in hand, and a reference without it is NotChecked.
+inline StampComparison CompareBinningStamps(TDirectory* reference, TDirectory* other, const std::string& name,
+                                            std::string_view referenceCtx, std::string_view otherCtx)
+{
+  const std::vector<double> stamped = ReadBinningStamp(reference, name, referenceCtx);
+  if (stamped.empty())
+    return {StampComparison::Outcome::NotChecked,
+            std::format("{}: no '{}' stamp, so the two binnings cannot be compared on it.", referenceCtx, name)};
+  return CompareBinningStamp(other, name, stamped, otherCtx, referenceCtx);
+}
+
+namespace Detail
+{
+inline void Enforce(const StampComparison& c)
+{
+  if (c.outcome == StampComparison::Outcome::NotChecked)
+    Logger::Warn("{}", c.detail);
+  else if (c.outcome == StampComparison::Outcome::Differs)
+    throw std::runtime_error(std::format("[FATAL] {}The two do not describe the same intervals: re-run the task that "
+                                         "produced it with this binning.",
+                                         c.detail));
+}
+} // namespace Detail
+
 // Was the file this directory belongs to produced with the binning of the run reading it? Used for the
 // corrections, the purities and the files ComparisonTask divides, so the messages name none of them and
 // errCtx says which. The objects are named by interval, so a mismatch would also show up as a missing object; the
 // stamp stops the run earlier and better, before anything is read, with the edge that differs and both
 // values, where a missing object says only what was expected.
-inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name,
-                                        std::span<const double> current, std::string_view errCtx)
+inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name, std::span<const double> current,
+                                        std::string_view errCtx)
 {
-  const std::vector<double> stamped = ReadBinningStamp(dir, name, errCtx);
+  Detail::Enforce(CompareBinningStamp(dir, name, current, errCtx));
+}
 
-  if (stamped.empty()) {
-    Logger::Warn("{}: no '{}' stamp, so the binning it was produced with cannot be verified. Re-produce it "
-                 "if the input production has changed since.",
-                 errCtx, name);
-    return;
-  }
-
-  const std::string diff = BinningUtils::Compare(stamped, current, "that file", "current run");
-  if (!diff.empty()) {
-    throw std::runtime_error(std::format(
-      "[FATAL] {}: it was produced with a different '{}':\n{}"
-      "The two do not describe the same intervals: re-run the task that produced it with this binning.",
-      errCtx, name, diff));
-  }
+// The same stamp of two directories produced apart, as ComparisonTask needs it: a difference stops, a stamp missing
+// on either side is warned.
+inline void RequireSameOptionalStamp(TDirectory* reference, TDirectory* other, const std::string& name,
+                                     std::string_view referenceCtx, std::string_view otherCtx)
+{
+  Detail::Enforce(CompareBinningStamps(reference, other, name, referenceCtx, otherCtx));
 }
 
 // A list of values that is not a binning: they need not be ordered, and one value is a list, so it cannot be a stamp
@@ -355,47 +403,6 @@ inline std::optional<std::vector<double>> ReadValueList(TDirectory* dir, const s
   return values;
 }
 
-// Two directories produced apart (two files compared, two series drawn together) and the same stamp in both. Same,
-// Differs (with the edge that differs, both values), or NotChecked when one side lacks the stamp because it was
-// produced before the stamp existed - said in 'detail', never passed over in silence. The one rule of ComparisonTask
-// and of the plots: RequireSameOptionalStamp stops on a difference, a plot that only draws two series together warns.
-struct StampComparison {
-  enum class Outcome { Same,
-                       Differs,
-                       NotChecked };
-  Outcome outcome{Outcome::Same};
-  std::string detail;
-};
-
-inline StampComparison CompareBinningStamps(TDirectory* reference, TDirectory* other, const std::string& stamp,
-                                            const std::string& referenceCtx, const std::string& otherCtx)
-{
-  using Outcome = StampComparison::Outcome;
-  const std::vector<double> stamped = ReadBinningStamp(reference, stamp, referenceCtx);
-  if (stamped.empty())
-    return {Outcome::NotChecked, std::format("{}: no '{}' stamp, so the two binnings cannot be compared on it.", referenceCtx, stamp)};
-  const std::vector<double> otherStamped = ReadBinningStamp(other, stamp, otherCtx);
-  if (otherStamped.empty())
-    return {Outcome::NotChecked, std::format("{}: no '{}' stamp, so the binning it was produced with cannot be verified. "
-                                             "Re-produce it if the input production has changed since.",
-                                             otherCtx, stamp)};
-  const std::string diff = BinningUtils::Compare(otherStamped, stamped, "that file", "current run");
-  if (!diff.empty())
-    return {Outcome::Differs, std::format("{}: it was produced with a different '{}':\n{}", otherCtx, stamp, diff)};
-  return {};
-}
-
-inline void RequireSameOptionalStamp(TDirectory* reference, TDirectory* other, const std::string& stamp,
-                                     const std::string& referenceCtx, const std::string& otherCtx)
-{
-  const StampComparison c = CompareBinningStamps(reference, other, stamp, referenceCtx, otherCtx);
-  if (c.outcome == StampComparison::Outcome::NotChecked)
-    Logger::Warn("{}", c.detail);
-  else if (c.outcome == StampComparison::Outcome::Differs)
-    throw std::runtime_error(std::format("[FATAL] {}The two do not describe the same intervals: re-run the task that "
-                                         "produced it with this binning.",
-                                         c.detail));
-}
 
 // ---------------------------------------------------------------------------
 // Provenance: what produced this file
@@ -469,6 +476,21 @@ inline std::map<std::string, std::string> ReadProvenance(TDirectory* base, const
       facts[entry->GetName()] = entry->GetTitle();
   }
   return facts;
+}
+
+// The provenance of an input, copied next to a result made from it (ComparisonTask, the plots). An input may
+// legitimately carry none - a file this framework did not write, or one produced before the records existed - and
+// then the reason is written instead of an empty directory, which would read as "something failed while writing
+// this"; the file name goes in because it is the only thing that identifies such an input. Never throws on the facts.
+inline void CopyProvenance(TDirectory* src, const std::string& srcOwner, TDirectory* dest, const std::string& destOwner,
+                           std::string_view record, const std::string& fileLabel)
+{
+  std::map<std::string, std::string> facts = src ? ReadProvenance(src, srcOwner) : std::map<std::string, std::string>{};
+  if (facts.empty())
+    facts["no_provenance"] = std::format("'{}' carries no provenance for '{}': either it was not produced by this framework, "
+                                         "or it predates the provenance records.",
+                                         fileLabel, srcOwner);
+  WriteProvenance(dest, destOwner, facts, record);
 }
 
 // For the task consuming the file. The serialised configuration is one long line,

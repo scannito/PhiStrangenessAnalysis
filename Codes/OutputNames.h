@@ -84,6 +84,9 @@ inline std::vector<std::string> SummaryPath(const std::string& binningName, Spec
 // names of everything it is not: that exclusion would need a new entry the first time
 // another sibling appears (systematics, QA), and whoever added it would have no reason to
 // look here.
+// A section is the directory of one of the two engines (a binning scheme is RootIO::IsSchemeDir).
+inline bool IsSectionDir(TDirectory* dir) { return dir && (dir->GetName() == kExtract1D || dir->GetName() == kExtract2D); }
+
 inline bool IsSpeciesDir(TDirectory* dir)
 {
   return dir && (dir->GetDirectory(kTrendsDir.c_str()) || dir->GetDirectory(kSpectraDir.c_str()));
@@ -145,24 +148,25 @@ enum class CorrectionMap { Efficiency,
 namespace Detail
 {
 // One row per map, the only place its names are spelled: the directory of the map, the subdirectory of its objects,
-// the object's name and its summary canvas's.
+// the object's name, its summary canvas's, and what it is in words.
 struct CorrectionMapNames {
-  std::string_view dir, objectsDir, object, canvas;
+  std::string_view dir, objectsDir, object, canvas, title;
 };
 inline CorrectionMapNames NamesOf(CorrectionMap map)
 {
   switch (map) {
     case CorrectionMap::Efficiency:
-      return {"AccEff", "MultBin", "Efficiency", "Efficiency"};
+      return {"AccEff", "MultBin", "Efficiency", "Efficiency", "efficiency"};
     case CorrectionMap::SignalLoss:
-      return {"SigLoss", "MultBin", "SigLoss", "SignalLoss"};
+      return {"SigLoss", "MultBin", "SigLoss", "SignalLoss", "signal loss"};
     case CorrectionMap::SignalLossOverEventLoss:
-      return {"SigLoss", "OverEvLoss", "SigLossOverEvLoss", "SignalLossOverEventLoss"};
+      return {"SigLoss", "OverEvLoss", "SigLossOverEvLoss", "SignalLossOverEventLoss", "signal loss over event loss"};
   }
   throw std::runtime_error(std::format("[FATAL] OutputNames: CorrectionMap {} has no names.", static_cast<int>(map)));
 }
 } // namespace Detail
 
+inline std::string_view CorrectionMapTitle(CorrectionMap map) { return Detail::NamesOf(map).title; }
 inline std::string CorrectionMapName(std::string_view particle, CorrectionMap map, std::string_view multTag,
                                      SpectrumBinning binning = SpectrumBinning::Analysis)
 {

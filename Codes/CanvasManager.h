@@ -87,8 +87,7 @@ class CanvasManager
     TPad* bottomPad{nullptr};
     double fontScale{1.0}; // Compensates font sizes in bottom pad (pad height ratio)
   };
-  // Pads side by side that share their Y axis: only the first draws it, and every pad has the same plotting width.
-  struct JoinedPads {
+  struct JoinedPads { // CreateJoinedPads
     TCanvas* canvas{nullptr};
     std::vector<TPad*> pads;
   };
@@ -284,9 +283,10 @@ class CanvasManager
     return RatioCanvas{raw, topPad, bottomPad, fontScale};
   }
 
-  // Creates a canvas divided into nCols x nRows subpads with uniform margins
-  // 'n' pads in a row with no gap between them, the Y axis drawn once, on the left: the first pad carries the left
-  // margin and the last the right one, each widened by it, so that the plotting areas are equal.
+  // 'n' pads in a row with no gap between them: the first pad carries the left margin and the last the right one, each
+  // widened by it, so that the plotting areas are equal. The caller draws the Y axis on the first pad only, and sizes
+  // the text in pixels (fonts of precision 3, such as 43): a size given as a fraction of the pad would come out larger
+  // on the wider end pads.
   JoinedPads CreateJoinedPads(const std::string& name, const std::string& title, int n, int width = 1500, int height = 600,
                               const PadMargins& margins = PadMargins{0.10, 0.02, 0.06, 0.14})
   {
@@ -312,6 +312,7 @@ class CanvasManager
     return joined;
   }
 
+  // Creates a canvas divided into nCols x nRows subpads with uniform margins
   TCanvas* CreateGridCanvas(const std::string& name, const std::string& title,
                             int nCols, int nRows,
                             int width = 1200, int height = 900,
