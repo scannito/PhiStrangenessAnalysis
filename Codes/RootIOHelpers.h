@@ -316,6 +316,21 @@ inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name
   }
 }
 
+// Two directories produced apart (two files compared, two series drawn together) and the same stamp in both: the one
+// the reference may lack, because it was produced before that stamp existed, is required of the other when present,
+// and said when not (Logger::Warn), so that a comparison never passes over a binning it could not check in silence.
+// The one rule of ComparisonTask and of the plots.
+inline void RequireSameOptionalStamp(TDirectory* reference, TDirectory* other, const std::string& stamp,
+                                     const std::string& referenceCtx, const std::string& otherCtx)
+{
+  const std::vector<double> stamped = ReadBinningStamp(reference, stamp, referenceCtx);
+  if (stamped.empty()) {
+    Logger::Warn("{}: no '{}' stamp, so the two binnings cannot be compared on it.", referenceCtx, stamp);
+    return;
+  }
+  RequireMatchingBinningStamp(other, stamp, stamped, otherCtx);
+}
+
 // ---------------------------------------------------------------------------
 // Provenance: what produced this file
 // ---------------------------------------------------------------------------
