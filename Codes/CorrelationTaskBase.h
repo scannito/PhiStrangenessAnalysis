@@ -166,10 +166,11 @@ class CorrelationTaskBase : public IAnalysisTask
     // which errors enter, the phi efficiency's not, how they combine - that a reader would otherwise have to
     // re-implement outside the framework. The trigger count itself is not written, for the opposite reason:
     // it is those inputs and a sum, with nothing to choose.
-    RootIO::MakePath(outputFile.get(), baseLogicalPath)->cd();
+    TDirectory* sectionDir = RootIO::MakePath(outputFile.get(), baseLogicalPath);
+    sectionDir->cd();
     hNormalisationRelError->Write(nullptr, TObject::kOverwrite);
     // The |dy| limits of this section, for a reader that lists what the file holds (the plots' catalog).
-    RootIO::WriteValueList(RootIO::MakePath(outputFile.get(), baseLogicalPath), RootIO::kStampDeltaY, deltaYLimits);
+    RootIO::WriteValueList(sectionDir, OutputNames::kDeltaYLimits, deltaYLimits);
 
     // The spectra leave this task and, once the trends and ratios move to a task
     // of their own, this is what will say which method produced them.
