@@ -69,6 +69,39 @@ about particle masses and spectral models.
   across the bins of a spectrum. If the trends move to task B, that number has to
   travel with the spectra.
 
+### The canvases the tasks draw (inventory of 2 November 2026, on main 639e75b)
+
+Counted in the code and in the outputs of one chain in the sandbox (2026 high-IR data, the MC that feeds it, the
+2026 WPDG closure). A *summary* is drawn from objects the task also writes; a *diagnostic* needs state that exists
+only during the run.
+
+| Task | Canvases | In one run | Kind | Derivable from the files |
+|---|---|---|---|---|
+| `PhiFitTask` | `cFit_Phi_<cell>`: mass fit, model, pulls | 70 | diagnostic | no: the RooFit model and the fitted parameters are not saved (`FitQuality` records the fit's status, not its parameters) |
+| `PurityTask` | `cFit_<key>_<cell>[_sourceBinning]` | 2020 | diagnostic | no, as above |
+| | `canvas<key>Purity[_sourceBinning]`, purity per multiplicity class | 10 | summary | yes |
+| `MCTask` | `c_<particle>_{Efficiency,SignalLoss}[_sourceBinning]` | ~20 | summary | yes |
+| | `c_<particle>_SignalLossOverEventLoss[...]` | ~10 | summary | yes, but the ratio exists only in the canvas: it is recomputed from the map and `hEventLoss` |
+| `CorrelationTask`, `CorrelationWPDGTask` | `cSpectra_<p>_dy<dy>` | 12 | summary | yes |
+| | `cSpectraExtrap_<p>_dy<dy>`, spectra down to pT = 0 with the fitted model | 12 | summary | yes: the `_extended` spectrum is written with its `TF1` attached |
+| | `cTrend_Meas/Extrap_<p>`, `cRatio_...` (extrapolated over measured) | 12 | summary | yes |
+| | `canvasRatio_<num>_<den>_MultTrend`, species ratios | 3 | summary | yes |
+| `ComparisonTask` | none | | | |
+
+The debug canvas of `ExtrapolateSpectrum` is commented out (a parked switch, CLAUDE.md) and not counted.
+
+What they weigh, on disk: `Purity.root` 15.0 MB of canvases against 0.2 MB of everything else; the phi fit file
+0.5 MB against 0.01; `PhiAssocSpectra.root` 1.0 MB against 1.1; `Corrections.root` 0.1 MB against 0.2.
+
+- **Every summary is derivable from what the files hold**, about 90 canvases per chain in nine families. They could
+  leave the tasks with no new data written, except the signal loss over the event loss, which today is drawn and
+  never written.
+- **The diagnostics are the mass fits**, 2090 canvases and 99% of `Purity.root`. They can leave the tasks only once
+  a fit leaves a record of its parameters (`DESIGN_NOTES-CLAUDE.md` 2.4), a separate piece of work.
+- **The summaries couple each task internally**: a canvas is created in one place (`Init`, `SetupTrendHistograms`)
+  and found again by name to be drawn on (`RequireCanvas`, `GetCanvas`), in six families of `CorrelationTaskBase`,
+  three of `MCTask` and one of `PurityTask`. Task B of this section would hold most of them.
+
 ---
 
 ## 2. Per-particle choice of PDG matching
