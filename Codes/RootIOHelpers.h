@@ -16,6 +16,7 @@
 #include <format>
 #include <map>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <span>
@@ -243,9 +244,6 @@ inline void WriteCcdbFile(const std::string& path, TNamed* object, std::string_v
 inline const std::string kStampMult{"binning_mult"};
 inline const std::string kStampPtPhi{"binning_ptPhi"};
 inline const std::string kStampPtAssoc{"binning_ptAssoc"};
-// Not a binning: the |dy| limits a correlation section was produced with, so that a reader can list them without
-// parsing names (WriteValueList).
-inline const std::string kStampDeltaY{"deltaY_limits"};
 
 // Records a binning inside a file as an empty TH1D whose axis IS the binning.
 // Storing it as a histogram rather than as a bare array means it reads back
@@ -270,6 +268,19 @@ inline void WriteBinningStamp(TDirectory* dir, const std::string& name, std::spa
   stamp.Write(name.c_str(), TObject::kOverwrite);
 }
 
+namespace Detail
+{
+// The histogram 'name' of 'dir', detached, or null when there is none or it is not a TH1. dynamic_cast for the reason
+// given at GetUniqueOrThrow: an object of the wrong class reads as absent instead of a bad pointer.
+inline std::unique_ptr<TH1> GetDetachedTH1(TDirectory* dir, const std::string& name)
+{
+  auto* raw = dynamic_cast<TH1*>(dir->Get(name.c_str()));
+  if (raw)
+    raw->SetDirectory(0);
+  return std::unique_ptr<TH1>(raw);
+}
+} // namespace Detail
+
 // Empty vector when no stamp is present, e.g. a cache produced before stamps
 // existed. That case is a warning, not an error: see RequireMatchingBinningStamp.
 // Empty when the directory holds no stamp of that name (a file produced before stamps existed). A directory that
@@ -282,15 +293,9 @@ inline std::vector<double> ReadBinningStamp(TDirectory* dir, const std::string& 
                                          "that produces it under this scheme.",
                                          errCtx, name));
 
-  // dynamic_cast for the reason given at GetUniqueOrThrow: a stamp that is not a histogram
-  // reads as no stamp, which RequireMatchingBinningStamp reports, instead of a bad pointer.
-  auto* raw = dynamic_cast<TH1*>(dir->Get(name.c_str()));
-  if (!raw)
-    return {};
-
-  raw->SetDirectory(0);
-  std::unique_ptr<TH1> stamp(raw);
-  return BinningUtils::AxisEdges(stamp->GetXaxis());
+  // A stamp that is not a histogram reads as no stamp, which RequireMatchingBinningStamp reports.
+  std::unique_ptr<TH1> stamp = Detail::GetDetachedTH1(dir, name);
+  return stamp ? BinningUtils::AxisEdges(stamp->GetXaxis()) : std::vector<double>{};
 }
 
 // Was the file this directory belongs to produced with the binning of the run reading it? Used for the
@@ -319,26 +324,31 @@ inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name
   }
 }
 
-// A list of values that is not a binning (they need not be ordered, and one value is a list): one bin per value, its
-// content the value. Written like a stamp, read back by ReadValueList; empty when absent.
+// A list of values that is not a binning: they need not be ordered, and one value is a list, so it cannot be a stamp
+// with real edges. One bin per value, its content the value, on a counter axis that nothing divides by. A TH1D and not a
+// TVectorD so that Macros/CompareRootFiles compares it. Read back by ReadValueList: absent (a file written before the
+// list existed) is nullopt, not an empty list, which the writer never produces.
 inline void WriteValueList(TDirectory* dir, const std::string& name, std::span<const double> values)
 {
   if (!dir)
     throw std::runtime_error(std::format("[FATAL] RootIO::WriteValueList: no directory to write '{}' into.", name));
-  TH1D list(name.c_str(), name.c_str(), static_cast<int>(values.size()), 0., static_cast<double>(values.size()));
+  TH1D list(name.c_str(), "value list: the bin contents are the values, the axis is unused", static_cast<int>(values.size()), 0.,
+            static_cast<double>(values.size()));
   list.SetDirectory(0);
   for (std::size_t i = 0; i < values.size(); ++i)
     list.SetBinContent(static_cast<int>(i) + 1, values[i]);
   dir->WriteTObject(&list, name.c_str(), "Overwrite");
 }
 
-inline std::vector<double> ReadValueList(TDirectory* dir, const std::string& name)
+inline std::optional<std::vector<double>> ReadValueList(TDirectory* dir, const std::string& name, std::string_view errCtx)
 {
-  auto* raw = dir ? dynamic_cast<TH1*>(dir->Get(name.c_str())) : nullptr;
-  if (!raw)
-    return {};
-  raw->SetDirectory(0);
-  std::unique_ptr<TH1> list(raw);
+  if (!dir)
+    throw std::runtime_error(std::format("[FATAL] {}: no directory to read the '{}' list from: the file holds nothing of "
+                                         "this binning scheme or section.",
+                                         errCtx, name));
+  std::unique_ptr<TH1> list = Detail::GetDetachedTH1(dir, name);
+  if (!list)
+    return std::nullopt;
   std::vector<double> values;
   for (int bin = 1; bin <= list->GetNbinsX(); ++bin)
     values.push_back(list->GetBinContent(bin));

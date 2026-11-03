@@ -39,6 +39,9 @@ inline const std::string kRatiosDir{"Ratios"};
 // At the root of a section, next to the species: the relative uncertainty of the per-trigger normalisation, per
 // multiplicity class (CorrelationTaskBase::GenerateSpectraAndTrends).
 inline const std::string kNormalisationRelError{"h1NormalisationRelError"};
+// Next to it: the |dy| limits the section was produced with (RootIO::WriteValueList), so that a reader can list them
+// without parsing names.
+inline const std::string kDeltaYLimits{"deltaY_limits"};
 
 // The files between the fit tasks and CorrelationTask: the name that follows the output prefix.
 // Written once here, since the writer and the reader would otherwise each spell it, and a

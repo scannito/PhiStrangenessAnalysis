@@ -651,7 +651,6 @@ class CanvasManager
     return leg;
   }
 
-  // Applies HEP/ALICE standard visual styling to 1D histograms
   // The colours of the classes of a binning (one curve per multiplicity class: spectra, purities, maps) and of the
   // variants of one quantity (the |dy| limits of a trend). The listed ones are the framework's colours; past them a
   // colour is generated, spread around the hue circle, so that two classes never share one (the list used to repeat
@@ -668,6 +667,7 @@ class CanvasManager
     return copy;
   }
 
+  // Applies HEP/ALICE standard visual styling to 1D histograms
   static void SetHistogramStyle(TH1* h, int color, int markerStyle = 20,
                                 double markerSize = 1.5, int lineWidth = 2,
                                 int fillStyle = 3001)
@@ -842,10 +842,9 @@ class CanvasManager
   static constexpr int kClassColors[] = {634, 628, 807, 797, kOrange - 4, 815, 418, 429, 867, 856};
   static constexpr int kVariantColors[] = {kRed, kBlue, kGreen + 2};
 
-  template <std::size_t N>
-  static int PaletteColor(const int (&listed)[N], int index)
+  static int PaletteColor(std::span<const int> listed, int index)
   {
-    if (index >= 0 && static_cast<std::size_t>(index) < N)
+    if (index >= 0 && index < std::ssize(listed))
       return listed[index];
     float r = 0, g = 0, b = 0;
     TColor::HLS2RGB(static_cast<float>(std::fmod(137.508 * index, 360.0)), 0.45f, 0.75f, r, g, b);
