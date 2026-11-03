@@ -349,6 +349,22 @@ A new task that writes into a file somebody else also writes into belongs in row
   header had simply not been run since it was edited. What the compiled build adds is
   that it checks everything, whether or not a run goes through it.
 
+## Plots
+
+A plot is composed from the components, never written from scratch (the owner, 3 November 2026, after 45 macros that
+read no stamp, divided across binnings, skipped missing objects and drew NaN as 0). `PlotSeries.h` decides what is
+read and how it is combined: a series is found by meaning (`Spectrum`, `Trend`, `SpeciesRatio`, `Purity`,
+`CorrectionMap`; `Object` for a foreign file), with the names of `OutputNames` and the binning stamps, and the
+operations are a closed list (`Ratio`, `Sum`, `Scale`) that check comparability the way `ComparisonTask` does.
+`PlotDesigns.h` holds the recurring layouts (`Overlay`, `Grid`, `CompareWithRatio`, `JoinedPads`, `WithReference`,
+`FitCanvasGrid`, `Table`). A composition chooses series, layout and look (colours, markers, ranges, text, legend
+corners) and nothing else; it is compiled and run with `Macros/runplot.sh`, and `PlotSeries::Save` keeps the canvas
+with the series and their provenance.
+
+When a request needs what the components do not provide (a new kind of series, an operation, a layout, a legend),
+it is added to them first, with its check, review and verification, and only then used. Occasional compositions stay
+out of the repository; a design asked for again and again becomes a function of `PlotDesigns`.
+
 ## Do not touch without asking
 
 - `OldCodes/YieldMean.h` — ALICE-standard code kept as received, no longer in the

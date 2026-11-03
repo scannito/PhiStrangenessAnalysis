@@ -12,6 +12,7 @@
 #include "TH1.h"
 
 #include <algorithm>
+#include <cctype>
 #include <cmath>
 #include <filesystem>
 #include <format>
@@ -64,6 +65,13 @@ struct Origin {
   std::vector<TDirectory*> speciesDirs; // whose ptAssoc stamps do (one for a species, two for a species ratio)
 };
 
+// How a series is drawn, when the composition says so; otherwise Draw takes the palette by position. Presentation of
+// the composition's, like the label, never written into the data.
+struct Look {
+  std::optional<int> color, marker;
+  std::optional<double> markerSize;
+};
+
 struct Series {
   std::shared_ptr<TH1> hist;   // detached, as read: a non-finite bin stays non-finite
   std::vector<Origin> origins; // one when read, both operands' after Ratio or Sum
@@ -71,6 +79,7 @@ struct Series {
   int nonFiniteBins{0};
   std::vector<std::string> notes; // what Describe reports besides the origins: the operations
   Facts facts;
+  Look look;
 };
 
 // Which yield of a species against multiplicity.
@@ -460,6 +469,17 @@ inline std::vector<TH1*> Draw(const std::vector<Series>& series, const char* opt
     for (const std::string& n : c.notChecked)
       Logger::Warn("PlotSeries: drawn together, not checked, series 0 and {}: {}", i, n);
   }
+  // An emptied bin is left out only by the options that skip empty bins. Measured on a purity with one NaN bin (3 Nov
+  // 2026): E, E1 and P leave it out; E0 draws a marker at 0, HIST a drop to 0. Other options are refused rather than
+  // guessed, for a series that has such a bin.
+  std::string bare = option;
+  std::erase(bare, ' ');
+  std::ranges::transform(bare, bare.begin(), [](unsigned char ch) { return std::toupper(ch); });
+  const bool skipsEmpty = bare == "E" || bare == "E1" || bare == "P";
+  for (std::size_t i = 0; i < series.size(); ++i)
+    if (series[i].nonFiniteBins && !skipsEmpty)
+      throw std::runtime_error(std::format("[FATAL] PlotSeries::Draw: '{}' has {} non-finite bin(s), which option '{}' would draw at 0; "
+                                           "draw it with E, E1 or P.", series[i].origins.front().path, series[i].nonFiniteBins, option));
   std::vector<TH1*> drawn;
   for (std::size_t i = 0; i < series.size(); ++i) {
     std::unique_ptr<TH1> copy(static_cast<TH1*>(series[i].hist->Clone()));
@@ -470,8 +490,12 @@ inline std::vector<TH1*> Draw(const std::vector<Series>& series, const char* opt
         copy->SetBinError(bin, 0.);
       }
     const std::string opt = i == 0 ? option : std::format("{} SAME", option);
-    drawn.push_back(CanvasManager::DrawStyledCopy(copy.get(), opt.c_str(), CanvasManager::ClassColor(static_cast<int>(i)),
-                                                  i < markerStyles.size() ? markerStyles[i] : 20));
+    const Look& look = series[i].look;
+    TH1* d = CanvasManager::DrawStyledCopy(copy.get(), opt.c_str(), look.color.value_or(CanvasManager::ClassColor(static_cast<int>(i))),
+                                           look.marker.value_or(i < markerStyles.size() ? markerStyles[i] : 20));
+    if (look.markerSize)
+      d->SetMarkerSize(*look.markerSize);
+    drawn.push_back(d);
   }
   return drawn;
 }
@@ -619,6 +643,17 @@ inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<
 // -----------------------------------------------------------------------------
 // What a file holds
 // -----------------------------------------------------------------------------
+// The multiplicity classes of a file's scheme, from its stamp: what a plot of one curve per class iterates over.
+inline std::vector<Interval> Intervals(const std::string& fileName, const std::string& scheme = "")
+{
+  auto file = Detail::Open(fileName);
+  const std::vector<double> edges = Detail::MultBinning(Detail::Scheme(file.get(), scheme, fileName), fileName);
+  std::vector<Interval> intervals;
+  for (int multBin : BinningUtils::BinIndices(edges))
+    intervals.push_back({edges[multBin], edges[multBin + 1]});
+  return intervals;
+}
+
 struct Catalog {
   struct Section {
     std::string name;
