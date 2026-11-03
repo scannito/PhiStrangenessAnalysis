@@ -262,7 +262,7 @@ class PurityTask : public IAnalysisTask
     std::string label = task.purityKey;
     std::ranges::replace(label, '_', ' ');
 
-    std::string hName = OutputNames::Purity(task.purityKey, OutputNames::MultTag(multBinning, multBin)) + nameSuffix;
+    std::string hName = OutputNames::Purity(task.purityKey, OutputNames::MultTag(multBinning, multBin), which);
     std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
                                                                    BinningUtils::NBins(binning), binning.data());
     h1PuritySpectrum->SetDirectory(0);

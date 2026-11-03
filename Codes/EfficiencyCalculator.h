@@ -15,6 +15,7 @@
 #include <array>
 #include <format>
 #include <memory>
+#include <optional>
 #include <span>
 #include <string>
 #include <utility>
@@ -219,7 +220,60 @@ class EfficiencyCalculator
     std::unique_ptr<TH1> signalLoss;              // otherwise the source binning itself
     std::unique_ptr<TH1> efficiencySourceBinning; // null unless 'rebinning_pt' is set
     std::unique_ptr<TH1> signalLossSourceBinning;
+    std::unique_ptr<TH1> signalLossOverEventLoss;              // filled by DivideByEventLoss, null without an event
+    std::unique_ptr<TH1> signalLossOverEventLossSourceBinning; // loss; the source one also needs 'rebinning_pt'
   };
+
+  // The event loss of a multiplicity class, with its error, read from the per-class histogram; for the
+  // multiplicity-integrated maps (no class), the two event histograms collapsed into one bin over the analysis range
+  // and handed to the same ComputeEventLoss, the convention of the per-class one.
+  static std::pair<double, double> EventLossOfClass(const TH1* hEventLoss, const TH1* hEventMultGenAssocReco, const TH1* hEventMultGen,
+                                                    std::span<const double> multBinning, std::optional<int> multBin)
+  {
+    if (multBin)
+      return HistogramUtils::BinValueAndError(hEventLoss, *multBin);
+
+    auto collapse = [&](const TH1* h) {
+      const auto [integral, error] = HistogramUtils::IntegralAndErrorWholeBins(h, multBinning.front(), multBinning.back());
+      auto c = std::make_unique<TH1D>("", "", 1, 0., 1.);
+      c->SetDirectory(0);
+      c->Sumw2();
+      HistogramUtils::SetBinValueAndError(c.get(), 0, {integral, error});
+      return c;
+    };
+    const auto integrated = ComputeEventLoss(collapse(hEventMultGenAssocReco).get(), collapse(hEventMultGen).get());
+    return HistogramUtils::BinValueAndError(integrated.get(), 0);
+  }
+
+  // The signal loss over the event loss of the same class, at both binnings, into 'maps'. The event loss does not
+  // depend on pT, so it is put in a histogram on the binning of the signal loss and divided with the default option:
+  // errors are propagated as if the two were independent. Not "B": that one assumes the numerator is a subset of the
+  // denominator, which is not the case for a ratio of two efficiencies. The maps themselves are untouched. The
+  // independence is still an approximation: both come from the same sample. 'eventLoss' must be positive.
+  static void DivideByEventLoss(Maps1D& maps, std::pair<double, double> eventLoss, const std::string& particle, const std::string& multTag)
+  {
+    auto divide = [&](const TH1* signalLoss, OutputNames::SpectrumBinning binning) -> std::unique_ptr<TH1> {
+      if (!signalLoss)
+        return nullptr;
+      const std::string name = OutputNames::SignalLossOverEventLoss(particle, multTag, binning);
+
+      std::unique_ptr<TH1> hEventLossConst{static_cast<TH1*>(signalLoss->Clone(std::format("{}_evLossConst", name).c_str()))};
+      hEventLossConst->SetDirectory(0);
+      hEventLossConst->Reset();
+      for (int bin = 1; bin <= hEventLossConst->GetNbinsX(); bin++) {
+        hEventLossConst->SetBinContent(bin, eventLoss.first);
+        hEventLossConst->SetBinError(bin, eventLoss.second);
+      }
+
+      std::unique_ptr<TH1> ratio{static_cast<TH1*>(signalLoss->Clone(name.c_str()))};
+      ratio->GetYaxis()->SetTitle("Signal Loss / Event Loss");
+      ratio->SetDirectory(0);
+      ratio->Divide(hEventLossConst.get());
+      return ratio;
+    };
+    maps.signalLossOverEventLoss = divide(maps.signalLoss.get(), OutputNames::SpectrumBinning::Analysis);
+    maps.signalLossOverEventLossSourceBinning = divide(maps.signalLossSourceBinning.get(), OutputNames::SpectrumBinning::Source);
+  }
 
   // The two divisions, shared by the per-multiplicity and the integrated case.
   // Raw pointers: it reads the counts, neither owning nor keeping them.
