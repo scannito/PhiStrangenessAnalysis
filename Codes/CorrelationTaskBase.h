@@ -91,7 +91,7 @@ class CorrelationTaskBase : public IAnalysisTask
       trendsDir->cd();
 
       // --- Save measured trends ---
-      std::string cNameMeas = std::format("cTrend_Meas_{}", pName);
+      std::string cNameMeas = OutputNames::TrendCanvas(pName, false);
       TCanvas* cTrendMeas = canvasManager.CreateCanvas(cNameMeas, "Measured Yield Trend", trendsPath, 800, 600);
       canvasManager.SetAutoYRange(cTrendMeas);
 
@@ -106,7 +106,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // --- Save extrapolated trends ---
       bool hasExtrapTrend = !h1MultTrendsExtrap.empty() && !h1MultTrendsExtrap[pIdx].empty();
       if (hasExtrapTrend) {
-        std::string cNameExtrap = std::format("cTrend_Extrap_{}", pName);
+        std::string cNameExtrap = OutputNames::TrendCanvas(pName, true);
         TCanvas* cTrendExtrap = canvasManager.CreateCanvas(cNameExtrap, "Extrapolated Yield Trend", trendsPath, 800, 600);
         canvasManager.SetAutoYRange(cTrendExtrap);
 
@@ -121,7 +121,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
       // --- Save Extrapolated/Measured ratios for this species ---
       if (hasExtrapTrend) {
-        std::string canvasName = std::format("cRatio_ExtrapVsMeas_{}", pName);
+        std::string canvasName = OutputNames::TrendExtrapOverMeasCanvas(pName);
         TCanvas* cRatioExtrapMeas = canvasManager.CreateCanvas(canvasName, "Extrap / Measured Ratio", trendsPath, 800, 600);
         canvasManager.SetAutoYRange(cRatioExtrapMeas);
 
@@ -206,7 +206,7 @@ class CorrelationTaskBase : public IAnalysisTask
         const bool denHasExtrap = extrapolatedParticles.contains(den.name);
         const bool doExtrapRatio = numHasExtrap || denHasExtrap;
 
-        std::string canvasName = std::format("canvasRatio_{}_{}_MultTrend", num.name, den.name);
+        std::string canvasName = OutputNames::ParticleRatioCanvas(num.name, den.name);
         TCanvas* canvasRatio = canvasManager.CreateCanvas(canvasName, std::format("Ratio Mult Trend {}", ratioCfg.label), ratioPath, 800, 600);
         canvasRatio->cd();
 

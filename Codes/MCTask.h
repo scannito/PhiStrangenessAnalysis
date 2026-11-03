@@ -162,15 +162,15 @@ class MCTask : public IAnalysisTask
 
       // Register particle summary canvases with their target ROOT subdirectories.
       // Each one declares its Y range here; the manager applies it when it writes.
-      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::Efficiency), std::format("{} Acceptance x Efficiency", name),
-                                                             {globalCfgs.binningName, "AccEff", "Summary"}));
-      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::SignalLoss), std::format("{} Signal Loss", name),
-                                                             {globalCfgs.binningName, "SigLoss", "Summary"}));
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(OutputNames::CorrectionSummaryCanvas(name, SummaryMap::Efficiency), std::format("{} Acceptance x Efficiency", name),
+                                                             OutputNames::CorrectionSummaryPath(globalCfgs.binningName, SummaryMap::Efficiency)));
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(OutputNames::CorrectionSummaryCanvas(name, SummaryMap::SignalLoss), std::format("{} Signal Loss", name),
+                                                             OutputNames::CorrectionSummaryPath(globalCfgs.binningName, SummaryMap::SignalLoss)));
       if (data.rebinningPt) {
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::Efficiency, OutputNames::SpectrumBinning::Source), std::format("{} Efficiency (Source Binning)", name),
-                                                               OutputNames::SourceBinningPath({globalCfgs.binningName, "AccEff", "Summary"})));
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(name, SummaryMap::SignalLoss, OutputNames::SpectrumBinning::Source), std::format("{} Signal Loss (Source Binning)", name),
-                                                               OutputNames::SourceBinningPath({globalCfgs.binningName, "SigLoss", "Summary"})));
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(OutputNames::CorrectionSummaryCanvas(name, SummaryMap::Efficiency, OutputNames::SpectrumBinning::Source), std::format("{} Efficiency (Source Binning)", name),
+                                                               OutputNames::SourceBinningPath(OutputNames::CorrectionSummaryPath(globalCfgs.binningName, SummaryMap::Efficiency))));
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(OutputNames::CorrectionSummaryCanvas(name, SummaryMap::SignalLoss, OutputNames::SpectrumBinning::Source), std::format("{} Signal Loss (Source Binning)", name),
+                                                               OutputNames::SourceBinningPath(OutputNames::CorrectionSummaryPath(globalCfgs.binningName, SummaryMap::SignalLoss))));
       }
 
       dataCollection.push_back(std::move(data));
@@ -198,13 +198,13 @@ class MCTask : public IAnalysisTask
 
       // OverEventLoss canvases are registered only when event histograms exist
       for (const auto& data : dataCollection) {
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(data.name, SummaryMap::SignalLossOverEventLoss),
+        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(OutputNames::CorrectionSummaryCanvas(data.name, SummaryMap::SignalLossOverEventLoss),
                                                                std::format("{} Signal Loss / Event Loss", data.name),
-                                                               {globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"}));
+                                                               OutputNames::CorrectionSummaryPath(globalCfgs.binningName, SummaryMap::SignalLossOverEventLoss)));
         if (data.rebinningPt) {
-          canvasManager.SetAutoYRange(canvasManager.CreateCanvas(SummaryCanvas(data.name, SummaryMap::SignalLossOverEventLoss, OutputNames::SpectrumBinning::Source),
+          canvasManager.SetAutoYRange(canvasManager.CreateCanvas(OutputNames::CorrectionSummaryCanvas(data.name, SummaryMap::SignalLossOverEventLoss, OutputNames::SpectrumBinning::Source),
                                                                  std::format("{} Signal Loss / Event Loss (Source Binning)", data.name),
-                                                                 OutputNames::SourceBinningPath({globalCfgs.binningName, "SigLoss", "Summary", "OverEvLoss"})));
+                                                                 OutputNames::SourceBinningPath(OutputNames::CorrectionSummaryPath(globalCfgs.binningName, SummaryMap::SignalLossOverEventLoss))));
         }
       }
     } else {
@@ -311,7 +311,7 @@ class MCTask : public IAnalysisTask
       // A source-binning map exists only with 'rebinning_pt', and so does its canvas.
       auto drawOn = [&](SummaryMap map, SpectrumBinning binning, const TH1* h, const char* option, int color) {
         if (h)
-          if (auto* c = canvasManager.GetCanvas(SummaryCanvas(data.name, map, binning))) {
+          if (auto* c = canvasManager.GetCanvas(OutputNames::CorrectionSummaryCanvas(data.name, map, binning))) {
             c->cd();
             CanvasManager::DrawStyledCopy(h, option, color);
           }
@@ -386,17 +386,7 @@ class MCTask : public IAnalysisTask
   }
 
  private:
-  // The summary canvases of a particle, one per map, at the analysis binning or at the source one: created in
-  // Init, drawn on per class in Run. An enum and not a string, so that the two sites cannot spell it differently.
-  enum class SummaryMap { Efficiency,
-                          SignalLoss,
-                          SignalLossOverEventLoss };
-  static std::string SummaryCanvas(const std::string& particle, SummaryMap map,
-                                   OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis)
-  {
-    constexpr std::string_view kMapNames[] = {"Efficiency", "SignalLoss", "SignalLossOverEventLoss"};
-    return std::format("c_{}_{}{}", particle, kMapNames[static_cast<int>(map)], OutputNames::BinningSuffix(binning));
-  }
+  using SummaryMap = OutputNames::CorrectionMap;
 
   AnalysisSettings globalCfgs;
 

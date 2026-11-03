@@ -165,9 +165,56 @@ inline std::string ParticleRatioExtrapolated(std::string_view num, std::string_v
   return std::format("Ratio_{}_{}_Extrap_dy{}", num, den, DyTag(dy));
 }
 
-// The summary canvases of the spectra, created once per species and |dy| and drawn into later,
-// found again by these names.
+// ---------------------------------------------------------------------------
+// Canvases: the summaries every task draws and the fits, by the names a reader looks them up with
+// ---------------------------------------------------------------------------
+// The spectra of a species and |dy|, one curve per multiplicity class, measured and extended down to pT = 0.
 inline std::string SpectraCanvas(std::string_view particle, double dy) { return std::format("cSpectra_{}_dy{}", particle, DyTag(dy)); }
 inline std::string SpectraExtrapCanvas(std::string_view particle, double dy) { return std::format("cSpectraExtrap_{}_dy{}", particle, DyTag(dy)); }
+// The yield of a species against multiplicity, measured or extrapolated, every |dy| on one canvas; the extrapolated over
+// the measured; the ratio of two species. In the species' Trends directory, the last in Ratios.
+inline std::string TrendCanvas(std::string_view particle, bool extrapolated)
+{
+  return std::format("cTrend_{}_{}", extrapolated ? "Extrap" : "Meas", particle);
+}
+inline std::string TrendExtrapOverMeasCanvas(std::string_view particle) { return std::format("cRatio_ExtrapVsMeas_{}", particle); }
+inline std::string ParticleRatioCanvas(std::string_view num, std::string_view den) { return std::format("canvasRatio_{}_{}_MultTrend", num, den); }
+
+// The correction maps of a particle, one curve per multiplicity class (MCTask).
+enum class CorrectionMap { Efficiency,
+                           SignalLoss,
+                           SignalLossOverEventLoss };
+inline std::string CorrectionSummaryCanvas(std::string_view particle, CorrectionMap map, SpectrumBinning binning = SpectrumBinning::Analysis)
+{
+  constexpr std::string_view kMapNames[] = {"Efficiency", "SignalLoss", "SignalLossOverEventLoss"};
+  return std::format("c_{}_{}{}", particle, kMapNames[static_cast<int>(map)], BinningSuffix(binning));
+}
+inline std::vector<std::string> CorrectionSummaryPath(const std::string& binningName, CorrectionMap map)
+{
+  switch (map) {
+    case CorrectionMap::Efficiency:
+      return {binningName, "AccEff", "Summary"};
+    case CorrectionMap::SignalLoss:
+      return {binningName, "SigLoss", "Summary"};
+    case CorrectionMap::SignalLossOverEventLoss:
+      return {binningName, "SigLoss", "Summary", "OverEvLoss"};
+  }
+  return {};
+}
+
+// The purity of a purity_key, one curve per multiplicity class, in SummaryPath (PurityTask).
+inline std::string PuritySummaryCanvas(std::string_view purityKey, SpectrumBinning binning)
+{
+  return std::format("canvas{}Purity{}", purityKey, BinningSuffix(binning));
+}
+
+// The mass fit of one cell (CellTag): the phi's in PhiFitsPath, a purity key's in PurityFitsPath.
+inline std::vector<std::string> PhiFitsPath(const std::string& binningName) { return {binningName, "Fits"}; }
+inline std::vector<std::string> PurityFitsPath(const std::string& binningName, const std::string& purityKey) { return {binningName, "Fits", purityKey}; }
+inline std::string PhiFitCanvas(std::string_view cell) { return std::format("cFit_Phi_{}", cell); }
+inline std::string PurityFitCanvas(std::string_view purityKey, std::string_view cell, SpectrumBinning binning)
+{
+  return std::format("cFit_{}_{}{}", purityKey, cell, BinningSuffix(binning));
+}
 
 } // namespace OutputNames
