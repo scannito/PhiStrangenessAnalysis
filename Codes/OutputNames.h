@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <format>
 #include <span>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -45,8 +46,7 @@ inline const std::string kNormalisationRelError{"h1NormalisationRelError"};
 // the purities, until 21 October 2026).
 inline const std::string kPhiDataFile{"PhiDataHistograms.root"}; // PhiFitTask -> CorrelationTask
 inline const std::string kPurityFile{"Purity.root"};             // PurityTask -> CorrelationTask, every particle
-// The directory of each, below the binning_name, that holds what the other task reads.
-inline std::vector<std::string> SummaryPath(const std::string& binningName) { return {binningName, "Summary"}; }
+// The directory of each that holds what the other task reads is SummaryPath, below.
 // Written by both correlation tasks, CorrelationTask and CorrelationWPDGTask: the results, and the
 // projections of one associated particle, which a later run reads back (use_projection_cache).
 inline const std::string kSpectraFile{"PhiAssocSpectra.root"};
@@ -62,6 +62,17 @@ inline std::vector<std::string> SourceBinningPath(std::vector<std::string> path)
 {
   path.push_back("SourceBinning");
   return path;
+}
+// 'path' at a binning: itself for the analysis one, its SourceBinning subdirectory for the source one.
+inline std::vector<std::string> BinningPath(std::vector<std::string> path, SpectrumBinning binning)
+{
+  return binning == SpectrumBinning::Source ? SourceBinningPath(std::move(path)) : path;
+}
+// The directory, below the binning_name, of what PhiFitTask and PurityTask write for CorrelationTask to read
+// (declared with kPhiDataFile and kPurityFile above).
+inline std::vector<std::string> SummaryPath(const std::string& binningName, SpectrumBinning binning = SpectrumBinning::Analysis)
+{
+  return BinningPath({binningName, "Summary"}, binning);
 }
 
 // A species directory of a section is one that holds per-species results, which is what
@@ -116,28 +127,46 @@ inline std::string CellTitle(std::string_view particle, std::span<const double> 
 // ---------------------------------------------------------------------------
 // Builders, one per kind of object
 // ---------------------------------------------------------------------------
-// MCTask -> CorrelationTask: the maps of one class (MultTag) or integrated (kMultIntegrated).
-// At the source binning (SpectrumBinning::Source) with its suffix, as every object kept at both binnings.
-inline std::string Efficiency(std::string_view particle, std::string_view multTag, SpectrumBinning binning = SpectrumBinning::Analysis)
+// MCTask -> CorrelationTask: the maps of a particle, of one class (MultTag) or integrated (kMultIntegrated), at the
+// analysis binning or at the source one (SpectrumBinning::Source: the suffix on the name, SourceBinning/ on the path).
+// The signal loss over the event loss is drawn as a summary and read by nothing else in the chain.
+enum class CorrectionMap { Efficiency,
+                           SignalLoss,
+                           SignalLossOverEventLoss };
+namespace Detail
 {
-  return std::format("h1{}Efficiency_{}{}", particle, multTag, BinningSuffix(binning));
+// One row per map, the only place its names are spelled: the directory of the map, the subdirectory of its objects,
+// the object's name and its summary canvas's.
+struct CorrectionMapNames {
+  std::string_view dir, objectsDir, object, canvas;
+};
+inline CorrectionMapNames NamesOf(CorrectionMap map)
+{
+  switch (map) {
+    case CorrectionMap::Efficiency:
+      return {"AccEff", "MultBin", "Efficiency", "Efficiency"};
+    case CorrectionMap::SignalLoss:
+      return {"SigLoss", "MultBin", "SigLoss", "SignalLoss"};
+    case CorrectionMap::SignalLossOverEventLoss:
+      return {"SigLoss", "OverEvLoss", "SigLossOverEvLoss", "SignalLossOverEventLoss"};
+  }
+  throw std::runtime_error(std::format("[FATAL] OutputNames: CorrectionMap {} has no names.", static_cast<int>(map)));
 }
-inline std::string SignalLoss(std::string_view particle, std::string_view multTag, SpectrumBinning binning = SpectrumBinning::Analysis)
+} // namespace Detail
+
+inline std::string CorrectionMapName(std::string_view particle, CorrectionMap map, std::string_view multTag,
+                                     SpectrumBinning binning = SpectrumBinning::Analysis)
 {
-  return std::format("h1{}SigLoss_{}{}", particle, multTag, BinningSuffix(binning));
+  return std::format("h1{}{}_{}{}", particle, Detail::NamesOf(map).object, multTag, BinningSuffix(binning));
 }
-// The signal loss divided by the event loss of the same class: drawn as a summary, read by nothing else in the chain.
-inline std::string SignalLossOverEventLoss(std::string_view particle, std::string_view multTag,
-                                           SpectrumBinning binning = SpectrumBinning::Analysis)
+inline std::vector<std::string> CorrectionMapPath(const std::string& binningName, CorrectionMap map,
+                                                  SpectrumBinning binning = SpectrumBinning::Analysis)
 {
-  return std::format("h1{}SigLossOverEvLoss_{}{}", particle, multTag, BinningSuffix(binning));
+  const Detail::CorrectionMapNames names = Detail::NamesOf(map);
+  return BinningPath({binningName, std::string(names.dir), std::string(names.objectsDir)}, binning);
 }
 inline const std::string kEventLoss{"hEventLoss"};
-// Where they are in the corrections file.
-inline std::vector<std::string> EfficiencyPath(const std::string& binningName) { return {binningName, "AccEff", "MultBin"}; }
-inline std::vector<std::string> SignalLossPath(const std::string& binningName) { return {binningName, "SigLoss", "MultBin"}; }
 inline std::vector<std::string> EventLossPath(const std::string& binningName) { return {binningName, "EvLoss"}; }
-inline std::vector<std::string> SignalLossOverEventLossPath(const std::string& binningName) { return {binningName, "SigLoss", "OverEvLoss"}; }
 // PhiFitTask -> CorrelationTask: the trigger matrices that CorrelationTask reads, of the four PhiFitTask writes.
 inline const std::string kTriggerSignal{"h2TriggerSignal"};
 inline const std::string kTriggerBkgRatio{"h2TriggerBkgRatio"};
@@ -173,33 +202,23 @@ inline std::string SpectraCanvas(std::string_view particle, double dy) { return 
 inline std::string SpectraExtrapCanvas(std::string_view particle, double dy) { return std::format("cSpectraExtrap_{}_dy{}", particle, DyTag(dy)); }
 // The yield of a species against multiplicity, measured or extrapolated, every |dy| on one canvas; the extrapolated over
 // the measured; the ratio of two species. In the species' Trends directory, the last in Ratios.
-inline std::string TrendCanvas(std::string_view particle, bool extrapolated)
-{
-  return std::format("cTrend_{}_{}", extrapolated ? "Extrap" : "Meas", particle);
-}
+inline std::string TrendCanvas(std::string_view particle) { return std::format("cTrend_Meas_{}", particle); }
+inline std::string TrendExtrapCanvas(std::string_view particle) { return std::format("cTrend_Extrap_{}", particle); }
 inline std::string TrendExtrapOverMeasCanvas(std::string_view particle) { return std::format("cRatio_ExtrapVsMeas_{}", particle); }
 inline std::string ParticleRatioCanvas(std::string_view num, std::string_view den) { return std::format("canvasRatio_{}_{}_MultTrend", num, den); }
 
-// The correction maps of a particle, one curve per multiplicity class (MCTask).
-enum class CorrectionMap { Efficiency,
-                           SignalLoss,
-                           SignalLossOverEventLoss };
+// The correction maps of a particle, one curve per multiplicity class (MCTask), in the Summary directory of the map.
 inline std::string CorrectionSummaryCanvas(std::string_view particle, CorrectionMap map, SpectrumBinning binning = SpectrumBinning::Analysis)
 {
-  constexpr std::string_view kMapNames[] = {"Efficiency", "SignalLoss", "SignalLossOverEventLoss"};
-  return std::format("c_{}_{}{}", particle, kMapNames[static_cast<int>(map)], BinningSuffix(binning));
+  return std::format("c_{}_{}{}", particle, Detail::NamesOf(map).canvas, BinningSuffix(binning));
 }
-inline std::vector<std::string> CorrectionSummaryPath(const std::string& binningName, CorrectionMap map)
+inline std::vector<std::string> CorrectionSummaryPath(const std::string& binningName, CorrectionMap map,
+                                                      SpectrumBinning binning = SpectrumBinning::Analysis)
 {
-  switch (map) {
-    case CorrectionMap::Efficiency:
-      return {binningName, "AccEff", "Summary"};
-    case CorrectionMap::SignalLoss:
-      return {binningName, "SigLoss", "Summary"};
-    case CorrectionMap::SignalLossOverEventLoss:
-      return {binningName, "SigLoss", "Summary", "OverEvLoss"};
-  }
-  return {};
+  std::vector<std::string> path{binningName, std::string(Detail::NamesOf(map).dir), "Summary"};
+  if (map == CorrectionMap::SignalLossOverEventLoss)
+    path.emplace_back("OverEvLoss");
+  return BinningPath(std::move(path), binning);
 }
 
 // The purity of a purity_key, one curve per multiplicity class, in SummaryPath (PurityTask).
@@ -210,7 +229,11 @@ inline std::string PuritySummaryCanvas(std::string_view purityKey, SpectrumBinni
 
 // The mass fit of one cell (CellTag): the phi's in PhiFitsPath, a purity key's in PurityFitsPath.
 inline std::vector<std::string> PhiFitsPath(const std::string& binningName) { return {binningName, "Fits"}; }
-inline std::vector<std::string> PurityFitsPath(const std::string& binningName, const std::string& purityKey) { return {binningName, "Fits", purityKey}; }
+inline std::vector<std::string> PurityFitsPath(const std::string& binningName, const std::string& purityKey,
+                                               SpectrumBinning binning = SpectrumBinning::Analysis)
+{
+  return BinningPath({binningName, "Fits", purityKey}, binning);
+}
 inline std::string PhiFitCanvas(std::string_view cell) { return std::format("cFit_Phi_{}", cell); }
 inline std::string PurityFitCanvas(std::string_view purityKey, std::string_view cell, SpectrumBinning binning)
 {

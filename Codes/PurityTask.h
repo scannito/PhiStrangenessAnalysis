@@ -113,7 +113,7 @@ class PurityTask : public IAnalysisTask
       if (particleTasks.back().rebinningPt) {
         canvasManager.SetAutoYRange(canvasManager.CreateCanvas(OutputNames::PuritySummaryCanvas(purityKey, SpectrumBinning::Source),
                                                                std::format("{} Purity (source binning)", purityKey),
-                                                               OutputNames::SourceBinningPath(summaryPath), 800, 600));
+                                                               OutputNames::SummaryPath(globalCfgs.binningName, SpectrumBinning::Source), 800, 600));
       }
     }
 
@@ -164,7 +164,7 @@ class PurityTask : public IAnalysisTask
         // uses - a per-candidate correction needs the fine one.
         std::unique_ptr<TH1> h1PuritySeparateSource;
         if (task.rebinningPt) {
-          TDirectory* fitDirSource = RootIO::MakePath(outputFile.get(), OutputNames::SourceBinningPath(fitPath));
+          TDirectory* fitDirSource = RootIO::MakePath(outputFile.get(), OutputNames::PurityFitsPath(globalCfgs.binningName, task.purityKey, SpectrumBinning::Source));
           h1PuritySeparateSource = FitPuritySpectrum(task, multBin, SpectrumBinning::Source, fitDirSource);
 
           canvasManager.RequireCanvas(OutputNames::PuritySummaryCanvas(task.purityKey, SpectrumBinning::Source))->cd();
@@ -173,7 +173,7 @@ class PurityTask : public IAnalysisTask
           // Own subdirectory rather than sitting next to the analysis spectra.
           // Created here, inside the branch that produces the spectrum, so it
           // exists if and only if something was written into it.
-          RootIO::MakePath(outputFile.get(), OutputNames::SourceBinningPath(summaryPath))->cd();
+          RootIO::MakePath(outputFile.get(), OutputNames::SummaryPath(globalCfgs.binningName, SpectrumBinning::Source))->cd();
           h1PuritySeparateSource->Write(nullptr, TObject::kOverwrite);
         }
 
@@ -284,7 +284,7 @@ class PurityTask : public IAnalysisTask
 
       // The fit's diagnostic canvas, written into the particle's directory and destroyed
       // per fit, as in PhiFitTask: holding them all for the WriteAll in Terminate would
-      // only cost memory, since nothing reads a fit canvas back.
+      // only cost memory, since nothing in the run reads a fit canvas back.
       const std::string cName = OutputNames::PurityFitCanvas(task.purityKey, cell, which);
       const std::string title = OutputNames::CellTitle(label, multBinning, multBin, binning, ptBin) + titleSuffix;
       TCanvas* cFit = canvasManager.CreateCanvas(cName, title, 800, 800);
