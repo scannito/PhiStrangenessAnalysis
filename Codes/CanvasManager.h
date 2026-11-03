@@ -87,6 +87,11 @@ class CanvasManager
     TPad* bottomPad{nullptr};
     double fontScale{1.0}; // Compensates font sizes in bottom pad (pad height ratio)
   };
+  // Pads side by side that share their Y axis: only the first draws it, and every pad has the same plotting width.
+  struct JoinedPads {
+    TCanvas* canvas{nullptr};
+    std::vector<TPad*> pads;
+  };
 
   CanvasManager(bool showStats = false)
   {
@@ -280,6 +285,33 @@ class CanvasManager
   }
 
   // Creates a canvas divided into nCols x nRows subpads with uniform margins
+  // 'n' pads in a row with no gap between them, the Y axis drawn once, on the left: the first pad carries the left
+  // margin and the last the right one, each widened by it, so that the plotting areas are equal.
+  JoinedPads CreateJoinedPads(const std::string& name, const std::string& title, int n, int width = 1500, int height = 600,
+                              const PadMargins& margins = PadMargins{0.10, 0.02, 0.06, 0.14})
+  {
+    if (n <= 0)
+      throw std::runtime_error("[FATAL] CanvasManager: CreateJoinedPads needs at least one pad.");
+    CleanGlobalCollision(name);
+    auto c = std::make_unique<TCanvas>(name.c_str(), (title.empty() ? name : title).c_str(), width, height);
+    c->cd();
+    const double plot = (1.0 - margins.left - margins.right) / n;
+    JoinedPads joined;
+    double x = 0.0;
+    for (int i = 0; i < n; ++i) {
+      const double left = i == 0 ? margins.left : 0.0;
+      const double right = i == n - 1 ? margins.right : 0.0;
+      const double w = plot + left + right;
+      TPad* pad = new TPad(std::format("{}_pad{}", name, i).c_str(), "", x, 0.0, x + w, 1.0);
+      SetPadMargins(pad, {.left = left / w, .right = right / w, .top = margins.top, .bottom = margins.bottom});
+      pad->Draw();
+      joined.pads.push_back(pad);
+      x += w;
+    }
+    joined.canvas = RecordCanvas(std::move(c));
+    return joined;
+  }
+
   TCanvas* CreateGridCanvas(const std::string& name, const std::string& title,
                             int nCols, int nRows,
                             int width = 1200, int height = 900,
@@ -616,9 +648,8 @@ class CanvasManager
   // On the pad passed, like the other Draw* helpers here, and not on gPad: which
   // pad is current after a drawing call is an accident of that call, and on a
   // ratio canvas the wrong guess puts the label on the pulls.
-  static void DrawAliceLabel(TPad* pad, double x = 0.18, double y = 0.84,
-                             const std::string& status = "Work in progress",
-                             const std::string& collisionSystem = "pp, #sqrt{#it{s}} = 13.6 TeV",
+  // The status and the collision system are always given: the system is not in the files, so it is never assumed.
+  static void DrawAliceLabel(TPad* pad, double x, double y, const std::string& status, const std::string& collisionSystem,
                              double textSize = 0.045)
   {
     if (!pad)
