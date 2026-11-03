@@ -97,7 +97,7 @@ class PhiFitTask : public IAnalysisTask
   {
     Logger::Info("{}: RUNNING TRIGGER SIGNAL EXTRACTION...", GetName());
 
-    TDirectory* fitDir = RootIO::MakePath(outputFile.get(), {globalCfgs.binningName, "Fits"});
+    TDirectory* fitDir = RootIO::MakePath(outputFile.get(), OutputNames::PhiFitsPath(globalCfgs.binningName));
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
       for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
@@ -122,7 +122,7 @@ class PhiFitTask : public IAnalysisTask
         // task's. Written and destroyed here, per cell, and not left to a WriteAll in
         // Terminate: nothing reads a fit canvas back, and holding all of them until
         // the end would only cost memory.
-        const std::string canvasName = std::format("cFit_Phi_{}", cell);
+        const std::string canvasName = OutputNames::PhiFitCanvas(cell);
         const std::string title = OutputNames::CellTitle("#phi", multBinning, multBin, ptPhiBinning, ptPhiBin);
         TCanvas* cFit = canvasManager.CreateCanvas(canvasName, title, 800, 800);
         fitter.DrawFit(cFit, title, /*logY=*/false); // a peak on a smooth background, which log scale flattens
