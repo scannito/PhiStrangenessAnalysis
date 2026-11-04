@@ -118,6 +118,12 @@ inline bool IsSpeciesDir(TDirectory* dir)
 // "1.00" -> "1_00": the delta-y limit as it appears in a name.
 inline std::string DyTag(double dyLimit)
 {
+  // Two decimals are all a name holds: a limit they cannot say would take its neighbour's name (0.504 writes and finds
+  // the objects of 0.50), so it stops here, for the task that writes as for every reader.
+  if (std::abs(dyLimit - std::stod(BinningUtils::FormatDeltaY(dyLimit))) > BinningUtils::kEdgeTolerance)
+    throw std::runtime_error(std::format("[FATAL] OutputNames: the |dy| limit {} has more than two decimals, which the object names "
+                                         "cannot hold; use a limit like {}.",
+                                         dyLimit, BinningUtils::FormatDeltaY(dyLimit)));
   std::string tag = BinningUtils::FormatDeltaY(dyLimit);
   std::replace(tag.begin(), tag.end(), '.', '_');
   return tag;

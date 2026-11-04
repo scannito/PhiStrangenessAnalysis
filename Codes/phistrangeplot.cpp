@@ -56,8 +56,11 @@ int main(int argc, char* argv[])
   }
   if ((verb == "describe" || verb == "render") && argc >= 3) {
     std::map<std::string, std::string> options{{"--out", ""}, {"--alice", ""}, {"--system", ""}};
-    if (!ReadOptions(argc, argv, 3, options) || (verb == "render") == options["--out"].empty() ||
-        options["--alice"].empty() != options["--system"].empty())
+    const bool render = verb == "render";
+    if (!ReadOptions(argc, argv, 3, options))
+      return Usage();
+    // render needs where to write, describe writes nothing; the ALICE label needs its system with its status.
+    if (render != !options["--out"].empty() || options["--alice"].empty() != options["--system"].empty())
       return Usage();
     const std::string specFile = argv[2];
     return PlotDesigns::Run([&] {
@@ -69,7 +72,7 @@ int main(int argc, char* argv[])
       CanvasManager canvases;
       const PlotDesigns::Drawn drawn = PlotSpec::Draw(spec, canvases, "plot", alice);
       std::printf("%s", PlotSeries::Describe(drawn.series).c_str());
-      if (verb == "render")
+      if (render)
         PlotDesigns::Save(drawn, options["--out"], std::format("{}\n{}", recipe, text));
     });
   }
