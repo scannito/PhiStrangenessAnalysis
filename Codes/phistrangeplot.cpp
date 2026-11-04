@@ -4,7 +4,6 @@
 
 #include <cstdio>
 #include <map>
-#include <ranges>
 #include <vector>
 #include <string>
 
@@ -12,17 +11,17 @@
 //   phistrangeplot summaries <file.root> [--out <dir>] [--scheme <binning_name>] [--section <section>]
 //     the summaries a task draws, redrawn from a file it wrote, with no task and no configuration (which task wrote the
 //     file, and what it holds, are read from it); they go to <dir>/<file stem>_<scheme>[_<section>]/ (PlotSummaries::Save).
-//   phistrangeplot list [--json] <file.root>...
-//     what the files hold, per binning scheme: the task that wrote it, the multiplicity classes, the particles, purity
-//     keys or sections (species, |dy| limits, species ratios), the forms of series a specification can ask of it.
-//     With --json, in the specification's words (PlotSpec::CatalogJson) and nothing else on the standard output.
+//   phistrangeplot list <file.root>...
+//     what the files hold, per binning scheme, as JSON in the specification's keys (PlotSpec::CatalogJson): the task
+//     that wrote it, the multiplicity classes, the particles, purity keys or sections (species, |dy| limits, species
+//     ratios), the forms of series a specification can ask of it. Nothing else on the standard output.
 //   phistrangeplot schema
 //     what a plot specification may say (PlotSpec::Schema).
 //   phistrangeplot describe <spec.json>
 //     what the specification resolves to, every series and what the series disagree on, without keeping anything.
 //   phistrangeplot render <spec.json> --out <base> [--alice <status> --system <collision system>] [--note <text>]
-//     the plot, as <base>.pdf, .png and .root, the specification kept as its recipe, with the note when one is given
-//     (a front end records there the request and the model that wrote the specification). The ALICE label only when
+//     the plot, as <base>.pdf, .png and .root, the specification kept as its recipe and the note, when one is given, as
+//     a fact of its own (a front end records there the request and the model that wrote the specification). The ALICE label only when
 //     both its status and its system are given: the system is not in the files.
 // Exit codes: 0 done, 1 refused or failed, 2 wrong use, 3 not in the files (a scheme, a section, a record, an object).
 namespace
@@ -30,7 +29,7 @@ namespace
 int Usage()
 {
   std::fprintf(stderr, "usage: phistrangeplot summaries <file.root> [--out <dir>] [--scheme <binning_name>] [--section <section>]\n"
-                       "       phistrangeplot list [--json] <file.root>...\n"
+                       "       phistrangeplot list <file.root>...\n"
                        "       phistrangeplot schema\n"
                        "       phistrangeplot describe <spec.json>\n"
                        "       phistrangeplot render <spec.json> --out <base> [--alice <status> --system <collision system>] [--note <text>]\n");
@@ -47,35 +46,6 @@ bool ReadOptions(int argc, char* argv[], int first, std::map<std::string, std::s
   }
   return true;
 }
-// The catalog for a reader.
-std::string ListText(const PlotSeries::Catalog& catalog)
-{
-  auto edge = [](double x) { return BinningUtils::FormatEdge(x); };
-  std::string out = catalog.fileName + "\n";
-  for (const PlotSeries::Catalog::Scheme& scheme : catalog.schemes) {
-    auto at = [&](const char* fact) {
-      auto it = scheme.provenance.find(fact);
-      return it == scheme.provenance.end() ? std::string("?") : it->second;
-    };
-    out += std::format("  scheme {}: a {} file (produced {}, commit {})\n", scheme.name, PlotSpec::Detail::KindName(scheme.kind), at("produced_at"),
-                       at("git_commit"));
-    out += "    multiplicity classes: " + Logger::Join(scheme.classes | std::views::transform([&](const PlotSeries::Interval& c) {
-                                             return std::format("{}-{}", edge(c.low), edge(c.high));
-                                           })) + "\n";
-    if (!scheme.particles.empty())
-      out += "    particles: " + Logger::Join(scheme.particles, ", ") + "\n";
-    if (!scheme.purityKeys.empty())
-      out += "    purity keys: " + Logger::Join(scheme.purityKeys, ", ") + "\n";
-    for (const PlotSeries::Catalog::Section& section : scheme.sections)
-      out += std::format("    section {}: species {}; |dy| {}; species ratios {}\n", section.name, Logger::Join(section.species, ", "),
-                         Logger::Join(section.deltaYLimits | std::views::transform(BinningUtils::FormatDeltaY), ", "),
-                         section.speciesRatios.empty() ? std::string("none")
-                                                       : Logger::Join(section.speciesRatios | std::views::transform([](const auto& r) {
-                                                                        return r.first + "/" + r.second;
-                                                                      }), ", "));
-  }
-  return out;
-}
 } // namespace
 
 int main(int argc, char* argv[])
@@ -83,27 +53,25 @@ int main(int argc, char* argv[])
   if (argc < 2)
     return Usage();
   const std::string verb = argv[1];
+  // The command line as the recipe, without the note: that is recorded as a fact of its own.
   std::string recipe = "phistrangeplot";
-  for (int i = 1; i < argc; ++i)
+  for (int i = 1; i < argc; ++i) {
+    if (std::string(argv[i]) == "--note") {
+      ++i;
+      continue;
+    }
     recipe += std::format(" {}", argv[i]);
+  }
 
   if (verb == "list" && argc >= 3) {
-    const bool json = std::string(argv[2]) == "--json";
-    const std::vector<std::string> files(argv + (json ? 3 : 2), argv + argc);
-    if (files.empty())
-      return Usage();
-    // With --json the standard output is a document: the progress lines stay out of it (the warnings go to stderr).
-    if (json)
-      Logger::SetLevel(Logger::Level::Warn);
+    const std::vector<std::string> files(argv + 2, argv + argc);
+    // The standard output is a document: the progress lines stay out of it (the warnings go to stderr).
+    Logger::SetLevel(Logger::Level::Warn);
     return PlotDesigns::Run([&] {
       std::vector<PlotSeries::Catalog> catalogs;
       for (const std::string& file : files)
         catalogs.push_back(PlotSeries::ReadCatalog(file));
-      if (json)
-        std::printf("%s\n", PlotSpec::CatalogJson(catalogs).c_str());
-      else
-        for (const PlotSeries::Catalog& catalog : catalogs)
-          std::printf("%s", ListText(catalog).c_str());
+      std::printf("%s\n", PlotSpec::CatalogJson(catalogs).c_str());
     });
   }
   if (verb == "schema" && argc == 2) {
@@ -129,7 +97,8 @@ int main(int argc, char* argv[])
       const PlotDesigns::Drawn drawn = PlotSpec::Draw(spec, canvases, "plot", alice);
       std::printf("%s", PlotSeries::Describe(drawn.series).c_str());
       if (render)
-        PlotDesigns::Save(drawn, options["--out"], std::format("{}\n{}{}", recipe, options["--note"].empty() ? "" : options["--note"] + "\n", text));
+        PlotDesigns::Save(drawn, options["--out"], std::format("{}\n{}", recipe, text),
+                          options["--note"].empty() ? std::map<std::string, std::string>{} : std::map<std::string, std::string>{{"note", options["--note"]}});
     });
   }
   if (verb == "summaries" && argc >= 3) {

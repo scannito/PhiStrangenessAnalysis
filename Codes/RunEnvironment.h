@@ -121,6 +121,9 @@ inline std::string TimestampNow()
 // Both defaults assume the working directory is the framework's own, which
 // runAnalysis.sh guarantees with its cd. Run from anywhere else they come back
 // empty and nothing is recorded, which is the right outcome for documentation.
+// The names of the facts, for whoever reads them back (the plots' catalog).
+inline const std::string kGitCommit{"git_commit"};
+
 inline const std::map<std::string, std::string>& Facts()
 {
   static const std::map<std::string, std::string> facts = [] {
@@ -128,7 +131,7 @@ inline const std::map<std::string, std::string>& Facts()
     const std::string commit = GitCommit();
     const std::string sources = SourcesFingerprint();
     if (!commit.empty())
-      f["git_commit"] = commit;
+      f[kGitCommit] = commit;
     if (!sources.empty())
       f["sources_fingerprint"] = sources;
     return f;
