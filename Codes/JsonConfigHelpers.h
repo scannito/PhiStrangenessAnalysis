@@ -16,7 +16,6 @@
 #include <optional>
 #include <ranges>
 #include <set>
-#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -255,16 +254,21 @@ inline int OptionalInt(const rapidjson::Value& node, const char* key, int fallba
   return TryInt(node, key, errCtx).value_or(fallback);
 }
 
-inline double OptionalDouble(const rapidjson::Value& node, const char* key, double fallback, std::string_view errCtx)
+// IsNumber, not IsDouble: rapidjson stores "2" as an int, and refusing it would make the JSON depend on whether a
+// decimal point was typed.
+inline std::optional<double> TryDouble(const rapidjson::Value& node, const char* key, std::string_view errCtx)
 {
   const rapidjson::Value* val = OptionalMember(node, key);
   if (!val)
-    return fallback;
-  // IsNumber, not IsDouble: rapidjson stores "2" as an int, and refusing it
-  // would make the JSON depend on whether a decimal point was typed.
+    return std::nullopt;
   if (!val->IsNumber())
     throw std::runtime_error(std::format("[FATAL] {}: key '{}' is present but is NOT a number, so it would be silently ignored.", errCtx, key));
   return val->GetDouble();
+}
+
+inline double OptionalDouble(const rapidjson::Value& node, const char* key, double fallback, std::string_view errCtx)
+{
+  return TryDouble(node, key, errCtx).value_or(fallback);
 }
 
 // ---------------------------------------------------------------------------
@@ -278,9 +282,9 @@ inline double OptionalDouble(const rapidjson::Value& node, const char* key, doub
 // Split from the reading below so that a caller who needs the name as well - to
 // record it, to log it - gets it from the read and does not have to ask twice.
 
-template <typename E>
-inline E ResolveEnum(std::string_view requested, std::span<const std::pair<std::string_view, E>> options, std::string_view key,
-                     std::string_view errCtx)
+// 'options' is any range of (name, value) pairs: an initializer list, a table.
+template <typename Options>
+inline auto ResolveEnum(std::string_view requested, const Options& options, std::string_view key, std::string_view errCtx)
 {
   for (const auto& [name, value] : options)
     if (name == requested)
@@ -297,7 +301,7 @@ template <typename E>
 inline E OptionalEnum(const rapidjson::Value& node, const char* key, std::string_view defaultName,
                       std::initializer_list<std::pair<std::string_view, E>> options, std::string_view errCtx)
 {
-  return ResolveEnum<E>(OptionalString(node, key, std::string(defaultName), errCtx), std::span(options.begin(), options.size()), key, errCtx);
+  return ResolveEnum(OptionalString(node, key, std::string(defaultName), errCtx), options, key, errCtx);
 }
 
 // The same with no default: for a choice that changes the numbers (CLAUDE.md, Configuration).
@@ -305,7 +309,7 @@ template <typename E>
 inline E RequireEnum(const rapidjson::Value& node, const char* key,
                      std::initializer_list<std::pair<std::string_view, E>> options, std::string_view errCtx)
 {
-  return ResolveEnum<E>(RequireString(node, key, errCtx), std::span(options.begin(), options.size()), key, errCtx);
+  return ResolveEnum(RequireString(node, key, errCtx), options, key, errCtx);
 }
 
 // ---------------------------------------------------------------------------
@@ -390,16 +394,6 @@ std::optional<RangeType> TryRange(const rapidjson::Value& node, const char* key,
   if (!value)
     return std::nullopt;
   return ToRange<RangeType>(*value, key, errCtx);
-}
-
-inline std::optional<double> TryDouble(const rapidjson::Value& node, const char* key, std::string_view errCtx)
-{
-  const rapidjson::Value* val = OptionalMember(node, key);
-  if (!val)
-    return std::nullopt;
-  if (!val->IsNumber())
-    throw std::runtime_error(std::format("[FATAL] {}: key '{}' is present but is NOT a number, so it would be silently ignored.", errCtx, key));
-  return val->GetDouble();
 }
 
 inline std::optional<std::string> TryString(const rapidjson::Value& node, const char* key, std::string_view errCtx)

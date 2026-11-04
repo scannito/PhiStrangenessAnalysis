@@ -63,7 +63,7 @@ void DrawSpec(const std::string& text, const std::string& origin, const std::str
   const rapidjson::Document spec = PlotSpec::Parse(text, origin);
   CanvasManager canvases;
   const PlotDesigns::Drawn drawn = PlotSpec::Draw(spec, canvases, "plot", alice);
-  std::printf("%s", PlotSeries::Describe(drawn.series).c_str());
+  std::printf("%s", PlotDesigns::Describe(drawn).c_str());
   if (!out.empty())
     PlotDesigns::Save(drawn, out, std::format("{}\n{}", recipe, text),
                       note.empty() ? std::map<std::string, std::string>{} : std::map<std::string, std::string>{{"note", note}});

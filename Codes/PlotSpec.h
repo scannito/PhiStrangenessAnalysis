@@ -146,13 +146,7 @@ std::string EnumList(Names&& names)
 inline const std::string kCtx = "PlotSpec";
 
 // The value of 'name' in one of the tables above, read under 'key' (JsonConfig::ResolveEnum, which lists what there is).
-template <class Table>
-auto Resolve(const Table& table, std::string_view name, const char* key)
-{
-  using E = typename std::ranges::range_value_t<Table>::second_type;
-  return JsonConfig::ResolveEnum<E>(name, std::span<const std::pair<std::string_view, E>>(std::ranges::data(table), std::ranges::size(table)), key,
-                                    kCtx);
-}
+auto Resolve(const auto& table, std::string_view name, const char* key) { return JsonConfig::ResolveEnum(name, table, key, kCtx); }
 
 inline OutputNames::SpectrumBinning ReadBinning(const rapidjson::Value& node)
 {
@@ -327,7 +321,7 @@ inline const std::vector<SeriesForm>& SeriesForms()
      {{kPurityKey, kStringSchema}, Ref(kMult), Ref(kBinning)},
      {kPurityKey, kMult},
      [](const rapidjson::Value& s, const std::string& file, const Where& where, std::optional<double>, std::optional<Interval> mult) {
-       return Purity(file, RequireString(s, kPurityKey, kCtx), *mult, ReadBinning(s), where);
+       return Purity(file, RequireString(s, kPurityKey, kCtx), *mult, ReadBinning(s), where.scheme);
      }},
     {"correction_map", FileKind::Corrections,
      "A correction map of a particle against pT, in one multiplicity class or integrated over multiplicity (no mult).",
@@ -335,7 +329,7 @@ inline const std::vector<SeriesForm>& SeriesForms()
      {kParticle, kMap},
      [](const rapidjson::Value& s, const std::string& file, const Where& where, std::optional<double>, std::optional<Interval> mult) {
        return CorrectionMap(file, RequireString(s, kParticle, kCtx), Resolve(kMaps, RequireString(s, kMap, kCtx), kMap), mult,
-                            ReadBinning(s), where);
+                            ReadBinning(s), where.scheme);
      }},
   };
   return forms;
@@ -466,7 +460,7 @@ inline const std::vector<DesignForm>& DesignForms()
                             JsonConfig::OptionalString(c, kLabel, "", kCtx)});
          return PlotDesigns::FitCanvasGrid(canvases, name, JsonConfig::RequireString(spec, kFile, kCtx), JsonConfig::TryString(spec, kPurityKey, kCtx),
                                            cells, JsonConfig::RequireInt(spec, kNCols, kCtx), ReadBinning(spec),
-                                           {JsonConfig::OptionalString(spec, kScheme, "", kCtx)}, f);
+                                           JsonConfig::OptionalString(spec, kScheme, "", kCtx), f);
        }},
     };
   }();

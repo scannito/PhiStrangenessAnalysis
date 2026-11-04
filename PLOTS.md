@@ -134,9 +134,9 @@ empty one meaning "the only one in the file"), checks what can be checked, and r
 | `SpectrumExtended(file, species, dy, mult, where)` | the same extended to pT = 0, its fitted curve attached | |
 | `Trend(file, species, dy, kind, where)` | the yield against multiplicity: `Measured`, `Extrapolated`, `ExtrapOverMeas` | |
 | `SpeciesRatio(file, num, den, dy, kind, where)` | the ratio of two species' yields, as the task wrote it | |
-| `Purity(file, key, mult, binning, where)` | the purity of a purity key in one class (a file with no sections: a section in `where` stops) | |
-| `CorrectionMap(file, particle, map, mult, binning, where)` | efficiency, signal loss or signal loss over event loss; no class = integrated | |
-| `Fit(file, purityKey, mult, pt, binning, where)` | a mass-fit canvas, the phi's without a purity key; not a series: a `FitCanvas{canvas, origin, tag}` | |
+| `Purity(file, key, mult, binning, scheme)` | the purity of a purity key in one class (a file with no sections: a scheme, no `Where`) | |
+| `CorrectionMap(file, particle, map, mult, binning, scheme)` | efficiency, signal loss or signal loss over event loss; no class = integrated | |
+| `Fit(file, purityKey, mult, pt, binning, scheme)` | a mass-fit canvas, the phi's without a purity key (its cell checked against the stamps); not a series: a `FitCanvas{canvas, origin, tag}` | |
 | `Object(file, path)` | anything in a file the framework did not write (a preliminary); no stamp, no facts | |
 
 What they refuse: an object that is not there (`NotInFiles`, exit code 3), an object of another class, a multiplicity
@@ -169,10 +169,12 @@ purity or spectra, by the record the scheme holds), `Resolve` / `SchemeName` (th
   a non-finite bin left empty in the copy (the series keeps it), and refused with an option that would draw it at 0
   (allowed: `E`, `E1`, `P`, and no option on a histogram with errors; measured); no statistics box; a curve attached
   to a series (the fit of an extended spectrum) drawn in the series' colour.
-- `Describe(series)`: each series, where it comes from, what was done to it, what the series disagree on.
+- `Describe(series, inputs)`: each input that is not a series (a fit canvas), each series, where it comes from, what
+  was done to it, what the series disagree on. `PlotDesigns::Describe(drawn)` and `PlotDesigns::Save(drawn, ...)` pass
+  a design's own.
 - `AutoLabels(series)`: the legend from the facts: what the series share as a header, what tells each apart as its
   label, file names cut to the words that differ.
-- `Save(canvas, outBase, series, recipe, facts, inputs)`: `outBase.pdf`, `.png` and `.root` with the canvas, a copy of
+- `Save(canvas, outBase, series, inputs, recipe, facts)`: `outBase.pdf`, `.png` and `.root` with the canvas, a copy of
   each series as computed (`Objects/series<i>`) and the provenance: the recipe, when, the commit and the header
   fingerprint of the code that drew it, whatever directory the plot is made from, the input files' provenance per
   origin of each series and per input that is not a series (a fit canvas), and any facts given (a note). `OpenPlotFile`
@@ -205,7 +207,7 @@ text.
 | `CompareWithRatio(canvases, name, panel, reference, divideOption, ratioRange, ratioTitle, frame)` | the series on top, the ratio of each to the reference below, each drawn as its numerator is |
 | `JoinedPads(canvases, name, panels, yRange, frame)` | panels side by side, joined, one Y axis and one range (given, or the union of the pads' own) |
 | `WithReference(canvases, name, panel, reference, systematic, divideOption, ratioRange, frame)` | the series against a foreign reference, its systematic as a band, the ratios below |
-| `FitCanvasGrid(canvases, name, file, purityKey, cells, nCols, binning, where, frame)` | the mass-fit canvases of some cells (`FitCell{mult, pt, label}`), already in the file, each found by `PlotSeries::Fit` |
+| `FitCanvasGrid(canvases, name, file, purityKey, cells, nCols, binning, scheme, frame)` | the mass-fit canvases of some cells (`FitCell{mult, pt, label}`), already in the file, each found by `PlotSeries::Fit` |
 | `Table(series)` | the values bin by bin, the series on one X axis |
 
 `Run(body)` wraps a composition's `main`: batch mode, and exit code 0 done, 1 refused or failed, 3 not in the files.
@@ -255,8 +257,9 @@ small tables (`RootIO::WriteTable`: a detached `TTree`, one row per entry and on
 | `deltaY_limits` | `{scheme}/{section}` of a spectra file | the correlation tasks | dy (a number) |
 | `species_ratios` | `{scheme}/{section}` of a spectra file | the correlation tasks | numerator, denominator |
 
-Each table is one value in `OutputNames` (`Table{name, columns, writer}`, the writer being the task to re-run, by its
-`GetName()`); `RootIO::ReadTable` reads it back with the types of its columns. The phi fit file has no table: it is told
+Each table is one value in `OutputNames`, its descriptor carrying the types of its columns (`Table<std::string>`,
+`Table<double>`, `Table<std::string, std::string>`; a row is the value itself for one column) with its name, its columns
+and the task to re-run when it is missing; `RootIO::WriteTable` and `ReadTable` take the descriptor. The phi fit file has no table: it is told
 by its `Fits` directory, and its binnings are stamped (`binning_mult`, `binning_ptPhi`), which gives `list` the cells of
 its fits. A file produced before these records
 is refused by `list` and `summaries` with exit code 3 and the task to re-run; nothing falls back to parsing names.
