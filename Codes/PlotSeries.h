@@ -329,10 +329,71 @@ inline std::vector<double> DeltaYLimits(const std::string& fileName, const Where
   const Detail::Located at = Detail::LocateSection(fileName, where);
   std::optional<std::vector<double>> limits = RootIO::ReadValueList(at.sectionDir, OutputNames::kDeltaYLimits, fileName);
   if (!limits)
-    throw std::runtime_error(std::format("[FATAL] PlotSeries: section '{}' of '{}' does not record its |dy| limits ('{}'): it was written "
-                                         "before they were; re-run the correlation task.",
-                                         at.sectionDir->GetName(), fileName, OutputNames::kDeltaYLimits));
+    throw NotInFiles(std::format("[FATAL] PlotSeries: section '{}' of '{}' does not record its |dy| limits ('{}'): it was written "
+                                 "before they were; re-run the correlation task.",
+                                 at.sectionDir->GetName(), fileName, OutputNames::kDeltaYLimits));
   return *limits;
+}
+
+// The scheme and the section a request names, with the empty ones resolved to the only one the file has.
+inline Where Resolve(const std::string& fileName, const Where& where = {})
+{
+  const Detail::Located at = Detail::LocateSection(fileName, where);
+  return {at.schemeDir->GetName(), at.sectionDir->GetName()};
+}
+inline std::string SchemeName(const std::string& fileName, const std::string& scheme = "")
+{
+  return Detail::Scheme(Detail::Open(fileName).get(), scheme, fileName)->GetName();
+}
+
+namespace Detail
+{
+// A table of what a file holds (OutputNames::kCorrectionParticles...): absent, the file was written before it.
+inline std::vector<std::vector<std::string>> Table(TDirectory* dir, const std::string& name, const std::vector<std::string>& columns,
+                                                   const std::string& fileName, const std::string& task)
+{
+  std::optional<std::vector<std::vector<std::string>>> rows = RootIO::ReadStringTable(dir, name, columns, "PlotSeries");
+  if (!rows)
+    throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' does not record '{}' in '{}': it was written before the record existed; "
+                                 "re-run the {}.",
+                                 fileName, name, dir->GetName(), task));
+  return *rows;
+}
+
+inline std::vector<std::string> Column(const std::vector<std::vector<std::string>>& rows)
+{
+  std::vector<std::string> values;
+  for (const std::vector<std::string>& row : rows)
+    values.push_back(row.front());
+  return values;
+}
+} // namespace Detail
+
+// The particles a corrections file holds maps of, as MCTask recorded them.
+inline std::vector<std::string> CorrectionParticles(const std::string& fileName, const std::string& scheme = "")
+{
+  auto file = Detail::Open(fileName);
+  return Detail::Column(Detail::Table(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kCorrectionParticles,
+                                      OutputNames::kParticleColumns, fileName, "MC task"));
+}
+
+// The purity keys a purity file holds spectra of, as PurityTask recorded them.
+inline std::vector<std::string> PurityKeys(const std::string& fileName, const std::string& scheme = "")
+{
+  auto file = Detail::Open(fileName);
+  return Detail::Column(Detail::Table(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kPurityKeys,
+                                      OutputNames::kPurityKeyColumns, fileName, "purity task"));
+}
+
+// The species ratios a section holds, numerator and denominator, as the correlation task recorded them.
+inline std::vector<std::pair<std::string, std::string>> SpeciesRatios(const std::string& fileName, const Where& where = {})
+{
+  const Detail::Located at = Detail::LocateSection(fileName, where);
+  std::vector<std::pair<std::string, std::string>> ratios;
+  for (const std::vector<std::string>& row :
+       Detail::Table(at.sectionDir, OutputNames::kSpeciesRatios, OutputNames::kSpeciesRatioColumns, fileName, "correlation task"))
+    ratios.emplace_back(row[0], row[1]);
+  return ratios;
 }
 
 // The species of a section of a PhiAssocSpectra file: its directories that hold spectra or trends.
@@ -656,21 +717,30 @@ inline const std::string kPlotOwner{"Plot"};
 // composition or the specification, as the config_block), when, the code's commit and fingerprint, and per origin of
 // each series its file, its path and its own provenance (RootIO::CopyProvenance). A .root that is not a plot written
 // here, or that is open as an input, is never overwritten.
+namespace Detail
+{
+// A plot's .root may replace only a plot's .root: never an input of the plot, never a file the plots did not write.
+inline void RequirePlotOutput(const std::string& rootName, const std::string& ctx)
+{
+  if (!OpenFiles()[rootName].expired())
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' is open as an input of this plot.", ctx, rootName));
+  if (std::filesystem::exists(rootName)) {
+    std::unique_ptr<TFile> existing(TFile::Open(rootName.c_str(), "READ"));
+    if (!existing || RootIO::ReadProvenance(existing.get(), kPlotOwner).empty())
+      throw std::runtime_error(std::format("[FATAL] {}: '{}' exists and is not a plot written here; it is not overwritten. Choose another "
+                                           "output.",
+                                           ctx, rootName));
+  }
+  if (const std::filesystem::path dir = std::filesystem::path(rootName).parent_path(); !dir.empty())
+    RootIO::CreateDirectoriesOrThrow(dir, ctx);
+}
+} // namespace Detail
+
 inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<Series>& series, const std::string& recipe,
                  const std::vector<std::string>& formats = {"pdf", "png"})
 {
   const std::string rootName = outBase + ".root";
-  if (!Detail::OpenFiles()[rootName].expired())
-    throw std::runtime_error(std::format("[FATAL] PlotSeries::Save: '{}' is open as an input of this plot.", rootName));
-  if (std::filesystem::exists(rootName)) {
-    std::unique_ptr<TFile> existing(TFile::Open(rootName.c_str(), "READ"));
-    if (!existing || RootIO::ReadProvenance(existing.get(), kPlotOwner).empty())
-      throw std::runtime_error(std::format("[FATAL] PlotSeries::Save: '{}' exists and is not a plot written here; it is "
-                                           "not overwritten. Choose another output.",
-                                           rootName));
-  }
-  if (const std::filesystem::path dir = std::filesystem::path(outBase).parent_path(); !dir.empty())
-    RootIO::CreateDirectoriesOrThrow(dir, "PlotSeries::Save");
+  Detail::RequirePlotOutput(rootName, "PlotSeries::Save");
   for (const std::string& format : formats)
     canvas->SaveAs(std::format("{}.{}", outBase, format).c_str());
 

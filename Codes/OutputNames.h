@@ -54,6 +54,17 @@ inline std::vector<std::string> TrendsPath(const std::string& scheme, const std:
 }
 inline std::vector<std::string> RatiosPath(const std::string& scheme, const std::string& section) { return {scheme, section, kRatiosDir}; }
 
+// What a file holds, as tables of names (RootIO::WriteStringTable), so that a reader with no configuration finds it
+// without parsing object names: the particles of a corrections file and the purity keys of a purity file, in the
+// scheme directory; the species ratios of a section, next to its |dy| limits. A ratio's label is not here: it is the Y
+// title of the ratio itself.
+inline const std::string kCorrectionParticles{"particles"};
+inline const std::string kPurityKeys{"purity_keys"};
+inline const std::string kSpeciesRatios{"species_ratios"};
+inline const std::vector<std::string> kParticleColumns{"particle"};
+inline const std::vector<std::string> kPurityKeyColumns{"purity_key"};
+inline const std::vector<std::string> kSpeciesRatioColumns{"numerator", "denominator"};
+
 // The files between the fit tasks and CorrelationTask: the name that follows the output prefix.
 // Written once here, since the writer and the reader would otherwise each spell it, and a
 // configuration key for it would be one more copy to keep equal on both sides (it was one, for

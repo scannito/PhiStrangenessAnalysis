@@ -319,8 +319,13 @@ class MCTask : public IAnalysisTask
 
     // The pT binning of every correction is its own axis; the multiplicity binning is
     // in the names, and stamped (RootIO::RequireMatchingBinningStamp).
-    RootIO::WriteBinningStamp(RootIO::MakePath(outputFile.get(), {globalCfgs.binningName}), RootIO::kStampMult,
-                              multBinning);
+    TDirectory* schemeDir = RootIO::MakePath(outputFile.get(), {globalCfgs.binningName});
+    RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
+    // The particles this file holds maps of, for a reader with no configuration (the summaries below among them).
+    std::vector<std::vector<std::string>> particles;
+    for (const auto& data : dataCollection)
+      particles.push_back({data.name});
+    RootIO::WriteStringTable(schemeDir, OutputNames::kCorrectionParticles, OutputNames::kParticleColumns, particles);
 
     RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
     const std::string fileName = outputFile->GetName();
@@ -328,11 +333,8 @@ class MCTask : public IAnalysisTask
 
     // The summaries are drawn from what was written, as any reader of the file would draw them, and written into it
     // (their directories are under the scheme ClearPath emptied in Init).
-    std::vector<std::string> particles;
-    for (const auto& data : dataCollection)
-      particles.push_back(data.name);
     PlotSummaries::WriteInto(fileName, GetName(),
-                             [&](CanvasManager& canvases) { PlotSummaries::Corrections(canvases, fileName, globalCfgs.binningName, particles); });
+                             [&](CanvasManager& canvases) { PlotSummaries::Corrections(canvases, fileName, globalCfgs.binningName); });
 
     Logger::Info("{}: DONE.", GetName());
   }

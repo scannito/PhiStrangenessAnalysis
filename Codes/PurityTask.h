@@ -153,6 +153,11 @@ class PurityTask : public IAnalysisTask
     // in the names, and stamped (RootIO::RequireMatchingBinningStamp).
     TDirectory* schemeDir = RootIO::MakePath(outputFile.get(), {globalCfgs.binningName});
     RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
+    // The purity keys this file holds, for a reader with no configuration (the summaries below among them).
+    std::vector<std::vector<std::string>> purityKeys;
+    for (const auto& task : particleTasks)
+      purityKeys.push_back({task.purityKey});
+    RootIO::WriteStringTable(schemeDir, OutputNames::kPurityKeys, OutputNames::kPurityKeyColumns, purityKeys);
     fitQuality.Write(schemeDir, GetName());
 
     // 2. Write the CCDB-ready maps, one file per particle, object named "ccdb_object"
@@ -168,11 +173,7 @@ class PurityTask : public IAnalysisTask
     // them, and write them into it (their directories are under the scheme ClearPath emptied in Init)
     const std::string fileName = outputFile->GetName();
     outputFile->Close();
-    std::vector<std::string> purityKeys;
-    for (const auto& task : particleTasks)
-      purityKeys.push_back(task.purityKey);
-    PlotSummaries::WriteInto(fileName, GetName(),
-                             [&](CanvasManager& canvases) { PlotSummaries::Purities(canvases, fileName, globalCfgs.binningName, purityKeys); });
+    PlotSummaries::WriteInto(fileName, GetName(), [&](CanvasManager& canvases) { PlotSummaries::Purities(canvases, fileName, globalCfgs.binningName); });
 
     Logger::Info("{}: DONE.", GetName());
   }
