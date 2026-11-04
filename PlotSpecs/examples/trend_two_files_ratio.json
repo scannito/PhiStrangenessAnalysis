@@ -1,0 +1,5 @@
+{"design": "compare_with_ratio", "divide_option": "", "reference": 0,
+ "title": "K^{0}_{S} yield, offline against online efficiency",
+ "series": [{"of": "trend", "file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root", "species": "K0S", "dy": 1.0, "trend": "measured", "label": "offline"},
+            {"of": "trend", "file": "DataFile/pp/DeltaY/FinalResults/Data_OnlineEff_2026_HighIR_updated_PhiAssocSpectra.root", "species": "K0S", "dy": 1.0, "trend": "measured", "label": "online"}],
+ "ratio_title": "online / offline"}

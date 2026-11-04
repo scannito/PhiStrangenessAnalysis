@@ -1,0 +1,3 @@
+{"design": "overlay", "title": "#Omega, extrapolated over measured yield",
+ "series": [{"of": "trend", "file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root", "species": "Omega", "dy": 1.0, "trend": "extrap_over_meas"},
+            {"of": "trend", "file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root", "species": "Omega", "dy": 0.1, "trend": "extrap_over_meas"}]}

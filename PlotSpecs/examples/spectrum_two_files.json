@@ -1,0 +1,3 @@
+{"design": "overlay", "log_y": true, "title": "K^{0}_{S} spectrum, 20-30%",
+ "series": [{"of": "spectrum", "file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root", "species": "K0S", "dy": 0.1, "mult": [20, 30], "label": "offline"},
+            {"of": "spectrum", "file": "DataFile/pp/DeltaY/FinalResults/Data_OnlineEff_2026_HighIR_updated_PhiAssocSpectra.root", "species": "K0S", "dy": 0.1, "mult": [20, 30], "label": "online"}]}
