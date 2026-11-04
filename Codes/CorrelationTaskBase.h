@@ -1068,9 +1068,8 @@ class CorrelationTaskBase : public IAnalysisTask
     hSpecExt->SetBinContent(1, 0.0);
     hSpecExt->SetBinError(1, 0.0);
 
-    // The fitted curve, travelling with the spectrum it describes. Same colour as the
-    // points, so that on the overlay below each curve is readable against its own
-    // spectrum rather than against the one next to it.
+    // The fitted curve, travelling with the spectrum it describes. Its line style says which fit it is (dashed: the
+    // high one); its colour is the summary's to choose (PlotSummaries), a written object carrying no presentation.
     //
     // A copy, not Clone(). The models are TF1s built from C++ functions, and ROOT streams such
     // a TF1 as its values on GetNpx() points; Clone() goes through the streamer, so a clone is
@@ -1085,8 +1084,6 @@ class CorrelationTaskBase : public IAnalysisTask
     auto attachCurve = [&](const TF1* model, Style_t style, double from, double to) {
       auto curve = std::make_unique<TF1>(*model);
       curve->SetNpx(1000);
-      curve->SetLineColor(CanvasManager::ClassColor(multBin));
-      curve->SetLineWidth(2);
       curve->SetLineStyle(style);
       curve->SetRange(from, to);
       hSpecExt->GetListOfFunctions()->Add(curve.release());
