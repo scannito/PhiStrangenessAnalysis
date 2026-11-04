@@ -9,6 +9,7 @@
 
 #include "TCanvas.h"
 #include "TFile.h"
+#include "TF1.h"
 #include "TH1.h"
 
 #include <algorithm>
@@ -172,11 +173,16 @@ struct Located {
   TDirectory* schemeDir{nullptr};
   TDirectory* sectionDir{nullptr};
 };
-inline Located Locate(const std::string& fileName, const Where& where, double dy)
+inline Located LocateSection(const std::string& fileName, const Where& where)
 {
   Located at{.file = Open(fileName)};
   at.schemeDir = Scheme(at.file.get(), where.scheme, fileName);
   at.sectionDir = PickDir(at.schemeDir, where.section, "section", fileName, OutputNames::IsSectionDir);
+  return at;
+}
+inline Located Locate(const std::string& fileName, const Where& where, double dy)
+{
+  const Located at = LocateSection(fileName, where);
   const std::optional<std::vector<double>> limits = RootIO::ReadValueList(at.sectionDir, OutputNames::kDeltaYLimits, fileName);
   if (limits && std::ranges::none_of(*limits, [&](double limit) { return std::abs(limit - dy) <= BinningUtils::kEdgeTolerance; }))
     throw NotInFiles(std::format("[FATAL] PlotSeries: |dy| < {} is not a limit of section '{}' of '{}'. Available: {}.",
@@ -237,7 +243,7 @@ inline Series SpectrumAt(const std::string& fileName, const std::string& species
   const int multBin = MultIndex(edges, mult, fileName);
   const std::string name = OutputNames::Spectrum(species, dy, edges, multBin);
   Series s = Read(at.file, fileName,
-                  RootIO::ObjectPath({at.schemeDir->GetName(), at.sectionDir->GetName(), species, OutputNames::kSpectraDir},
+                  RootIO::ObjectPath(OutputNames::SpectraPath(at.schemeDir->GetName(), at.sectionDir->GetName(), species),
                                      extended ? OutputNames::SpectrumExtended(name) : name),
                   at.schemeDir, {speciesDir});
   s.facts = {.kind = extended ? "spectrum, extended to pT = 0" : "spectrum", .species = species, .dy = DyFact(dy),
@@ -270,7 +276,7 @@ inline Series Trend(const std::string& fileName, const std::string& species, dou
                            : kind == TrendKind::Extrapolated ? OutputNames::TrendExtrapolated(species, dy)
                                                              : OutputNames::TrendExtrapOverMeas(species, dy);
   Series s = Detail::Read(at.file, fileName,
-                          RootIO::ObjectPath({at.schemeDir->GetName(), at.sectionDir->GetName(), species, OutputNames::kTrendsDir}, name),
+                          RootIO::ObjectPath(OutputNames::TrendsPath(at.schemeDir->GetName(), at.sectionDir->GetName(), species), name),
                           at.schemeDir, {speciesDir});
   s.facts = {.kind = kind == TrendKind::Measured       ? "yield, measured"
                      : kind == TrendKind::Extrapolated ? "yield, extrapolated"
@@ -289,7 +295,7 @@ inline Series SpeciesRatio(const std::string& fileName, const std::string& num, 
   const Detail::Located at = Detail::Locate(fileName, where, dy);
   const bool extrapolated = kind == TrendKind::Extrapolated;
   Series s = Detail::Read(at.file, fileName,
-                          RootIO::ObjectPath({at.schemeDir->GetName(), at.sectionDir->GetName(), OutputNames::kRatiosDir},
+                          RootIO::ObjectPath(OutputNames::RatiosPath(at.schemeDir->GetName(), at.sectionDir->GetName()),
                                              extrapolated ? OutputNames::ParticleRatioExtrapolated(num, den, dy)
                                                           : OutputNames::ParticleRatioMeasured(num, den, dy)),
                           at.schemeDir, {Detail::Species(at.sectionDir, num, fileName), Detail::Species(at.sectionDir, den, fileName)});
@@ -314,6 +320,30 @@ inline Series Purity(const std::string& fileName, const std::string& purityKey, 
                           schemeDir, {});
   s.facts = {.kind = "purity", .species = purityKey, .mult = Detail::MultFact(edges, multBin), .binning = Detail::BinningFact(binning)};
   return s;
+}
+
+// The |dy| limits of a section of a PhiAssocSpectra file, as the correlation task recorded them. A file written before
+// they were recorded has none to give: re-run the task.
+inline std::vector<double> DeltaYLimits(const std::string& fileName, const Where& where = {})
+{
+  const Detail::Located at = Detail::LocateSection(fileName, where);
+  std::optional<std::vector<double>> limits = RootIO::ReadValueList(at.sectionDir, OutputNames::kDeltaYLimits, fileName);
+  if (!limits)
+    throw std::runtime_error(std::format("[FATAL] PlotSeries: section '{}' of '{}' does not record its |dy| limits ('{}'): it was written "
+                                         "before they were; re-run the correlation task.",
+                                         at.sectionDir->GetName(), fileName, OutputNames::kDeltaYLimits));
+  return *limits;
+}
+
+// The species of a section of a PhiAssocSpectra file: its directories that hold spectra or trends.
+inline std::vector<std::string> SpeciesIn(const std::string& fileName, const Where& where = {})
+{
+  const Detail::Located at = Detail::LocateSection(fileName, where);
+  std::vector<std::string> species;
+  for (TObject* key : *at.sectionDir->GetListOfKeys())
+    if (OutputNames::IsSpeciesDir(at.sectionDir->GetDirectory(key->GetName())))
+      species.emplace_back(key->GetName());
+  return species;
 }
 
 // A correction map of one class, or integrated over multiplicity (no interval).
@@ -508,6 +538,15 @@ inline std::vector<TH1*> Draw(const std::vector<Series>& series, const std::stri
                                            look.marker.value_or(20));
     if (look.markerSize)
       d->SetMarkerSize(*look.markerSize);
+    // No statistics box: a plot never wants one, and ROOT's default would draw it when the file is opened elsewhere.
+    d->SetStats(false);
+    // A curve attached to the series (the fit of an extended spectrum) is drawn with it, in its colour, so that it reads
+    // against its own points; its line style is the series' own (which fit it is).
+    for (TObject* function : *d->GetListOfFunctions())
+      if (auto* curve = dynamic_cast<TF1*>(function)) {
+        curve->SetLineColor(d->GetMarkerColor());
+        curve->SetLineWidth(2);
+      }
     drawn.push_back(d);
   }
   return drawn;

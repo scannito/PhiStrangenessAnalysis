@@ -194,8 +194,7 @@ class MCTask : public IAnalysisTask
     }
 
     // 6. Open the master output file for corrections
-    outputPath = std::format("{}{}Corrections.root", outputDir, outputPrefix);
-    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
+    outputFile = RootIO::OpenOrThrow(std::format("{}{}Corrections.root", outputDir, outputPrefix), "UPDATE", GetName());
 
     // This run rewrites its whole scheme directory - AccEff, SigLoss, EvLoss and the
     // stamps - so anything a previous one left there would sit beside the new maps
@@ -272,12 +271,9 @@ class MCTask : public IAnalysisTask
 
       // 2. Compute 1D Spectra across multiplicity bins
       //
-      // The maps at the source binning exist only when 'rebinning_pt' merged the
-      // counts.
-      //
       // One multiplicity class (none: the multiplicity-integrated maps): its maps, and the signal loss over the event
-      // loss of the class, written. The summaries are drawn from the file in Terminate (PlotSummaries::Corrections).
-      auto summarise = [&](EfficiencyCalculator::Maps1D maps, std::optional<int> multBin) {
+      // loss of the class, written. The maps at the source binning exist only when 'rebinning_pt' merged the counts.
+      auto writeClass = [&](EfficiencyCalculator::Maps1D maps, std::optional<int> multBin) {
         const std::string multTag = multBin ? OutputNames::MultTag(multBinning, *multBin) : OutputNames::kMultIntegrated;
 
         if (hEventLoss) {
@@ -309,9 +305,9 @@ class MCTask : public IAnalysisTask
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
         // 'rebinning_pt' is applied inside the calculator, on the counts, before
         // they are divided: rebinning the ratio afterwards would sum efficiencies.
-        summarise(EfficiencyCalculator::Compute1DMaps(data, multBinning, multBin), multBin);
+        writeClass(EfficiencyCalculator::Compute1DMaps(data, multBinning, multBin), multBin);
       }
-      summarise(EfficiencyCalculator::Compute1DMapsMultIntegrated(data), std::nullopt);
+      writeClass(EfficiencyCalculator::Compute1DMapsMultIntegrated(data), std::nullopt);
     }
   }
 
@@ -325,18 +321,16 @@ class MCTask : public IAnalysisTask
                               multBinning);
 
     RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
+    const std::string fileName = outputFile->GetName();
     outputFile->Close();
 
-    // The summaries are drawn from what was written, as any reader of the file would draw them, and written into the
-    // same file (their directories are under the scheme ClearPath emptied in Init).
+    // The summaries are drawn from what was written, as any reader of the file would draw them, and written into it
+    // (their directories are under the scheme ClearPath emptied in Init).
     std::vector<std::string> particles;
     for (const auto& data : dataCollection)
       particles.push_back(data.name);
-    CanvasManager summaries;
-    PlotSummaries::Corrections(summaries, outputPath, globalCfgs.binningName, particles);
-    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
-    summaries.WriteAll(outputFile.get());
-    outputFile->Close();
+    PlotSummaries::WriteInto(fileName, GetName(),
+                             [&](CanvasManager& canvases) { PlotSummaries::Corrections(canvases, fileName, globalCfgs.binningName, particles); });
 
     Logger::Info("{}: DONE.", GetName());
   }
@@ -347,7 +341,6 @@ class MCTask : public IAnalysisTask
 
   AnalysisSettings globalCfgs;
 
-  std::string outputPath;
 
   std::vector<AnalysisStructures::LoadedMC> dataCollection;
 

@@ -75,7 +75,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // per-particle folder, so a reader had to know the naming convention to tell
       // which spectrum belonged to which species. This makes the layout say it.
       const std::vector<std::string> particlePath = SectionPath({pName});
-      const std::vector<std::string> trendsPath = SectionPath({pName, OutputNames::kTrendsDir});
+      const std::vector<std::string> trendsPath = OutputNames::TrendsPath(globalCfgs.binningName, SectionDirName(), pName);
 
       TDirectory* trendsDir = RootIO::MakePath(outputFile.get(), trendsPath);
 
@@ -88,18 +88,14 @@ class CorrelationTaskBase : public IAnalysisTask
       trendsDir->cd();
 
       // --- Save measured trends ---
-      for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
-        trendsDir->cd();
+      for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx)
         h1MultTrends[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
-      }
 
       // --- Save extrapolated trends, and the Extrapolated/Measured ratios ---
       bool hasExtrapTrend = !h1MultTrendsExtrap.empty() && !h1MultTrendsExtrap[pIdx].empty();
       if (hasExtrapTrend) {
-        for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
-          trendsDir->cd();
+        for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx)
           h1MultTrendsExtrap[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
-        }
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
@@ -110,7 +106,6 @@ class CorrelationTaskBase : public IAnalysisTask
           std::unique_ptr<TH1> hRatioExtrapMeas = HistogramUtils::MakeRatioHist(h1MultTrendsExtrap[pIdx][yIdx].get(), h1MultTrends[pIdx][yIdx].get(),
                                                                                ratioName, title, 1.0, 1.0);
 
-          trendsDir->cd();
           hRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
         }
       }
@@ -155,11 +150,10 @@ class CorrelationTaskBase : public IAnalysisTask
     // =========================================================================
     // 2. Write Yield Ratios across species (into a dedicated "Ratios" directory)
     // =========================================================================
-    std::vector<PlotSummaries::SpeciesRatioSpec> ratiosWritten; // for the summaries
+    std::vector<AnalysisStructures::YieldRatioConfig> ratiosWritten; // for the summaries
     if (!requestedRatios.empty()) {
       // Create or access the "Ratios" directory inside Extract1D/2D
-      const std::vector<std::string> ratioPath = SectionPath({OutputNames::kRatiosDir});
-      TDirectory* ratioDir = RootIO::MakePath(outputFile.get(), ratioPath);
+      TDirectory* ratioDir = RootIO::MakePath(outputFile.get(), OutputNames::RatiosPath(globalCfgs.binningName, SectionDirName()));
 
       ratioDir->cd();
 
@@ -182,7 +176,7 @@ class CorrelationTaskBase : public IAnalysisTask
         const bool denHasExtrap = extrapolatedParticles.contains(den.name);
         const bool doExtrapRatio = numHasExtrap || denHasExtrap;
 
-        ratiosWritten.push_back({num.name, den.name, ratioCfg.label});
+        ratiosWritten.push_back(ratioCfg);
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
 
@@ -191,19 +185,16 @@ class CorrelationTaskBase : public IAnalysisTask
           std::unique_ptr<TH1> hRatioMeas = HistogramUtils::MakeRatioHist(h1MultTrends[*idxNum][yIdx].get(), h1MultTrends[*idxDen][yIdx].get(),
                                                                          ratioMeasName, ratioMeasTitle, numScale, denScale);
 
-          ratioDir->cd();
           hRatioMeas->Write(nullptr, TObject::kOverwrite);
 
-          std::unique_ptr<TH1> hRatioExtrap{nullptr};
           if (doExtrapRatio) {
             TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[*idxNum][yIdx].get() : h1MultTrends[*idxNum][yIdx].get();
             TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[*idxDen][yIdx].get() : h1MultTrends[*idxDen][yIdx].get();
 
             std::string ratioExtrapName = OutputNames::ParticleRatioExtrapolated(num.name, den.name, dyLimit);
             std::string ratioExtrapTitle = std::format("Extrapolated Ratio; Multiplicity percentile (%);{}", ratioCfg.label);
-            hRatioExtrap = HistogramUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
-
-            ratioDir->cd();
+            std::unique_ptr<TH1> hRatioExtrap =
+              HistogramUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
             hRatioExtrap->Write(nullptr, TObject::kOverwrite);
           }
         }
@@ -216,15 +207,11 @@ class CorrelationTaskBase : public IAnalysisTask
     // 3. Close the output file, then draw the summaries from what was written, as any reader of the file would draw
     //    them, and write them into it (their directories are under the section ClearPath emptied)
     // =========================================================================
+    const std::string fileName = outputFile->GetName();
     outputFile->Close();
-    std::vector<std::string> species;
-    for (const auto& p : assocParticles)
-      species.push_back(p.name);
-    CanvasManager summaries;
-    PlotSummaries::Correlations(summaries, outputPath, globalCfgs.binningName, SectionDirName(), species, ratiosWritten);
-    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
-    summaries.WriteAll(outputFile.get());
-    outputFile->Close();
+    PlotSummaries::WriteInto(fileName, GetName(), [&](CanvasManager& canvases) {
+      PlotSummaries::Correlations(canvases, fileName, globalCfgs.binningName, SectionDirName(), ratiosWritten);
+    });
 
     // =========================================================================
     // 4. Close the input files
@@ -285,7 +272,6 @@ class CorrelationTaskBase : public IAnalysisTask
   std::vector<std::unique_ptr<TFile>> qaFiles;
 
   std::vector<AnalysisStructures::YieldRatioConfig> requestedRatios;
-  std::string outputPath;
 
   // -------------------------------------------------------------------------
   // Hooks for derived-class-specific behavior in Terminate()
@@ -942,7 +928,6 @@ class CorrelationTaskBase : public IAnalysisTask
       const auto& p = assocParticles[pIdx];
       const bool doExtrapForThis = extrapolatedParticles.contains(p.name);
 
-
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
         const std::string dyTitleStr = BinningUtils::FormatDeltaY(dyLimit);
@@ -1215,7 +1200,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Per particle, alongside the Trends written in Terminate(). Resolved inside
       // the loop and not once outside it, because the directory now depends on which
       // species this iteration is producing.
-      TDirectory* targetSpectraDir = RootIO::MakePath(outputFile.get(), SectionPath({config.name, OutputNames::kSpectraDir}));
+      TDirectory* targetSpectraDir = RootIO::MakePath(outputFile.get(), OutputNames::SpectraPath(globalCfgs.binningName, SectionDirName(), config.name));
       const bool doExtrapForThis = extrapolatedParticles.contains(config.name);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
@@ -1378,8 +1363,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
     const std::string projectionsDir = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
     const std::string finalDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
-    outputPath = std::format("{}{}{}", finalDir, outputPrefix, OutputNames::kSpectraFile);
-    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
+    outputFile = RootIO::OpenOrThrow(std::format("{}{}{}", finalDir, outputPrefix, OutputNames::kSpectraFile), "UPDATE", GetName());
 
 
     // UPDATE and not RECREATE here too, and for a different reason: the cache is
