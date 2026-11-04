@@ -48,3 +48,8 @@ target_link_libraries(phistrangeanalysis PRIVATE
   ROOT::Core ROOT::RIO ROOT::Hist ROOT::Tree ROOT::Physics ROOT::Matrix
   ROOT::Graf ROOT::Gpad ROOT::RooFit ROOT::RooFitCore
 )
+
+# The plot components (PlotSeries.h, PlotDesigns.h), compiled with every build although no task includes them.
+add_library(plotcomponents OBJECT Codes/PlotComponentsCheck.cpp)
+target_include_directories(plotcomponents PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Codes)
+target_link_libraries(plotcomponents PRIVATE ROOT::Core ROOT::RIO ROOT::Hist ROOT::Gpad ROOT::Graf)

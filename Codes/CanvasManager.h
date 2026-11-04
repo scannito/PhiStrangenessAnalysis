@@ -661,12 +661,17 @@ class CanvasManager
     latex.SetTextFont(42);
     latex.SetTextSize(textSize);
 
-    std::string aliceLine = status.empty() ? "#bf{ALICE}" : std::format("#bf{{ALICE}} {}", status);
-    latex.DrawLatex(x, y, aliceLine.c_str());
+    latex.DrawLatex(x, y, AliceLabelText(status).c_str());
 
     if (!collisionSystem.empty()) {
       latex.DrawLatex(x, y - textSize * 1.3, collisionSystem.c_str());
     }
+  }
+
+  // The first line of the ALICE label: "ALICE" in bold and the status after it.
+  static std::string AliceLabelText(const std::string& status)
+  {
+    return status.empty() ? "#bf{ALICE}" : std::format("#bf{{ALICE}} {}", status);
   }
 
   // Creates a transparent borderless legend adhering to ALICE font conventions

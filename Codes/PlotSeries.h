@@ -187,18 +187,27 @@ inline Located Locate(const std::string& fileName, const Where& where, double dy
 
 // The histogram at 'path', detached and as it is; its non-finite visible bins counted and warned about. Absent is
 // NotInFiles; present but not a histogram (a TGraph) is said as such.
-inline Series Read(const std::shared_ptr<TFile>& file, const std::string& fileName, const std::string& path,
-                   TDirectory* schemeDir, std::vector<TDirectory*> speciesDirs)
+// The object under 'path', of class T. Absent is NotInFiles (the request names what the file does not have); another
+// class is an error of the file, said apart.
+template <class T>
+inline std::unique_ptr<T> Get(TFile* file, const std::string& fileName, const std::string& path)
 {
   std::unique_ptr<TObject> obj(file->Get(path.c_str()));
   if (!obj)
     throw NotInFiles(std::format("[FATAL] PlotSeries: no object '{}' in '{}'.", path, fileName));
-  auto* raw = dynamic_cast<TH1*>(obj.get());
-  if (!raw)
-    throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' in '{}' is a {}, not a histogram.", path, fileName, obj->ClassName()));
+  auto* typed = dynamic_cast<T*>(obj.get());
+  if (!typed)
+    throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' in '{}' is a {}, not a {}.", path, fileName, obj->ClassName(), T::Class_Name()));
   obj.release();
+  return std::unique_ptr<T>(typed);
+}
+
+inline Series Read(const std::shared_ptr<TFile>& file, const std::string& fileName, const std::string& path,
+                   TDirectory* schemeDir, std::vector<TDirectory*> speciesDirs)
+{
+  std::unique_ptr<TH1> raw = Get<TH1>(file.get(), fileName, path);
   raw->SetDirectory(0);
-  std::shared_ptr<TH1> hist(raw);
+  std::shared_ptr<TH1> hist(raw.release());
 
   int nonFinite = 0;
   for (int bin = 1; bin <= hist->GetNbinsX(); ++bin)
@@ -459,8 +468,7 @@ inline Series Scale(const Series& a, double factor)
 // Each series on the current pad, the first one without SAME, a styled copy with its non-finite bins left empty (the
 // series keeps them); what the series drawn together disagree on is warned here, once. Returns the copies, for a
 // legend.
-inline std::vector<TH1*> Draw(const std::vector<Series>& series, const char* option = "E1",
-                              const std::vector<int>& markerStyles = {})
+inline std::vector<TH1*> Draw(const std::vector<Series>& series, const std::string& option = "E1")
 {
   for (std::size_t i = 1; i < series.size(); ++i) {
     const Comparison c = Compare(series.front(), series[i]);
@@ -492,7 +500,7 @@ inline std::vector<TH1*> Draw(const std::vector<Series>& series, const char* opt
     const std::string opt = i == 0 ? option : std::format("{} SAME", option);
     const Look& look = series[i].look;
     TH1* d = CanvasManager::DrawStyledCopy(copy.get(), opt.c_str(), look.color.value_or(CanvasManager::ClassColor(static_cast<int>(i))),
-                                           look.marker.value_or(i < markerStyles.size() ? markerStyles[i] : 20));
+                                           look.marker.value_or(20));
     if (look.markerSize)
       d->SetMarkerSize(*look.markerSize);
     drawn.push_back(d);
