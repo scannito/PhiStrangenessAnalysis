@@ -3,8 +3,6 @@
 #include "PlotSummaries.h"
 
 #include <cstdio>
-#include <filesystem>
-#include <fstream>
 #include <map>
 #include <vector>
 #include <string>
@@ -19,16 +17,15 @@
 //     ratios), the forms of series a specification can ask of it. Nothing else on the standard output.
 //   phistrangeplot schema
 //     what a plot specification may say (PlotSpec::Schema).
-//   phistrangeplot describe <spec.json>
+//   phistrangeplot describe <spec.json> [--file <file.root>...]
 //     what the specification resolves to, every series and what the series disagree on, without keeping anything.
-//   phistrangeplot render <spec.json> --out <base> [--alice <status> --system <collision system>] [--note <text>]
+//   phistrangeplot render <spec.json> [--file <file.root>...] --out <base> [--alice <status> --system <collision system>] [--note <text>]
 //     the plot, as <base>.pdf, .png and .root, the specification kept as its recipe and the note, when one is given, as
 //     a fact of its own (a front end records there the request and the model that wrote the specification). The ALICE label only when
 //     both its status and its system are given: the system is not in the files.
-//   phistrangeplot quick <example.json> --file <file.root> [--file <file.root>...] --out <base> [--alice <status> --system <system>]
-//     a checked example (PlotSpecs/examples) drawn from other files: the files it names, in the order they first appear,
-//     replaced one for one by those given (PlotSpec::WithFiles); the specification made so is kept as <base>.spec.json,
-//     next to the plot, and as its recipe.
+//   With --file, a specification (a checked example of PlotSpecs/examples) is drawn from other files: the files it names,
+//   in the order they first appear, are replaced one for one by those given (PlotSpec::WithFiles), and the specification
+//   made so is the one described and kept as the recipe.
 // Exit codes: 0 done, 1 refused or failed, 2 wrong use, 3 not in the files (a scheme, a section, a record, an object).
 namespace
 {
@@ -37,19 +34,24 @@ int Usage()
   std::fprintf(stderr, "usage: phistrangeplot summaries <file.root> [--out <dir>] [--scheme <binning_name>] [--section <section>]\n"
                        "       phistrangeplot list <file.root>...\n"
                        "       phistrangeplot schema\n"
-                       "       phistrangeplot describe <spec.json>\n"
-                       "       phistrangeplot render <spec.json> --out <base> [--alice <status> --system <collision system>] [--note <text>]\n"
-                       "       phistrangeplot quick <example.json> --file <file.root>... --out <base> [--alice <status> --system <collision system>]\n");
+                       "       phistrangeplot describe <spec.json> [--file <file.root>...]\n"
+                       "       phistrangeplot render <spec.json> [--file <file.root>...] --out <base> [--alice <status> --system <collision system>] [--note <text>]\n");
   return 2;
 }
 
-// The options after the positional arguments, each "--name value", from those 'options' lists; false on a wrong one.
-bool ReadOptions(int argc, char* argv[], int first, std::map<std::string, std::string>& options)
+// The options after the positional arguments, each "--name value", from those 'options' lists, and every "--file value"
+// into 'files' when it is given; false on a wrong one.
+bool ReadOptions(int argc, char* argv[], int first, std::map<std::string, std::string>& options, std::vector<std::string>* files = nullptr)
 {
   for (int i = first; i < argc; i += 2) {
-    if (!options.contains(argv[i]) || i + 1 >= argc)
+    if (i + 1 >= argc)
       return false;
-    options[argv[i]] = argv[i + 1];
+    if (files && std::string_view(argv[i]) == "--file")
+      files->emplace_back(argv[i + 1]);
+    else if (options.contains(argv[i]))
+      options[argv[i]] = argv[i + 1];
+    else
+      return false;
   }
   return true;
 }
@@ -106,41 +108,18 @@ int main(int argc, char* argv[])
   }
   if ((verb == "describe" || verb == "render") && argc >= 3) {
     std::map<std::string, std::string> options{{"--out", ""}, {"--alice", ""}, {"--system", ""}, {"--note", ""}};
+    std::vector<std::string> files;
     const bool render = verb == "render";
-    if (!ReadOptions(argc, argv, 3, options))
+    if (!ReadOptions(argc, argv, 3, options, &files))
       return Usage();
     // render needs where to write, describe writes nothing; the ALICE label needs its system with its status.
     if (render != !options["--out"].empty() || options["--alice"].empty() != options["--system"].empty())
       return Usage();
     const std::string specFile = argv[2];
     return PlotDesigns::Run([&] {
-      DrawSpec(JsonConfig::ReadFileText(specFile), specFile, options["--out"], recipe, Alice(options["--alice"], options["--system"]), options["--note"]);
-    });
-  }
-  if (verb == "quick" && argc >= 3) {
-    // --file repeats, so the options are read here.
-    std::vector<std::string> files;
-    std::map<std::string, std::string> options{{"--out", ""}, {"--alice", ""}, {"--system", ""}};
-    for (int i = 3; i < argc; i += 2) {
-      if (i + 1 >= argc)
-        return Usage();
-      if (std::string(argv[i]) == "--file")
-        files.emplace_back(argv[i + 1]);
-      else if (options.contains(argv[i]))
-        options[argv[i]] = argv[i + 1];
-      else
-        return Usage();
-    }
-    if (files.empty() || options["--out"].empty() || options["--alice"].empty() != options["--system"].empty())
-      return Usage();
-    const std::string example = argv[2];
-    return PlotDesigns::Run([&] {
-      const std::string text = PlotSpec::WithFiles(JsonConfig::ReadFileText(example), example, files);
-      const std::filesystem::path kept = options["--out"] + ".spec.json";
-      if (kept.has_parent_path())
-        RootIO::CreateDirectoriesOrThrow(kept.parent_path(), "phistrangeplot");
-      std::ofstream(kept) << text << "\n";
-      DrawSpec(text, kept.string(), options["--out"], recipe, Alice(options["--alice"], options["--system"]), "");
+      const std::string text = JsonConfig::ReadFileText(specFile);
+      DrawSpec(files.empty() ? text : PlotSpec::WithFiles(text, specFile, files), specFile, options["--out"], recipe,
+               Alice(options["--alice"], options["--system"]), options["--note"]);
     });
   }
   if (verb == "summaries" && argc >= 3) {

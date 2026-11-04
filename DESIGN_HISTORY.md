@@ -1753,12 +1753,12 @@ validates; `phistrangeplot` is the command (summaries, list, schema, describe, r
 front end, for Ollama and llama.cpp's llama-server. What phiplot inspired, all kept: the specification as the only
 interface a model writes, the request by meaning, the binnings checked before a division, the description before
 the drawing, and its front end, carried over almost as it was. Not carried: the name parser (replaced by the
-catalog read forward), and `quick` with one option per key (replaced by a light form on a checked example).
+catalog read forward), and `quick` with one option per key (replaced by a checked example drawn on other files, `--file`).
 
 ## Plots: deterministic components, composed
 
 Decided on 3 November 2026 with both review agents, done on branch `plots` on 3-4 November (phases A to G).
-`PLOTS.md` explains every part and how to use it; what is still open is in `DESIGN_NOTES.md` section 1.
+`PLOTS.md` explains every part and how to use it; what is still open is in `DESIGN_NOTES.md` section 15.
 
 **The need**, as the owner put it: plots that change from one request to the next, asked for in words, without writing
 code. Until then each request was a new macro written by Claude (45 in `~/alice/claude-sandbox/plots`, outside the

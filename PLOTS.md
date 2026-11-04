@@ -2,8 +2,9 @@
 
 This document explains, in detail, the plotting layer added on the branch `plots` between 3 and 4 November 2026
 (phases A to G of the plan "plots from deterministic components"), and how to use every part of it. The decision
-behind it is in `DESIGN_NOTES.md` section 1 (*Plots: deterministic components, composed*), the rule that keeps it in
-`CLAUDE.md` (*Plots*), the history of the earlier attempt (`phiplot`) in `DESIGN_HISTORY.md`.
+behind it, and the history of the earlier attempt (`phiplot`), are in `DESIGN_HISTORY.md` (*Plots: deterministic
+components, composed*; *phiplot*), the rule that keeps it in `CLAUDE.md` (*Plots*), what is left open in
+`DESIGN_NOTES.md` section 15.
 
 Contents:
 
@@ -47,7 +48,7 @@ an operation, a layout) adds it to them first, with its check, review and verifi
 | Summaries | `Codes/PlotSummaries.h` | what the tasks draw at the end of `Terminate`, redrawn from any file of their kind (phases E, F) |
 | Records | `RootIO::WriteStringTable`, `OutputNames::k*` | what a file holds, written by the task that made it (phase F) |
 | Specification | `Codes/PlotSpec.h` | a plot as JSON, one schema that both validates and is given to a model (phase G) |
-| Command | `Codes/phistrangeplot.cpp`, target `phistrangeplot` | `summaries`, `list`, `schema`, `describe`, `render`, `quick` |
+| Command | `Codes/phistrangeplot.cpp`, target `phistrangeplot` | `summaries`, `list`, `schema`, `describe`, `render` |
 | Compositions | `Macros/runplot.sh` | compiles and runs a plot written in C++ on the components |
 | Front end | `Macros/plot_ask.py`, `PlotSpecs/` | a local model (Ollama or llama.cpp) writes the specification |
 | Test of the model | `Macros/plot_ask_test.py` | requests with what each must give |
@@ -102,8 +103,8 @@ them from any such file.
 **G, plots as data and a local model** (`9e2a7f6` to `0c5f32e`). G0: the components refuse what a specification could
 get wrong, for every caller (one quantity on X, ambiguous directories, |dy| with more than two decimals). G1: the
 specification and `schema`/`describe`/`render`. G2: `list`, the catalog of every kind of file. G3: the front end with
-Ollama and llama.cpp, measured. G4: looks by fact, sets of series, every layout in the specification. G5: `quick`, the
-skill, the documentation.
+Ollama and llama.cpp, measured. G4: looks by fact, sets of series, every layout in the specification. G5: an example drawn on
+other files (`--file`), the skill, the documentation.
 
 ## 4. PlotSeries: finding and combining series
 
@@ -175,7 +176,7 @@ purity or spectra, by the record the scheme holds), `Resolve` / `SchemeName` (th
   provenance per origin, and any facts given (a note). `OpenPlotFile` refuses to replace a file the plots did not
   write, or one open as an input.
 
-## 5. PlotDesigns: the six layouts and the look
+## 5. PlotDesigns: the six layouts, `Table` and the look
 
 ### The parameters
 
@@ -191,7 +192,8 @@ purity or spectra, by the record the scheme holds), `Resolve` / `SchemeName` (th
 
 ### The layouts
 
-All return `Drawn{canvas, series}`, every series drawn included (the ratios too), for `Save` and `Table`.
+The six layouts return `Drawn{canvas, series}`, every series drawn included (the ratios too), for `Save` and `Table`;
+`Table` returns the text.
 
 | Design | What it draws |
 |---|---|
@@ -247,9 +249,10 @@ means "none", an absent one "written before the record existed"):
 | `particles` | `{scheme}` of the corrections file | `MCTask` | particle |
 | `purity_keys` | `{scheme}` of the purity file | `PurityTask` | purity_key |
 | `species_ratios` | `{scheme}/{section}` of a spectra file | the correlation tasks | numerator, denominator |
-| `deltaY_limits` | `{scheme}/{section}` of a spectra file | the correlation tasks | (a value list, phase C) |
 
-Each table is one value in `OutputNames` (`StringTable{name, columns, writer}`). A file produced before these records
+Each table is one value in `OutputNames` (`StringTable{name, columns, writer}`). Next to them, the correlation tasks
+write the |dy| limits of each section, `deltaY_limits` (`OutputNames::kDeltaYLimits`), a list of numbers
+(`RootIO::WriteValueList`, phase C). A file produced before these records
 is refused by `list` and `summaries` with exit code 3 and the task to re-run; nothing falls back to parsing names.
 
 ## 8. PlotSpec: a plot as data
@@ -309,7 +312,9 @@ and multiplicity, a filling of three values).
 ### `WithFiles`
 
 `PlotSpec::WithFiles(text, origin, files)` replaces the files a specification names (in the order they first appear)
-one for one: what `quick` does to an example.
+one for one, and leaves out the words written for the files it named: the series' `label`, `title`, `ratio_title`
+and `notes`, which would describe the new files wrongly ("offline" on a file that is not); the legend then comes from
+`AutoLabels`. What `--file` does to an example.
 
 ## 9. The command `phistrangeplot`
 
@@ -329,11 +334,14 @@ build/phistrangeplot schema
 # what a specification resolves to, without drawing
 build/phistrangeplot describe my.spec.json
 
+# an example on other files: described first, then drawn (the files it names, in the order they first appear,
+# replaced one for one; the specification so made is the plot's recipe)
+build/phistrangeplot describe PlotSpecs/examples/trend_two_files_ratio.json --file A.root --file B.root
+build/phistrangeplot render PlotSpecs/examples/trend_two_files_ratio.json --file A.root --file B.root --out Plots/a_vs_b
+
 # the plot: my_plot.pdf, .png and .root, the specification as its recipe
 build/phistrangeplot render my.spec.json --out Plots/my_plot --alice "Work in progress" --system "pp, #sqrt{#it{s}} = 13.6 TeV"
 
-# an example drawn from other files
-build/phistrangeplot quick PlotSpecs/examples/trend_two_files_ratio.json --file A.root --file B.root --out Plots/a_vs_b
 ```
 
 Exit codes: 0 done, 1 refused or failed (the message says why), 2 wrong use, 3 not in the files.
@@ -415,7 +423,8 @@ larger model, not more tuning). Running the test: `python3 Macros/plot_ask_test.
 
 `.claude/skills/plots/SKILL.md`: the steps Claude follows when asked for a plot (list, summaries or a specification
 described before rendering, a composition when a specification cannot say it, a component added first when even the
-composition cannot). It restates no rule: those are in `CLAUDE.md` and in the schema.
+composition cannot). The rules it applies are those of `CLAUDE.md` and of the schema; the syntax and the exit codes
+are in section 9.
 
 ## 13. How it was verified, and how to verify it again
 
@@ -434,10 +443,4 @@ composition cannot). It restates no rule: those are in `CLAUDE.md` and in the sc
 
 ## 14. What is not done
 
-- The summaries keep their own look (`PlotSummaries::Detail::DrawSummary`) rather than the designs of `PlotDesigns`;
-  the efficiency map titles stay as they were ("Acceptance x Efficiency" at the analysis binning, "Efficiency" at the
-  source binning). Both left as they are by the owner (4 November).
-- The mass-fit canvases stay in the tasks: they can be redrawn only from a record of the fitted model.
-- The local model: 7B is at its limit with six designs; a larger one is the next thing to measure, with the same test.
-- `Table` and the C++-only parts of the designs (`Panel::band` outside `with_reference`, the key words by value) are
-  not in the specification.
+`DESIGN_NOTES.md` section 15, *Plots: what is left open*.

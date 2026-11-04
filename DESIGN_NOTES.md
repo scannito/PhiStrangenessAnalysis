@@ -71,28 +71,6 @@ The summaries are no longer drawn while the task computes: at the end of `Termin
 inventory of 2 November). For the split this means that task B takes no canvas with it: it calls
 `PlotSummaries::Correlations` on the file it writes, as `CorrelationTaskBase` does now.
 
-### Plots: what is left open
-
-Done on branch `plots`, 3-4 November 2026; `PLOTS.md` explains every part and how to use it.
-
-- **The mass-fit canvases stay in the tasks** (`PhiFitTask`, `PurityTask`), drawn from the model as it was fitted.
-  They can leave only once a fit leaves a record from which its model is rebuilt by the same function that built it
-  (`DESIGN_NOTES-CLAUDE.md` 2.4); rebuilding it from `fitConfig.json` could draw a curve other than the one fitted,
-  with no error. If the 15 MB of `Purity.root` matter before then, a key switches them off.
-- **The summaries keep their own look** (`PlotSummaries::Detail::DrawSummary`, the one they always had) rather than
-  the designs of `PlotDesigns`, and the efficiency maps keep their titles ("Acceptance x Efficiency" at the analysis
-  binning, "Efficiency" at the source binning). Left as they are by the owner, 4 November, for the moment.
-- **The local model is at its limit.** qwen2.5-coder:7b gets 12 of the 13 requests that have one layout each and 1
-  of the 4 that ask for the other layouts; every miss is a refusal or a "cannot". The owner's view (4 November): a
-  larger model rather than more tuning of the prompt for this one. Not measured yet: a larger model, and llama-server
-  on the four.
-- **The pT intervals of the fits are not in the catalog**: `list` gives the multiplicity classes, so the cells of a
-  `fit_canvas_grid` are written as the fits' binning has them, and a wrong one stops as not in the file.
-- **Not in the specification**: `Table`, and a band (`Panel::band`) outside `with_reference`. A request for them is a
-  C++ composition.
-- **Files written before the records of what they hold** (`particles`, `purity_keys`, `species_ratios`,
-  `deltaY_limits`) are refused by `list` and `summaries`, with the task to re-run; nothing reads their names back.
-
 ---
 
 ## 2. Per-particle choice of PDG matching
@@ -1619,3 +1597,28 @@ for Cling to accept; check the interpreted mode (if it runs by then) before the 
 Considered and not worth it even then: `views::reverse` for `SpectrumExtrapolator`'s two backward loops (kept as
 YieldMean wrote them, the reference they are compared against), `views::keys`/`views::filter` for the few map walks
 and `continue`-filtered loops (a line saved, a reader's step added).
+
+---
+
+## 15. Plots: what is left open
+
+The plotting layer was done on branch `plots`, 3-4 November 2026 (`DESIGN_HISTORY.md`, *Plots: deterministic
+components, composed*); `PLOTS.md` explains every part and how to use it.
+
+- **The mass-fit canvases stay in the tasks** (`PhiFitTask`, `PurityTask`), drawn from the model as it was fitted.
+  They can leave only once a fit leaves a record from which its model is rebuilt by the same function that built it
+  (`DESIGN_NOTES-CLAUDE.md` 2.4); rebuilding it from `fitConfig.json` could draw a curve other than the one fitted,
+  with no error. If the 15 MB of `Purity.root` matter before then, a key switches them off.
+- **The summaries keep their own look** (`PlotSummaries::Detail::DrawSummary`, the one they always had) rather than
+  the designs of `PlotDesigns`, and the efficiency maps keep their titles ("Acceptance x Efficiency" at the analysis
+  binning, "Efficiency" at the source binning). Left as they are by the owner, 4 November, for the moment.
+- **The local model is at its limit.** qwen2.5-coder:7b gets 12 of the 13 requests that have one layout each and 1
+  of the 4 that ask for the other layouts; every miss is a refusal or a "cannot". The owner's view (4 November): a
+  larger model rather than more tuning of the prompt for this one. Not measured yet: a larger model, and llama-server
+  on the four.
+- **The pT intervals of the fits are not in the catalog**: `list` gives the multiplicity classes, so the cells of a
+  `fit_canvas_grid` are written as the fits' binning has them, and a wrong one stops as not in the file.
+- **Not in the specification**: `Table`, a band (`Panel::band`) outside `with_reference`, and the words of a key by
+  value (a specification gives them by position). A request for them is a C++ composition.
+- **Files written before the records of what they hold** (`particles`, `purity_keys`, `species_ratios`,
+  `deltaY_limits`) are refused by `list` and `summaries`, with the task to re-run; nothing reads their names back.

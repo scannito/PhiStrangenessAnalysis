@@ -17,7 +17,7 @@
 #include <string>
 #include <vector>
 
-// The summary canvases of the tasks, drawn from a file already written (DESIGN_NOTES section 1, "Plots: deterministic
+// The summary canvases of the tasks, drawn from a file already written (DESIGN_HISTORY, "Plots: deterministic
 // components, composed"): a task calls them at the end of Terminate on the file it has just closed, and the same
 // functions redraw them from any file of that kind, with no task. What is drawn is found by PlotSeries, by meaning;
 // what a summary looks like is fixed here, the look the tasks' canvases have always had, and a variant is a

@@ -25,7 +25,7 @@
 
 // A plot as data: one design of PlotDesigns and the series it draws, named the way a C++ composition names them
 // (PlotSeries' finders), with the cosmetics of Panel and Frame. What a local model writes when a plot is asked for in
-// words (DESIGN_NOTES section 1); it can only name what the components find and check, and every check is theirs: a
+// words (PLOTS.md, section 11); it can only name what the components find and check, and every check is theirs: a
 // specification is translated into the same calls a composition makes. The schema is the one description of what a
 // specification may say, each design's and each series' rules included: `phistrangeplot schema` prints it, every
 // specification is validated against it before it is read, and a front end gives it to the model. It is built from the
@@ -710,6 +710,16 @@ inline PlotSeries::Series ReadObject(const rapidjson::Value& o)
   ReadLook(o, s);
   return s;
 }
+
+// JSON as the command prints it and a plot keeps it: indented by two.
+inline std::string Pretty(const rapidjson::Value& value)
+{
+  rapidjson::StringBuffer buffer;
+  rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+  writer.SetIndent(' ', 2);
+  value.Accept(writer);
+  return buffer.GetString();
+}
 } // namespace Detail
 
 // What a specification draws: its design run on its panels, on 'canvases'. The ALICE label is not the specification's
@@ -753,26 +763,34 @@ inline PlotDesigns::Drawn Draw(const rapidjson::Document& spec, CanvasManager& c
 }
 
 // A specification with its files replaced: the files it names (every "file" key, at any depth), in the order they first
-// appear, become 'files', one for one; the rest is kept. What `phistrangeplot quick` does to a checked example, so that
+// appear, become 'files', one for one; the rest is kept, except the words written for the files it named (the series'
+// labels, the titles, the notes), which would describe the new ones wrongly ("offline" on a file that is not): the
+// legend then comes from AutoLabels. What `phistrangeplot describe/render --file` do to a checked example, so that
 // the same plot is drawn from other productions.
 inline std::string WithFiles(const std::string& text, const std::string& origin, const std::vector<std::string>& files)
 {
+  using namespace Detail;
   rapidjson::Document spec = Parse(text, origin);
   std::vector<std::string> named;
   std::vector<rapidjson::Value*> slots;
+  std::set<std::string> dropped;
   auto walk = [&](auto&& self, rapidjson::Value& v) -> void {
-    if (v.IsObject())
-      for (auto& m : v.GetObject()) {
-        if (m.name == Detail::kFile && m.value.IsString()) {
-          slots.push_back(&m.value);
-          if (std::ranges::find(named, m.value.GetString()) == named.end())
-            named.emplace_back(m.value.GetString());
-        } else
-          self(self, m.value);
-      }
-    else if (v.IsArray())
+    if (v.IsArray())
       for (auto& e : v.GetArray())
         self(self, e);
+    if (!v.IsObject())
+      return;
+    // Removed before the file is found: RemoveMember moves the last member into the hole.
+    for (const char* key : {kTitle, kRatioTitle, kNotes, v.HasMember(kFile) ? kLabel : nullptr})
+      if (key && v.RemoveMember(key))
+        dropped.emplace(key);
+    if (auto file = v.FindMember(kFile); file != v.MemberEnd()) {
+      slots.push_back(&file->value);
+      if (std::ranges::find(named, file->value.GetString()) == named.end())
+        named.emplace_back(file->value.GetString());
+    }
+    for (auto& m : v.GetObject())
+      self(self, m.value);
   };
   walk(walk, spec);
   if (named.size() != files.size())
@@ -782,11 +800,9 @@ inline std::string WithFiles(const std::string& text, const std::string& origin,
     const std::size_t i = static_cast<std::size_t>(std::ranges::find(named, slot->GetString()) - named.begin());
     slot->SetString(files[i].c_str(), spec.GetAllocator());
   }
-  rapidjson::StringBuffer buffer;
-  rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-  writer.SetIndent(' ', 2);
-  spec.Accept(writer);
-  return buffer.GetString();
+  if (!dropped.empty())
+    Logger::Info("PlotSpec: the words '{}' wrote for its own files are left out ({}).", origin, Logger::Join(dropped));
+  return Pretty(spec);
 }
 
 // What the files hold, as JSON in the specification's own keys, with the forms of series each file can be asked for:
@@ -856,11 +872,7 @@ inline std::string CatalogJson(const std::vector<PlotSeries::Catalog>& catalogs)
     file.AddMember(rapidjson::StringRef(kSchemes), schemes, a);
     doc.PushBack(file, a);
   }
-  rapidjson::StringBuffer buffer;
-  rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
-  writer.SetIndent(' ', 2);
-  doc.Accept(writer);
-  return buffer.GetString();
+  return Pretty(doc);
 }
 
 } // namespace PlotSpec
