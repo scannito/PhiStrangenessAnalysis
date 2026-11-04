@@ -11,6 +11,7 @@
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
 #include "OutputNames.h"
+#include "PlotSummaries.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 
@@ -53,7 +54,8 @@ class PurityTask : public IAnalysisTask
 
     // Prefix to specify the type of analysis (Data vs MCClosure)
     outputPrefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
-    outputFile = RootIO::OpenOrThrow(std::format("{}{}{}", outputDir, outputPrefix, OutputNames::kPurityFile), "UPDATE", GetName());
+    outputPath = std::format("{}{}{}", outputDir, outputPrefix, OutputNames::kPurityFile);
+    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
 
     // CCDB-ready maps live under outputDir/{binningName}/ on disk, since the ROOT
     // object inside must be named literally "ccdb_object" with no subfolder.
@@ -64,7 +66,6 @@ class PurityTask : public IAnalysisTask
     auto particles = JsonConfig::RequireArray(taskConfig, "purity_particles", GetName());
 
     int pIdx = 0;
-    const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
 
     for (const auto& entry : particles) {
       const std::string ctx = std::format("{} purity_particles[{}]", GetName(), pIdx++);
@@ -107,15 +108,6 @@ class PurityTask : public IAnalysisTask
       // makes this line throw, before any fit has run.
       particleTasks.emplace_back(purityKey, std::move(h3Source), std::move(sourceBinning),
                                  std::move(rebinningPt), std::move(h2CCDB));
-
-      // Each summary canvas declares its Y range here; the manager applies it when it writes.
-      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(OutputNames::PuritySummaryCanvas(purityKey, SpectrumBinning::Analysis), std::format("{} Purity", purityKey),
-                                                             summaryPath, 800, 600));
-      if (particleTasks.back().rebinningPt) {
-        canvasManager.SetAutoYRange(canvasManager.CreateCanvas(OutputNames::PuritySummaryCanvas(purityKey, SpectrumBinning::Source),
-                                                               std::format("{} Purity (source binning)", purityKey),
-                                                               OutputNames::SummaryPath(globalCfgs.binningName, SpectrumBinning::Source), 800, 600));
-      }
     }
 
     // 3. Read task-specific settings from the JSON node (DOM)
@@ -155,8 +147,7 @@ class PurityTask : public IAnalysisTask
   {
     Logger::Info("{}: TERMINATING AND SAVING...", GetName());
 
-    // 1. The summary canvases, the provenance, the stamp and the fit quality
-    canvasManager.WriteAll(outputFile.get());
+    // 1. The provenance, the stamp and the fit quality
     RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
 
     // The pT binning is the axis of each purity spectrum; the multiplicity binning is
@@ -174,7 +165,16 @@ class PurityTask : public IAnalysisTask
       RootIO::WriteCcdbFile(ccdbPath, task.h2PurityCCDB.get(), GetName());
     }
 
-    // 3. Close the output file
+    // 3. Close the output file, then draw the summaries from what was written, as any reader of the file would draw
+    // them, and write them into it (their directories are under the scheme ClearPath emptied in Init)
+    outputFile->Close();
+    std::vector<std::string> purityKeys;
+    for (const auto& task : particleTasks)
+      purityKeys.push_back(task.purityKey);
+    CanvasManager summaries;
+    PlotSummaries::Purities(summaries, outputPath, globalCfgs.binningName, purityKeys);
+    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
+    summaries.WriteAll(outputFile.get());
     outputFile->Close();
 
     Logger::Info("{}: DONE.", GetName());
@@ -183,8 +183,9 @@ class PurityTask : public IAnalysisTask
  private:
   AnalysisSettings globalCfgs;
 
-  CanvasManager canvasManager;
+  CanvasManager canvasManager; // the fit canvases, written and destroyed one by one
 
+  std::string outputPath;
   std::string ccdbOutputDir;
   std::string outputPrefix;
 
@@ -205,21 +206,17 @@ class PurityTask : public IAnalysisTask
   // of a single choice: passed separately, nothing would stop them disagreeing.
   using SpectrumBinning = OutputNames::SpectrumBinning;
 
-  // The purity of one multiplicity class (none: of the union of the classes), fitted, drawn on the summary canvases
-  // and written into the summary directory; returned at the source binning, which the CCDB map takes. The binning the
-  // class is a bin of, the colour and the draw option all follow from the class.
+  // The purity of one multiplicity class (none: of the union of the classes), fitted and written into the summary
+  // directory; returned at the source binning, which the CCDB map takes.
   std::unique_ptr<TH1> FitClass(AnalysisStructures::ParticleTask& task, std::optional<int> multBin)
   {
     // The union is a binning of one class, so that it is fitted, named and recorded as a class is.
     const std::vector<double> classes = multBin ? multBinning : BinningUtils::Whole(multBinning);
     const int classBin = multBin.value_or(0);
-    const char* option = multBin == 0 ? "" : "SAME"; // the first class sets the axes; the union (no class) is not it
 
-    // Once per binning: fit, draw on the summary canvas, write.
+    // Once per binning: fit and write.
     auto fitAt = [&](SpectrumBinning which) {
       std::unique_ptr<TH1> h1Purity = FitPuritySpectrum(task, classes, classBin, which);
-      canvasManager.RequireCanvas(OutputNames::PuritySummaryCanvas(task.purityKey, which))->cd();
-      CanvasManager::DrawStyledCopy(h1Purity.get(), option, multBin ? CanvasManager::ClassColor(*multBin) : kBlack);
       // The source-binning spectrum in a subdirectory of its own rather than next to the analysis one, created by the
       // write itself: it exists if and only if something was written into it.
       RootIO::MakePath(outputFile.get(), OutputNames::SummaryPath(globalCfgs.binningName, which))->cd();
