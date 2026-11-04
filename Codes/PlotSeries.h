@@ -404,6 +404,31 @@ inline std::vector<std::pair<std::string, std::string>> SpeciesRatios(const std:
 // purity file, the sections of a spectra file. A file with none of them is of no kind the plots know, or was written
 // before the records existed.
 enum class FileKind { Corrections, Purity, Spectra };
+inline std::string_view Name(FileKind kind)
+{
+  switch (kind) {
+    case FileKind::Corrections:
+      return "corrections";
+    case FileKind::Purity:
+      return "purity";
+    case FileKind::Spectra:
+      return "spectra";
+  }
+  throw std::logic_error("[FATAL] PlotSeries: a kind of file with no name.");
+}
+
+// The sections of a scheme of a spectra file (Extract1D, Extract2D): none in a file of another kind.
+inline std::vector<std::string> Sections(const std::string& fileName, const std::string& scheme = "")
+{
+  auto file = Detail::Open(fileName);
+  TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
+  std::vector<std::string> sections;
+  for (TObject* key : *schemeDir->GetListOfKeys())
+    if (OutputNames::IsSectionDir(schemeDir->GetDirectory(key->GetName())))
+      sections.emplace_back(key->GetName());
+  return sections;
+}
+
 inline FileKind KindOf(const std::string& fileName, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
@@ -412,9 +437,8 @@ inline FileKind KindOf(const std::string& fileName, const std::string& scheme = 
     return FileKind::Corrections;
   if (schemeDir->GetListOfKeys()->FindObject(OutputNames::kPurityKeys.name.c_str()))
     return FileKind::Purity;
-  for (TObject* key : *schemeDir->GetListOfKeys())
-    if (OutputNames::IsSectionDir(schemeDir->GetDirectory(key->GetName())))
-      return FileKind::Spectra;
+  if (!Sections(fileName, schemeDir->GetName()).empty())
+    return FileKind::Spectra;
   throw NotInFiles(std::format("[FATAL] PlotSeries: scheme '{}' of '{}' holds neither '{}', '{}' nor a section: it is not a file of the "
                                "MC, purity or correlation task, or it was written before they recorded what they hold.",
                                schemeDir->GetName(), fileName, OutputNames::kCorrectionParticles.name, OutputNames::kPurityKeys.name));
@@ -770,9 +794,10 @@ inline const std::string kPlotOwner{"Plot"};
 inline const std::vector<std::string> kPlotFormats{"pdf", "png"};
 
 // A plot's .root, opened new with the plot's provenance (the recipe: the composition, the specification or the
-// command, as the config_block; when; the code's commit and fingerprint). It replaces only a plot's .root: never an
-// input of the plot, never a file the plots did not write.
-inline std::unique_ptr<TFile> OpenPlotFile(const std::string& rootName, const std::string& recipe, const std::string& ctx)
+// command, as the config_block; when; the code's commit and fingerprint; and the caller's own facts, one each). It
+// replaces only a plot's .root: never an input of the plot, never a file the plots did not write.
+inline std::unique_ptr<TFile> OpenPlotFile(const std::string& rootName, const std::string& recipe, const std::string& ctx,
+                                           const std::map<std::string, std::string>& facts = {})
 {
   if (!Detail::OpenFiles()[rootName].expired())
     throw std::runtime_error(std::format("[FATAL] {}: '{}' is open as an input of this plot.", ctx, rootName));
@@ -784,7 +809,9 @@ inline std::unique_ptr<TFile> OpenPlotFile(const std::string& rootName, const st
                                            ctx, rootName));
   }
   std::unique_ptr<TFile> out = RootIO::OpenOrThrow(rootName, "RECREATE", ctx);
-  RootIO::WriteProvenance(out.get(), kPlotOwner, RootIO::StartProvenance(recipe));
+  std::map<std::string, std::string> provenance = RootIO::StartProvenance(recipe);
+  provenance.insert(facts.begin(), facts.end());
+  RootIO::WriteProvenance(out.get(), kPlotOwner, provenance);
   return out;
 }
 
@@ -798,11 +825,11 @@ inline void CopyInputProvenance(TFile* plotFile, const std::string& fileName, co
 // a copy of each series as it was computed (Objects/series<i>, a non-finite bin as it is), and per origin of each series
 // its file, its path and its own provenance (RootIO::CopyProvenance).
 inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<Series>& series, const std::string& recipe,
-                 const std::vector<std::string>& formats = kPlotFormats)
+                 const std::map<std::string, std::string>& facts = {}, const std::vector<std::string>& formats = kPlotFormats)
 {
   if (const std::filesystem::path dir = std::filesystem::path(outBase).parent_path(); !dir.empty())
     RootIO::CreateDirectoriesOrThrow(dir, "PlotSeries::Save");
-  std::unique_ptr<TFile> out = OpenPlotFile(outBase + ".root", recipe, "PlotSeries::Save");
+  std::unique_ptr<TFile> out = OpenPlotFile(outBase + ".root", recipe, "PlotSeries::Save", facts);
   for (const std::string& format : formats)
     canvas->SaveAs(std::format("{}.{}", outBase, format).c_str());
   out->WriteTObject(canvas, canvas->GetName(), "Overwrite");
@@ -853,7 +880,7 @@ struct Catalog {
     std::vector<std::string> particles;  // a corrections file
     std::vector<std::string> purityKeys; // a purity file
     std::vector<Section> sections;       // a spectra file
-    std::map<std::string, std::string> provenance;
+    std::string producedAt, gitCommit;   // from its provenance; empty when not recorded
   };
   std::string fileName;
   std::vector<Scheme> schemes;
@@ -868,19 +895,23 @@ inline Catalog ReadCatalog(const std::string& fileName)
     if (!RootIO::IsSchemeDir(schemeDir))
       continue;
     const std::string name = schemeDir->GetName();
+    const std::map<std::string, std::string> provenance = RootIO::ReadProvenance(file.get(), name);
+    auto fact = [&](const std::string& key) {
+      auto it = provenance.find(key);
+      return it == provenance.end() ? std::string() : it->second;
+    };
     Catalog::Scheme scheme{.name = name, .kind = KindOf(fileName, name), .classes = Intervals(fileName, name),
-                           .provenance = RootIO::ReadProvenance(file.get(), name)};
+                           .producedAt = fact(RootIO::kProvenanceProducedAt), .gitCommit = fact(RunEnvironment::kGitCommit)};
     if (scheme.kind == FileKind::Corrections)
       scheme.particles = CorrectionParticles(fileName, name);
     else if (scheme.kind == FileKind::Purity)
       scheme.purityKeys = PurityKeys(fileName, name);
     else
-      for (TObject* k : *schemeDir->GetListOfKeys())
-        if (OutputNames::IsSectionDir(schemeDir->GetDirectory(k->GetName()))) {
-          const Where where{name, k->GetName()};
-          scheme.sections.push_back({.name = k->GetName(), .species = SpeciesIn(fileName, where), .deltaYLimits = DeltaYLimits(fileName, where),
-                                     .speciesRatios = SpeciesRatios(fileName, where)});
-        }
+      for (const std::string& section : Sections(fileName, name)) {
+        const Where where{name, section};
+        scheme.sections.push_back({.name = section, .species = SpeciesIn(fileName, where), .deltaYLimits = DeltaYLimits(fileName, where),
+                                   .speciesRatios = SpeciesRatios(fileName, where)});
+      }
     catalog.schemes.push_back(std::move(scheme));
   }
   if (catalog.schemes.empty())

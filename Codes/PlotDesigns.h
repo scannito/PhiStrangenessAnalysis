@@ -435,9 +435,9 @@ inline std::string Table(const std::vector<PlotSeries::Series>& series)
 }
 
 // What a design drew, kept: PlotSeries::Save with the series the design returned.
-inline void Save(const Drawn& drawn, const std::string& outBase, const std::string& recipe)
+inline void Save(const Drawn& drawn, const std::string& outBase, const std::string& recipe, const std::map<std::string, std::string>& facts = {})
 {
-  PlotSeries::Save(drawn.canvas, outBase, drawn.series, recipe);
+  PlotSeries::Save(drawn.canvas, outBase, drawn.series, recipe, facts);
 }
 
 // The body of a composition's main: batch mode, no window, and the exit code a caller acts on: 0 done, 1 refused or

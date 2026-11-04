@@ -3,12 +3,12 @@
 and draws it (CLAUDE.md, Plots; Codes/PlotSpec.h).
 
 The model only translates. It is shown the JSON schema of a specification (phistrangeplot schema),
-what the files hold (phistrangeplot list --json) and the examples in PlotSpecs/examples, and its
-answer is constrained to the schema. What it returns goes through the same reader and the same
-checks as a specification written by hand: phistrangeplot refuses what does not exist or does not
-make sense, and the refusal is handed back to the model to correct, a few times at most. Before
-drawing, phistrangeplot describes what it resolved, and that is what you confirm: a specification
-that is valid but not what you meant shows there, in phistrangeplot's words and not the model's.
+what the files hold (phistrangeplot list) and the examples in PlotSpecs/examples. What it returns goes
+through the same reader and the same checks as a specification written by hand: phistrangeplot
+refuses what does not exist or does not make sense, and the refusal is handed back to the model to
+correct, a few times at most. Before drawing, phistrangeplot describes what it resolved, and that is
+what you confirm: a specification that is valid but not what you meant shows there, in
+phistrangeplot's words and not the model's.
 
 No dependency beyond the standard library. Three kinds of endpoint:
   --api ollama   a local model through Ollama (default, http://localhost:11434): nothing leaves the
@@ -32,18 +32,20 @@ import json
 import os
 import subprocess
 import sys
-import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
-EXIT_NOT_IN_FILES = 3  # phistrangeplot: what was asked is not in the files
-EXIT_CANNOT = 3        # this script: the model answered "cannot", the same meaning
-# The model this front end was measured with (Macros/plot_ask_test.py), and its Ollama digest: a
-# different model, or the same name pulled again later, is a model that has not been measured.
+# phistrangeplot's "not in the files", and this script's "the model answered that it cannot be drawn
+# from these files": one meaning, one code.
+EXIT_NOT_IN_FILES = 3
+# The model this front end was measured with (Macros/plot_ask_test.py): its Ollama name and digest, and
+# the GGUF file both engines loaded. Another model, or the same name pulled again later, has not been
+# measured.
 MEASURED_MODEL = "qwen2.5-coder:7b"
 MEASURED_DIGEST = "dae161e27b0e"
+MEASURED_GGUF = "sha256-60e05f2100071479f596b964f89f510f057ce397ea22f2833a0cfe029bfc2463"
 
 
 def run(cmd, check=True):
@@ -79,13 +81,17 @@ def ollama_context(messages):
     return max(8192, 1024 * (prompt_tokens(messages) // 1024 + 2))
 
 
-def model_digest(args):
-    if args.api != "ollama":
-        return None
-    for m in call(f"{args.endpoint}/api/tags").get("models", []):
-        if m.get("name") == args.model:
-            return m.get("digest", "")[:12]
-    return None
+def served_model(args):
+    """What answers, as the plot records it, and whether it is the model that was measured. Ollama
+    names it and gives its digest; llama-server serves whatever file it was started with, whatever
+    --model says, so the file is read from it; another endpoint can only be taken at its word."""
+    if args.api == "ollama":
+        digest = next((m.get("digest", "")[:12] for m in call(f"{args.endpoint}/api/tags").get("models", []) if m.get("name") == args.model), None)
+        return f"{args.model} ({digest or 'digest unknown'})", args.model == MEASURED_MODEL and digest == MEASURED_DIGEST
+    if args.api == "llama":
+        path = call(f"{args.endpoint}/props").get("model_path", "")
+        return f"llama-server: {path or 'model file unknown'}", Path(path).name == MEASURED_GGUF
+    return f"{args.model} at {args.endpoint} (not verifiable)", False
 
 
 def check_llama_context(args, messages):
@@ -104,8 +110,9 @@ def check_llama_context(args, messages):
 def ask_model(args, schema, messages):
     # Temperature 0 and a fixed seed: the same request gives the same specification, as far as the
     # endpoint honours them. The answer's format: any JSON object (--constraint json), or the schema
-    # itself (--constraint schema: Ollama's "format", llama-server's and OpenAI's "response_format",
-    # which llama.cpp turns into a grammar).
+    # (--constraint schema: Ollama's "format", llama-server's and OpenAI's "response_format", which
+    # llama.cpp turns into a grammar). Measured on 4 November 2026: with Ollama, the schema as format
+    # made qwen2.5-coder:7b write a trend where the same prompt unconstrained wrote a species ratio.
     if args.constraint == "json":
         schema = None
     if args.api == "ollama":
@@ -129,11 +136,24 @@ def ask_model(args, schema, messages):
     return r["choices"][0]["message"]["content"]
 
 
+def without_binomial(node):
+    """The schema as the model gets it unless --allow-binomial: divide_option can only be "". A binomial
+    division is right only for a closure (the numerator a subset of the denominator), which neither
+    phistrangeplot nor the model can tell from the files, and chosen wrongly it changes the error bars
+    and nothing else. Measured on 4 November 2026: qwen2.5-coder:7b chose it for two productions."""
+    if isinstance(node, dict):
+        return {k: ({"enum": [""], "description": "Always \"\": the series are independent samples."} if k == "divide_option"
+                    else without_binomial(v)) for k, v in node.items()}
+    if isinstance(node, list):
+        return [without_binomial(v) for v in node]
+    return node
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("request", help="the plot, in words")
     ap.add_argument("--file", action="append", required=True, help="a file the plot may use (repeat)")
-    ap.add_argument("--out", required=True, help="output path without extension: <out>.pdf/.png/.root")
+    ap.add_argument("--out", required=True, help="output path without extension: <out>.pdf/.png/.root, and <out>.spec.json")
     ap.add_argument("--api", choices=["ollama", "llama", "openai"], default="ollama")
     ap.add_argument("--endpoint", default=None, help="default: http://localhost:11434 (ollama), http://localhost:8080 (llama)")
     ap.add_argument("--model", default=MEASURED_MODEL)
@@ -160,39 +180,43 @@ def main():
     if not Path(tool).exists():
         sys.exit(f"[FATAL] plot_ask: no phistrangeplot at {tool}. Build it: cmake -B build -S . && cmake --build build --target phistrangeplot")
 
-    digest = model_digest(args)
-    if args.model != MEASURED_MODEL or (args.api == "ollama" and digest != MEASURED_DIGEST):
-        print(f"[plot_ask] WARNING: model {args.model} ({digest or 'digest unknown'}) is not the one measured "
-              f"({MEASURED_MODEL}, {MEASURED_DIGEST}): run Macros/plot_ask_test.py with it before trusting it.", file=sys.stderr)
+    model, measured = served_model(args)
+    if not measured:
+        print(f"[plot_ask] WARNING: {model} is not the model measured ({MEASURED_MODEL}, {MEASURED_DIGEST}): "
+              "run Macros/plot_ask_test.py with it before trusting it.", file=sys.stderr)
 
     # Compact JSON throughout: the indentation would cost a third of the context. The schema goes
     # into the prompt as well as into the constraint, because a constraint restricts the answer
     # without being read: the descriptions of the keys, which say when each applies, reach the model
     # only as text.
-    compact = lambda text: json.dumps(json.loads(text), separators=(",", ":"), ensure_ascii=False)
-    schema_text = run([tool, "schema"]).stdout
+    compact = lambda value: json.dumps(value, separators=(",", ":"), ensure_ascii=False)
+    spec_schema = json.loads(run([tool, "schema"]).stdout)
+    if not args.allow_binomial:
+        spec_schema = without_binomial(spec_schema)
     # The answer is a specification or, when what was asked does not exist, a refusal: a constraint
     # to the specification alone leaves a model no way to say no, and it then substitutes the nearest
     # thing (measured: |dy| < 0.3 asked, 0.5 drawn).
-    schema = {"anyOf": [json.loads(schema_text),
+    schema = {"anyOf": [spec_schema,
                         {"type": "object", "properties": {"cannot": {"type": "string"}}, "required": ["cannot"], "additionalProperties": False}]}
-    catalog = compact(run([tool, "list", "--json", *args.file]).stdout)
-    examples = "\n".join(compact(p.read_text()) for p in sorted((REPO / "PlotSpecs" / "examples").glob("*.json")))
+    catalog = compact(json.loads(run([tool, "list", *args.file]).stdout))
+    examples = "\n".join(compact(json.loads(p.read_text())) for p in sorted((REPO / "PlotSpecs" / "examples").glob("*.json")))
     instructions = (REPO / "PlotSpecs" / "instructions.txt").read_text()
 
     messages = [
         {"role": "system", "content": instructions},
-        {"role": "user", "content": f"Schema of a specification:\n{compact(schema_text)}\n\nExamples of specifications:\n{examples}\n\n"
+        {"role": "user", "content": f"Schema of a specification:\n{compact(spec_schema)}\n\nExamples of specifications:\n{examples}\n\n"
                                     f"Catalog of the files:\n{catalog}\n\nRequest: {args.request}"},
     ]
 
     # "cannot" is a way out for what does not exist, not for a specification phistrangeplot found
-    # malformed: offered after a refusal only when the refusal says something is not in the files
-    # (measured: a model told it could also say "cannot" gave up on a key it could have added).
-    spec_only = json.loads(schema_text)
+    # malformed (measured: a model told it could also say "cannot" gave up on a key it could have
+    # added). It is taken at the first answer, or after a refusal saying something is not in the files;
+    # after any other refusal it is refused in turn, whatever the constraint. With --constraint schema
+    # the grammar also stops offering it then.
+    spec_path = Path(f"{args.out}.spec.json")
+    spec_path.parent.mkdir(parents=True, exist_ok=True)
     current = schema
-    work = Path(tempfile.mkdtemp(prefix="plot_ask_"))
-    spec_path = work / "spec.json"
+    cannot_allowed = True
     for attempt in range(args.retries + 1):
         described = None
         answer = ask_model(args, current, messages)
@@ -201,27 +225,24 @@ def main():
         except json.JSONDecodeError as e:
             problem = f"The answer is not valid JSON ({e})."
         else:
-            if isinstance(spec, dict) and "cannot" in spec:
+            if isinstance(spec, dict) and "cannot" in spec and cannot_allowed:
                 print(f"[plot_ask] the model says this cannot be drawn from these files: {spec['cannot']}", file=sys.stderr)
-                sys.exit(EXIT_CANNOT)
-            spec_path.write_text(json.dumps(spec, indent=2) + "\n")
-            # A binomial division is right only for a closure (the numerator a subset of the denominator), which
-            # neither phistrangeplot nor the model can tell from the files; chosen wrongly it changes the error
-            # bars and nothing else, so nothing would show it. Measured on 4 November 2026: qwen2.5-coder:7b
-            # chose it for two productions against the instructions. Only the person asking may allow it.
-            if isinstance(spec, dict) and spec.get("divide_option") == "B" and not args.allow_binomial:
-                described = None
-                problem = ('divide_option "B" (binomial errors) is not allowed for this request: the series are independent '
-                           'samples. Use divide_option "".')
+                sys.exit(EXIT_NOT_IN_FILES)
+            if isinstance(spec, dict) and "cannot" in spec:
+                problem = "What was asked is in the files: the specification was refused for its form, not for what it names."
+            elif isinstance(spec, dict) and spec.get("divide_option") == "B" and not args.allow_binomial:
+                # The schema the model was given already refuses it; this is for a model that did not follow it.
+                problem = 'divide_option "B" (binomial errors) is not allowed for this request: the series are independent samples. Use "".'
             else:
+                spec_path.write_text(json.dumps(spec, indent=2) + "\n")
                 described = run([tool, "describe", str(spec_path)], check=False)
                 if described.returncode == 0:
                     break
                 problem = (described.stderr or described.stdout).strip()
         print(f"[plot_ask] attempt {attempt + 1} refused:\n{problem}\n", file=sys.stderr)
-        missing = described is not None and described.returncode == EXIT_NOT_IN_FILES
-        current = schema if missing else spec_only
-        hint = ("Correct it, or answer with \"cannot\" if what was asked does not exist in the catalog." if missing
+        cannot_allowed = described is not None and described.returncode == EXIT_NOT_IN_FILES
+        current = schema if cannot_allowed else spec_schema
+        hint = ("Correct it, or answer with \"cannot\" if what was asked does not exist in the catalog." if cannot_allowed
                 else "Correct the specification.")
         messages += [{"role": "assistant", "content": answer},
                      {"role": "user", "content": f"phistrangeplot refused this specification:\n{problem}\n{hint}"}]
@@ -229,15 +250,10 @@ def main():
         sys.exit(f"[FATAL] plot_ask: no acceptable specification after {args.retries + 1} attempts; the last is in {spec_path}.")
 
     print(described.stdout)
-    # The specification is kept next to the plot: in its .root as its recipe when drawn, as a file when not.
-    kept = Path(f"{args.out}.spec.json")
-    kept.parent.mkdir(parents=True, exist_ok=True)
-    kept.write_text(spec_path.read_text())
     if not args.yes and input("Draw it? [y/N] ").strip().lower() not in ("y", "yes"):
-        print(f"Not drawn. The specification is in {kept}: `phistrangeplot render {kept} --out {args.out}` draws it.")
+        print(f"Not drawn. The specification is in {spec_path}: `phistrangeplot render {spec_path} --out {args.out}` draws it.")
         return
-    note = f"asked: {args.request}\nmodel: {args.model} ({digest or args.api})"
-    cmd = [tool, "render", str(kept), "--out", args.out, "--note", note]
+    cmd = [tool, "render", str(spec_path), "--out", args.out, "--note", f"asked: {args.request}\nmodel: {model}"]
     if args.alice:
         cmd += ["--alice", args.alice, "--system", args.system]
     rendered = run(cmd, check=False)

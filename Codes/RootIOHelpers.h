@@ -499,10 +499,11 @@ inline std::string ProvenanceDirName(std::string_view record)
 // added to the JSON tomorrow is recorded without touching the task), and the facts about the run itself.
 // 'configBlock' is that block already serialised (JsonConfig::Serialize), so that RootIO, which writes files,
 // does not depend on the format of the configuration. Documentation, not a check: see WriteProvenance.
+inline const std::string kProvenanceProducedAt{"produced_at"};
 inline std::map<std::string, std::string> StartProvenance(std::string configBlock)
 {
   std::map<std::string, std::string> facts = RunEnvironment::Facts();
-  facts["produced_at"] = RunEnvironment::TimestampNow();
+  facts[kProvenanceProducedAt] = RunEnvironment::TimestampNow();
   facts["config_block"] = std::move(configBlock);
   return facts;
 }

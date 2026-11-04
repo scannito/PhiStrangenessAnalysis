@@ -28,12 +28,13 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(REPO / "Macros"))  # run with -I, which leaves the script's directory out
+from plot_ask import EXIT_NOT_IN_FILES  # noqa: E402  the model answered that the request cannot be drawn
 F = "DataFile/pp/DeltaY/FinalResults/"
 OFF = F + "Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root"
 ON = F + "Data_OnlineEff_2026_HighIR_updated_PhiAssocSpectra.root"
 PUR = "DataFile/pp/DeltaY/Purities/Data_2026_HighIR_updated_Purity.root"
 COR = "DataFile/pp/DeltaY/Corrections/2026_HighIR_updated_Corrections.root"
-EXIT_CANNOT = 3  # plot_ask.py: the model answered that the request cannot be drawn
 
 
 def series(spec):
@@ -135,7 +136,7 @@ def main():
         if check is None:
             # Right only when the model said it cannot be done; any other failure (no endpoint, no
             # phistrangeplot, retries exhausted) is not the model saying no.
-            verdict = ("refused (right)" if p.returncode == EXIT_CANNOT
+            verdict = ("refused (right)" if p.returncode == EXIT_NOT_IN_FILES
                        else "DRAWN SOMETHING ELSE" if rendered else f"FAILED (exit {p.returncode})")
         else:
             verdict = ("right" if check(spec) else "WRONG PLOT") if rendered else f"FAILED (exit {p.returncode})"
