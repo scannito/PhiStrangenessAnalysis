@@ -56,6 +56,11 @@ struct Interval {
 struct Facts {
   std::optional<std::string> kind, species, dy, mult, binning;
 };
+using Fact = std::optional<std::string> Facts::*;
+// The facts by name, in the order a legend reads them (what it is, of what, where): AutoLabels' order, and the names a
+// specification gives them (a look or a key by fact).
+inline constexpr std::pair<std::string_view, Fact> kFacts[] = {
+  {"kind", &Facts::kind}, {"species", &Facts::species}, {"dy", &Facts::dy}, {"mult", &Facts::mult}, {"binning", &Facts::binning}};
 
 // The quantity on a series' X axis: two series on one plot, or in one ratio, must share it (RequireOneQuantityOnX). A
 // binning that differs is warned on an overlay; a quantity that differs makes the plot meaningless, and is refused.
@@ -753,13 +758,11 @@ inline LegendText AutoLabels(const std::vector<Series>& series)
       ++suffix;
   }
 
-  using Field = std::optional<std::string> Facts::*;
-  constexpr Field kOrder[] = {&Facts::kind, &Facts::species, &Facts::dy, &Facts::mult, &Facts::binning};
-  constexpr std::size_t kFile = std::size(kOrder); // the file, after the facts
+  constexpr std::size_t kFile = std::size(kFacts); // the file, after the facts
   std::vector<std::vector<std::optional<std::string>>> all;
   for (std::size_t i = 0; i < series.size(); ++i) {
     std::vector<std::optional<std::string>> values;
-    for (Field field : kOrder)
+    for (const auto& [name, field] : kFacts)
       values.push_back(series[i].facts.*field);
     std::string kept;
     for (std::size_t w = prefix; w + suffix < fileWords[i].size(); ++w)

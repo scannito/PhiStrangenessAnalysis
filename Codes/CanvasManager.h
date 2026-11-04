@@ -704,9 +704,12 @@ class CanvasManager
     return copy;
   }
 
+  // The size of a marker when none is given.
+  static constexpr double kMarkerSize = 1.5;
+
   // Applies HEP/ALICE standard visual styling to 1D histograms
   static void SetHistogramStyle(TH1* h, int color, int markerStyle = 20,
-                                double markerSize = 1.5, int lineWidth = 2,
+                                double markerSize = kMarkerSize, int lineWidth = 2,
                                 int fillStyle = 3001)
   {
     if (!h)
