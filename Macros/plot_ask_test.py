@@ -35,9 +35,20 @@ OFF = F + "Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root"
 ON = F + "Data_OnlineEff_2026_HighIR_updated_PhiAssocSpectra.root"
 PUR = "DataFile/pp/DeltaY/Purities/Data_2026_HighIR_updated_Purity.root"
 COR = "DataFile/pp/DeltaY/Corrections/2026_HighIR_updated_Corrections.root"
-# A file the framework did not write, standing for a preliminary: the K0S trend copied under a path of its own
-# (made by hand for the test; not in git).
-PRELIM = "/Users/scannito/alice/claude-sandbox/plot-tests/preliminary_K0S.root"
+# A file the framework did not write, standing for a preliminary: the offline K0S trend copied under a path of its own,
+# made by the test in its output directory (make_preliminary).
+PRELIM_PATH = "Preliminary/hK0SYieldPreliminary"
+
+
+def make_preliminary(outdir):
+    path = Path(outdir) / "preliminary_K0S.root"
+    code = (f'TFile f("{OFF}"); auto* h = dynamic_cast<TH1*>(f.Get("MoreFullDifferential/Extract1D/K0S/Trends/h1MultTrend_K0S_dy1_00")); '
+            f'if (!h) exit(1); h->SetDirectory(0); TFile o("{path}", "RECREATE"); o.mkdir("Preliminary")->cd(); h->Write("hK0SYieldPreliminary");')
+    # The file, not ROOT's exit code, says it worked: with -e ROOT exits with what the last expression returned.
+    subprocess.run(["root", "-l", "-b", "-q", "-e", code], capture_output=True)
+    if not path.exists():
+        sys.exit("[FATAL] plot_ask_test: could not make the stand-in preliminary (ROOT in the environment?)")
+    return str(path)
 
 
 def series(spec):
@@ -66,7 +77,8 @@ def ratio(spec, reference_file=None):
     return reference_file is None or series(spec)[spec.get("reference", 0)].get("file") == reference_file
 
 
-TESTS = [
+def tests(prelim):
+  return [
     ("trend dei K0S per |Δy| < 1, offline contro online, con il rapporto", [OFF, ON],
      lambda s: all_(s, of="trend", species="K0S", dy=1.0, trend="measured") and files(s) == sorted([OFF, ON]) and ratio(s)),
     ("spettro della Xi in molteplicità 0-1%, per le tre finestre in Δy", [OFF],
@@ -105,9 +117,9 @@ TESTS = [
                and sorted(p["series"][0].get("file") for p in s["panels"]) == sorted([OFF, ON])
                and all(x.get("of") == "species_ratio" and x.get("numerator") == "K0S" and x.get("trend") == "measured"
                        and x.get("dy") in ("all", [1.0, 0.5, 0.1], [0.1, 0.5, 1.0]) for p in s["panels"] for x in p["series"])),
-    (f"the online K0S trend at |dy| < 1 against the preliminary Preliminary/hK0SYieldPreliminary in {PRELIM}, with its ratio", [ON],
-     lambda s: s.get("design") == "with_reference" and s.get("reference_object", {}).get("file") == PRELIM
-               and s["reference_object"].get("path") == "Preliminary/hK0SYieldPreliminary"
+    (f"the online K0S trend at |dy| < 1 against the preliminary {PRELIM_PATH} in {prelim}, with its ratio", [ON],
+     lambda s: s.get("design") == "with_reference" and s.get("reference_object", {}).get("file") == prelim
+               and s["reference_object"].get("path") == PRELIM_PATH
                and all_(s, of="trend", species="K0S", dy=1.0, file=ON)),
     ("i fit di massa dei k0s nella classe 15-20%, per pT 0.8-1.2 e 1.2-1.6", [PUR],
      lambda s: s.get("design") == "fit_canvas_grid" and s.get("purity_key") == "k0s"
@@ -135,7 +147,7 @@ def main():
 
     results = []
     only = {int(x) for x in args.only.split(",")} if args.only else None
-    for i, (request, fs, check) in enumerate(TESTS):
+    for i, (request, fs, check) in enumerate(tests(make_preliminary(outdir))):
         if only is not None and i not in only:
             continue
         out = outdir / f"t{i}"

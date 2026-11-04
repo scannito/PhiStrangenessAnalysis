@@ -18,6 +18,7 @@
 #include <algorithm>
 #include <array>
 #include <format>
+#include <limits>
 #include <functional>
 #include <map>
 #include <optional>
@@ -69,71 +70,6 @@ struct Key {
   std::vector<std::pair<std::string, std::string>> text;
 };
 
-// Looks from facts: series that share the value of a fact share the attribute, the values taken in the order the
-// series bring them (ColourBy, ShapeBy, FillBy). What a Key then explains, so the legend and the look agree by
-// construction. A series without the fact stops: its look would say nothing.
-namespace Detail
-{
-inline std::vector<std::size_t> ValueIndices(const std::vector<PlotSeries::Series>& series, PlotSeries::Fact fact, std::string_view what)
-{
-  std::vector<std::string> values;
-  std::vector<std::size_t> indices;
-  for (const PlotSeries::Series& s : series) {
-    const std::optional<std::string>& value = s.facts.*fact;
-    if (!value)
-      throw std::runtime_error(std::format("[FATAL] PlotDesigns::{}: '{}' has no value for the fact the look is taken from.", what,
-                                           s.origins.front().path));
-    auto it = std::ranges::find(values, *value);
-    if (it == values.end())
-      it = values.insert(values.end(), *value);
-    indices.push_back(static_cast<std::size_t>(it - values.begin()));
-  }
-  return indices;
-}
-
-// The filled shapes, in the order ShapeBy gives them, and the outline of each (TAttMarker).
-inline constexpr std::pair<int, int> kShapes[] = {{20, 24}, {21, 25}, {33, 27}, {34, 28}, {29, 30}, {22, 26}, {23, 32}};
-// A diamond looks smaller than a circle or a square of the same size; ShapeBy draws it larger by this much (the 2.0
-// against 1.4 of the owner's ratio plots, 26 October 2026).
-inline constexpr double kDiamondScale = 1.4;
-} // namespace Detail
-
-// Each value of 'fact' in a colour: 'palette' in order, the variants' colours (CanvasManager::VariantColor) without one.
-inline void ColourBy(std::vector<PlotSeries::Series>& series, PlotSeries::Fact fact, const std::vector<int>& palette = {})
-{
-  const std::vector<std::size_t> indices = Detail::ValueIndices(series, fact, "ColourBy");
-  for (std::size_t i = 0; i < series.size(); ++i)
-    series[i].look.color = indices[i] < palette.size() ? palette[indices[i]] : CanvasManager::VariantColor(static_cast<int>(indices[i]));
-}
-
-// Each value of 'fact' in a shape of its own, filled (FillBy may then open some).
-inline void ShapeBy(std::vector<PlotSeries::Series>& series, PlotSeries::Fact fact)
-{
-  const std::vector<std::size_t> indices = Detail::ValueIndices(series, fact, "ShapeBy");
-  for (std::size_t i = 0; i < series.size(); ++i) {
-    if (indices[i] >= std::size(Detail::kShapes))
-      throw std::runtime_error(std::format("[FATAL] PlotDesigns::ShapeBy: {} values, {} shapes.", indices[i] + 1, std::size(Detail::kShapes)));
-    series[i].look.marker = Detail::kShapes[indices[i]].first;
-    if (series[i].look.marker == 33)
-      series[i].look.markerSize = series[i].look.markerSize.value_or(CanvasManager::kMarkerSize) * Detail::kDiamondScale;
-  }
-}
-
-// Two values of 'fact', the first filled and the second open, each series keeping its shape (a circle when it has none).
-inline void FillBy(std::vector<PlotSeries::Series>& series, PlotSeries::Fact fact)
-{
-  const std::vector<std::size_t> indices = Detail::ValueIndices(series, fact, "FillBy");
-  for (std::size_t i = 0; i < series.size(); ++i) {
-    if (indices[i] > 1)
-      throw std::runtime_error("[FATAL] PlotDesigns::FillBy: filled or open says two values; the fact has more.");
-    const int marker = series[i].look.marker.value_or(Detail::kShapes[0].first);
-    const auto shape = std::ranges::find_if(Detail::kShapes, [&](const auto& s) { return s.first == marker || s.second == marker; });
-    if (shape == std::end(Detail::kShapes))
-      throw std::runtime_error(std::format("[FATAL] PlotDesigns::FillBy: marker {} has no filled and open pair.", marker));
-    series[i].look.marker = indices[i] == 0 ? shape->first : shape->second;
-  }
-}
-
 // One pad's worth: the series and how its axes read. Empty titles are the first series' own.
 struct Panel {
   std::vector<PlotSeries::Series> series;
@@ -150,6 +86,129 @@ struct Panel {
   // A systematic uncertainty, drawn as a band behind the series; combinable with the first series.
   std::optional<PlotSeries::Series> band;
 };
+
+// The values of 'fact' among the series, distinct, in the order the series bring them: what a look by fact numbers and
+// a key lists. A series without the fact stops ('what' names the caller): its look, or its entry, would say nothing.
+inline std::vector<std::string> FactValues(const std::vector<const PlotSeries::Series*>& series, PlotSeries::Fact fact, std::string_view what)
+{
+  std::vector<std::string> values;
+  for (const PlotSeries::Series* s : series) {
+    const std::optional<std::string>& value = s->facts.*fact;
+    if (!value)
+      throw std::runtime_error(std::format("[FATAL] PlotDesigns::{}: '{}' has no value for the fact it is taken from.", what, s->origins.front().path));
+    if (std::ranges::find(values, *value) == values.end())
+      values.push_back(*value);
+  }
+  return values;
+}
+
+// Looks from facts: series that share the value of a fact share the attribute (ColourBy, ShapeBy, FillBy), what a Key
+// then explains, so that the legend and the look agree by construction. Given the panels of a design, the values are
+// numbered over all of them, so one value has one look in every pad, and a key drawn in one pad holds for the others.
+// Each keeps what the others set (the shape its filling, the filling its shape), so the order does not matter; a look
+// a series was given by hand is not overwritten, it stops.
+namespace Detail
+{
+inline std::vector<PlotSeries::Series*> SeriesOf(std::vector<PlotSeries::Series>& series)
+{
+  std::vector<PlotSeries::Series*> all;
+  for (PlotSeries::Series& s : series)
+    all.push_back(&s);
+  return all;
+}
+inline std::vector<PlotSeries::Series*> SeriesOf(std::vector<Panel>& panels)
+{
+  std::vector<PlotSeries::Series*> all;
+  for (Panel& panel : panels)
+    for (PlotSeries::Series& s : panel.series)
+      all.push_back(&s);
+  return all;
+}
+
+// The index of each series' value of 'fact', checked against how many values the look can say.
+inline std::vector<std::size_t> ValueIndices(const std::vector<PlotSeries::Series*>& series, PlotSeries::Fact fact, std::string_view what,
+                                             std::size_t maxValues)
+{
+  const std::vector<std::string> values = FactValues({series.begin(), series.end()}, fact, what);
+  if (values.size() > maxValues)
+    throw std::runtime_error(std::format("[FATAL] PlotDesigns::{}: {} values ({}), {} at most.", what, values.size(), Logger::Join(values, ", "), maxValues));
+  std::vector<std::size_t> indices;
+  for (const PlotSeries::Series* s : series)
+    indices.push_back(static_cast<std::size_t>(std::ranges::find(values, *(s->facts.*fact)) - values.begin()));
+  return indices;
+}
+
+// The filled shapes, in the order ShapeBy gives them, and the outline of each (TAttMarker).
+inline constexpr std::pair<int, int> kShapes[] = {{20, 24}, {21, 25}, {33, 27}, {34, 28}, {29, 30}, {22, 26}, {23, 32}};
+inline constexpr std::size_t kDiamond = 2; // kShapes[kDiamond]
+// A diamond looks smaller than a circle or a square of the same size: drawn larger by this much, the 2.0 against 1.4 of
+// the owner's ratio plots (26 October 2026).
+inline constexpr double kDiamondScale = 2.0 / 1.4;
+
+// The pair of kShapes a marker belongs to, and whether it is the open one; none for a marker outside them.
+inline std::optional<std::pair<std::size_t, bool>> ShapeOf(int marker)
+{
+  for (std::size_t i = 0; i < std::size(kShapes); ++i)
+    if (kShapes[i].first == marker || kShapes[i].second == marker)
+      return std::pair{i, kShapes[i].second == marker};
+  return std::nullopt;
+}
+
+inline void ColourBy(const std::vector<PlotSeries::Series*>& series, PlotSeries::Fact fact, const std::vector<int>& palette)
+{
+  const std::vector<std::size_t> indices =
+    ValueIndices(series, fact, "ColourBy", palette.empty() ? std::numeric_limits<std::size_t>::max() : palette.size());
+  for (std::size_t i = 0; i < series.size(); ++i) {
+    if (series[i]->look.color)
+      throw std::runtime_error(std::format("[FATAL] PlotDesigns::ColourBy: '{}' has a colour of its own.", series[i]->origins.front().path));
+    series[i]->look.color = palette.empty() ? CanvasManager::VariantColor(static_cast<int>(indices[i])) : palette[indices[i]];
+  }
+}
+
+inline void ShapeBy(const std::vector<PlotSeries::Series*>& series, PlotSeries::Fact fact)
+{
+  const std::vector<std::size_t> indices = ValueIndices(series, fact, "ShapeBy", std::size(kShapes));
+  for (std::size_t i = 0; i < series.size(); ++i) {
+    PlotSeries::Look& look = series[i]->look;
+    const auto shape = look.marker ? ShapeOf(*look.marker) : std::nullopt;
+    if (look.marker && !shape)
+      throw std::runtime_error(std::format("[FATAL] PlotDesigns::ShapeBy: '{}' has a marker of its own.", series[i]->origins.front().path));
+    look.marker = shape && shape->second ? kShapes[indices[i]].second : kShapes[indices[i]].first;
+    if (indices[i] == kDiamond)
+      look.markerSize = look.markerSize.value_or(CanvasManager::kMarkerSize) * kDiamondScale;
+  }
+}
+
+inline void FillBy(const std::vector<PlotSeries::Series*>& series, PlotSeries::Fact fact)
+{
+  const std::vector<std::size_t> indices = ValueIndices(series, fact, "FillBy", 2);
+  for (std::size_t i = 0; i < series.size(); ++i) {
+    PlotSeries::Look& look = series[i]->look;
+    const auto shape = ShapeOf(look.marker.value_or(kShapes[0].first));
+    if (!shape)
+      throw std::runtime_error(std::format("[FATAL] PlotDesigns::FillBy: '{}' has a marker of its own, with no filled and open pair.",
+                                           series[i]->origins.front().path));
+    look.marker = indices[i] == 0 ? kShapes[shape->first].first : kShapes[shape->first].second;
+  }
+}
+} // namespace Detail
+
+// Each value of 'fact' in a colour: 'palette' in order (as many as there are values), the variants' colours
+// (CanvasManager::VariantColor) without one.
+inline void ColourBy(std::vector<PlotSeries::Series>& series, PlotSeries::Fact fact, const std::vector<int>& palette = {})
+{
+  Detail::ColourBy(Detail::SeriesOf(series), fact, palette);
+}
+inline void ColourBy(std::vector<Panel>& panels, PlotSeries::Fact fact, const std::vector<int>& palette = {})
+{
+  Detail::ColourBy(Detail::SeriesOf(panels), fact, palette);
+}
+// Each value of 'fact' in a shape of its own (Detail::kShapes), a diamond drawn larger.
+inline void ShapeBy(std::vector<PlotSeries::Series>& series, PlotSeries::Fact fact) { Detail::ShapeBy(Detail::SeriesOf(series), fact); }
+inline void ShapeBy(std::vector<Panel>& panels, PlotSeries::Fact fact) { Detail::ShapeBy(Detail::SeriesOf(panels), fact); }
+// Two values of 'fact', the first filled and the second open (a circle where no shape was given).
+inline void FillBy(std::vector<PlotSeries::Series>& series, PlotSeries::Fact fact) { Detail::FillBy(Detail::SeriesOf(series), fact); }
+inline void FillBy(std::vector<Panel>& panels, PlotSeries::Fact fact) { Detail::FillBy(Detail::SeriesOf(panels), fact); }
 
 // What a design drew: the canvas and every series on it, those it computed included.
 struct Drawn {
@@ -214,23 +273,24 @@ inline bool IsOpenMarker(int style)
 // as one more colour or shape.
 inline void DrawKey(TPad* pad, const std::vector<PlotSeries::Series>& series, const std::vector<TH1*>& drawn, const Key& key, const Frame& frame)
 {
+  std::vector<const PlotSeries::Series*> pointers;
+  for (const PlotSeries::Series& s : series)
+    pointers.push_back(&s);
   std::vector<std::pair<std::string, std::size_t>> entries; // value, its first series
+  for (const std::string& value : FactValues(pointers, key.fact, "DrawKey"))
+    entries.emplace_back(value, static_cast<std::size_t>(std::ranges::find_if(series, [&](const auto& s) { return s.facts.*key.fact == value; }) -
+                                                         series.begin()));
   std::map<std::string, int> attributeOf;
   std::map<int, std::string> valueOf;
   for (std::size_t i = 0; i < series.size(); ++i) {
-    const std::optional<std::string>& value = series[i].facts.*key.fact;
-    if (!value)
-      throw std::runtime_error(std::format("[FATAL] PlotDesigns::DrawKey: series {} ('{}') has no value for the fact of the key.", i,
-                                           series[i].origins.front().path));
+    const std::string& value = *(series[i].facts.*key.fact);
     const int attribute = key.shows == Key::Shows::Color ? drawn[i]->GetMarkerColor() : IsOpenMarker(drawn[i]->GetMarkerStyle());
-    const auto [a, newValue] = attributeOf.emplace(*value, attribute);
-    const auto [v, newAttribute] = valueOf.emplace(attribute, *value);
-    if (a->second != attribute || v->second != *value)
+    const auto [a, newValue] = attributeOf.emplace(value, attribute);
+    const auto [v, newAttribute] = valueOf.emplace(attribute, value);
+    if (a->second != attribute || v->second != value)
       throw std::runtime_error(std::format("[FATAL] PlotDesigns::DrawKey: the {} does not stand for one '{}' alone (series {}, '{}'): the "
-                                           "key would mislabel the plot.", key.shows == Key::Shows::Color ? "colour" : "filling of the marker", *value, i,
+                                           "key would mislabel the plot.", key.shows == Key::Shows::Color ? "colour" : "filling of the marker", value, i,
                                            series[i].origins.front().path));
-    if (newValue)
-      entries.emplace_back(*value, i);
   }
   std::vector<std::pair<std::string, std::size_t>> ordered; // words, first series
   for (const auto& [value, words] : key.text) {
@@ -241,15 +301,11 @@ inline void DrawKey(TPad* pad, const std::vector<PlotSeries::Series>& series, co
   }
   // A value without words of its own is said by what tells it apart: the leading words (", "-separated) every value
   // shares are left out ("species ratio, measured" and "species ratio, extrapolated" read "measured", "extrapolated").
+  const std::string& first = entries.front().first;
   std::size_t shared = 0;
-  if (entries.size() > 1)
-    for (bool same = true; same;) {
-      const std::size_t next = entries.front().first.find(", ", shared);
-      same = next != std::string::npos &&
-             std::ranges::all_of(entries, [&](const auto& e) { return e.first.compare(0, next + 2, entries.front().first, 0, next + 2) == 0; });
-      if (same)
-        shared = next + 2;
-    }
+  for (std::size_t next; entries.size() > 1 && (next = first.find(", ", shared)) != std::string::npos; shared = next + 2)
+    if (!std::ranges::all_of(entries, [&](const auto& e) { return e.first.starts_with(std::string_view(first).substr(0, next + 2)); }))
+      break;
   for (const auto& [value, first] : entries)
     if (std::ranges::find(key.text, value, &std::pair<std::string, std::string>::first) == key.text.end())
       ordered.emplace_back(value.substr(shared), first);
