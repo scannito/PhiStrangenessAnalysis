@@ -8,6 +8,7 @@
 
 #include "rapidjson/document.h"
 #include "rapidjson/pointer.h"
+#include "rapidjson/prettywriter.h"
 #include "rapidjson/schema.h"
 #include "rapidjson/stringbuffer.h"
 
@@ -108,6 +109,7 @@ inline std::string Form(std::string_view discriminator, std::string_view value, 
 // A form of series: its schema and how it is found. 'read' gets the series' object, its file and where in it.
 struct SeriesForm {
   std::string_view of;
+  PlotSeries::FileKind reads; // the kind of file it is found in
   std::string_view description;
   std::vector<std::string> keys;
   std::vector<std::string_view> required;
@@ -118,14 +120,14 @@ inline const std::vector<SeriesForm>& SeriesForms()
 {
   using namespace PlotSeries;
   static const std::vector<SeriesForm> forms = {
-    {"spectrum", "The pT spectrum of an associated species in one multiplicity class; with extended, the same extended to pT = 0 with its fitted curve.",
+    {"spectrum", PlotSeries::FileKind::Spectra, "The pT spectrum of an associated species in one multiplicity class; with extended, the same extended to pT = 0 with its fitted curve.",
      {kSpecies, kDy, kMult, kSection, Key("extended", R"({"type": "boolean"})")},
      {"species", "dy", "mult"},
      [](const rapidjson::Value& s, const std::string& file, const Where& where) {
        return (JsonConfig::OptionalBool(s, "extended", false, kCtx) ? SpectrumExtended : Spectrum)(
          file, JsonConfig::RequireString(s, "species", kCtx), JsonConfig::RequireDouble(s, "dy", kCtx), RequireRange<Interval>(s, "mult"), where);
      }},
-    {"trend", "The yield of a species against multiplicity: measured, extrapolated to pT = 0, or the one over the other.",
+    {"trend", PlotSeries::FileKind::Spectra, "The yield of a species against multiplicity: measured, extrapolated to pT = 0, or the one over the other.",
      {kSpecies, kDy, Key("trend", std::format(R"({{"enum": [{}]}})", EnumList(kTrendKinds | std::views::keys))), kSection},
      {"species", "dy", "trend"},
      [](const rapidjson::Value& s, const std::string& file, const Where& where) {
@@ -133,7 +135,7 @@ inline const std::vector<SeriesForm>& SeriesForms()
                     Resolve(kTrendKinds, JsonConfig::RequireString(s, "trend", kCtx), "trend"), where);
      }},
     // A species ratio is measured or extrapolated, the first two kinds of a trend.
-    {"species_ratio", "The ratio of two species' yields against multiplicity, as the correlation task wrote it.",
+    {"species_ratio", PlotSeries::FileKind::Spectra, "The ratio of two species' yields against multiplicity, as the correlation task wrote it.",
      {Key("numerator", R"({"type": "string"})"), Key("denominator", R"({"type": "string"})"), kDy,
       Key("trend", std::format(R"({{"enum": [{}]}})", EnumList(std::span(kTrendKinds).first(2) | std::views::keys))), kSection},
      {"numerator", "denominator", "dy", "trend"},
@@ -142,14 +144,14 @@ inline const std::vector<SeriesForm>& SeriesForms()
                            JsonConfig::RequireDouble(s, "dy", kCtx), Resolve(kTrendKinds, JsonConfig::RequireString(s, "trend", kCtx), "trend"),
                            where);
      }},
-    {"purity", "The purity S/(S+B) of a purity key against pT, in one multiplicity class.",
+    {"purity", PlotSeries::FileKind::Purity, "The purity S/(S+B) of a purity key against pT, in one multiplicity class.",
      {Key("purity_key", R"({"type": "string"})"), kMult, Binning()},
      {"purity_key", "mult"},
      [](const rapidjson::Value& s, const std::string& file, const Where& where) {
        return Purity(file, JsonConfig::RequireString(s, "purity_key", kCtx), RequireRange<Interval>(s, "mult"),
                      Resolve(kBinnings, JsonConfig::OptionalString(s, "binning", std::string(kDefaultBinning), kCtx), "binning"), where.scheme);
      }},
-    {"correction_map", "A correction map of a particle against pT, in one multiplicity class or integrated over multiplicity (no mult).",
+    {"correction_map", PlotSeries::FileKind::Corrections, "A correction map of a particle against pT, in one multiplicity class or integrated over multiplicity (no mult).",
      {Key("particle", R"({"type": "string"})"), Key("map", std::format(R"({{"enum": [{}]}})", EnumList(kMaps | std::views::keys))), kMult, Binning()},
      {"particle", "map"},
      [](const rapidjson::Value& s, const std::string& file, const Where& where) {
@@ -347,6 +349,85 @@ inline PlotDesigns::Drawn Draw(const rapidjson::Document& spec, CanvasManager& c
                                          JsonConfig::TryRange<std::pair<double, double>>(spec, "ratio_range", kCtx),
                                          JsonConfig::OptionalString(spec, "ratio_title", "ratio", kCtx), frame);
   throw std::logic_error(std::format("[FATAL] PlotSpec: the schema let through a design '{}' with nothing to draw it.", design));
+}
+
+namespace Detail
+{
+inline constexpr std::pair<std::string_view, PlotSeries::FileKind> kFileKinds[] = {
+  {"corrections", PlotSeries::FileKind::Corrections}, {"purity", PlotSeries::FileKind::Purity}, {"spectra", PlotSeries::FileKind::Spectra}};
+
+inline std::string_view KindName(PlotSeries::FileKind kind)
+{
+  return std::ranges::find(kFileKinds, kind, &std::pair<std::string_view, PlotSeries::FileKind>::second)->first;
+}
+} // namespace Detail
+
+// What the files hold, as JSON in the specification's own words (the keys a series takes, the forms each file can be
+// asked for): what a front end gives the model along with the schema, so that it names only what is there.
+inline std::string CatalogJson(const std::vector<PlotSeries::Catalog>& catalogs)
+{
+  rapidjson::Document doc(rapidjson::kArrayType);
+  auto& a = doc.GetAllocator();
+  auto str = [&](std::string_view text) { return rapidjson::Value(text.data(), static_cast<rapidjson::SizeType>(text.size()), a); };
+  auto strings = [&](const auto& texts) {
+    rapidjson::Value v(rapidjson::kArrayType);
+    for (const auto& t : texts)
+      v.PushBack(str(t), a);
+    return v;
+  };
+  for (const PlotSeries::Catalog& catalog : catalogs) {
+    rapidjson::Value file(rapidjson::kObjectType), schemes(rapidjson::kArrayType);
+    file.AddMember("file", str(catalog.fileName), a);
+    for (const PlotSeries::Catalog::Scheme& scheme : catalog.schemes) {
+      rapidjson::Value sc(rapidjson::kObjectType), classes(rapidjson::kArrayType), forms(rapidjson::kArrayType);
+      sc.AddMember("scheme", str(scheme.name), a);
+      sc.AddMember("kind", str(Detail::KindName(scheme.kind)), a);
+      for (const Detail::SeriesForm& f : Detail::SeriesForms())
+        if (f.reads == scheme.kind)
+          forms.PushBack(str(f.of), a);
+      sc.AddMember("series_forms", forms, a);
+      for (const PlotSeries::Interval& c : scheme.classes) {
+        rapidjson::Value interval(rapidjson::kArrayType);
+        interval.PushBack(c.low, a).PushBack(c.high, a);
+        classes.PushBack(interval, a);
+      }
+      sc.AddMember("mult", classes, a);
+      if (scheme.kind == PlotSeries::FileKind::Corrections)
+        sc.AddMember("particle", strings(scheme.particles), a);
+      if (scheme.kind == PlotSeries::FileKind::Purity)
+        sc.AddMember("purity_key", strings(scheme.purityKeys), a);
+      if (scheme.kind == PlotSeries::FileKind::Spectra) {
+        rapidjson::Value sections(rapidjson::kArrayType);
+        for (const PlotSeries::Catalog::Section& section : scheme.sections) {
+          rapidjson::Value sec(rapidjson::kObjectType), dys(rapidjson::kArrayType), ratios(rapidjson::kArrayType);
+          sec.AddMember("section", str(section.name), a);
+          sec.AddMember("species", strings(section.species), a);
+          for (double dy : section.deltaYLimits)
+            dys.PushBack(dy, a);
+          sec.AddMember("dy", dys, a);
+          for (const auto& [num, den] : section.speciesRatios) {
+            rapidjson::Value r(rapidjson::kObjectType);
+            r.AddMember("numerator", str(num), a).AddMember("denominator", str(den), a);
+            ratios.PushBack(r, a);
+          }
+          sec.AddMember("species_ratios", ratios, a);
+          sections.PushBack(sec, a);
+        }
+        sc.AddMember("sections", sections, a);
+      }
+      for (const char* fact : {"produced_at", "git_commit"})
+        if (auto it = scheme.provenance.find(fact); it != scheme.provenance.end())
+          sc.AddMember(rapidjson::StringRef(fact), str(it->second), a);
+      schemes.PushBack(sc, a);
+    }
+    file.AddMember("schemes", schemes, a);
+    doc.PushBack(file, a);
+  }
+  rapidjson::StringBuffer buffer;
+  rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+  writer.SetIndent(' ', 2);
+  doc.Accept(writer);
+  return buffer.GetString();
 }
 
 } // namespace PlotSpec
