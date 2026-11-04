@@ -9,10 +9,10 @@
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
+#include "PlotSummaries.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 
-#include "TCanvas.h"
 #include "TDirectory.h"
 #include "TFile.h"
 #include "TH1.h"
@@ -95,12 +95,6 @@ class MCTask : public IAnalysisTask
     // Each entry may specify its own "input_mc_file" — useful when different
     // species live in different MC production files (e.g. K0S vs Xi vs Pi).
     int pIdx = 0;
-    // One summary canvas of a particle: a correction map, one curve per class, at one binning; name and path from
-    // the same (map, binning).
-    auto addSummary = [&](const std::string& particle, CorrectionMap map, SpectrumBinning binning, const std::string& title) {
-      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(OutputNames::CorrectionSummaryCanvas(particle, map, binning), title,
-                                                             OutputNames::CorrectionSummaryPath(globalCfgs.binningName, map, binning)));
-    };
 
     for (const auto& p : particles) {
       const std::string ctx = std::format("{} mc_particles[{}]", GetName(), pIdx++);
@@ -167,15 +161,6 @@ class MCTask : public IAnalysisTask
         data.rebinningPt = std::move(bins);
       }
 
-      // Register particle summary canvases with their target ROOT subdirectories; the source-binning ones exist only
-      // with 'rebinning_pt'. Each one declares its Y range here; the manager applies it when it writes.
-      addSummary(name, CorrectionMap::Efficiency, SpectrumBinning::Analysis, std::format("{} Acceptance x Efficiency", name));
-      addSummary(name, CorrectionMap::SignalLoss, SpectrumBinning::Analysis, std::format("{} Signal Loss", name));
-      if (data.rebinningPt) {
-        addSummary(name, CorrectionMap::Efficiency, SpectrumBinning::Source, std::format("{} Efficiency (Source Binning)", name));
-        addSummary(name, CorrectionMap::SignalLoss, SpectrumBinning::Source, std::format("{} Signal Loss (Source Binning)", name));
-      }
-
       dataCollection.push_back(std::move(data));
     }
 
@@ -198,15 +183,6 @@ class MCTask : public IAnalysisTask
         BinningUtils::RequireSameAxis(hEventMultGenAssocReco->GetXaxis(), hEventMultGen->GetXaxis(),
                                       std::format("{} multiplicity", genAssocRecoEventPath), std::format("{} multiplicity", genEventPath));
       }
-
-      // OverEventLoss canvases are registered only when event histograms exist
-      for (const auto& data : dataCollection) {
-        addSummary(data.name, CorrectionMap::SignalLossOverEventLoss, SpectrumBinning::Analysis,
-                   std::format("{} Signal Loss / Event Loss", data.name));
-        if (data.rebinningPt)
-          addSummary(data.name, CorrectionMap::SignalLossOverEventLoss, SpectrumBinning::Source,
-                     std::format("{} Signal Loss / Event Loss (Source Binning)", data.name));
-      }
     } else {
       Logger::Warn("{}: No input files were opened. Event Loss will not be computed!", GetName());
     }
@@ -218,7 +194,7 @@ class MCTask : public IAnalysisTask
     }
 
     // 6. Open the master output file for corrections
-    std::string outputPath = std::format("{}{}Corrections.root", outputDir, outputPrefix);
+    outputPath = std::format("{}{}Corrections.root", outputDir, outputPrefix);
     outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
 
     // This run rewrites its whole scheme directory - AccEff, SigLoss, EvLoss and the
@@ -297,25 +273,12 @@ class MCTask : public IAnalysisTask
       // 2. Compute 1D Spectra across multiplicity bins
       //
       // The maps at the source binning exist only when 'rebinning_pt' merged the
-      // counts. They go on their own pair of canvases: each canvas overlays the
-      // multiplicity bins against each other, so mixing two binnings on one pad
-      // would make exactly the comparison it is drawn for unreadable.
-      // A source-binning map exists only with 'rebinning_pt', and so does its canvas.
-      auto drawOn = [&](CorrectionMap map, SpectrumBinning binning, const TH1* h, const char* option, int color) {
-        if (h)
-          if (auto* c = canvasManager.GetCanvas(OutputNames::CorrectionSummaryCanvas(data.name, map, binning))) {
-            c->cd();
-            CanvasManager::DrawStyledCopy(h, option, color);
-          }
-      };
-
+      // counts.
+      //
       // One multiplicity class (none: the multiplicity-integrated maps): its maps, and the signal loss over the event
-      // loss of the class, drawn on the summary canvases and written. The tag, the colour and the draw option all
-      // follow from the class.
+      // loss of the class, written. The summaries are drawn from the file in Terminate (PlotSummaries::Corrections).
       auto summarise = [&](EfficiencyCalculator::Maps1D maps, std::optional<int> multBin) {
         const std::string multTag = multBin ? OutputNames::MultTag(multBinning, *multBin) : OutputNames::MultUnionTag(multBinning);
-        const int color = multBin ? CanvasManager::ClassColor(*multBin) : kBlack;
-        const char* option = multBin == 0 ? "" : "SAME";
 
         if (hEventLoss) {
           const auto eventLoss = EfficiencyCalculator::EventLossOfClass(hEventLoss.get(), hEventMultGenAssocReco.get(), hEventMultGen.get(),
@@ -325,13 +288,6 @@ class MCTask : public IAnalysisTask
           else
             Logger::Warn("{}: event loss is zero for {}, {}: its signal loss over event loss is not written.", GetName(), data.name, multTag);
         }
-
-        drawOn(CorrectionMap::Efficiency, SpectrumBinning::Analysis, maps.efficiency.get(), option, color);
-        drawOn(CorrectionMap::SignalLoss, SpectrumBinning::Analysis, maps.signalLoss.get(), option, color);
-        drawOn(CorrectionMap::SignalLossOverEventLoss, SpectrumBinning::Analysis, maps.signalLossOverEventLoss.get(), option, color);
-        drawOn(CorrectionMap::Efficiency, SpectrumBinning::Source, maps.efficiencySourceBinning.get(), option, color);
-        drawOn(CorrectionMap::SignalLoss, SpectrumBinning::Source, maps.signalLossSourceBinning.get(), option, color);
-        drawOn(CorrectionMap::SignalLossOverEventLoss, SpectrumBinning::Source, maps.signalLossOverEventLossSourceBinning.get(), option, color);
 
         // The source-binning maps get a subdirectory of their own rather than
         // sitting next to the analysis ones, and it is created by the write itself:
@@ -371,13 +327,18 @@ class MCTask : public IAnalysisTask
                               multBinning);
 
     RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
+    outputFile->Close();
 
-    // Save all diagnostic canvases into their registered subdirectories; the Y ranges
-    // declared at creation are applied on the way out.
-    canvasManager.WriteAll(outputFile.get());
-
-    if (outputFile)
-      outputFile->Close();
+    // The summaries are drawn from what was written, as any reader of the file would draw them, and written into the
+    // same file (their directories are under the scheme ClearPath emptied in Init).
+    std::vector<std::string> particles;
+    for (const auto& data : dataCollection)
+      particles.push_back(data.name);
+    CanvasManager summaries;
+    PlotSummaries::Corrections(summaries, outputPath, globalCfgs.binningName, particles);
+    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
+    summaries.WriteAll(outputFile.get());
+    outputFile->Close();
 
     Logger::Info("{}: DONE.", GetName());
   }
@@ -388,7 +349,7 @@ class MCTask : public IAnalysisTask
 
   AnalysisSettings globalCfgs;
 
-  CanvasManager canvasManager;
+  std::string outputPath;
 
   std::vector<AnalysisStructures::LoadedMC> dataCollection;
 

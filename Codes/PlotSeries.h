@@ -371,6 +371,9 @@ inline Comparison Compare(const Series& a, const Series& b)
       result.notChecked.push_back(std::format("{} ({}): a series of a foreign file has no stamp", stamp, where));
       return;
     }
+    // One directory of one open file holds one stamp, or none: the same binning either way, nothing to compare.
+    if (da == db)
+      return;
     const RootIO::StampComparison c =
       RootIO::CompareBinningStamps(da, db, stamp, std::format("'{}'", oa.fileName), std::format("'{}'", ob.fileName));
     if (c.outcome == RootIO::StampComparison::Outcome::NotChecked)
