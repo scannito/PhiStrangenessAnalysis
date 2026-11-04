@@ -54,8 +54,7 @@ class PurityTask : public IAnalysisTask
 
     // Prefix to specify the type of analysis (Data vs MCClosure)
     outputPrefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
-    outputPath = std::format("{}{}{}", outputDir, outputPrefix, OutputNames::kPurityFile);
-    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
+    outputFile = RootIO::OpenOrThrow(std::format("{}{}{}", outputDir, outputPrefix, OutputNames::kPurityFile), "UPDATE", GetName());
 
     // CCDB-ready maps live under outputDir/{binningName}/ on disk, since the ROOT
     // object inside must be named literally "ccdb_object" with no subfolder.
@@ -167,15 +166,13 @@ class PurityTask : public IAnalysisTask
 
     // 3. Close the output file, then draw the summaries from what was written, as any reader of the file would draw
     // them, and write them into it (their directories are under the scheme ClearPath emptied in Init)
+    const std::string fileName = outputFile->GetName();
     outputFile->Close();
     std::vector<std::string> purityKeys;
     for (const auto& task : particleTasks)
       purityKeys.push_back(task.purityKey);
-    CanvasManager summaries;
-    PlotSummaries::Purities(summaries, outputPath, globalCfgs.binningName, purityKeys);
-    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
-    summaries.WriteAll(outputFile.get());
-    outputFile->Close();
+    PlotSummaries::WriteInto(fileName, GetName(),
+                             [&](CanvasManager& canvases) { PlotSummaries::Purities(canvases, fileName, globalCfgs.binningName, purityKeys); });
 
     Logger::Info("{}: DONE.", GetName());
   }
@@ -185,7 +182,6 @@ class PurityTask : public IAnalysisTask
 
   CanvasManager canvasManager; // the fit canvases, written and destroyed one by one
 
-  std::string outputPath;
   std::string ccdbOutputDir;
   std::string outputPrefix;
 

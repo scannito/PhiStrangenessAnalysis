@@ -43,6 +43,16 @@ inline const std::string kNormalisationRelError{"h1NormalisationRelError"};
 // Next to it: the |dy| limits the section was produced with (RootIO::WriteValueList), so that a reader can list them
 // without parsing names.
 inline const std::string kDeltaYLimits{"deltaY_limits"};
+// Where a section keeps a species' spectra and trends, and the cross-species ratios.
+inline std::vector<std::string> SpectraPath(const std::string& scheme, const std::string& section, const std::string& species)
+{
+  return {scheme, section, species, kSpectraDir};
+}
+inline std::vector<std::string> TrendsPath(const std::string& scheme, const std::string& section, const std::string& species)
+{
+  return {scheme, section, species, kTrendsDir};
+}
+inline std::vector<std::string> RatiosPath(const std::string& scheme, const std::string& section) { return {scheme, section, kRatiosDir}; }
 
 // The files between the fit tasks and CorrelationTask: the name that follows the output prefix.
 // Written once here, since the writer and the reader would otherwise each spell it, and a

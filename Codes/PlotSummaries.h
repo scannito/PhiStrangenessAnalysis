@@ -1,15 +1,17 @@
 #pragma once
 
+#include "AnalysisStructures.h"
+#include "BinningUtils.h"
 #include "CanvasManager.h"
-#include "Logger.h"
 #include "OutputNames.h"
 #include "PlotSeries.h"
+#include "RootIOHelpers.h"
 
 #include "TCanvas.h"
-#include "TF1.h"
 #include "TLegend.h"
 
 #include <format>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
@@ -17,8 +19,14 @@
 // The summary canvases of the tasks, drawn from a file already written (DESIGN_NOTES section 1, "Plots: deterministic
 // components, composed"): a task calls them at the end of Terminate on the file it has just closed, and the same
 // functions redraw them from any file of that kind, with no task. What is drawn is found by PlotSeries, by meaning;
-// what a summary looks like is fixed here, and a variant is a composition of the same series (PlotDesigns). Each draws
-// into the CanvasManager it is given, at the canvas names and paths of OutputNames, which writes them.
+// what a summary looks like is fixed here, the look the tasks' canvases have always had, and a variant is a
+// composition of the same series (PlotDesigns). Each draws into the CanvasManager it is given, at the canvas names and
+// paths of OutputNames.
+//
+// What must be in the file is said per family. A family the task always writes is required: a missing object stops
+// the summary with what is missing (a wrong particle name, a file of another kind). A family the task writes only when
+// asked (the source binning, the extrapolation) is looked up once, and when it is there it is required whole. The
+// signal loss over event loss alone may lack a class: MCTask writes none where the event loss is zero, and says so.
 namespace PlotSummaries
 {
 
@@ -40,31 +48,47 @@ inline std::string CorrectionTitle(const std::string& particle, OutputNames::Cor
   throw std::runtime_error("[FATAL] PlotSummaries: unknown correction map.");
 }
 
-// One series per multiplicity class of the file, in the colour of the class, by 'resolve' (the class's interval to its
-// series). A class whose object is not in the file is left out with a warning that names 'what'; none at all is an empty
-// list, which is what a binning the task did not produce looks like (the source binning without 'rebinning_pt').
+// The series, or none when the file does not have it: for what a task writes only when asked.
 template <class Resolve>
-std::vector<PlotSeries::Series> ByClass(const std::string& fileName, const std::string& scheme, const std::string& what, Resolve resolve)
+std::optional<PlotSeries::Series> TryRead(Resolve resolve)
+{
+  try {
+    return resolve();
+  } catch (const PlotSeries::NotInFiles&) {
+    return std::nullopt;
+  }
+}
+
+// One series per multiplicity class of the file, in the colour of the class, by 'resolve' (the class's interval to its
+// series): every class required, or, with 'eachOptional', those the file has.
+template <class Resolve>
+std::vector<PlotSeries::Series> ByClass(const std::string& fileName, const std::string& scheme, Resolve resolve, bool eachOptional = false)
 {
   std::vector<PlotSeries::Series> series;
-  std::vector<std::string> missing;
   const std::vector<PlotSeries::Interval> classes = PlotSeries::Intervals(fileName, scheme);
   for (std::size_t multBin = 0; multBin < classes.size(); ++multBin) {
-    try {
-      PlotSeries::Series s = resolve(classes[multBin]);
-      s.look.color = CanvasManager::ClassColor(static_cast<int>(multBin));
-      series.push_back(std::move(s));
-    } catch (const PlotSeries::NotInFiles&) {
-      missing.push_back(std::format("{}-{}", BinningUtils::FormatEdge(classes[multBin].low), BinningUtils::FormatEdge(classes[multBin].high)));
-    }
+    std::optional<PlotSeries::Series> s = eachOptional ? TryRead([&] { return resolve(classes[multBin]); }) : resolve(classes[multBin]);
+    if (!s)
+      continue;
+    s->look.color = CanvasManager::ClassColor(static_cast<int>(multBin));
+    series.push_back(std::move(*s));
   }
-  if (!series.empty() && !missing.empty())
-    Logger::Warn("PlotSummaries: {} of '{}' is missing for the class(es) {}: not drawn.", what, fileName, Logger::Join(missing, ", "));
   return series;
 }
 
-// The classes overlaid on a new summary canvas, at its name and path, in the look the summaries have always had: the
-// first class sets the frame, ROOT's default option, the Y range adjusted when the manager writes the canvas.
+// The classes of a family the task writes only when asked: none when the first class is not in the file, all of them
+// otherwise.
+template <class Resolve>
+std::vector<PlotSeries::Series> ByClassIfProduced(const std::string& fileName, const std::string& scheme, Resolve resolve)
+{
+  const PlotSeries::Interval first = PlotSeries::Intervals(fileName, scheme).front();
+  if (!TryRead([&] { return resolve(first); }))
+    return {};
+  return ByClass(fileName, scheme, resolve);
+}
+
+// The series overlaid on a new summary canvas, at its name and path, in the look the summaries have always had: the
+// first one sets the frame, ROOT's default option, the Y range adjusted when the manager writes the canvas.
 inline std::vector<TH1*> DrawSummary(CanvasManager& canvases, const std::string& name, const std::string& title,
                                      const std::vector<std::string>& path, const std::vector<PlotSeries::Series>& series, bool logY = false)
 {
@@ -74,42 +98,42 @@ inline std::vector<TH1*> DrawSummary(CanvasManager& canvases, const std::string&
   canvas->cd();
   return PlotSeries::Draw(series, "");
 }
-
-// The |dy| limits of a section, as the correlation task recorded them next to its objects.
-inline std::vector<double> DeltaYLimits(const std::string& fileName, const std::string& scheme, const std::string& section)
-{
-  for (const PlotSeries::Catalog::Scheme& s : PlotSeries::ReadCatalog(fileName).schemes)
-    if (s.name == scheme)
-      for (const PlotSeries::Catalog::Section& sec : s.sections)
-        if (sec.name == section) {
-          if (!sec.deltaYLimits)
-            throw std::runtime_error(std::format("[FATAL] PlotSummaries: section '{}/{}' of '{}' does not record its |dy| limits ('{}'); "
-                                                 "it was written before they were: re-run the correlation task.",
-                                                 scheme, section, fileName, OutputNames::kDeltaYLimits));
-          return *sec.deltaYLimits;
-        }
-  throw PlotSeries::NotInFiles(std::format("[FATAL] PlotSummaries: '{}' has no section '{}/{}'.", fileName, scheme, section));
-}
 } // namespace Detail
 
-// The maps of one particle at one binning: one series per multiplicity class (Detail::ByClass; MCTask writes no signal
-// loss over event loss where the event loss is zero), then the multiplicity-integrated one in black.
+// The summaries of a file a task has just written and closed, written into it: 'draw' puts them on the CanvasManager
+// it is given, from the file, and they go to their paths when the file is reopened. 'owner' names the caller in errors.
+inline void WriteInto(const std::string& fileName, const std::string& owner, const std::function<void(CanvasManager&)>& draw)
+{
+  CanvasManager summaries;
+  draw(summaries);
+  auto file = RootIO::OpenOrThrow(fileName, "UPDATE", owner);
+  summaries.WriteAll(file.get());
+  file->Close();
+}
+
+// The maps of one particle at one binning: one series per multiplicity class, then the multiplicity-integrated one in
+// black. Efficiency and signal loss at the analysis binning are required; the source binning is there only with
+// 'rebinning_pt'; the signal loss over event loss may lack a class, or the integrated map.
 inline std::vector<PlotSeries::Series> CorrectionSeries(const std::string& fileName, const std::string& scheme, const std::string& particle,
                                                         OutputNames::CorrectionMap map, OutputNames::SpectrumBinning binning)
 {
-  std::vector<PlotSeries::Series> series =
-    Detail::ByClass(fileName, scheme, std::format("the {} of {}", OutputNames::CorrectionMapTitle(map), particle),
-                    [&](const PlotSeries::Interval& mult) { return PlotSeries::CorrectionMap(fileName, particle, map, mult, binning, scheme); });
+  auto resolve = [&](std::optional<PlotSeries::Interval> mult) { return PlotSeries::CorrectionMap(fileName, particle, map, mult, binning, scheme); };
+  auto ofClass = [&](const PlotSeries::Interval& mult) { return resolve(mult); };
+  const bool overEventLoss = map == OutputNames::CorrectionMap::SignalLossOverEventLoss;
+  std::vector<PlotSeries::Series> series = overEventLoss                                       ? Detail::ByClass(fileName, scheme, ofClass, true)
+                                           : binning == OutputNames::SpectrumBinning::Analysis ? Detail::ByClass(fileName, scheme, ofClass)
+                                                                                               : Detail::ByClassIfProduced(fileName, scheme, ofClass);
   if (series.empty())
     return series;
-  PlotSeries::Series integrated = PlotSeries::CorrectionMap(fileName, particle, map, std::nullopt, binning, scheme);
-  integrated.look.color = kBlack;
-  series.push_back(std::move(integrated));
+  std::optional<PlotSeries::Series> integrated = overEventLoss ? Detail::TryRead([&] { return resolve(std::nullopt); }) : resolve(std::nullopt);
+  if (integrated) {
+    integrated->look.color = kBlack;
+    series.push_back(std::move(*integrated));
+  }
   return series;
 }
 
-// MCTask's summaries: for each particle, each map and each binning it has, the classes overlaid on one canvas, the Y
-// range adjusted when the manager writes it.
+// MCTask's summaries: for each particle, each map and each binning it has, the classes overlaid on one canvas.
 inline void Corrections(CanvasManager& canvases, const std::string& fileName, const std::string& scheme, const std::vector<std::string>& particles)
 {
   using OutputNames::CorrectionMap;
@@ -124,12 +148,14 @@ inline void Corrections(CanvasManager& canvases, const std::string& fileName, co
       }
 }
 
-// The purity of one key at one binning, one series per multiplicity class (Detail::ByClass).
+// The purity of one key at one binning, one series per multiplicity class: the analysis binning required, the source
+// one there only with 'rebinning_pt'.
 inline std::vector<PlotSeries::Series> PuritySeries(const std::string& fileName, const std::string& scheme, const std::string& purityKey,
                                                     OutputNames::SpectrumBinning binning)
 {
-  return Detail::ByClass(fileName, scheme, std::format("the purity of {}", purityKey),
-                         [&](const PlotSeries::Interval& mult) { return PlotSeries::Purity(fileName, purityKey, mult, binning, scheme); });
+  auto ofClass = [&](const PlotSeries::Interval& mult) { return PlotSeries::Purity(fileName, purityKey, mult, binning, scheme); };
+  return binning == OutputNames::SpectrumBinning::Analysis ? Detail::ByClass(fileName, scheme, ofClass)
+                                                           : Detail::ByClassIfProduced(fileName, scheme, ofClass);
 }
 
 // PurityTask's summaries: for each purity key and each binning it has, the classes overlaid on one canvas.
@@ -146,91 +172,79 @@ inline void Purities(CanvasManager& canvases, const std::string& fileName, const
     }
 }
 
-// A ratio of two species' yields the correlation task was asked for (yield_ratios), with its label.
-struct SpeciesRatioSpec {
-  std::string num, den, label;
-};
-
-// The correlation task's summaries of one section, for each species: its spectra per |dy| (the classes, on a log
-// scale), the same extended to pT = 0 with their fitted curves where it was extrapolated (the measured canvas starts at
-// the first measured bin, so the region the extrapolation is about, a third of the yield, is the part it cannot show),
-// its yield trends against
-// multiplicity (the |dy| limits in the colours of the variants), measured, extrapolated and the one over the other;
-// then the species ratios, measured open and extrapolated filled, with their legend.
+// The correlation task's summaries of one section, for each species the section holds: its spectra per |dy| (the
+// classes, on a log scale); where it was extrapolated, the same extended to pT = 0 with their fitted curves (the
+// measured canvas starts at the first measured bin, so the region the extrapolation is about, a third of the yield, is
+// the part it cannot show); its yield trends against multiplicity (the |dy| limits in the colours of the variants),
+// measured, and extrapolated with the one over the other where it was extrapolated. Then the species ratios asked for,
+// measured open and extrapolated filled, with their legend.
 inline void Correlations(CanvasManager& canvases, const std::string& fileName, const std::string& scheme, const std::string& section,
-                         const std::vector<std::string>& species, const std::vector<SpeciesRatioSpec>& ratios)
+                         const std::vector<AnalysisStructures::YieldRatioConfig>& ratios)
 {
   using PlotSeries::TrendKind;
   const PlotSeries::Where where{scheme, section};
-  const std::vector<double> deltaYLimits = Detail::DeltaYLimits(fileName, scheme, section);
-  // A series that may not have been produced (no extrapolation for this species, no extrapolated ratio): none.
-  auto optional = [](auto resolve) -> std::optional<PlotSeries::Series> {
-    try {
-      return resolve();
-    } catch (const PlotSeries::NotInFiles&) {
-      return std::nullopt;
+  const std::vector<double> deltaYLimits = PlotSeries::DeltaYLimits(fileName, where);
+
+  // One series per |dy| limit, in the colour of its variant: all of them, or, with 'ifProduced', none when the first is
+  // not in the file (what was not extrapolated).
+  auto byDeltaY = [&](auto resolve, bool ifProduced) {
+    std::vector<PlotSeries::Series> series;
+    if (ifProduced && !Detail::TryRead([&] { return resolve(deltaYLimits.front()); }))
+      return series;
+    for (std::size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
+      PlotSeries::Series s = resolve(deltaYLimits[yIdx]);
+      s.look.color = CanvasManager::VariantColor(static_cast<int>(yIdx));
+      series.push_back(std::move(s));
     }
+    return series;
   };
 
-  for (const std::string& p : species) {
-    const std::vector<std::string> spectraPath{scheme, section, p, OutputNames::kSpectraDir};
-    const std::vector<std::string> trendsPath{scheme, section, p, OutputNames::kTrendsDir};
+  for (const std::string& p : PlotSeries::SpeciesIn(fileName, where)) {
+    const std::vector<std::string> spectraPath = OutputNames::SpectraPath(scheme, section, p);
     for (double dy : deltaYLimits) {
       const std::string dyText = BinningUtils::FormatDeltaY(dy);
       Detail::DrawSummary(canvases, OutputNames::SpectraCanvas(p, dy), std::format("Spectra {} |#Delta y| < {}", p, dyText), spectraPath,
-                          Detail::ByClass(fileName, scheme, std::format("the spectrum of {} at |dy| < {}", p, dyText),
-                                          [&](const PlotSeries::Interval& mult) { return PlotSeries::Spectrum(fileName, p, dy, mult, where); }),
+                          Detail::ByClass(fileName, scheme, [&](const PlotSeries::Interval& mult) { return PlotSeries::Spectrum(fileName, p, dy, mult, where); }),
                           true);
-      const std::vector<PlotSeries::Series> extended =
-        Detail::ByClass(fileName, scheme, std::format("the extended spectrum of {} at |dy| < {}", p, dyText),
-                        [&](const PlotSeries::Interval& mult) { return PlotSeries::SpectrumExtended(fileName, p, dy, mult, where); });
-      if (extended.empty())
-        continue;
-      // Each fitted curve in the colour of its spectrum, so that it reads against its own points and not the next ones.
-      for (TH1* drawn : Detail::DrawSummary(canvases, OutputNames::SpectraExtrapCanvas(p, dy),
-                                            std::format("Spectra with extrapolation {} |#Delta y| < {}", p, dyText), spectraPath, extended, true))
-        for (TObject* function : *drawn->GetListOfFunctions())
-          if (auto* curve = dynamic_cast<TF1*>(function)) {
-            curve->SetLineColor(drawn->GetMarkerColor());
-            curve->SetLineWidth(2);
-          }
+      const std::vector<PlotSeries::Series> extended = Detail::ByClassIfProduced(
+        fileName, scheme, [&](const PlotSeries::Interval& mult) { return PlotSeries::SpectrumExtended(fileName, p, dy, mult, where); });
+      if (!extended.empty())
+        Detail::DrawSummary(canvases, OutputNames::SpectraExtrapCanvas(p, dy), std::format("Spectra with extrapolation {} |#Delta y| < {}", p, dyText),
+                            spectraPath, extended, true);
     }
 
-    auto trends = [&](TrendKind kind) {
-      std::vector<PlotSeries::Series> series;
-      for (std::size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx)
-        if (std::optional<PlotSeries::Series> s = optional([&] { return PlotSeries::Trend(fileName, p, deltaYLimits[yIdx], kind, where); })) {
-          s->look.color = CanvasManager::VariantColor(static_cast<int>(yIdx));
-          series.push_back(std::move(*s));
-        }
-      return series;
-    };
-    Detail::DrawSummary(canvases, OutputNames::TrendCanvas(p), "Measured Yield Trend", trendsPath, trends(TrendKind::Measured));
-    if (const std::vector<PlotSeries::Series> extrap = trends(TrendKind::Extrapolated); !extrap.empty()) {
+    const std::vector<std::string> trendsPath = OutputNames::TrendsPath(scheme, section, p);
+    auto trend = [&](TrendKind kind) { return [&, kind](double dy) { return PlotSeries::Trend(fileName, p, dy, kind, where); }; };
+    Detail::DrawSummary(canvases, OutputNames::TrendCanvas(p), "Measured Yield Trend", trendsPath, byDeltaY(trend(TrendKind::Measured), false));
+    if (const std::vector<PlotSeries::Series> extrap = byDeltaY(trend(TrendKind::Extrapolated), true); !extrap.empty()) {
       Detail::DrawSummary(canvases, OutputNames::TrendExtrapCanvas(p), "Extrapolated Yield Trend", trendsPath, extrap);
-      Detail::DrawSummary(canvases, OutputNames::TrendExtrapOverMeasCanvas(p), "Extrap / Measured Ratio", trendsPath, trends(TrendKind::ExtrapOverMeas));
+      Detail::DrawSummary(canvases, OutputNames::TrendExtrapOverMeasCanvas(p), "Extrap / Measured Ratio", trendsPath,
+                          byDeltaY(trend(TrendKind::ExtrapOverMeas), false));
     }
   }
 
-  for (const SpeciesRatioSpec& ratio : ratios) {
+  for (const AnalysisStructures::YieldRatioConfig& ratio : ratios) {
+    auto ofKind = [&](TrendKind kind) {
+      return [&, kind](double dy) { return PlotSeries::SpeciesRatio(fileName, ratio.num, ratio.den, dy, kind, where); };
+    };
+    const std::vector<PlotSeries::Series> measured = byDeltaY(ofKind(TrendKind::Measured), false);
+    const std::vector<PlotSeries::Series> extrapolated = byDeltaY(ofKind(TrendKind::Extrapolated), true);
+    // Per |dy|, the measured ratio and then the extrapolated one, as the legend lists them.
     std::vector<PlotSeries::Series> series;
     std::vector<std::string> labels;
     for (std::size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
-      const double dy = deltaYLimits[yIdx];
-      const int color = CanvasManager::VariantColor(static_cast<int>(yIdx));
-      PlotSeries::Series meas = PlotSeries::SpeciesRatio(fileName, ratio.num, ratio.den, dy, TrendKind::Measured, where);
-      meas.look = {.color = color, .marker = 24};
-      series.push_back(std::move(meas));
-      labels.push_back(std::format("Meas. |#Delta y| < {}", BinningUtils::FormatDeltaY(dy)));
-      if (std::optional<PlotSeries::Series> extrap =
-            optional([&] { return PlotSeries::SpeciesRatio(fileName, ratio.num, ratio.den, dy, TrendKind::Extrapolated, where); })) {
-        extrap->look = {.color = color, .marker = 20};
-        series.push_back(std::move(*extrap));
-        labels.push_back(std::format("Extrap. |#Delta y| < {}", BinningUtils::FormatDeltaY(dy)));
+      const std::string dyText = BinningUtils::FormatDeltaY(deltaYLimits[yIdx]);
+      series.push_back(measured[yIdx]);
+      series.back().look.marker = 24;
+      labels.push_back(std::format("Meas. |#Delta y| < {}", dyText));
+      if (!extrapolated.empty()) {
+        series.push_back(extrapolated[yIdx]);
+        series.back().look.marker = 20;
+        labels.push_back(std::format("Extrap. |#Delta y| < {}", dyText));
       }
     }
     const std::vector<TH1*> drawn = Detail::DrawSummary(canvases, OutputNames::ParticleRatioCanvas(ratio.num, ratio.den),
-                                                        std::format("Ratio Mult Trend {}", ratio.label), {scheme, section, OutputNames::kRatiosDir}, series);
+                                                        std::format("Ratio Mult Trend {}", ratio.label), OutputNames::RatiosPath(scheme, section), series);
     TLegend* legend = CanvasManager::CreateLegend(0.7, 0.7, 0.9, 0.9, 2);
     for (std::size_t i = 0; i < drawn.size(); ++i)
       legend->AddEntry(drawn[i], labels[i].c_str(), "p");
