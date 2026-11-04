@@ -183,6 +183,14 @@ inline bool RequireBool(const rapidjson::Value& node, const char* key, std::stri
 // not a string - the JSON number accepted by the Optional form and nothing looser, so that
 // a key does not change meaning when it moves from one form to the other. ToNumber, which
 // also reads "6.4", is for a value already in hand.
+inline int RequireInt(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  const auto& val = RequireMember(node, key, errCtx);
+  if (!val.IsInt())
+    throw std::runtime_error(std::format("[FATAL] {}: key '{}' exists but is NOT an integer!", errCtx, key));
+  return val.GetInt();
+}
+
 inline double RequireDouble(const rapidjson::Value& node, const char* key, std::string_view errCtx)
 {
   const auto& val = RequireMember(node, key, errCtx);
@@ -355,22 +363,27 @@ inline const rapidjson::Value* TryObject(const rapidjson::Value& node, const cha
 // The caller names the type it fills ({low, high}, AnalysisStructures::Range), so that this header, which reads
 // configurations, does not depend on the analysis types and on ROOT through them.
 template <typename RangeType>
-std::optional<RangeType> TryRange(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+RangeType ToRange(const rapidjson::Value& value, std::string_view what, std::string_view errCtx)
 {
-  auto array = TryArray(node, key, errCtx);
-  if (!array)
-    return std::nullopt;
-
-  const std::vector<double> values = ReadNumberArray(*array, key, errCtx);
+  const std::vector<double> values = ReadNumberArray(ToArray(value, what, errCtx), what, errCtx);
   if (values.size() != 2)
     throw std::runtime_error(std::format("[FATAL] {}: '{}' must have exactly two entries, [low, high], but has {}.",
-                                         errCtx, key, values.size()));
+                                         errCtx, what, values.size()));
 
   // A reversed or empty range would integrate nothing, which reads as a range with nothing in it.
   if (!(values[0] < values[1]))
     throw std::runtime_error(std::format("[FATAL] {}: '{}' must be [low, high] with low < high, but is [{}, {}].",
-                                         errCtx, key, values[0], values[1]));
+                                         errCtx, what, values[0], values[1]));
   return RangeType{values[0], values[1]};
+}
+
+template <typename RangeType>
+std::optional<RangeType> TryRange(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  const rapidjson::Value* value = OptionalMember(node, key);
+  if (!value)
+    return std::nullopt;
+  return ToRange<RangeType>(*value, key, errCtx);
 }
 
 inline std::optional<double> TryDouble(const rapidjson::Value& node, const char* key, std::string_view errCtx)

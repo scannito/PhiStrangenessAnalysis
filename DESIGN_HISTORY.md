@@ -1717,3 +1717,40 @@ macro (`#pragma cling add_include_path`). The real-data run projects each source
 (`ProjectionZ` on one multiplicity and one pT bin) with the configuration indexed by that
 source bin: it is not the fits `PurityTask` does, which merges source pT bins into the
 analysis bins before fitting. Not repeated on other machines or other ROOT builds.
+
+## phiplot: plots on demand, and why the plot components replaced it
+
+`phiplot` was written on 19-20 October 2026 on the branch `plot-on-demand` and never merged. It answered a
+need that is still the one the plot components answer: plots asked for in words, by the owner or by a model,
+without writing a macro each time. What it was: a catalog of what a `PhiAssocSpectra` file held (`PlotCatalog`),
+a plot specification whose keys sat in one table that gave both the checks and a JSON schema (`PlotSpec`), a
+resolver that found every object through the stamps and refused a division between things that did not mean
+the same (`PlotRenderer`), and three front ends on that one interface: `phiplot quick` from the shell,
+`Macros/phiplot_ask.py` with a local model through Ollama, and a Claude Code skill. Its section 14 of
+DESIGN_NOTES, on that branch, is what was left open.
+
+**What it measured** (`Macros/phiplot_ask_test.py`, qwen2.5-coder:7b through Ollama 0.40.6, Q4_K_M, model file
+sha256 `60e05f21...`): 9 of 10 requests, seven right at the first attempt and the two impossible ones refused,
+15-25 s a request. And the lessons, each kept in its successor: Ollama's default context is 4096 tokens and it
+cuts a longer prompt without an error (the catalog fell off and the model invented a file), so the context is
+sized from the prompt; a schema given as the answer's format constrains it but is not read, so it is also in the
+prompt; kinds chosen by name alone are confused, so the schema says what each one is, with one form per kind;
+constrained to a specification the model substitutes the nearest thing (|dy| < 0.5 for a missing 0.3), so it may
+answer "cannot", offered only when what was asked is not in the files.
+
+**Why it was not carried forward as it was.** Three reasons, found in the design review of 3 November with both
+review agents. Its main motive, finding objects whose names carried bin indices, went away when the names began
+carrying intervals (23 October). The requests actually made over the following weeks (45 macros in the sandbox)
+used six layouts, of which phiplot had one. And its name parser, which recognised objects by their names, was a
+second copy of the naming rule that `OutputNames` exists to keep single.
+
+**What replaced it** (the plan "plots from deterministic components", phases A to G, branch `plots`):
+deterministic components decide what is read, compared and computed, and whoever asks only composes. `PlotSeries`
+finds a series by meaning and checks it the way `ComparisonTask` does; `PlotDesigns` holds the six layouts;
+`PlotSummaries` draws the tasks' summaries from the files they wrote; the files record what they hold; `PlotSpec`
+is the specification, now covering the six layouts, read by the same components, its schema one text that also
+validates; `phistrangeplot` is the command (summaries, list, schema, describe, render) and `Macros/plot_ask.py` the
+front end, for Ollama and llama.cpp's llama-server. What phiplot inspired, all kept: the specification as the only
+interface a model writes, the request by meaning, the binnings checked before a division, the description before
+the drawing, and its front end, carried over almost as it was. Not carried: the name parser (replaced by the
+catalog read forward), and `quick` with one option per key (replaced by a light form on a checked example).
