@@ -6,6 +6,7 @@
 #include "PlotSeries.h"
 
 #include "TCanvas.h"
+#include "TF1.h"
 #include "TLegend.h"
 
 #include <format>
@@ -183,9 +184,16 @@ inline void Correlations(CanvasManager& canvases, const std::string& fileName, c
       const std::vector<PlotSeries::Series> extended =
         Detail::ByClass(fileName, scheme, std::format("the extended spectrum of {} at |dy| < {}", p, dyText),
                         [&](const PlotSeries::Interval& mult) { return PlotSeries::SpectrumExtended(fileName, p, dy, mult, where); });
-      if (!extended.empty())
-        Detail::DrawSummary(canvases, OutputNames::SpectraExtrapCanvas(p, dy), std::format("Spectra with extrapolation {} |#Delta y| < {}", p, dyText),
-                            spectraPath, extended, true);
+      if (extended.empty())
+        continue;
+      // Each fitted curve in the colour of its spectrum, so that it reads against its own points and not the next ones.
+      for (TH1* drawn : Detail::DrawSummary(canvases, OutputNames::SpectraExtrapCanvas(p, dy),
+                                            std::format("Spectra with extrapolation {} |#Delta y| < {}", p, dyText), spectraPath, extended, true))
+        for (TObject* function : *drawn->GetListOfFunctions())
+          if (auto* curve = dynamic_cast<TF1*>(function)) {
+            curve->SetLineColor(drawn->GetMarkerColor());
+            curve->SetLineWidth(2);
+          }
     }
 
     auto trends = [&](TrendKind kind) {
