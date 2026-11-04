@@ -57,14 +57,10 @@ struct Facts {
   std::optional<std::string> kind, species, dy, mult, binning;
 };
 
-// The facts by name, in the order a legend reads them (what it is, of what, where): AutoLabels' order, and the names by
-// which a specification or a Key refers to them.
-inline constexpr std::pair<std::string_view, std::optional<std::string> Facts::*> kFacts[] = {
-  {"kind", &Facts::kind}, {"species", &Facts::species}, {"dy", &Facts::dy}, {"mult", &Facts::mult}, {"binning", &Facts::binning}};
-
-// The quantity on a series' X axis: two series on one plot, or in one ratio, must share it. A binning that differs is
-// warned on an overlay; a quantity that differs makes the plot meaningless, and is refused.
+// The quantity on a series' X axis: two series on one plot, or in one ratio, must share it (RequireOneQuantityOnX). A
+// binning that differs is warned on an overlay; a quantity that differs makes the plot meaningless, and is refused.
 enum class OnX { PT, Multiplicity };
+inline std::string_view Name(OnX x) { return x == OnX::PT ? "pT" : "multiplicity"; }
 
 // Where a series was read: what its provenance records and what its stamps are compared on.
 struct Origin {
@@ -197,14 +193,10 @@ inline Located LocateSection(const std::string& fileName, const Where& where)
 inline Located Locate(const std::string& fileName, const Where& where, double dy)
 {
   const Located at = LocateSection(fileName, where);
-  // The names carry |dy| with two decimals (BinningUtils::FormatDeltaY): a value they cannot say is in no name, and is
-  // not to be rounded onto a neighbour's (0.504 onto 0.50) in a file that does not record its limits.
-  if (std::abs(dy - std::stod(BinningUtils::FormatDeltaY(dy))) > BinningUtils::kEdgeTolerance)
-    throw NotInFiles(std::format("[FATAL] PlotSeries: |dy| < {} is not a limit the files can hold (two decimals).", dy));
   const std::optional<std::vector<double>> limits = RootIO::ReadValueList(at.sectionDir, OutputNames::kDeltaYLimits, fileName);
   if (limits && std::ranges::none_of(*limits, [&](double limit) { return std::abs(limit - dy) <= BinningUtils::kEdgeTolerance; }))
     throw NotInFiles(std::format("[FATAL] PlotSeries: |dy| < {} is not a limit of section '{}' of '{}'. Available: {}.",
-                                 BinningUtils::FormatDeltaY(dy), at.sectionDir->GetName(), fileName,
+                                 dy, at.sectionDir->GetName(), fileName,
                                  Logger::Join(*limits | std::views::transform(BinningUtils::FormatDeltaY))));
   return at;
 }
@@ -488,6 +480,23 @@ struct Comparison {
   std::vector<std::string> notChecked;
 };
 
+// Series on one plot, or in one ratio, share the quantity on their X axis: each that has one against the first that has
+// one (a foreign object, which has none, says nothing either way).
+inline void RequireOneQuantityOnX(const std::vector<const Series*>& series)
+{
+  const Series* first = nullptr;
+  for (const Series* s : series) {
+    if (!s->x)
+      continue;
+    if (!first)
+      first = s;
+    else if (*s->x != *first->x)
+      throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' is against {} and '{}' against {}: one plot, or one ratio, has one "
+                                           "quantity on X.",
+                                           first->origins.front().path, Name(*first->x), s->origins.front().path, Name(*s->x)));
+  }
+}
+
 // The stamps of the directories the two series were read from (mult and ptPhi of the scheme, ptAssoc of each species
 // they share), by the rule of ComparisonTask, and their X axes. Only says: RequireCombinable stops, Draw warns,
 // Describe reports. A combined series is compared through its first origin, whose stamps its operands shared.
@@ -496,8 +505,6 @@ inline Comparison Compare(const Series& a, const Series& b)
   Comparison result;
   const Origin& oa = a.origins.front();
   const Origin& ob = b.origins.front();
-  if (a.x && b.x && *a.x != *b.x)
-    result.differs.push_back(std::format("the quantity on X: pT for one, multiplicity for the other ('{}', '{}')", oa.path, ob.path));
   auto check = [&](TDirectory* da, TDirectory* db, const std::string& stamp, const std::string& where) {
     if (!da || !db) {
       result.notChecked.push_back(std::format("{} ({}): a series of a foreign file has no stamp", stamp, where));
@@ -531,6 +538,7 @@ inline Comparison Compare(const Series& a, const Series& b)
 // not be checked is warned.
 inline void RequireCombinable(const Series& a, const Series& b)
 {
+  RequireOneQuantityOnX({&a, &b});
   const Comparison c = Compare(a, b);
   for (const std::string& n : c.notChecked)
     Logger::Warn("PlotSeries: '{}' and '{}', not checked: {}", a.origins.front().path, b.origins.front().path, n);
@@ -554,7 +562,7 @@ inline Series Combined(const Series& a, const Series& b, std::unique_ptr<TH1> hi
   auto common = [](const std::optional<std::string>& x, const std::optional<std::string>& y) { return x == y ? x : std::nullopt; };
   s.facts = {.kind = kind, .species = common(a.facts.species, b.facts.species), .dy = common(a.facts.dy, b.facts.dy),
              .mult = common(a.facts.mult, b.facts.mult), .binning = common(a.facts.binning, b.facts.binning)};
-  s.x = a.x == b.x ? a.x : std::nullopt;
+  s.x = a.x ? a.x : b.x; // RequireCombinable has refused two different ones; a foreign operand has none
   for (int bin = 1; bin <= s.hist->GetNbinsX(); ++bin)
     if (!std::isfinite(s.hist->GetBinContent(bin)) || !std::isfinite(s.hist->GetBinError(bin)))
       ++s.nonFiniteBins;
@@ -606,13 +614,11 @@ inline Series Scale(const Series& a, double factor)
 // legend.
 inline std::vector<TH1*> Draw(const std::vector<Series>& series, const std::string& option = "E1")
 {
+  std::vector<const Series*> all;
+  for (const Series& s : series)
+    all.push_back(&s);
+  RequireOneQuantityOnX(all);
   for (std::size_t i = 1; i < series.size(); ++i) {
-    if (series[i].x && series.front().x && *series[i].x != *series.front().x) {
-      auto name = [](OnX x) { return x == OnX::PT ? "pT" : "multiplicity"; };
-      throw std::runtime_error(std::format("[FATAL] PlotSeries::Draw: '{}' is against {} and '{}' against {}: one plot has one quantity on X.",
-                                           series.front().origins.front().path, name(*series.front().x), series[i].origins.front().path,
-                                           name(*series[i].x)));
-    }
     const Comparison c = Compare(series.front(), series[i]);
     for (const std::string& d : c.differs)
       Logger::Warn("PlotSeries: drawn together with a different binning, series 0 and {}: {}", i, d);
@@ -723,11 +729,13 @@ inline LegendText AutoLabels(const std::vector<Series>& series)
       ++suffix;
   }
 
-  constexpr std::size_t kFile = std::size(kFacts); // the file, after the facts
+  using Field = std::optional<std::string> Facts::*;
+  constexpr Field kOrder[] = {&Facts::kind, &Facts::species, &Facts::dy, &Facts::mult, &Facts::binning};
+  constexpr std::size_t kFile = std::size(kOrder); // the file, after the facts
   std::vector<std::vector<std::optional<std::string>>> all;
   for (std::size_t i = 0; i < series.size(); ++i) {
     std::vector<std::optional<std::string>> values;
-    for (const auto& [name, field] : kFacts)
+    for (Field field : kOrder)
       values.push_back(series[i].facts.*field);
     std::string kept;
     for (std::size_t w = prefix; w + suffix < fileWords[i].size(); ++w)

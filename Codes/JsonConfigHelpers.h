@@ -383,6 +383,16 @@ inline std::optional<double> TryDouble(const rapidjson::Value& node, const char*
   return val->GetDouble();
 }
 
+inline std::optional<int> TryInt(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  const rapidjson::Value* val = OptionalMember(node, key);
+  if (!val)
+    return std::nullopt;
+  if (!val->IsInt())
+    throw std::runtime_error(std::format("[FATAL] {}: key '{}' is present but is NOT an integer, so it would be silently ignored.", errCtx, key));
+  return val->GetInt();
+}
+
 inline std::optional<std::string> TryString(const rapidjson::Value& node, const char* key, std::string_view errCtx)
 {
   const rapidjson::Value* val = OptionalMember(node, key);
