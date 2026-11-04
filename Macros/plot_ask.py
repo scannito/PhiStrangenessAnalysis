@@ -143,6 +143,8 @@ def main():
     ap.add_argument("--num-ctx", type=int, default=None, help="Ollama's context in tokens; by default sized from the prompt")
     ap.add_argument("--retries", type=int, default=2, help="how many times a refused specification is handed back")
     ap.add_argument("--yes", action="store_true", help="draw without asking for confirmation")
+    ap.add_argument("--allow-binomial", action="store_true",
+                    help="let the model divide with binomial errors (divide_option \"B\"): only for a closure, where the numerator is a subset of the denominator")
     ap.add_argument("--alice", default=None, help="the ALICE label's status; needs --system")
     ap.add_argument("--system", default=None, help="the collision system of the ALICE label")
     ap.add_argument("--phistrangeplot", default=str(REPO / "build" / "phistrangeplot"))
@@ -203,10 +205,19 @@ def main():
                 print(f"[plot_ask] the model says this cannot be drawn from these files: {spec['cannot']}", file=sys.stderr)
                 sys.exit(EXIT_CANNOT)
             spec_path.write_text(json.dumps(spec, indent=2) + "\n")
-            described = run([tool, "describe", str(spec_path)], check=False)
-            if described.returncode == 0:
-                break
-            problem = (described.stderr or described.stdout).strip()
+            # A binomial division is right only for a closure (the numerator a subset of the denominator), which
+            # neither phistrangeplot nor the model can tell from the files; chosen wrongly it changes the error
+            # bars and nothing else, so nothing would show it. Measured on 4 November 2026: qwen2.5-coder:7b
+            # chose it for two productions against the instructions. Only the person asking may allow it.
+            if isinstance(spec, dict) and spec.get("divide_option") == "B" and not args.allow_binomial:
+                described = None
+                problem = ('divide_option "B" (binomial errors) is not allowed for this request: the series are independent '
+                           'samples. Use divide_option "".')
+            else:
+                described = run([tool, "describe", str(spec_path)], check=False)
+                if described.returncode == 0:
+                    break
+                problem = (described.stderr or described.stdout).strip()
         print(f"[plot_ask] attempt {attempt + 1} refused:\n{problem}\n", file=sys.stderr)
         missing = described is not None and described.returncode == EXIT_NOT_IN_FILES
         current = schema if missing else spec_only
