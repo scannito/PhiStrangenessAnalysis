@@ -57,6 +57,15 @@ struct Facts {
   std::optional<std::string> kind, species, dy, mult, binning;
 };
 
+// The facts by name, in the order a legend reads them (what it is, of what, where): AutoLabels' order, and the names by
+// which a specification or a Key refers to them.
+inline constexpr std::pair<std::string_view, std::optional<std::string> Facts::*> kFacts[] = {
+  {"kind", &Facts::kind}, {"species", &Facts::species}, {"dy", &Facts::dy}, {"mult", &Facts::mult}, {"binning", &Facts::binning}};
+
+// The quantity on a series' X axis: two series on one plot, or in one ratio, must share it. A binning that differs is
+// warned on an overlay; a quantity that differs makes the plot meaningless, and is refused.
+enum class OnX { PT, Multiplicity };
+
 // Where a series was read: what its provenance records and what its stamps are compared on.
 struct Origin {
   std::shared_ptr<TFile> file; // kept open: the stamps and the provenance are read from it
@@ -81,6 +90,7 @@ struct Series {
   std::vector<std::string> notes; // what Describe reports besides the origins: the operations
   Facts facts;
   Look look;
+  std::optional<OnX> x; // none for a foreign object, whose axis says nothing the framework knows
 };
 
 // Which yield of a species against multiplicity.
@@ -127,8 +137,12 @@ TDirectory* PickDir(TDirectory* base, const std::string& name, const std::string
     for (TObject* key : *base->GetListOfKeys())
       if (TDirectory* dir = base->GetDirectory(key->GetName()); dir && accept(dir))
         found.push_back(dir);
-  if (found.size() != 1)
-    throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' holds {} {}s; name the one to read.", fileName, found.size(), what));
+  if (found.empty())
+    throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' holds no {}.", fileName, what));
+  // More than one is a request to complete, not a file that lacks something: name them.
+  if (found.size() > 1)
+    throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' holds {} {}s ({}); name the one to read.", fileName, found.size(), what,
+                                         Logger::Join(found | std::views::transform([](TDirectory* d) { return std::string(d->GetName()); }))));
   return found.front();
 }
 
@@ -183,6 +197,10 @@ inline Located LocateSection(const std::string& fileName, const Where& where)
 inline Located Locate(const std::string& fileName, const Where& where, double dy)
 {
   const Located at = LocateSection(fileName, where);
+  // The names carry |dy| with two decimals (BinningUtils::FormatDeltaY): a value they cannot say is in no name, and is
+  // not to be rounded onto a neighbour's (0.504 onto 0.50) in a file that does not record its limits.
+  if (std::abs(dy - std::stod(BinningUtils::FormatDeltaY(dy))) > BinningUtils::kEdgeTolerance)
+    throw NotInFiles(std::format("[FATAL] PlotSeries: |dy| < {} is not a limit the files can hold (two decimals).", dy));
   const std::optional<std::vector<double>> limits = RootIO::ReadValueList(at.sectionDir, OutputNames::kDeltaYLimits, fileName);
   if (limits && std::ranges::none_of(*limits, [&](double limit) { return std::abs(limit - dy) <= BinningUtils::kEdgeTolerance; }))
     throw NotInFiles(std::format("[FATAL] PlotSeries: |dy| < {} is not a limit of section '{}' of '{}'. Available: {}.",
@@ -246,6 +264,7 @@ inline Series SpectrumAt(const std::string& fileName, const std::string& species
                   RootIO::ObjectPath(OutputNames::SpectraPath(at.schemeDir->GetName(), at.sectionDir->GetName(), species),
                                      extended ? OutputNames::SpectrumExtended(name) : name),
                   at.schemeDir, {speciesDir});
+  s.x = OnX::PT;
   s.facts = {.kind = extended ? "spectrum, extended to pT = 0" : "spectrum", .species = species, .dy = DyFact(dy),
              .mult = MultFact(edges, multBin)};
   return s;
@@ -278,6 +297,7 @@ inline Series Trend(const std::string& fileName, const std::string& species, dou
   Series s = Detail::Read(at.file, fileName,
                           RootIO::ObjectPath(OutputNames::TrendsPath(at.schemeDir->GetName(), at.sectionDir->GetName(), species), name),
                           at.schemeDir, {speciesDir});
+  s.x = OnX::Multiplicity;
   s.facts = {.kind = kind == TrendKind::Measured       ? "yield, measured"
                      : kind == TrendKind::Extrapolated ? "yield, extrapolated"
                                                        : "extrapolated over measured yield",
@@ -299,6 +319,7 @@ inline Series SpeciesRatio(const std::string& fileName, const std::string& num, 
                                              extrapolated ? OutputNames::ParticleRatioExtrapolated(num, den, dy)
                                                           : OutputNames::ParticleRatioMeasured(num, den, dy)),
                           at.schemeDir, {Detail::Species(at.sectionDir, num, fileName), Detail::Species(at.sectionDir, den, fileName)});
+  s.x = OnX::Multiplicity;
   s.facts = {.kind = extrapolated ? "species ratio, extrapolated" : "species ratio, measured", .species = std::format("{}/{}", num, den),
              .dy = Detail::DyFact(dy)};
   return s;
@@ -318,6 +339,7 @@ inline Series Purity(const std::string& fileName, const std::string& purityKey, 
                           RootIO::ObjectPath(OutputNames::SummaryPath(schemeDir->GetName(), binning),
                                              OutputNames::Purity(purityKey, OutputNames::MultTag(edges, multBin), binning)),
                           schemeDir, {});
+  s.x = OnX::PT;
   s.facts = {.kind = "purity", .species = purityKey, .mult = Detail::MultFact(edges, multBin), .binning = Detail::BinningFact(binning)};
   return s;
 }
@@ -442,6 +464,7 @@ inline Series CorrectionMap(const std::string& fileName, const std::string& part
                           RootIO::ObjectPath(OutputNames::CorrectionMapPath(schemeDir->GetName(), map, binning),
                                              OutputNames::CorrectionMapName(particle, map, multTag, binning)),
                           schemeDir, {});
+  s.x = OnX::PT;
   s.facts = {.kind = std::string(OutputNames::CorrectionMapTitle(map)), .species = particle, .mult = multFact,
              .binning = Detail::BinningFact(binning)};
   return s;
@@ -473,6 +496,8 @@ inline Comparison Compare(const Series& a, const Series& b)
   Comparison result;
   const Origin& oa = a.origins.front();
   const Origin& ob = b.origins.front();
+  if (a.x && b.x && *a.x != *b.x)
+    result.differs.push_back(std::format("the quantity on X: pT for one, multiplicity for the other ('{}', '{}')", oa.path, ob.path));
   auto check = [&](TDirectory* da, TDirectory* db, const std::string& stamp, const std::string& where) {
     if (!da || !db) {
       result.notChecked.push_back(std::format("{} ({}): a series of a foreign file has no stamp", stamp, where));
@@ -529,6 +554,7 @@ inline Series Combined(const Series& a, const Series& b, std::unique_ptr<TH1> hi
   auto common = [](const std::optional<std::string>& x, const std::optional<std::string>& y) { return x == y ? x : std::nullopt; };
   s.facts = {.kind = kind, .species = common(a.facts.species, b.facts.species), .dy = common(a.facts.dy, b.facts.dy),
              .mult = common(a.facts.mult, b.facts.mult), .binning = common(a.facts.binning, b.facts.binning)};
+  s.x = a.x == b.x ? a.x : std::nullopt;
   for (int bin = 1; bin <= s.hist->GetNbinsX(); ++bin)
     if (!std::isfinite(s.hist->GetBinContent(bin)) || !std::isfinite(s.hist->GetBinError(bin)))
       ++s.nonFiniteBins;
@@ -581,6 +607,12 @@ inline Series Scale(const Series& a, double factor)
 inline std::vector<TH1*> Draw(const std::vector<Series>& series, const std::string& option = "E1")
 {
   for (std::size_t i = 1; i < series.size(); ++i) {
+    if (series[i].x && series.front().x && *series[i].x != *series.front().x) {
+      auto name = [](OnX x) { return x == OnX::PT ? "pT" : "multiplicity"; };
+      throw std::runtime_error(std::format("[FATAL] PlotSeries::Draw: '{}' is against {} and '{}' against {}: one plot has one quantity on X.",
+                                           series.front().origins.front().path, name(*series.front().x), series[i].origins.front().path,
+                                           name(*series[i].x)));
+    }
     const Comparison c = Compare(series.front(), series[i]);
     for (const std::string& d : c.differs)
       Logger::Warn("PlotSeries: drawn together with a different binning, series 0 and {}: {}", i, d);
@@ -691,13 +723,11 @@ inline LegendText AutoLabels(const std::vector<Series>& series)
       ++suffix;
   }
 
-  using Field = std::optional<std::string> Facts::*;
-  constexpr Field kOrder[] = {&Facts::kind, &Facts::species, &Facts::dy, &Facts::mult, &Facts::binning};
-  constexpr std::size_t kFile = std::size(kOrder); // the file, after the facts
+  constexpr std::size_t kFile = std::size(kFacts); // the file, after the facts
   std::vector<std::vector<std::optional<std::string>>> all;
   for (std::size_t i = 0; i < series.size(); ++i) {
     std::vector<std::optional<std::string>> values;
-    for (Field field : kOrder)
+    for (const auto& [name, field] : kFacts)
       values.push_back(series[i].facts.*field);
     std::string kept;
     for (std::size_t w = prefix; w + suffix < fileWords[i].size(); ++w)
