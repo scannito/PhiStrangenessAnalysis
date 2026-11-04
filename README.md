@@ -47,11 +47,13 @@ consequences in particular:
 | `JSONConfigs/` | Analysis configurations, one file per campaign (`globalConfigMCpp.json`, …), plus the shared `globalConfigBase<system>.json`. |
 | `Macros/` | Standalone diagnostic, conversion and plotting macros, independent of the chain. |
 | `HYConfigs/` | HEPData / Yield configuration inputs. |
+| `PlotSpecs/` | The instructions and example specifications of the plots asked in words (`PLOTS.md`). |
 | `DataFile/` | Input `AnalysisResults*.root` from O² and the produced outputs. |
 | `Logs/` | One log per run, named after the configuration. |
 | `OldCodes/`, `OldDataFile/` | Previous monolithic macros and retired headers (`YieldMean.h`, `FitPhiSignalAndBkg.h`), kept for reference. |
 | `DESIGN_NOTES.md` | Open design questions and known issues. |
 | `DESIGN_HISTORY.md` | Resolved design items, with the reasoning behind them. |
+| `PLOTS.md` | The plotting layer in detail: its components, the command `phistrangeplot`, the plots asked in words. |
 | `CLAUDE.md` | How to work in the repository without breaking things — the invariants, not the features. |
 
 ---
@@ -472,7 +474,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | `HistogramUtils.h` | `namespace HistogramUtils` — integrals with errors, `THnSparse` projections, spectrum and trend construction, ratios, rebinning with compatibility checks. |
 | `Logger.h` | `namespace Logger`: levels, one line format, and a summary of the run's warnings printed at the end. No dependencies. Every task and helper logs through it; the banners of `WorkflowManager` and `RunAnalysisChain` are the only direct output left. |
 | `CanvasManager.h` | Canvas ownership and unique naming, ratio and grid layouts, ALICE styling, path-aware writing into the output files. Owned by tasks, never by data structures. |
-| `OutputNames.h` | `namespace OutputNames` — the names and layout of what the correlation tasks write into `PhiAssocSpectra`: object names, directories, section names, and the rule that recognises a species directory. Used by `CorrelationTaskBase` to write them and by `ComparisonTask` to read them. |
+| `OutputNames.h` | `namespace OutputNames` — the names and layout of what one task writes and another, or a plot, looks up: the objects, directories and sections of `PhiAssocSpectra`, the correction maps, the purity spectra, the fit and summary canvases, the cell tags, the tables of what a file holds, and the rule that recognises a species directory. |
 
 ### Fitting and extrapolation
 
@@ -521,6 +523,20 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | `main.cpp` | Entry point of the compiled binary (`../CMakeLists.txt`). Sets ROOT to batch mode. |
 | `runAnalysis.sh` | Maps a keyword to a configuration, runs ROOT or the binary (`--compile`, rebuilding it if stale), logs, propagates the exit code. |
 
+### Plots
+
+Read the files the chain wrote; nothing in the chain depends on them except the summaries, which the tasks draw
+through `PlotSummaries` at the end of `Terminate`. `PLOTS.md` explains each.
+
+| File | |
+|---|---|
+| `PlotSeries.h` | `namespace PlotSeries` — a series found by meaning (spectrum, trend, species ratio, purity, correction map, or a foreign object), with its origins and facts; the comparability check; the operations (`Ratio`, `Sum`, `Scale`); drawing, describing and saving a plot with its provenance; the catalog of a file. |
+| `PlotDesigns.h` | `namespace PlotDesigns` — the recurring layouts (`Overlay`, `Grid`, `CompareWithRatio`, `JoinedPads`, `WithReference`, `FitCanvasGrid`, `Table`) and the looks taken from facts (`ColourBy`, `ShapeBy`, `FillBy`). |
+| `PlotSummaries.h` | `namespace PlotSummaries` — the summaries of `MCTask`, `PurityTask` and the correlation tasks, drawn from a file of their kind. |
+| `PlotSpec.h` | `namespace PlotSpec` — a plot as JSON: the schema, built from the keys that read it, and the reading of a specification into the components. |
+| `phistrangeplot.cpp` | The command `build/phistrangeplot`: `summaries`, `list`, `schema`, `describe`, `render`, `quick`. |
+| `PlotComponentsCheck.cpp` | Compiles every plot header with each build (target `plotcomponents`), since no single program includes them all. |
+
 ---
 
 ## Macros
@@ -537,6 +553,8 @@ chain and no task depends on them.
 | `copyTFileContent.C` | Recursive copy of a ROOT file, excluding chosen directories. |
 | `TestProjections.C`, `esporta_fit.C` | Ad-hoc checks. |
 | `uploadToCCDB.{C,py}`, `downloadHYOutput.py` | Moving maps in and out of CCDB / HEPData. |
+| `runplot.sh` | Compiles a plot written in C++ on `PlotSeries.h` and `PlotDesigns.h` and runs it (`PLOTS.md`, section 10). |
+| `plot_ask.py`, `plot_ask_test.py` | A plot asked in words: a local model (Ollama or llama.cpp) writes the specification, `phistrangeplot` checks and draws it; and the requests it is measured on (`PLOTS.md`, section 11). |
 | `run_systematics.py` | Skeleton of the systematics driver — generates varied configurations and runs them. **Not usable as it stands**; see the Systematics note in `DESIGN_NOTES.md`. |
 
 `convertGraphHist.C` deserves a note, because the assumption it carries is not
@@ -547,6 +565,23 @@ passed in as `binForPoint`, the target binning is copied from the new result, an
 table of what went where is printed on every run. A converter that guessed would be the
 worst outcome available: it would place the points somewhere plausible, and the axis
 check downstream would then be verifying a correspondence the converter had invented.
+
+---
+
+## Plots
+
+A plot is composed from the components above, never written from scratch (`CLAUDE.md`, *Plots*). From the repository
+root, after `cmake --build build`:
+
+```bash
+build/phistrangeplot summaries <file.root> --out <dir>    # a task's summaries, redrawn from its file
+build/phistrangeplot list <file.root>...                  # what the files hold
+build/phistrangeplot describe <spec.json>                 # what a specification resolves to
+build/phistrangeplot render <spec.json> --out <base>      # <base>.pdf, .png and .root with the provenance
+python3 Macros/plot_ask.py "<request>" --file <file.root> --out <base>   # in words, with a local model
+```
+
+Everything, in detail, is in `PLOTS.md`.
 
 ---
 

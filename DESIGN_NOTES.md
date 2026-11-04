@@ -64,103 +64,34 @@ over the multiplicity classes of spectra produced elsewhere; and the **relative 
 multiplicity class**, `h1NormalisationRelError` (`OutputNames::kNormalisationRelError`), kept out of the bin errors
 because it is 100% correlated across the bins of a spectrum, and needed by whoever builds the trends.
 
-### The canvases the tasks draw (inventory of 2 November 2026, on main 639e75b)
+### The canvases the tasks draw
 
-Counted in the code and in the outputs of one chain in the sandbox (2026 high-IR data, the MC that feeds it, the
-2026 WPDG closure). A *summary* is drawn from objects the task also writes; a *diagnostic* needs state that exists
-only during the run.
+The summaries are no longer drawn while the task computes: at the end of `Terminate` the task closes its file and
+`PlotSummaries` draws them from it (`DESIGN_HISTORY.md`, *Plots: deterministic components, composed*, which keeps the
+inventory of 2 November). For the split this means that task B takes no canvas with it: it calls
+`PlotSummaries::Correlations` on the file it writes, as `CorrelationTaskBase` does now.
 
-| Task | Canvases | In one run | Kind | Derivable from the files |
-|---|---|---|---|---|
-| `PhiFitTask` | `cFit_Phi_<cell>`: mass fit, model, pulls | 70 | diagnostic | no: the RooFit model and the fitted parameters are not saved (`FitQuality` records the fit's status, not its parameters) |
-| `PurityTask` | `cFit_<key>_<cell>[_sourceBinning]` | 2020 | diagnostic | no, as above |
-| | `canvas<key>Purity[_sourceBinning]`, purity per multiplicity class | 10 | summary | yes |
-| `MCTask` | `c_<particle>_{Efficiency,SignalLoss}[_sourceBinning]` | ~20 | summary | yes |
-| | `c_<particle>_SignalLossOverEventLoss[...]` | ~10 | summary | yes, but the ratio exists only in the canvas: it is recomputed from the map and `hEventLoss` |
-| `CorrelationTask`, `CorrelationWPDGTask` | `cSpectra_<p>_dy<dy>` | 12 | summary | yes |
-| | `cSpectraExtrap_<p>_dy<dy>`, spectra down to pT = 0 with the fitted model | 12 | summary | yes: the `_extended` spectrum is written with its `TF1` attached |
-| | `cTrend_Meas/Extrap_<p>`, `cRatio_...` (extrapolated over measured) | 12 | summary | yes |
-| | `canvasRatio_<num>_<den>_MultTrend`, species ratios | 3 | summary | yes |
-| `ComparisonTask` | none | | | |
+### Plots: what is left open
 
-The debug canvas of `ExtrapolateSpectrum` is commented out (a parked switch, CLAUDE.md) and not counted.
+Done on branch `plots`, 3-4 November 2026; `PLOTS.md` explains every part and how to use it.
 
-What they weigh, on disk: `Purity.root` 15.0 MB of canvases against 0.2 MB of everything else; the phi fit file
-0.5 MB against 0.01; `PhiAssocSpectra.root` 1.0 MB against 1.1; `Corrections.root` 0.1 MB against 0.2.
-
-- **Every summary is derivable from what the files hold**, about 90 canvases per chain in nine families. They could
-  leave the tasks with no new data written, except the signal loss over the event loss, which today is drawn and
-  never written.
-- **The diagnostics are the mass fits**, 2090 canvases and 99% of `Purity.root`. They can leave the tasks only once
-  a fit leaves a record of its parameters (`DESIGN_NOTES-CLAUDE.md` 2.4), a separate piece of work.
-- **The summaries couple each task internally**: a canvas is created in one place (`Init`, `SetupTrendHistograms`)
-  and found again by name to be drawn on (`RequireCanvas`, `GetCanvas`), in six families of `CorrelationTaskBase`,
-  three of `MCTask` and one of `PurityTask`. Task B of this section would hold most of them.
-
-### Plots: deterministic components, composed (decided 3 November 2026)
-
-The need, as the owner put it: plots that change from one request to the next, asked for in words, without writing
-code. Until now each request was a new macro written by Claude (45 in `~/alice/claude-sandbox/plots`, outside the
-repository): about six recurring designs (purity overlays per class in a particle x file grid, grids of fit canvases,
-comparisons across files with a ratio pad, joined pads with a shared axis, an external reference with a systematic
-band, tables of numbers), each written again in 100-150 lines. None of them read a stamp, used `OutputNames` or
-checked an axis before dividing; missing objects were skipped and non-finite bins drawn as 0. They drove decisions
-(the fitConfig choice, the comparison with the preliminary) without a review. A check of 3 November found their
-numbers right where it looked (the sideband windows of `k0ssideband.C` and `xisideband.C` fall on bin edges), but
-only because of how the axes happen to be made.
-
-**The rule.** Deterministic components in the repository decide what is read, what may be compared and how anything
-is computed; a plot asked for in words is only a composition of them, with its cosmetics (legend position, ranges,
-order, fonts) as free parameters. Nothing the components do not provide is improvised in a macro: a request that needs
-a new operation, kind of series or layout adds it as a component first, reviewed and checked like any code. A study
-that computes a new quantity (sideband purities, the propagation of the map errors, the sigma_R shifts) is analysis
-code in the repository, writing a file with provenance, and the plot draws that file.
-
-**The components** (both review agents, two rounds):
-- the names a plot looks up, all from `OutputNames`: those of the fit canvases (`cFit_Phi_`, `cFit_<key>_` and their
-  `Fits/<key>` directory), of the purity and efficiency summaries, of the trend and ratio canvases, of `Summary`;
-- a series found by meaning: (file, scheme, section, kind, species, |Δy|, interval) to the histogram and its stamps,
-  names built forward with the builders, never parsed back;
-- one comparability check, used also by `ComparisonTask`: the same X axis (`RequireSameAxis`) and the mult, ptPhi and
-  ptAssoc stamps, a missing stamp a `Logger::Warn`;
-- the operations on series, a closed list: ratio (with the `Divide` option required, as in `ComparisonTask`), sum,
-  scale, each through the comparability check;
-- layouts in `CanvasManager`, which has the ratio and grid canvases already: joined pads with a shared axis, legends
-  that can span pads;
-- style in one place, used by the summaries and by every composition;
-- non-finite bins counted and reported through `Logger::Warn`, never drawn as 0;
-- a description of what was resolved (files, objects, binnings, warnings) before drawing;
-- the canvas saved in a `.root` file next to the image, so that a legend or a label can be moved by hand in ROOT's
-  editor without a new request.
-Compositions are compiled (CMake or ACLiC `.C+`): the interpreted mode does not start in this environment, and a
-`throw` from a check may not reach a `catch` under Cling (CLAUDE.md, Cling constraints).
-
-**The standard summaries** are drawn by the task that wrote the objects, at the end of `Terminate`, by functions of
-the same components reading the directory just written: the plots stay in the data file, cannot be older than the
-data, and a TBrowser reader sees no change; redrawing an old file in a new style is the same call. A plot task in the
-chain, with a file of its own, was considered and set aside: a second file, a block in every chain, and plots that
-outlive their data when a producer is rerun alone.
-
-**Before the summaries move** (done on branch `plots`, 3 November): `MCTask` writes the signal loss over the event
-loss as a histogram (`SigLoss/OverEvLoss`, computed by `EfficiencyCalculator::DivideByEventLoss`; it existed only in a
-canvas); the style left the written objects: it goes on the drawn copy, `CanvasManager::DrawStyledCopy`, and
-`EfficiencyCalculator` lost its `color` parameter. Not yet: the colours still live in `AnalysisSettings` and are chosen
-by `multBin % 10`, so two classes share one beyond ten; they move with the style component. The curves attached to the
-extended spectra keep their style (solid and dashed tell the main fit from the high one) until the function that draws
-that family decides it. The summaries then move one family at a time,
-each step checked for identical data and, since `CompareRootFiles` skips canvases, for identical histograms inside
-the old and the new canvases.
-
-**What stays as it is:** the mass-fit canvases (`PhiFitTask`, `PurityTask`), drawn from the model as it was fitted.
-They can leave only once a fit leaves a record from which its model is rebuilt by the same function that built it
-(`DESIGN_NOTES-CLAUDE.md` 2.4); rebuilding it from `fitConfig.json` could draw a curve other than the one fitted, with
-no error. If the 15 MB of `Purity.root` matter before then, a key switches them off.
-
-**`phiplot`** (branch `plot-on-demand`) is not taken further: its catalog parses names back (written when they
-carried an index), its specification layer and model front end serve a reader who does not write through Claude, and
-it is 51 commits behind. Its renderer (ratio pad, legend, ranges) is a starting point for the layouts. A thin
-specification over the components stays possible for designs asked for repeatedly, if one day a plot should be
-editable as data without Claude.
+- **The mass-fit canvases stay in the tasks** (`PhiFitTask`, `PurityTask`), drawn from the model as it was fitted.
+  They can leave only once a fit leaves a record from which its model is rebuilt by the same function that built it
+  (`DESIGN_NOTES-CLAUDE.md` 2.4); rebuilding it from `fitConfig.json` could draw a curve other than the one fitted,
+  with no error. If the 15 MB of `Purity.root` matter before then, a key switches them off.
+- **The summaries keep their own look** (`PlotSummaries::Detail::DrawSummary`, the one they always had) rather than
+  the designs of `PlotDesigns`, and the efficiency maps keep their titles ("Acceptance x Efficiency" at the analysis
+  binning, "Efficiency" at the source binning). Left as they are by the owner, 4 November, for the moment.
+- **The local model is at its limit.** qwen2.5-coder:7b gets 12 of the 13 requests that have one layout each and 1
+  of the 4 that ask for the other layouts; every miss is a refusal or a "cannot". The owner's view (4 November): a
+  larger model rather than more tuning of the prompt for this one. Not measured yet: a larger model, and llama-server
+  on the four.
+- **The pT intervals of the fits are not in the catalog**: `list` gives the multiplicity classes, so the cells of a
+  `fit_canvas_grid` are written as the fits' binning has them, and a wrong one stops as not in the file.
+- **Not in the specification**: `Table`, and a band (`Panel::band`) outside `with_reference`. A request for them is a
+  C++ composition.
+- **Files written before the records of what they hold** (`particles`, `purity_keys`, `species_ratios`,
+  `deltaY_limits`) are refused by `list` and `summaries`, with the task to re-run; nothing reads their names back.
 
 ---
 

@@ -752,6 +752,43 @@ inline PlotDesigns::Drawn Draw(const rapidjson::Document& spec, CanvasManager& c
   throw std::logic_error(std::format("[FATAL] PlotSpec: the schema let through a design '{}' with nothing to draw it.", design));
 }
 
+// A specification with its files replaced: the files it names (every "file" key, at any depth), in the order they first
+// appear, become 'files', one for one; the rest is kept. What `phistrangeplot quick` does to a checked example, so that
+// the same plot is drawn from other productions.
+inline std::string WithFiles(const std::string& text, const std::string& origin, const std::vector<std::string>& files)
+{
+  rapidjson::Document spec = Parse(text, origin);
+  std::vector<std::string> named;
+  std::vector<rapidjson::Value*> slots;
+  auto walk = [&](auto&& self, rapidjson::Value& v) -> void {
+    if (v.IsObject())
+      for (auto& m : v.GetObject()) {
+        if (m.name == Detail::kFile && m.value.IsString()) {
+          slots.push_back(&m.value);
+          if (std::ranges::find(named, m.value.GetString()) == named.end())
+            named.emplace_back(m.value.GetString());
+        } else
+          self(self, m.value);
+      }
+    else if (v.IsArray())
+      for (auto& e : v.GetArray())
+        self(self, e);
+  };
+  walk(walk, spec);
+  if (named.size() != files.size())
+    throw std::runtime_error(std::format("[FATAL] PlotSpec: '{}' names {} file(s) ({}); {} given.", origin, named.size(), Logger::Join(named, ", "),
+                                         files.size()));
+  for (rapidjson::Value* slot : slots) {
+    const std::size_t i = static_cast<std::size_t>(std::ranges::find(named, slot->GetString()) - named.begin());
+    slot->SetString(files[i].c_str(), spec.GetAllocator());
+  }
+  rapidjson::StringBuffer buffer;
+  rapidjson::PrettyWriter<rapidjson::StringBuffer> writer(buffer);
+  writer.SetIndent(' ', 2);
+  spec.Accept(writer);
+  return buffer.GetString();
+}
+
 // What the files hold, as JSON in the specification's own keys, with the forms of series each file can be asked for:
 // what a front end gives the model along with the schema, so that it names only what is there; and what a person reads
 // to write a specification by hand (phistrangeplot list).

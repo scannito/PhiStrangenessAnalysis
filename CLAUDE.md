@@ -365,6 +365,9 @@ When a request needs what the components do not provide (a new kind of series, a
 it is added to them first, with its check, review and verification, and only then used. Occasional compositions stay
 out of the repository; a design asked for again and again becomes a function of `PlotDesigns`.
 
+`PLOTS.md` describes every component, the specification (`PlotSpec.h`) and the command `phistrangeplot`; the
+skill `.claude/skills/plots` is the procedure for a plot asked in a session.
+
 ## Do not touch without asking
 
 - `OldCodes/YieldMean.h` — ALICE-standard code kept as received, no longer in the
