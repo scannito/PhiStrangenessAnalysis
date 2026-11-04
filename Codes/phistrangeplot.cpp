@@ -3,6 +3,7 @@
 #include "PlotSummaries.h"
 
 #include <cstdio>
+#include <filesystem>
 #include <map>
 #include <vector>
 #include <string>
@@ -68,6 +69,27 @@ void DrawSpec(const std::string& text, const std::string& origin, const std::str
                       note.empty() ? std::map<std::string, std::string>{} : std::map<std::string, std::string>{{"note", note}});
 }
 
+// The file of Codes/ (a header, or this one) changed after this binary was built, if any: the binary would draw with code
+// the tree no longer holds and record the tree's commit and fingerprint (RunEnvironment::Facts) as if it did not.
+// CMake rebuilds it when any of them changes (CMakeLists.txt), so after a build this is empty. Not checked, with a
+// warning, when the binary was found through PATH and argv[0] does not say where it is.
+std::string Stale(const char* argv0)
+{
+  namespace fs = std::filesystem;
+  std::error_code ec;
+  const fs::path self(argv0);
+  const fs::file_time_type built = fs::last_write_time(self, ec);
+  if (!self.has_parent_path() || ec) {
+    Logger::Warn("phistrangeplot: where '{}' is cannot be told; not checked against Codes/ for a rebuild.", argv0);
+    return "";
+  }
+  const fs::path source = fs::absolute(__FILE__, ec);
+  for (const fs::directory_entry& entry : fs::directory_iterator(source.parent_path(), ec))
+    if ((entry.path().extension() == ".h" || entry.path() == source) && entry.last_write_time(ec) > built)
+      return entry.path().filename().string();
+  return "";
+}
+
 std::optional<std::pair<std::string, std::string>> Alice(const std::string& status, const std::string& system)
 {
   if (status.empty())
@@ -80,6 +102,10 @@ int main(int argc, char* argv[])
 {
   if (argc < 2)
     return Usage();
+  if (const std::string changed = Stale(argv[0]); !changed.empty()) {
+    Logger::Error("[FATAL] phistrangeplot: Codes/{} changed after this binary was built; rebuild it: cmake --build build --target phistrangeplot", changed);
+    return 1;
+  }
   const std::string verb = argv[1];
   // The command line as the recipe, without the note: that is recorded as a fact of its own.
   std::string recipe = "phistrangeplot";

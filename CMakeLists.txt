@@ -57,6 +57,8 @@ target_link_libraries(plotcomponents PRIVATE ROOT::Core ROOT::RIO ROOT::Hist ROO
 # The plots command (Codes/phistrangeplot.cpp; PLOTS.md, section 9).
 add_executable(phistrangeplot Codes/phistrangeplot.cpp)
 target_include_directories(phistrangeplot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Codes)
-# The commit and fingerprint of a plot's provenance come from here, whatever the working directory (RunEnvironment::Facts).
-target_compile_definitions(phistrangeplot PRIVATE PHISTRANGE_SOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+# Rebuilt when any header changes, not only those it includes: the fingerprint it records covers them all, and it
+# refuses to run older than any of them (phistrangeplot.cpp, Stale).
+file(GLOB PHISTRANGE_HEADERS CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Codes/*.h)
+set_source_files_properties(Codes/phistrangeplot.cpp PROPERTIES OBJECT_DEPENDS "${PHISTRANGE_HEADERS}")
 target_link_libraries(phistrangeplot PRIVATE ROOT::Core ROOT::RIO ROOT::Hist ROOT::Tree ROOT::Gpad ROOT::Graf)

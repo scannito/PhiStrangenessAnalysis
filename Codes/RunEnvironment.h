@@ -119,33 +119,27 @@ inline std::string TimestampNow()
 inline const std::string kGitCommit{"git_commit"};
 inline const std::string kSourcesFingerprint{"sources_fingerprint"};
 
-// The facts of the repository at 'repoRoot': its commit and the fingerprint of the headers in its Codes/. What is not
-// found is not recorded, the right outcome for documentation.
-inline std::map<std::string, std::string> FactsAt(const std::string& repoRoot)
-{
-  std::map<std::string, std::string> f;
-  const std::string commit = GitCommit(repoRoot + "/.git");
-  const std::string sources = SourcesFingerprint(repoRoot + "/Codes");
-  if (!commit.empty())
-    f[kGitCommit] = commit;
-  if (!sources.empty())
-    f[kSourcesFingerprint] = sources;
-  return f;
-}
-
 // The facts, gathered once per process: reading 330 kB of headers is cheap, doing it for every task is pointless.
 //
-// The repository is the one the program was built from when its build names it (PHISTRANGE_SOURCE_DIR: CMake gives it
-// to phistrangeplot, runplot.sh to a composition, which run from anywhere); otherwise the parent of the working
-// directory, the framework's own Codes/, which runAnalysis.sh guarantees with its cd. Run from anywhere else they come
-// back empty and nothing is recorded; a source tree moved since the build records nothing, never another tree's.
+// The repository is the one this header was compiled from, whatever the working directory: __FILE__ is absolute in the
+// compiled builds (CMake and runplot.sh include Codes/ by its absolute path) and, under Cling, relative to the directory
+// the macro is loaded from, the working directory runAnalysis.sh sets. A tree moved since the build records nothing,
+// never another tree's. Both are read when the program runs: a binary older than the tree would record the tree's, so
+// runAnalysis.sh rebuilds the chain when stale, runplot.sh compiles every time, and phistrangeplot refuses to run stale.
 inline const std::map<std::string, std::string>& Facts()
 {
-#ifdef PHISTRANGE_SOURCE_DIR
-  static const std::map<std::string, std::string> facts = FactsAt(PHISTRANGE_SOURCE_DIR);
-#else
-  static const std::map<std::string, std::string> facts = FactsAt("..");
-#endif
+  static const std::map<std::string, std::string> facts = [] {
+    std::error_code ec;
+    const std::filesystem::path codes = std::filesystem::absolute(__FILE__, ec).parent_path();
+    std::map<std::string, std::string> f;
+    const std::string commit = GitCommit((codes.parent_path() / ".git").string());
+    const std::string sources = SourcesFingerprint(codes.string());
+    if (!commit.empty())
+      f[kGitCommit] = commit;
+    if (!sources.empty())
+      f[kSourcesFingerprint] = sources;
+    return f;
+  }();
   return facts;
 }
 
