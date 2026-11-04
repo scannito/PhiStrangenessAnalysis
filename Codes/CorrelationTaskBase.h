@@ -13,6 +13,7 @@
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
 #include "OutputNames.h"
+#include "PlotSummaries.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 #include "SpectrumExtrapolator.h"
@@ -27,7 +28,6 @@
 #include "TH2D.h"
 #include "TH3F.h"
 #include "THnSparse.h"
-#include "TLegend.h"
 #include "TString.h"
 
 #include <algorithm>
@@ -64,7 +64,7 @@ class CorrelationTaskBase : public IAnalysisTask
     const std::vector<std::string> baseLogicalPath = SectionPath();
 
     // =========================================================================
-    // 1. Write Yield Trends, Ratios Extrap/Meas, and Canvases PER SPECIES
+    // 1. Write Yield Trends and Ratios Extrap/Meas PER SPECIES
     // =========================================================================
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       const std::string& pName = assocParticles[pIdx].name;
@@ -88,39 +88,18 @@ class CorrelationTaskBase : public IAnalysisTask
       trendsDir->cd();
 
       // --- Save measured trends ---
-      std::string cNameMeas = OutputNames::TrendCanvas(pName);
-      TCanvas* cTrendMeas = canvasManager.CreateCanvas(cNameMeas, "Measured Yield Trend", trendsPath, 800, 600);
-      canvasManager.SetAutoYRange(cTrendMeas);
-
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         trendsDir->cd();
         h1MultTrends[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
-
-        cTrendMeas->cd();
-        CanvasManager::DrawStyledCopy(h1MultTrends[pIdx][yIdx].get(), yIdx == 0 ? "" : "SAME", CanvasManager::VariantColor(yIdx));
       }
 
-      // --- Save extrapolated trends ---
+      // --- Save extrapolated trends, and the Extrapolated/Measured ratios ---
       bool hasExtrapTrend = !h1MultTrendsExtrap.empty() && !h1MultTrendsExtrap[pIdx].empty();
       if (hasExtrapTrend) {
-        std::string cNameExtrap = OutputNames::TrendExtrapCanvas(pName);
-        TCanvas* cTrendExtrap = canvasManager.CreateCanvas(cNameExtrap, "Extrapolated Yield Trend", trendsPath, 800, 600);
-        canvasManager.SetAutoYRange(cTrendExtrap);
-
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           trendsDir->cd();
           h1MultTrendsExtrap[pIdx][yIdx]->Write(nullptr, TObject::kOverwrite);
-
-          cTrendExtrap->cd();
-          CanvasManager::DrawStyledCopy(h1MultTrendsExtrap[pIdx][yIdx].get(), yIdx == 0 ? "" : "SAME", CanvasManager::VariantColor(yIdx));
         }
-      }
-
-      // --- Save Extrapolated/Measured ratios for this species ---
-      if (hasExtrapTrend) {
-        std::string canvasName = OutputNames::TrendExtrapOverMeasCanvas(pName);
-        TCanvas* cRatioExtrapMeas = canvasManager.CreateCanvas(canvasName, "Extrap / Measured Ratio", trendsPath, 800, 600);
-        canvasManager.SetAutoYRange(cRatioExtrapMeas);
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
@@ -133,9 +112,6 @@ class CorrelationTaskBase : public IAnalysisTask
 
           trendsDir->cd();
           hRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
-
-          cRatioExtrapMeas->cd();
-          CanvasManager::DrawStyledCopy(hRatioExtrapMeas.get(), yIdx == 0 ? "" : "SAME", CanvasManager::VariantColor(yIdx));
         }
       }
     }
@@ -179,6 +155,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // =========================================================================
     // 2. Write Yield Ratios across species (into a dedicated "Ratios" directory)
     // =========================================================================
+    std::vector<PlotSummaries::SpeciesRatioSpec> ratiosWritten; // for the summaries
     if (!requestedRatios.empty()) {
       // Create or access the "Ratios" directory inside Extract1D/2D
       const std::vector<std::string> ratioPath = SectionPath({OutputNames::kRatiosDir});
@@ -205,15 +182,9 @@ class CorrelationTaskBase : public IAnalysisTask
         const bool denHasExtrap = extrapolatedParticles.contains(den.name);
         const bool doExtrapRatio = numHasExtrap || denHasExtrap;
 
-        std::string canvasName = OutputNames::ParticleRatioCanvas(num.name, den.name);
-        TCanvas* canvasRatio = canvasManager.CreateCanvas(canvasName, std::format("Ratio Mult Trend {}", ratioCfg.label), ratioPath, 800, 600);
-        canvasRatio->cd();
-
-        TLegend* legend = CanvasManager::CreateLegend(0.7, 0.7, 0.9, 0.9, 2);
-
+        ratiosWritten.push_back({num.name, den.name, ratioCfg.label});
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
-          const std::string dyTitleStr = BinningUtils::FormatDeltaY(dyLimit);
 
           std::string ratioMeasName = OutputNames::ParticleRatioMeasured(num.name, den.name, dyLimit);
           std::string ratioMeasTitle = std::format("Measured Ratio; Multiplicity percentile (%);{}", ratioCfg.label);
@@ -235,36 +206,29 @@ class CorrelationTaskBase : public IAnalysisTask
             ratioDir->cd();
             hRatioExtrap->Write(nullptr, TObject::kOverwrite);
           }
-
-          CanvasManager::AdjustYRange({hRatioMeas.get(), hRatioExtrap.get()});
-
-          canvasRatio->cd();
-
-          TH1* cloneMeas = CanvasManager::DrawStyledCopy(hRatioMeas.get(), yIdx == 0 ? "" : "SAME", CanvasManager::VariantColor(yIdx), 24);
-          legend->AddEntry(cloneMeas, std::format("Meas. |#Delta y| < {}", dyTitleStr).c_str(), "p");
-          if (hRatioExtrap) {
-            TH1* cloneExtrap = CanvasManager::DrawStyledCopy(hRatioExtrap.get(), "SAME", CanvasManager::VariantColor(yIdx), 20);
-            legend->AddEntry(cloneExtrap, std::format("Extrap. |#Delta y| < {}", dyTitleStr).c_str(), "p");
-          }
         }
-
-        legend->Draw("SAME");
       }
     } else {
       Logger::Info("{}: No yield ratios requested. Skipping.", GetName());
     }
 
     // =========================================================================
-    // 3. Save all registered canvases into their respective subdirectories
+    // 3. Close the output file, then draw the summaries from what was written, as any reader of the file would draw
+    //    them, and write them into it (their directories are under the section ClearPath emptied)
     // =========================================================================
-    canvasManager.WriteAll(outputFile.get());
+    outputFile->Close();
+    std::vector<std::string> species;
+    for (const auto& p : assocParticles)
+      species.push_back(p.name);
+    CanvasManager summaries;
+    PlotSummaries::Correlations(summaries, outputPath, globalCfgs.binningName, SectionDirName(), species, ratiosWritten);
+    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
+    summaries.WriteAll(outputFile.get());
+    outputFile->Close();
 
     // =========================================================================
-    // 4. Close Files
+    // 4. Close the input files
     // =========================================================================
-    if (outputFile) {
-      outputFile->Close();
-    }
 
     for (auto& file : projectionFiles) {
       file->Close();
@@ -319,9 +283,9 @@ class CorrelationTaskBase : public IAnalysisTask
   std::unique_ptr<TFile> outputFile;
   std::vector<std::unique_ptr<TFile>> projectionFiles;
   std::vector<std::unique_ptr<TFile>> qaFiles;
-  CanvasManager canvasManager;
 
   std::vector<AnalysisStructures::YieldRatioConfig> requestedRatios;
+  std::string outputPath;
 
   // -------------------------------------------------------------------------
   // Hooks for derived-class-specific behavior in Terminate()
@@ -951,7 +915,7 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
-  // Shared trend/spectra-canvas bookkeeping setup.
+  // Shared trend bookkeeping setup.
   // -------------------------------------------------------------------------
   void SetupTrendHistograms()
   {
@@ -978,7 +942,6 @@ class CorrelationTaskBase : public IAnalysisTask
       const auto& p = assocParticles[pIdx];
       const bool doExtrapForThis = extrapolatedParticles.contains(p.name);
 
-      const std::vector<std::string> spectraPath = SectionPath({p.name, OutputNames::kSpectraDir});
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
@@ -1000,25 +963,6 @@ class CorrelationTaskBase : public IAnalysisTask
           h1MultTrendsExtrap[pIdx].push_back(std::move(hTrendExtrap));
         }
 
-        std::string cSpecName = OutputNames::SpectraCanvas(p.name, dyLimit);
-        std::string cSpecTitle = std::format("Spectra {} |#Delta y| < {}", p.name, dyTitleStr);
-
-        TCanvas* cSpec = canvasManager.CreateCanvas(cSpecName, cSpecTitle, spectraPath, 800, 600);
-        cSpec->SetLogy();
-        canvasManager.SetAutoYRange(cSpec);
-
-        // The same spectra on an axis that reaches pT = 0, with the fitted model drawn
-        // over each one. The measured canvas above starts at the first measured bin, so
-        // the region the extrapolation is about - which is where a third of the yield
-        // comes from - is precisely the part it cannot show.
-        if (doExtrapForThis) {
-          std::string cExtName = OutputNames::SpectraExtrapCanvas(p.name, dyLimit);
-          std::string cExtTitle = std::format("Spectra with extrapolation {} |#Delta y| < {}", p.name, dyTitleStr);
-
-          TCanvas* cExt = canvasManager.CreateCanvas(cExtName, cExtTitle, spectraPath, 800, 600);
-          cExt->SetLogy();
-          canvasManager.SetAutoYRange(cExt);
-        }
       }
     }
   }
@@ -1026,13 +970,8 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   // Extrapolation function
   // -------------------------------------------------------------------------
-  // 'overlay' is where the extended spectrum is drawn, one multiplicity bin per call,
-  // and may be null. It is a parameter for the same reason 'targetDir' is: this
-  // function knows the spectrum but not which particle or delta-y index it belongs to,
-  // and the alternative - handing it the two indices so it can look the canvas up - is
-  // giving it a way to reach objects that are none of its business.
   AnalysisStructures::ExtrapolationResult ExtrapolateSpectrum(TH1* hSpec, const AnalysisStructures::AssocParticleConfig& config, int multBin,
-                                          TDirectory* targetDir, TCanvas* overlay)
+                                          TDirectory* targetDir)
   {
     // 1. Fetch configuration for THIS particle and THIS multBin from JSON
     AnalysisStructures::ExtrapConfig eCfg = extrapConfigManager->GetConfig(config.name, OutputNames::MultTag(multBinning, multBin));
@@ -1160,16 +1099,10 @@ class CorrelationTaskBase : public IAnalysisTask
     if (highModel)
       attachCurve(highModel.get(), 2, split, eCfg.domainRange.max);
 
+    // Written with the curve attached, so that whoever draws the extended spectrum draws its curve too (a copy
+    // clones the function list): one curve per multiplicity class on the summary, without a second draw.
     targetDir->cd();
     hSpecExt->Write(nullptr, TObject::kOverwrite);
-
-    // Drawn after the curve is attached, so DrawCopy carries it along: the copy
-    // clones the function list too, which is what puts one curve per multiplicity bin
-    // on this canvas without a second explicit draw.
-    if (overlay) {
-      overlay->cd();
-      CanvasManager::DrawStyledCopy(hSpecExt.get(), multBin == 0 ? "" : "SAME", CanvasManager::ClassColor(multBin));
-    }
 
     return res;
   }
@@ -1332,11 +1265,6 @@ class CorrelationTaskBase : public IAnalysisTask
           h1Spectrum->Multiply(hPurity);
         }
 
-        // Draw and Write
-        std::string cSpecName = OutputNames::SpectraCanvas(config.name, dyLimit);
-        canvasManager.RequireCanvas(cSpecName)->cd();
-        CanvasManager::DrawStyledCopy(h1Spectrum.get(), multBin == 0 ? "" : "SAME", CanvasManager::ClassColor(multBin));
-
         targetSpectraDir->cd();
         h1Spectrum->Write(nullptr, TObject::kOverwrite);
 
@@ -1344,9 +1272,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
         // Extrapolate and Fill Trend
         if (doExtrapForThis) {
-          std::string cExtName = OutputNames::SpectraExtrapCanvas(config.name, dyLimit);
-          TCanvas* overlay = canvasManager.GetCanvas(cExtName);
-          AnalysisStructures::ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir, overlay);
+          AnalysisStructures::ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir);
           HistogramUtils::FillTrendFromExtrapolation(h1MultTrendsExtrap[pIdx][yIdx].get(), res, multBin);
         }
       }
@@ -1455,7 +1381,8 @@ class CorrelationTaskBase : public IAnalysisTask
 
     const std::string projectionsDir = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
     const std::string finalDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
-    outputFile = RootIO::OpenOrThrow(std::format("{}{}{}", finalDir, outputPrefix, OutputNames::kSpectraFile), "UPDATE", GetName());
+    outputPath = std::format("{}{}{}", finalDir, outputPrefix, OutputNames::kSpectraFile);
+    outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
 
 
     // UPDATE and not RECREATE here too, and for a different reason: the cache is
