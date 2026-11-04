@@ -1,6 +1,5 @@
 #pragma once
 
-#include "AnalysisStructures.h"
 #include "BinningUtils.h"
 #include "CanvasManager.h"
 #include "OutputNames.h"
@@ -21,7 +20,8 @@
 // functions redraw them from any file of that kind, with no task. What is drawn is found by PlotSeries, by meaning;
 // what a summary looks like is fixed here, the look the tasks' canvases have always had, and a variant is a
 // composition of the same series (PlotDesigns). Each draws into the CanvasManager it is given, at the canvas names and
-// paths of OutputNames.
+// paths of OutputNames. What a file holds (its particles, purity keys, species ratios) is read from the file's own
+// tables, by the task as by the command, so that both draw from one source.
 //
 // What must be in the file is said per family. A family the task always writes is required: a missing object stops
 // the summary with what is missing (a wrong particle name, a file of another kind). A family the task writes only when
@@ -111,6 +111,23 @@ inline void WriteInto(const std::string& fileName, const std::string& owner, con
   file->Close();
 }
 
+// The summaries drawn on 'canvases' from 'fileName', kept with no task: each canvas as '<outDir>/<canvas name>.png' and
+// '.pdf', and all of them in '<outDir>/<stem>.root' at the paths the task gives them, with the plot's provenance (the
+// command) and the input file's. That .root replaces only one the plots wrote (PlotSeries::Detail::RequirePlotOutput).
+inline void Save(const CanvasManager& canvases, const std::string& fileName, const std::string& scheme, const std::string& outDir,
+                 const std::string& stem, const std::string& recipe)
+{
+  const std::string rootName = std::format("{}/{}.root", outDir, stem);
+  PlotSeries::Detail::RequirePlotOutput(rootName, "PlotSummaries::Save");
+  for (const char* format : {"png", "pdf"})
+    canvases.ExportAll(outDir, format);
+  auto out = RootIO::OpenOrThrow(rootName, "RECREATE", "PlotSummaries::Save");
+  canvases.WriteAll(out.get());
+  RootIO::WriteProvenance(out.get(), PlotSeries::kPlotOwner, RootIO::StartProvenance(recipe));
+  RootIO::CopyProvenance(PlotSeries::Detail::Open(fileName).get(), scheme, out.get(), PlotSeries::kPlotOwner, "input", fileName);
+  out->Close();
+}
+
 // The maps of one particle at one binning: one series per multiplicity class, then the multiplicity-integrated one in
 // black. Efficiency and signal loss at the analysis binning are required; the source binning is there only with
 // 'rebinning_pt'; the signal loss over event loss may lack a class, or the integrated map.
@@ -133,12 +150,13 @@ inline std::vector<PlotSeries::Series> CorrectionSeries(const std::string& fileN
   return series;
 }
 
-// MCTask's summaries: for each particle, each map and each binning it has, the classes overlaid on one canvas.
-inline void Corrections(CanvasManager& canvases, const std::string& fileName, const std::string& scheme, const std::vector<std::string>& particles)
+// MCTask's summaries: for each particle the file records, each map and each binning it has, the classes overlaid on
+// one canvas.
+inline void Corrections(CanvasManager& canvases, const std::string& fileName, const std::string& scheme)
 {
   using OutputNames::CorrectionMap;
   using OutputNames::SpectrumBinning;
-  for (const std::string& particle : particles)
+  for (const std::string& particle : PlotSeries::CorrectionParticles(fileName, scheme))
     for (CorrectionMap map : {CorrectionMap::Efficiency, CorrectionMap::SignalLoss, CorrectionMap::SignalLossOverEventLoss})
       for (SpectrumBinning binning : {SpectrumBinning::Analysis, SpectrumBinning::Source}) {
         const std::vector<PlotSeries::Series> series = CorrectionSeries(fileName, scheme, particle, map, binning);
@@ -158,11 +176,12 @@ inline std::vector<PlotSeries::Series> PuritySeries(const std::string& fileName,
                                                            : Detail::ByClassIfProduced(fileName, scheme, ofClass);
 }
 
-// PurityTask's summaries: for each purity key and each binning it has, the classes overlaid on one canvas.
-inline void Purities(CanvasManager& canvases, const std::string& fileName, const std::string& scheme, const std::vector<std::string>& purityKeys)
+// PurityTask's summaries: for each purity key the file records and each binning it has, the classes overlaid on one
+// canvas.
+inline void Purities(CanvasManager& canvases, const std::string& fileName, const std::string& scheme)
 {
   using OutputNames::SpectrumBinning;
-  for (const std::string& key : purityKeys)
+  for (const std::string& key : PlotSeries::PurityKeys(fileName, scheme))
     for (SpectrumBinning binning : {SpectrumBinning::Analysis, SpectrumBinning::Source}) {
       const std::vector<PlotSeries::Series> series = PuritySeries(fileName, scheme, key, binning);
       if (!series.empty())
@@ -176,10 +195,9 @@ inline void Purities(CanvasManager& canvases, const std::string& fileName, const
 // classes, on a log scale); where it was extrapolated, the same extended to pT = 0 with their fitted curves (the
 // measured canvas starts at the first measured bin, so the region the extrapolation is about, a third of the yield, is
 // the part it cannot show); its yield trends against multiplicity (the |dy| limits in the colours of the variants),
-// measured, and extrapolated with the one over the other where it was extrapolated. Then the species ratios asked for,
-// measured open and extrapolated filled, with their legend.
-inline void Correlations(CanvasManager& canvases, const std::string& fileName, const std::string& scheme, const std::string& section,
-                         const std::vector<AnalysisStructures::YieldRatioConfig>& ratios)
+// measured, and extrapolated with the one over the other where it was extrapolated. Then the species ratios the section
+// records, measured open and extrapolated filled, with their legend, titled by their label (the Y title of the ratio).
+inline void Correlations(CanvasManager& canvases, const std::string& fileName, const std::string& scheme, const std::string& section)
 {
   using PlotSeries::TrendKind;
   const PlotSeries::Where where{scheme, section};
@@ -223,10 +241,8 @@ inline void Correlations(CanvasManager& canvases, const std::string& fileName, c
     }
   }
 
-  for (const AnalysisStructures::YieldRatioConfig& ratio : ratios) {
-    auto ofKind = [&](TrendKind kind) {
-      return [&, kind](double dy) { return PlotSeries::SpeciesRatio(fileName, ratio.num, ratio.den, dy, kind, where); };
-    };
+  for (const auto& [num, den] : PlotSeries::SpeciesRatios(fileName, where)) {
+    auto ofKind = [&](TrendKind kind) { return [&, kind](double dy) { return PlotSeries::SpeciesRatio(fileName, num, den, dy, kind, where); }; };
     const std::vector<PlotSeries::Series> measured = byDeltaY(ofKind(TrendKind::Measured), false);
     const std::vector<PlotSeries::Series> extrapolated = byDeltaY(ofKind(TrendKind::Extrapolated), true);
     // Per |dy|, the measured ratio and then the extrapolated one, as the legend lists them.
@@ -243,8 +259,9 @@ inline void Correlations(CanvasManager& canvases, const std::string& fileName, c
         labels.push_back(std::format("Extrap. |#Delta y| < {}", dyText));
       }
     }
-    const std::vector<TH1*> drawn = Detail::DrawSummary(canvases, OutputNames::ParticleRatioCanvas(ratio.num, ratio.den),
-                                                        std::format("Ratio Mult Trend {}", ratio.label), OutputNames::RatiosPath(scheme, section), series);
+    const std::vector<TH1*> drawn =
+      Detail::DrawSummary(canvases, OutputNames::ParticleRatioCanvas(num, den), std::format("Ratio Mult Trend {}", measured.front().hist->GetYaxis()->GetTitle()),
+                          OutputNames::RatiosPath(scheme, section), series);
     TLegend* legend = CanvasManager::CreateLegend(0.7, 0.7, 0.9, 0.9, 2);
     for (std::size_t i = 0; i < drawn.size(); ++i)
       legend->AddEntry(drawn[i], labels[i].c_str(), "p");

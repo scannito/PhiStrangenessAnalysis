@@ -53,3 +53,8 @@ target_link_libraries(phistrangeanalysis PRIVATE
 add_library(plotcomponents OBJECT Codes/PlotComponentsCheck.cpp)
 target_include_directories(plotcomponents PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Codes)
 target_link_libraries(plotcomponents PRIVATE ROOT::Core ROOT::RIO ROOT::Hist ROOT::Gpad ROOT::Graf)
+
+# The plots command (Codes/phistrangeplot.cpp): the tasks' summaries redrawn from a file, with no task.
+add_executable(phistrangeplot Codes/phistrangeplot.cpp)
+target_include_directories(phistrangeplot PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/Codes)
+target_link_libraries(phistrangeplot PRIVATE ROOT::Core ROOT::RIO ROOT::Hist ROOT::Tree ROOT::Gpad ROOT::Graf)

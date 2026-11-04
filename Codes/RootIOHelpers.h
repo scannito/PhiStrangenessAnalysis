@@ -10,6 +10,7 @@
 #include "TFile.h"
 #include "TH1.h"
 #include "TH1D.h"
+#include "TTree.h"
 
 #include <concepts>
 #include <filesystem>
@@ -401,6 +402,64 @@ inline std::optional<std::vector<double>> ReadValueList(TDirectory* dir, const s
   for (int bin = 1; bin <= list->GetNbinsX(); ++bin)
     values.push_back(list->GetBinContent(bin));
   return values;
+}
+
+// What a file holds that a reader must find without parsing names (the particles of the corrections, the purity keys,
+// the species ratios): a table of strings, one column per entry of 'columns', one row per entry. A detached TTree
+// filled in memory and written like a histogram, the shape of FitQualityRecorder's table, which Macros/CompareRootFiles
+// compares branch by branch. An empty table is written as such: it says "none", where an absent one says "written
+// before the table existed". Read back by ReadStringTable: absent is nullopt; another class, or other columns, stop.
+inline void WriteStringTable(TDirectory* dir, const std::string& name, const std::vector<std::string>& columns,
+                             const std::vector<std::vector<std::string>>& rows)
+{
+  if (!dir)
+    throw std::runtime_error(std::format("[FATAL] RootIO::WriteStringTable: no directory to write '{}' into.", name));
+  TTree table(name.c_str(), std::format("{}: one row per entry", name).c_str());
+  table.SetDirectory(0);
+  std::vector<std::string> row(columns.size());
+  for (std::size_t c = 0; c < columns.size(); ++c)
+    table.Branch(columns[c].c_str(), &row[c]);
+  for (const std::vector<std::string>& r : rows) {
+    if (r.size() != columns.size())
+      throw std::runtime_error(std::format("[FATAL] RootIO::WriteStringTable: a row of '{}' has {} fields for {} columns.", name, r.size(), columns.size()));
+    std::ranges::copy(r, row.begin());
+    table.Fill();
+  }
+  dir->WriteTObject(&table, name.c_str(), "Overwrite");
+}
+
+inline std::optional<std::vector<std::vector<std::string>>> ReadStringTable(TDirectory* dir, const std::string& name,
+                                                                          const std::vector<std::string>& columns, std::string_view errCtx)
+{
+  if (!dir)
+    throw std::runtime_error(std::format("[FATAL] {}: no directory to read the '{}' table from.", errCtx, name));
+  std::unique_ptr<TObject> object(dir->Get(name.c_str()));
+  if (!object)
+    return std::nullopt;
+  auto* table = dynamic_cast<TTree*>(object.get());
+  if (!table)
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' in '{}' is a {}, not the table it should be.", errCtx, name, FileNameOf(dir),
+                                         object->ClassName()));
+  if (table->GetListOfBranches()->GetEntries() != static_cast<int>(columns.size()))
+    throw std::runtime_error(std::format("[FATAL] {}: the table '{}' in '{}' has {} columns, {} expected ({}).", errCtx, name, FileNameOf(dir),
+                                         table->GetListOfBranches()->GetEntries(), columns.size(), Logger::Join(columns, ", ")));
+  std::vector<std::string*> values(columns.size(), nullptr);
+  for (std::size_t c = 0; c < columns.size(); ++c) {
+    if (!table->GetBranch(columns[c].c_str()))
+      throw std::runtime_error(std::format("[FATAL] {}: the table '{}' in '{}' has no column '{}'.", errCtx, name, FileNameOf(dir), columns[c]));
+    table->SetBranchAddress(columns[c].c_str(), &values[c]);
+  }
+  std::vector<std::vector<std::string>> rows;
+  for (Long64_t entry = 0; entry < table->GetEntries(); ++entry) {
+    table->GetEntry(entry);
+    rows.emplace_back();
+    for (const std::string* value : values)
+      rows.back().push_back(*value);
+  }
+  table->ResetBranchAddresses();
+  for (std::string* value : values)
+    delete value;
+  return rows;
 }
 
 
