@@ -6,6 +6,7 @@
 #include "PlotSeries.h"
 
 #include "TCanvas.h"
+#include "TLegend.h"
 
 #include <format>
 #include <optional>
@@ -63,13 +64,30 @@ std::vector<PlotSeries::Series> ByClass(const std::string& fileName, const std::
 
 // The classes overlaid on a new summary canvas, at its name and path, in the look the summaries have always had: the
 // first class sets the frame, ROOT's default option, the Y range adjusted when the manager writes the canvas.
-inline void DrawSummary(CanvasManager& canvases, const std::string& name, const std::string& title, const std::vector<std::string>& path,
-                        const std::vector<PlotSeries::Series>& series)
+inline std::vector<TH1*> DrawSummary(CanvasManager& canvases, const std::string& name, const std::string& title,
+                                     const std::vector<std::string>& path, const std::vector<PlotSeries::Series>& series, bool logY = false)
 {
   TCanvas* canvas = canvases.CreateCanvas(name, title, path);
+  canvas->SetLogy(logY);
   canvases.SetAutoYRange(canvas);
   canvas->cd();
-  PlotSeries::Draw(series, "");
+  return PlotSeries::Draw(series, "");
+}
+
+// The |dy| limits of a section, as the correlation task recorded them next to its objects.
+inline std::vector<double> DeltaYLimits(const std::string& fileName, const std::string& scheme, const std::string& section)
+{
+  for (const PlotSeries::Catalog::Scheme& s : PlotSeries::ReadCatalog(fileName).schemes)
+    if (s.name == scheme)
+      for (const PlotSeries::Catalog::Section& sec : s.sections)
+        if (sec.name == section) {
+          if (!sec.deltaYLimits)
+            throw std::runtime_error(std::format("[FATAL] PlotSummaries: section '{}/{}' of '{}' does not record its |dy| limits ('{}'); "
+                                                 "it was written before they were: re-run the correlation task.",
+                                                 scheme, section, fileName, OutputNames::kDeltaYLimits));
+          return *sec.deltaYLimits;
+        }
+  throw PlotSeries::NotInFiles(std::format("[FATAL] PlotSummaries: '{}' has no section '{}/{}'.", fileName, scheme, section));
 }
 } // namespace Detail
 
@@ -125,6 +143,91 @@ inline void Purities(CanvasManager& canvases, const std::string& fileName, const
                             std::format("{} Purity{}", key, binning == SpectrumBinning::Source ? " (source binning)" : ""),
                             OutputNames::SummaryPath(scheme, binning), series);
     }
+}
+
+// A ratio of two species' yields the correlation task was asked for (yield_ratios), with its label.
+struct SpeciesRatioSpec {
+  std::string num, den, label;
+};
+
+// The correlation task's summaries of one section, for each species: its spectra per |dy| (the classes, on a log
+// scale), the same extended to pT = 0 with their fitted curves where it was extrapolated (the measured canvas starts at
+// the first measured bin, so the region the extrapolation is about, a third of the yield, is the part it cannot show),
+// its yield trends against
+// multiplicity (the |dy| limits in the colours of the variants), measured, extrapolated and the one over the other;
+// then the species ratios, measured open and extrapolated filled, with their legend.
+inline void Correlations(CanvasManager& canvases, const std::string& fileName, const std::string& scheme, const std::string& section,
+                         const std::vector<std::string>& species, const std::vector<SpeciesRatioSpec>& ratios)
+{
+  using PlotSeries::TrendKind;
+  const PlotSeries::Where where{scheme, section};
+  const std::vector<double> deltaYLimits = Detail::DeltaYLimits(fileName, scheme, section);
+  // A series that may not have been produced (no extrapolation for this species, no extrapolated ratio): none.
+  auto optional = [](auto resolve) -> std::optional<PlotSeries::Series> {
+    try {
+      return resolve();
+    } catch (const PlotSeries::NotInFiles&) {
+      return std::nullopt;
+    }
+  };
+
+  for (const std::string& p : species) {
+    const std::vector<std::string> spectraPath{scheme, section, p, OutputNames::kSpectraDir};
+    const std::vector<std::string> trendsPath{scheme, section, p, OutputNames::kTrendsDir};
+    for (double dy : deltaYLimits) {
+      const std::string dyText = BinningUtils::FormatDeltaY(dy);
+      Detail::DrawSummary(canvases, OutputNames::SpectraCanvas(p, dy), std::format("Spectra {} |#Delta y| < {}", p, dyText), spectraPath,
+                          Detail::ByClass(fileName, scheme, std::format("the spectrum of {} at |dy| < {}", p, dyText),
+                                          [&](const PlotSeries::Interval& mult) { return PlotSeries::Spectrum(fileName, p, dy, mult, where); }),
+                          true);
+      const std::vector<PlotSeries::Series> extended =
+        Detail::ByClass(fileName, scheme, std::format("the extended spectrum of {} at |dy| < {}", p, dyText),
+                        [&](const PlotSeries::Interval& mult) { return PlotSeries::SpectrumExtended(fileName, p, dy, mult, where); });
+      if (!extended.empty())
+        Detail::DrawSummary(canvases, OutputNames::SpectraExtrapCanvas(p, dy), std::format("Spectra with extrapolation {} |#Delta y| < {}", p, dyText),
+                            spectraPath, extended, true);
+    }
+
+    auto trends = [&](TrendKind kind) {
+      std::vector<PlotSeries::Series> series;
+      for (std::size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx)
+        if (std::optional<PlotSeries::Series> s = optional([&] { return PlotSeries::Trend(fileName, p, deltaYLimits[yIdx], kind, where); })) {
+          s->look.color = CanvasManager::VariantColor(static_cast<int>(yIdx));
+          series.push_back(std::move(*s));
+        }
+      return series;
+    };
+    Detail::DrawSummary(canvases, OutputNames::TrendCanvas(p), "Measured Yield Trend", trendsPath, trends(TrendKind::Measured));
+    if (const std::vector<PlotSeries::Series> extrap = trends(TrendKind::Extrapolated); !extrap.empty()) {
+      Detail::DrawSummary(canvases, OutputNames::TrendExtrapCanvas(p), "Extrapolated Yield Trend", trendsPath, extrap);
+      Detail::DrawSummary(canvases, OutputNames::TrendExtrapOverMeasCanvas(p), "Extrap / Measured Ratio", trendsPath, trends(TrendKind::ExtrapOverMeas));
+    }
+  }
+
+  for (const SpeciesRatioSpec& ratio : ratios) {
+    std::vector<PlotSeries::Series> series;
+    std::vector<std::string> labels;
+    for (std::size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
+      const double dy = deltaYLimits[yIdx];
+      const int color = CanvasManager::VariantColor(static_cast<int>(yIdx));
+      PlotSeries::Series meas = PlotSeries::SpeciesRatio(fileName, ratio.num, ratio.den, dy, TrendKind::Measured, where);
+      meas.look = {.color = color, .marker = 24};
+      series.push_back(std::move(meas));
+      labels.push_back(std::format("Meas. |#Delta y| < {}", BinningUtils::FormatDeltaY(dy)));
+      if (std::optional<PlotSeries::Series> extrap =
+            optional([&] { return PlotSeries::SpeciesRatio(fileName, ratio.num, ratio.den, dy, TrendKind::Extrapolated, where); })) {
+        extrap->look = {.color = color, .marker = 20};
+        series.push_back(std::move(*extrap));
+        labels.push_back(std::format("Extrap. |#Delta y| < {}", BinningUtils::FormatDeltaY(dy)));
+      }
+    }
+    const std::vector<TH1*> drawn = Detail::DrawSummary(canvases, OutputNames::ParticleRatioCanvas(ratio.num, ratio.den),
+                                                        std::format("Ratio Mult Trend {}", ratio.label), {scheme, section, OutputNames::kRatiosDir}, series);
+    TLegend* legend = CanvasManager::CreateLegend(0.7, 0.7, 0.9, 0.9, 2);
+    for (std::size_t i = 0; i < drawn.size(); ++i)
+      legend->AddEntry(drawn[i], labels[i].c_str(), "p");
+    legend->Draw("SAME");
+  }
 }
 
 } // namespace PlotSummaries
