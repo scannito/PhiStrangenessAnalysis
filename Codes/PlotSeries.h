@@ -480,17 +480,19 @@ inline std::vector<TH1*> Draw(const std::vector<Series>& series, const std::stri
     for (const std::string& n : c.notChecked)
       Logger::Warn("PlotSeries: drawn together, not checked, series 0 and {}: {}", i, n);
   }
-  // An emptied bin is left out only by the options that skip empty bins. Measured on a purity with one NaN bin (3 Nov
-  // 2026): E, E1 and P leave it out; E0 draws a marker at 0, HIST a drop to 0. Other options are refused rather than
-  // guessed, for a series that has such a bin.
+  // An emptied bin is left out only by the options that skip empty bins. Measured on a purity with one NaN bin (3-4 Nov
+  // 2026): E, E1 and P leave it out; so does no option at all on a histogram with errors (Sumw2), which ROOT then draws
+  // as E; E0 draws a marker at 0, HIST a drop to 0. Other options are refused rather than guessed, for a series that has
+  // such a bin.
   std::string bare = option;
   std::erase(bare, ' ');
   std::ranges::transform(bare, bare.begin(), [](unsigned char ch) { return std::toupper(ch); });
-  const bool skipsEmpty = bare == "E" || bare == "E1" || bare == "P";
-  for (std::size_t i = 0; i < series.size(); ++i)
-    if (series[i].nonFiniteBins && !skipsEmpty)
+  for (const Series& s : series) {
+    const bool skipsEmpty = (bare.empty() && s.hist->GetSumw2N() > 0) || bare == "E" || bare == "E1" || bare == "P";
+    if (s.nonFiniteBins && !skipsEmpty)
       throw std::runtime_error(std::format("[FATAL] PlotSeries::Draw: '{}' has {} non-finite bin(s), which option '{}' would draw at 0; "
-                                           "draw it with E, E1 or P.", series[i].origins.front().path, series[i].nonFiniteBins, option));
+                                           "draw it with E, E1 or P.", s.origins.front().path, s.nonFiniteBins, option));
+  }
   std::vector<TH1*> drawn;
   for (std::size_t i = 0; i < series.size(); ++i) {
     std::unique_ptr<TH1> copy(static_cast<TH1*>(series[i].hist->Clone()));

@@ -37,32 +37,52 @@ inline std::string CorrectionTitle(const std::string& particle, OutputNames::Cor
   }
   throw std::runtime_error("[FATAL] PlotSummaries: unknown correction map.");
 }
-} // namespace Detail
 
-// The maps of one particle at one binning: one series per multiplicity class, in the colour of the class, then the
-// multiplicity-integrated one in black. A class without its map is left out with a warning (MCTask writes no signal
-// loss over event loss where the event loss is zero); no map at all is an empty list, which is what a binning the task
-// did not produce looks like (the source binning without 'rebinning_pt').
-inline std::vector<PlotSeries::Series> CorrectionSeries(const std::string& fileName, const std::string& scheme, const std::string& particle,
-                                                        OutputNames::CorrectionMap map, OutputNames::SpectrumBinning binning)
+// One series per multiplicity class of the file, in the colour of the class, by 'resolve' (the class's interval to its
+// series). A class whose object is not in the file is left out with a warning that names 'what'; none at all is an empty
+// list, which is what a binning the task did not produce looks like (the source binning without 'rebinning_pt').
+template <class Resolve>
+std::vector<PlotSeries::Series> ByClass(const std::string& fileName, const std::string& scheme, const std::string& what, Resolve resolve)
 {
   std::vector<PlotSeries::Series> series;
   std::vector<std::string> missing;
   const std::vector<PlotSeries::Interval> classes = PlotSeries::Intervals(fileName, scheme);
   for (std::size_t multBin = 0; multBin < classes.size(); ++multBin) {
     try {
-      PlotSeries::Series s = PlotSeries::CorrectionMap(fileName, particle, map, classes[multBin], binning, scheme);
+      PlotSeries::Series s = resolve(classes[multBin]);
       s.look.color = CanvasManager::ClassColor(static_cast<int>(multBin));
       series.push_back(std::move(s));
     } catch (const PlotSeries::NotInFiles&) {
       missing.push_back(std::format("{}-{}", BinningUtils::FormatEdge(classes[multBin].low), BinningUtils::FormatEdge(classes[multBin].high)));
     }
   }
+  if (!series.empty() && !missing.empty())
+    Logger::Warn("PlotSummaries: {} of '{}' is missing for the class(es) {}: not drawn.", what, fileName, Logger::Join(missing, ", "));
+  return series;
+}
+
+// The classes overlaid on a new summary canvas, at its name and path, in the look the summaries have always had: the
+// first class sets the frame, ROOT's default option, the Y range adjusted when the manager writes the canvas.
+inline void DrawSummary(CanvasManager& canvases, const std::string& name, const std::string& title, const std::vector<std::string>& path,
+                        const std::vector<PlotSeries::Series>& series)
+{
+  TCanvas* canvas = canvases.CreateCanvas(name, title, path);
+  canvases.SetAutoYRange(canvas);
+  canvas->cd();
+  PlotSeries::Draw(series, "");
+}
+} // namespace Detail
+
+// The maps of one particle at one binning: one series per multiplicity class (Detail::ByClass; MCTask writes no signal
+// loss over event loss where the event loss is zero), then the multiplicity-integrated one in black.
+inline std::vector<PlotSeries::Series> CorrectionSeries(const std::string& fileName, const std::string& scheme, const std::string& particle,
+                                                        OutputNames::CorrectionMap map, OutputNames::SpectrumBinning binning)
+{
+  std::vector<PlotSeries::Series> series =
+    Detail::ByClass(fileName, scheme, std::format("the {} of {}", OutputNames::CorrectionMapTitle(map), particle),
+                    [&](const PlotSeries::Interval& mult) { return PlotSeries::CorrectionMap(fileName, particle, map, mult, binning, scheme); });
   if (series.empty())
     return series;
-  if (!missing.empty())
-    Logger::Warn("PlotSummaries: {} {} of '{}' has no map for the class(es) {}: not drawn.", particle, OutputNames::CorrectionMapTitle(map),
-                 fileName, Logger::Join(missing, ", "));
   PlotSeries::Series integrated = PlotSeries::CorrectionMap(fileName, particle, map, std::nullopt, binning, scheme);
   integrated.look.color = kBlack;
   series.push_back(std::move(integrated));
@@ -79,14 +99,32 @@ inline void Corrections(CanvasManager& canvases, const std::string& fileName, co
     for (CorrectionMap map : {CorrectionMap::Efficiency, CorrectionMap::SignalLoss, CorrectionMap::SignalLossOverEventLoss})
       for (SpectrumBinning binning : {SpectrumBinning::Analysis, SpectrumBinning::Source}) {
         const std::vector<PlotSeries::Series> series = CorrectionSeries(fileName, scheme, particle, map, binning);
-        if (series.empty())
-          continue;
-        TCanvas* canvas = canvases.CreateCanvas(OutputNames::CorrectionSummaryCanvas(particle, map, binning),
-                                                Detail::CorrectionTitle(particle, map, binning), OutputNames::CorrectionSummaryPath(scheme, map, binning));
-        canvases.SetAutoYRange(canvas);
-        canvas->cd();
-        PlotSeries::Draw(series, "");
+        if (!series.empty())
+          Detail::DrawSummary(canvases, OutputNames::CorrectionSummaryCanvas(particle, map, binning), Detail::CorrectionTitle(particle, map, binning),
+                              OutputNames::CorrectionSummaryPath(scheme, map, binning), series);
       }
+}
+
+// The purity of one key at one binning, one series per multiplicity class (Detail::ByClass).
+inline std::vector<PlotSeries::Series> PuritySeries(const std::string& fileName, const std::string& scheme, const std::string& purityKey,
+                                                    OutputNames::SpectrumBinning binning)
+{
+  return Detail::ByClass(fileName, scheme, std::format("the purity of {}", purityKey),
+                         [&](const PlotSeries::Interval& mult) { return PlotSeries::Purity(fileName, purityKey, mult, binning, scheme); });
+}
+
+// PurityTask's summaries: for each purity key and each binning it has, the classes overlaid on one canvas.
+inline void Purities(CanvasManager& canvases, const std::string& fileName, const std::string& scheme, const std::vector<std::string>& purityKeys)
+{
+  using OutputNames::SpectrumBinning;
+  for (const std::string& key : purityKeys)
+    for (SpectrumBinning binning : {SpectrumBinning::Analysis, SpectrumBinning::Source}) {
+      const std::vector<PlotSeries::Series> series = PuritySeries(fileName, scheme, key, binning);
+      if (!series.empty())
+        Detail::DrawSummary(canvases, OutputNames::PuritySummaryCanvas(key, binning),
+                            std::format("{} Purity{}", key, binning == SpectrumBinning::Source ? " (source binning)" : ""),
+                            OutputNames::SummaryPath(scheme, binning), series);
+    }
 }
 
 } // namespace PlotSummaries
