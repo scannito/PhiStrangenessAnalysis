@@ -7,8 +7,10 @@
 #include "RootIOHelpers.h"
 
 #include "TCanvas.h"
+#include "TFile.h"
 #include "TLegend.h"
 
+#include <filesystem>
 #include <format>
 #include <functional>
 #include <optional>
@@ -111,20 +113,22 @@ inline void WriteInto(const std::string& fileName, const std::string& owner, con
   file->Close();
 }
 
-// The summaries drawn on 'canvases' from 'fileName', kept with no task: each canvas as '<outDir>/<canvas name>.png' and
-// '.pdf', and all of them in '<outDir>/<stem>.root' at the paths the task gives them, with the plot's provenance (the
-// command) and the input file's. That .root replaces only one the plots wrote (PlotSeries::Detail::RequirePlotOutput).
-inline void Save(const CanvasManager& canvases, const std::string& fileName, const std::string& scheme, const std::string& outDir,
-                 const std::string& stem, const std::string& recipe)
+// The summaries drawn on 'canvases' from 'fileName' (at 'where', resolved), kept with no task, in '<outDir>/<name>/',
+// where <name> is the file's stem with the scheme and the section, so that two schemes or sections of one file, or two
+// files, never share an output: each canvas as '<canvas name>.png' and '.pdf', and all of them in '<name>.root' at the
+// paths the task gives them, with the command and the input file's provenance (PlotSeries::OpenPlotFile).
+inline void Save(const CanvasManager& canvases, const std::string& fileName, const PlotSeries::Where& where, const std::string& outDir,
+                 const std::string& recipe)
 {
-  const std::string rootName = std::format("{}/{}.root", outDir, stem);
-  PlotSeries::Detail::RequirePlotOutput(rootName, "PlotSummaries::Save");
-  for (const char* format : {"png", "pdf"})
-    canvases.ExportAll(outDir, format);
-  auto out = RootIO::OpenOrThrow(rootName, "RECREATE", "PlotSummaries::Save");
+  std::string name = std::format("{}_{}", std::filesystem::path(fileName).stem().string(), where.scheme);
+  if (!where.section.empty())
+    name += "_" + where.section;
+  const std::string dir = std::format("{}/{}", outDir, name);
+  for (const std::string& format : PlotSeries::kPlotFormats)
+    canvases.ExportAll(dir, format);
+  std::unique_ptr<TFile> out = PlotSeries::OpenPlotFile(std::format("{}/{}.root", dir, name), recipe, "PlotSummaries::Save");
   canvases.WriteAll(out.get());
-  RootIO::WriteProvenance(out.get(), PlotSeries::kPlotOwner, RootIO::StartProvenance(recipe));
-  RootIO::CopyProvenance(PlotSeries::Detail::Open(fileName).get(), scheme, out.get(), PlotSeries::kPlotOwner, "input", fileName);
+  PlotSeries::CopyInputProvenance(out.get(), fileName, where.scheme, "input");
   out->Close();
 }
 
@@ -260,13 +264,35 @@ inline void Correlations(CanvasManager& canvases, const std::string& fileName, c
       }
     }
     const std::vector<TH1*> drawn =
-      Detail::DrawSummary(canvases, OutputNames::ParticleRatioCanvas(num, den), std::format("Ratio Mult Trend {}", measured.front().hist->GetYaxis()->GetTitle()),
+      Detail::DrawSummary(canvases, OutputNames::ParticleRatioCanvas(num, den),
+                          std::format("Ratio Mult Trend {}", PlotSeries::SpeciesRatioLabel(fileName, num, den, where)),
                           OutputNames::RatiosPath(scheme, section), series);
     TLegend* legend = CanvasManager::CreateLegend(0.7, 0.7, 0.9, 0.9, 2);
     for (std::size_t i = 0; i < drawn.size(); ++i)
       legend->AddEntry(drawn[i], labels[i].c_str(), "p");
     legend->Draw("SAME");
   }
+}
+
+// Every summary of a file, whichever task wrote it (PlotSeries::KindOf), at 'where' (an empty scheme or section is the
+// only one the file has; a section only for a spectra file). Returns where they were drawn from, resolved.
+inline PlotSeries::Where OfFile(CanvasManager& canvases, const std::string& fileName, const PlotSeries::Where& where)
+{
+  const PlotSeries::FileKind kind = PlotSeries::KindOf(fileName, where.scheme);
+  if (kind == PlotSeries::FileKind::Spectra) {
+    const PlotSeries::Where resolved = PlotSeries::Resolve(fileName, where);
+    Correlations(canvases, fileName, resolved.scheme, resolved.section);
+    return resolved;
+  }
+  if (!where.section.empty())
+    throw std::runtime_error(std::format("[FATAL] PlotSummaries: '{}' is not a spectra file; a section ('{}') means nothing in it.", fileName,
+                                         where.section));
+  const std::string scheme = PlotSeries::SchemeName(fileName, where.scheme);
+  if (kind == PlotSeries::FileKind::Purity)
+    Purities(canvases, fileName, scheme);
+  else
+    Corrections(canvases, fileName, scheme);
+  return {scheme, ""};
 }
 
 } // namespace PlotSummaries

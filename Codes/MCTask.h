@@ -322,10 +322,10 @@ class MCTask : public IAnalysisTask
     TDirectory* schemeDir = RootIO::MakePath(outputFile.get(), {globalCfgs.binningName});
     RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
     // The particles this file holds maps of, for a reader with no configuration (the summaries below among them).
-    std::vector<std::vector<std::string>> particles;
+    std::vector<std::string> particles;
     for (const auto& data : dataCollection)
-      particles.push_back({data.name});
-    RootIO::WriteStringTable(schemeDir, OutputNames::kCorrectionParticles, OutputNames::kParticleColumns, particles);
+      particles.push_back(data.name);
+    RootIO::WriteStringTable(schemeDir, OutputNames::kCorrectionParticles, {particles});
 
     RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
     const std::string fileName = outputFile->GetName();

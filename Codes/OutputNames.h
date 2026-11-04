@@ -57,13 +57,16 @@ inline std::vector<std::string> RatiosPath(const std::string& scheme, const std:
 // What a file holds, as tables of names (RootIO::WriteStringTable), so that a reader with no configuration finds it
 // without parsing object names: the particles of a corrections file and the purity keys of a purity file, in the
 // scheme directory; the species ratios of a section, next to its |dy| limits. A ratio's label is not here: it is the Y
-// title of the ratio itself.
-inline const std::string kCorrectionParticles{"particles"};
-inline const std::string kPurityKeys{"purity_keys"};
-inline const std::string kSpeciesRatios{"species_ratios"};
-inline const std::vector<std::string> kParticleColumns{"particle"};
-inline const std::vector<std::string> kPurityKeyColumns{"purity_key"};
-inline const std::vector<std::string> kSpeciesRatioColumns{"numerator", "denominator"};
+// title of the ratio itself (PlotSeries::SpeciesRatioLabel). Each table says its columns and which task writes it, for
+// the message that asks for it to be re-run.
+struct StringTable {
+  std::string name;
+  std::vector<std::string> columns;
+  std::string writer;
+};
+inline const StringTable kCorrectionParticles{"particles", {"particle"}, "MC task"};
+inline const StringTable kPurityKeys{"purity_keys", {"purity_key"}, "purity task"};
+inline const StringTable kSpeciesRatios{"species_ratios", {"numerator", "denominator"}, "correlation task"};
 
 // The files between the fit tasks and CorrelationTask: the name that follows the output prefix.
 // Written once here, since the writer and the reader would otherwise each spell it, and a
