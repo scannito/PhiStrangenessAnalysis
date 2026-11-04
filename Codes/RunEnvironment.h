@@ -42,7 +42,7 @@ inline std::uint64_t Fnv1a(std::string_view data, std::uint64_t hash = kFnvOffse
 // sources records the commit it was based on, which looks precise and is not -
 // hence SourcesFingerprint below, which answers the question this one only seems
 // to answer.
-inline std::string GitCommit(const std::string& gitDir = "../.git")
+inline std::string GitCommit(const std::string& gitDir)
 {
   std::ifstream head(std::format("{}/HEAD", gitDir));
   if (!head)
@@ -75,7 +75,7 @@ inline std::string GitCommit(const std::string& gitDir = "../.git")
 // One number over every header in the framework directory, in name order. This is
 // what actually ran, committed or not, which is the difference that matters: most
 // of a working session happens on a tree that no commit describes.
-inline std::string SourcesFingerprint(const std::string& sourceDir = ".")
+inline std::string SourcesFingerprint(const std::string& sourceDir)
 {
   std::vector<std::string> headers;
   std::error_code ec;
@@ -115,27 +115,37 @@ inline std::string TimestampNow()
   return buffer;
 }
 
-// The facts, gathered once per process: reading 330 kB of headers is cheap, doing
-// it for every task is pointless.
-//
-// Both defaults assume the working directory is the framework's own, which
-// runAnalysis.sh guarantees with its cd. Run from anywhere else they come back
-// empty and nothing is recorded, which is the right outcome for documentation.
 // The names of the facts, for whoever reads them back (the plots' catalog).
 inline const std::string kGitCommit{"git_commit"};
+inline const std::string kSourcesFingerprint{"sources_fingerprint"};
 
+// The facts of the repository at 'repoRoot': its commit and the fingerprint of the headers in its Codes/. What is not
+// found is not recorded, the right outcome for documentation.
+inline std::map<std::string, std::string> FactsAt(const std::string& repoRoot)
+{
+  std::map<std::string, std::string> f;
+  const std::string commit = GitCommit(repoRoot + "/.git");
+  const std::string sources = SourcesFingerprint(repoRoot + "/Codes");
+  if (!commit.empty())
+    f[kGitCommit] = commit;
+  if (!sources.empty())
+    f[kSourcesFingerprint] = sources;
+  return f;
+}
+
+// The facts, gathered once per process: reading 330 kB of headers is cheap, doing it for every task is pointless.
+//
+// The repository is the one the program was built from when its build names it (PHISTRANGE_SOURCE_DIR: CMake gives it
+// to phistrangeplot, runplot.sh to a composition, which run from anywhere); otherwise the parent of the working
+// directory, the framework's own Codes/, which runAnalysis.sh guarantees with its cd. Run from anywhere else they come
+// back empty and nothing is recorded; a source tree moved since the build records nothing, never another tree's.
 inline const std::map<std::string, std::string>& Facts()
 {
-  static const std::map<std::string, std::string> facts = [] {
-    std::map<std::string, std::string> f;
-    const std::string commit = GitCommit();
-    const std::string sources = SourcesFingerprint();
-    if (!commit.empty())
-      f[kGitCommit] = commit;
-    if (!sources.empty())
-      f["sources_fingerprint"] = sources;
-    return f;
-  }();
+#ifdef PHISTRANGE_SOURCE_DIR
+  static const std::map<std::string, std::string> facts = FactsAt(PHISTRANGE_SOURCE_DIR);
+#else
+  static const std::map<std::string, std::string> facts = FactsAt("..");
+#endif
   return facts;
 }
 
