@@ -835,24 +835,30 @@ inline std::vector<Interval> Intervals(const std::string& fileName, const std::s
   return intervals;
 }
 
+// What a file holds, for whoever asks for a plot of it: per binning scheme, the task that wrote it, its multiplicity
+// classes, and what its finders take (the particles of a corrections file, the purity keys of a purity file, the
+// sections of a spectra file with their species, |dy| limits and species ratios), with when and by what it was made.
+// Built by the same functions the finders resolve through, so it lists exactly what a request can name.
 struct Catalog {
   struct Section {
     std::string name;
     std::vector<std::string> species;
-    std::map<std::string, std::vector<double>> ptAssocBinning; // per species, from its stamp
-    std::optional<std::vector<double>> deltaYLimits;           // none: written before they were recorded
+    std::vector<double> deltaYLimits;
+    std::vector<std::pair<std::string, std::string>> speciesRatios;
   };
   struct Scheme {
     std::string name;
-    std::vector<double> multBinning, ptPhiBinning;
-    std::vector<Section> sections;
-    std::map<std::string, std::string> provenance; // produced_at, git_commit, ...
+    FileKind kind;
+    std::vector<Interval> classes;
+    std::vector<std::string> particles;  // a corrections file
+    std::vector<std::string> purityKeys; // a purity file
+    std::vector<Section> sections;       // a spectra file
+    std::map<std::string, std::string> provenance;
   };
   std::string fileName;
   std::vector<Scheme> schemes;
 };
 
-// Read forward from the directories and the stamps, never from object names.
 inline Catalog ReadCatalog(const std::string& fileName)
 {
   auto file = Detail::Open(fileName);
@@ -861,25 +867,24 @@ inline Catalog ReadCatalog(const std::string& fileName)
     TDirectory* schemeDir = file->GetDirectory(key->GetName());
     if (!RootIO::IsSchemeDir(schemeDir))
       continue;
-    Catalog::Scheme scheme{.name = schemeDir->GetName(),
-                           .multBinning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult, fileName),
-                           .ptPhiBinning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtPhi, fileName),
-                           .provenance = RootIO::ReadProvenance(file.get(), schemeDir->GetName())};
-    for (TObject* k : *schemeDir->GetListOfKeys()) {
-      TDirectory* sectionDir = schemeDir->GetDirectory(k->GetName());
-      if (!OutputNames::IsSectionDir(sectionDir))
-        continue;
-      Catalog::Section section{.name = sectionDir->GetName(),
-                               .deltaYLimits = RootIO::ReadValueList(sectionDir, OutputNames::kDeltaYLimits, fileName)};
-      for (TObject* s : *sectionDir->GetListOfKeys())
-        if (TDirectory* speciesDir = sectionDir->GetDirectory(s->GetName()); OutputNames::IsSpeciesDir(speciesDir)) {
-          section.species.emplace_back(s->GetName());
-          section.ptAssocBinning[s->GetName()] = RootIO::ReadBinningStamp(speciesDir, RootIO::kStampPtAssoc, fileName);
+    const std::string name = schemeDir->GetName();
+    Catalog::Scheme scheme{.name = name, .kind = KindOf(fileName, name), .classes = Intervals(fileName, name),
+                           .provenance = RootIO::ReadProvenance(file.get(), name)};
+    if (scheme.kind == FileKind::Corrections)
+      scheme.particles = CorrectionParticles(fileName, name);
+    else if (scheme.kind == FileKind::Purity)
+      scheme.purityKeys = PurityKeys(fileName, name);
+    else
+      for (TObject* k : *schemeDir->GetListOfKeys())
+        if (OutputNames::IsSectionDir(schemeDir->GetDirectory(k->GetName()))) {
+          const Where where{name, k->GetName()};
+          scheme.sections.push_back({.name = k->GetName(), .species = SpeciesIn(fileName, where), .deltaYLimits = DeltaYLimits(fileName, where),
+                                     .speciesRatios = SpeciesRatios(fileName, where)});
         }
-      scheme.sections.push_back(std::move(section));
-    }
     catalog.schemes.push_back(std::move(scheme));
   }
+  if (catalog.schemes.empty())
+    throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' holds no binning scheme the framework wrote.", fileName));
   return catalog;
 }
 
