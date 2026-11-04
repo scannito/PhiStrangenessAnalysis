@@ -780,9 +780,10 @@ inline std::string WithFiles(const std::string& text, const std::string& origin,
         self(self, e);
     if (!v.IsObject())
       return;
-    // Removed before the file is found: RemoveMember moves the last member into the hole.
+    // Erased (in order, unlike RemoveMember, which would move the last member into the hole and change which file
+    // comes first) before the file is found: erasing moves the members after it.
     for (const char* key : {kTitle, kRatioTitle, kNotes, v.HasMember(kFile) ? kLabel : nullptr})
-      if (key && v.RemoveMember(key))
+      if (key && v.EraseMember(key))
         dropped.emplace(key);
     if (auto file = v.FindMember(kFile); file != v.MemberEnd()) {
       slots.push_back(&file->value);

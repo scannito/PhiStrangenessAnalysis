@@ -174,9 +174,8 @@ purity or spectra, by the record the scheme holds), `Resolve` / `SchemeName` (th
   label, file names cut to the words that differ.
 - `Save(canvas, outBase, series, recipe, facts)`: `outBase.pdf`, `.png` and `.root` with the canvas, a copy of each
   series as computed (`Objects/series<i>`) and the provenance: the recipe, when, the commit and the header
-  fingerprint of the code that drew it, the input files' provenance per origin, and any facts given (a note). The code
-  is the repository the program was built from, which CMake (for `phistrangeplot`) and `runplot.sh` (for a
-  composition) name at compile time, so it is recorded whatever directory the plot is made from. `OpenPlotFile` refuses to replace a file the plots did not
+  fingerprint of the code that drew it, whatever directory the plot is made from, the input files' provenance per
+  origin, and any facts given (a note). `OpenPlotFile` refuses to replace a file the plots did not
   write, or one open as an input.
 
 ## 5. PlotDesigns: the six layouts, `Table` and the look
@@ -447,12 +446,12 @@ are in section 9.
 ## 14. When something stops
 
 Every refusal starts with `[FATAL]` and names what it refused; the exit code says which kind (section 9). The ones met
-most often:
+most often, and the warnings that change what a result means:
 
 | What you see | Why, and what to do |
 |---|---|
 | `... is not a multiplicity interval of '...'. Available: ...` (exit 3) | `mult` must be one of the file's classes, as `list` shows them. |
-| `\|dy\| < ... is not a limit of section '...'. Available: ...` (exit 3) | the same for `dy`. |
+| `\|dy\| < ... is not a limit of section '...' of '...'. Available: ...` (exit 3) | the same for `dy`. |
 | `... holds 2 binning schemes (...); name the one to read.` (exit 1) | the file has more than one binning scheme or section: give `scheme` (or `section`). |
 | `... does not record 'particles' / 'purity_keys' / 'species_ratios' ...` or `... does not record its \|dy\| limits` (exit 3) | the file was written before the records of section 7: re-run the task the message names. |
 | `... is against multiplicity and '...' against pT` | a spectrum and a trend on one plot, or in one ratio: two plots. |
@@ -465,8 +464,10 @@ most often:
 | `[plot_ask] WARNING: the prompt filled the whole context ...` | Ollama cut the prompt and the model did not see the catalog: fewer files in one request, or a larger `--num-ctx`. |
 | `[FATAL] plot_ask: the prompt needs about N tokens and llama-server has M` | restart llama-server with the `-c` the message gives. |
 | `[plot_ask] WARNING: ... is not the model measured` | the results of section 11 do not apply to it: run `plot_ask_test.py` before relying on it. |
-| `/divide_option: not one of [""]` from the model | it chose a binomial division, which is offered only with `--allow-binomial`; the front end hands the refusal back. |
-| `runplot: ROOT is not in the environment` | `enterO2P` first. |
+| `[plot_ask] attempt N refused:` and the reason | the model's specification was refused and is handed back to it with the reason (a binomial division without `--allow-binomial` among them); it stops only as below. |
+| `[FATAL] plot_ask: no acceptable specification after N attempts; the last is in ...` | the model did not get it right within `--retries`: correct the last one by hand and `render` it, or ask in other words. |
+| `[FATAL] runplot: ROOT is not in the environment (enterO2P)` | `enterO2P` first. |
+| `[FATAL] phistrangeplot: Codes/... changed after this binary was built` | the binary would draw with code the tree no longer holds, and record the tree's commit as if it did not: `cmake --build build --target phistrangeplot`. |
 
 ## 15. What is not done
 
