@@ -534,7 +534,7 @@ through `PlotSummaries` at the end of `Terminate`. `PLOTS.md` explains each.
 | `PlotDesigns.h` | `namespace PlotDesigns` — the recurring layouts (`Overlay`, `Grid`, `CompareWithRatio`, `JoinedPads`, `WithReference`, `FitCanvasGrid`, `Table`) and the looks taken from facts (`ColourBy`, `ShapeBy`, `FillBy`). |
 | `PlotSummaries.h` | `namespace PlotSummaries` — the summaries of `MCTask`, `PurityTask` and the correlation tasks, drawn from a file of their kind. |
 | `PlotSpec.h` | `namespace PlotSpec` — a plot as JSON: the schema, built from the keys that read it, and the reading of a specification into the components. |
-| `phistrangeplot.cpp` | The command `build/phistrangeplot`: `summaries`, `list`, `schema`, `describe`, `render`, `quick`. |
+| `phistrangeplot.cpp` | The command `build/phistrangeplot`: `summaries`, `list`, `schema`, `describe`, `render`. |
 | `PlotComponentsCheck.cpp` | Compiles every plot header with each build (target `plotcomponents`), since no single program includes them all. |
 
 ---
@@ -570,18 +570,9 @@ check downstream would then be verifying a correspondence the converter had inve
 
 ## Plots
 
-A plot is composed from the components above, never written from scratch (`CLAUDE.md`, *Plots*). From the repository
-root, after `cmake --build build`:
-
-```bash
-build/phistrangeplot summaries <file.root> --out <dir>    # a task's summaries, redrawn from its file
-build/phistrangeplot list <file.root>...                  # what the files hold
-build/phistrangeplot describe <spec.json>                 # what a specification resolves to
-build/phistrangeplot render <spec.json> --out <base>      # <base>.pdf, .png and .root with the provenance
-python3 Macros/plot_ask.py "<request>" --file <file.root> --out <base>   # in words, with a local model
-```
-
-Everything, in detail, is in `PLOTS.md`.
+A plot is composed from the components above, never written from scratch (`CLAUDE.md`, *Plots*): a task's
+summaries redrawn from its file, a plot written as a specification, or asked in words to a local model. How, with
+every command, is in `PLOTS.md` (the command `phistrangeplot`: section 9).
 
 ---
 

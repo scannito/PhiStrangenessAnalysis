@@ -22,6 +22,7 @@ compared and computed is the components'; you choose the series, the layout and 
 5. **What a specification cannot say** (a layout, an operation, a legend the components lack): a C++ composition on
    `PlotSeries.h` and `PlotDesigns.h`, run with `Macros/runplot.sh <composition.cpp>`, out of the repository unless the
    design recurs. If even the components lack it, propose adding it to them first (CLAUDE.md, *Plots*).
-6. **An example on other files:** `build/phistrangeplot quick PlotSpecs/examples/<x>.json --file <f>... --out <base>`.
+6. **An example on other files:** `describe` and then `render` `PlotSpecs/examples/<x>.json --file <f>...` (the files it
+   names replaced in order; its labels and titles left out), as in step 4.
 
-Exit codes of phistrangeplot: 0 done, 1 refused (the message says why), 2 wrong use, 3 not in the files.
+The syntax and the exit codes: `PLOTS.md`, section 9.

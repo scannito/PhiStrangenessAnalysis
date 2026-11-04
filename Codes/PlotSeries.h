@@ -27,7 +27,7 @@
 #include <vector>
 
 // The series a plot is made of, found by what they are and never by a name built by hand: the deterministic half of
-// the plots (DESIGN_NOTES section 1, "Plots: deterministic components, composed"). What a series is, where it is read,
+// the plots (DESIGN_HISTORY, "Plots: deterministic components, composed"). What a series is, where it is read,
 // what may be compared with what, how two series are combined and how they are put on a pad are decided here; a
 // composition only chooses series and how they look.
 //

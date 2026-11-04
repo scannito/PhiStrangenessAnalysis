@@ -28,7 +28,7 @@
 #include <vector>
 
 // The recurring designs of a plot, each one function over series PlotSeries found and checked: the six layouts the
-// requests have asked for (DESIGN_NOTES section 1, "Plots: deterministic components, composed"). A design decides the
+// requests have asked for (DESIGN_HISTORY, "Plots: deterministic components, composed"). A design decides the
 // layout; what is drawn comes in as series, and how it looks comes in as parameters with a default, which are the only
 // things a composition sets. Each returns what it drew, the series it computed included (the ratios), for Save and
 // Table. Nothing here reads a file or builds a name except FitCanvasGrid, which reopens canvases already written, by
