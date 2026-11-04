@@ -1,0 +1,37 @@
+{
+ "design": "overlay",
+ "log_y": true,
+ "title": "K^{0}_{S} spectra, 5-10%",
+ "series": [
+  {
+   "of": "spectrum",
+   "file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root",
+   "species": "K0S",
+   "dy": 1.0,
+   "mult": [
+    5,
+    10
+   ]
+  },
+  {
+   "of": "spectrum",
+   "file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root",
+   "species": "K0S",
+   "dy": 0.5,
+   "mult": [
+    5,
+    10
+   ]
+  },
+  {
+   "of": "spectrum",
+   "file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root",
+   "species": "K0S",
+   "dy": 0.1,
+   "mult": [
+    5,
+    10
+   ]
+  }
+ ]
+}

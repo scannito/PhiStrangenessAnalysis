@@ -1,0 +1,24 @@
+{
+ "design": "overlay",
+ "y_title": "#Omega / #pi",
+ "series": [
+  {
+   "of": "species_ratio",
+   "file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root",
+   "numerator": "Omega",
+   "denominator": "Pi",
+   "dy": 0.1,
+   "trend": "measured",
+   "label": "measured"
+  },
+  {
+   "of": "species_ratio",
+   "file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root",
+   "numerator": "Omega",
+   "denominator": "Pi",
+   "dy": 0.1,
+   "trend": "extrapolated",
+   "label": "extrapolated"
+  }
+ ]
+}

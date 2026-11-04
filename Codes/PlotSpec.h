@@ -236,8 +236,16 @@ inline std::string Explain(const rapidjson::Value& schema, const rapidjson::Valu
     std::vector<std::string> known;
     for (const auto& p : (*failedSchema)["properties"].GetObject())
       known.emplace_back(p.name.GetString());
-    return std::format("{}: unknown key '{}'; the object takes {}", object.empty() ? "/" : object,
-                       docPointer.GetTokens()[docPointer.GetTokenCount() - 1].name, Logger::Join(known, ", "));
+    const std::string key = docPointer.GetTokens()[docPointer.GetTokenCount() - 1].name;
+    // In a series, the forms that do take the key: what to change is often the form, not the key.
+    std::vector<std::string_view> takenBy;
+    for (const SeriesForm& f : SeriesForms())
+      if (std::ranges::any_of(f.keys, [&](const std::string& k) { return k.starts_with(std::format("\"{}\"", key)); }))
+        takenBy.push_back(f.of);
+    return std::format("{}: unknown key '{}'; the object takes {}{}", object.empty() ? "/" : object, key, Logger::Join(known, ", "),
+                       takenBy.empty() || !failedSchema->HasMember("properties") || !(*failedSchema)["properties"].HasMember("of")
+                         ? ""
+                         : std::format(" ('{}' belongs to a series of: {})", key, Logger::Join(takenBy, ", ")));
   }
   if (keyword == "required" && failedSchema && failedValue && failedValue->IsObject()) {
     std::vector<std::string> missing;

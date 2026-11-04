@@ -20,9 +20,10 @@
 //     what a plot specification may say (PlotSpec::Schema).
 //   phistrangeplot describe <spec.json>
 //     what the specification resolves to, every series and what the series disagree on, without keeping anything.
-//   phistrangeplot render <spec.json> --out <base> [--alice <status> --system <collision system>]
-//     the plot, as <base>.pdf, .png and .root, the specification kept as its recipe. The ALICE label only when both its
-//     status and its system are given: the system is not in the files.
+//   phistrangeplot render <spec.json> --out <base> [--alice <status> --system <collision system>] [--note <text>]
+//     the plot, as <base>.pdf, .png and .root, the specification kept as its recipe, with the note when one is given
+//     (a front end records there the request and the model that wrote the specification). The ALICE label only when
+//     both its status and its system are given: the system is not in the files.
 // Exit codes: 0 done, 1 refused or failed, 2 wrong use, 3 not in the files (a scheme, a section, a record, an object).
 namespace
 {
@@ -32,7 +33,7 @@ int Usage()
                        "       phistrangeplot list [--json] <file.root>...\n"
                        "       phistrangeplot schema\n"
                        "       phistrangeplot describe <spec.json>\n"
-                       "       phistrangeplot render <spec.json> --out <base> [--alice <status> --system <collision system>]\n");
+                       "       phistrangeplot render <spec.json> --out <base> [--alice <status> --system <collision system>] [--note <text>]\n");
   return 2;
 }
 
@@ -110,7 +111,7 @@ int main(int argc, char* argv[])
     return 0;
   }
   if ((verb == "describe" || verb == "render") && argc >= 3) {
-    std::map<std::string, std::string> options{{"--out", ""}, {"--alice", ""}, {"--system", ""}};
+    std::map<std::string, std::string> options{{"--out", ""}, {"--alice", ""}, {"--system", ""}, {"--note", ""}};
     const bool render = verb == "render";
     if (!ReadOptions(argc, argv, 3, options))
       return Usage();
@@ -128,7 +129,7 @@ int main(int argc, char* argv[])
       const PlotDesigns::Drawn drawn = PlotSpec::Draw(spec, canvases, "plot", alice);
       std::printf("%s", PlotSeries::Describe(drawn.series).c_str());
       if (render)
-        PlotDesigns::Save(drawn, options["--out"], std::format("{}\n{}", recipe, text));
+        PlotDesigns::Save(drawn, options["--out"], std::format("{}\n{}{}", recipe, options["--note"].empty() ? "" : options["--note"] + "\n", text));
     });
   }
   if (verb == "summaries" && argc >= 3) {
