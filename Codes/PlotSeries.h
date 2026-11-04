@@ -348,24 +348,16 @@ inline std::string SchemeName(const std::string& fileName, const std::string& sc
 
 namespace Detail
 {
-// A table of what a file holds (OutputNames::kCorrectionParticles...): absent, the file was written before it.
-inline std::vector<std::vector<std::string>> Table(TDirectory* dir, const std::string& name, const std::vector<std::string>& columns,
-                                                   const std::string& fileName, const std::string& task)
+// A table of what a file holds (OutputNames::kCorrectionParticles...), column by column. Absent, the file is of another
+// kind or was written before the table existed.
+inline std::vector<std::vector<std::string>> Table(TDirectory* dir, const OutputNames::StringTable& table, const std::string& fileName)
 {
-  std::optional<std::vector<std::vector<std::string>>> rows = RootIO::ReadStringTable(dir, name, columns, "PlotSeries");
-  if (!rows)
-    throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' does not record '{}' in '{}': it was written before the record existed; "
-                                 "re-run the {}.",
-                                 fileName, name, dir->GetName(), task));
-  return *rows;
-}
-
-inline std::vector<std::string> Column(const std::vector<std::vector<std::string>>& rows)
-{
-  std::vector<std::string> values;
-  for (const std::vector<std::string>& row : rows)
-    values.push_back(row.front());
-  return values;
+  std::optional<std::vector<std::vector<std::string>>> columns = RootIO::ReadStringTable(dir, table);
+  if (!columns)
+    throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' does not record '{}' in '{}': it is a file of another kind, or it was written "
+                                 "before the record existed (re-run the {}).",
+                                 fileName, table.name, dir->GetName(), table.writer));
+  return *columns;
 }
 } // namespace Detail
 
@@ -373,27 +365,51 @@ inline std::vector<std::string> Column(const std::vector<std::vector<std::string
 inline std::vector<std::string> CorrectionParticles(const std::string& fileName, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
-  return Detail::Column(Detail::Table(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kCorrectionParticles,
-                                      OutputNames::kParticleColumns, fileName, "MC task"));
+  return Detail::Table(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kCorrectionParticles, fileName).front();
 }
 
 // The purity keys a purity file holds spectra of, as PurityTask recorded them.
 inline std::vector<std::string> PurityKeys(const std::string& fileName, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
-  return Detail::Column(Detail::Table(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kPurityKeys,
-                                      OutputNames::kPurityKeyColumns, fileName, "purity task"));
+  return Detail::Table(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kPurityKeys, fileName).front();
 }
 
 // The species ratios a section holds, numerator and denominator, as the correlation task recorded them.
 inline std::vector<std::pair<std::string, std::string>> SpeciesRatios(const std::string& fileName, const Where& where = {})
 {
   const Detail::Located at = Detail::LocateSection(fileName, where);
+  const std::vector<std::vector<std::string>> columns = Detail::Table(at.sectionDir, OutputNames::kSpeciesRatios, fileName);
   std::vector<std::pair<std::string, std::string>> ratios;
-  for (const std::vector<std::string>& row :
-       Detail::Table(at.sectionDir, OutputNames::kSpeciesRatios, OutputNames::kSpeciesRatioColumns, fileName, "correlation task"))
-    ratios.emplace_back(row[0], row[1]);
+  for (std::size_t i = 0; i < columns[0].size(); ++i)
+    ratios.emplace_back(columns[0][i], columns[1][i]);
   return ratios;
+}
+
+// Which task wrote a file, told by what its scheme holds: the particles of a corrections file, the purity keys of a
+// purity file, the sections of a spectra file. A file with none of them is of no kind the plots know, or was written
+// before the records existed.
+enum class FileKind { Corrections, Purity, Spectra };
+inline FileKind KindOf(const std::string& fileName, const std::string& scheme = "")
+{
+  auto file = Detail::Open(fileName);
+  TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
+  if (schemeDir->GetListOfKeys()->FindObject(OutputNames::kCorrectionParticles.name.c_str()))
+    return FileKind::Corrections;
+  if (schemeDir->GetListOfKeys()->FindObject(OutputNames::kPurityKeys.name.c_str()))
+    return FileKind::Purity;
+  for (TObject* key : *schemeDir->GetListOfKeys())
+    if (OutputNames::IsSectionDir(schemeDir->GetDirectory(key->GetName())))
+      return FileKind::Spectra;
+  throw NotInFiles(std::format("[FATAL] PlotSeries: scheme '{}' of '{}' holds neither '{}', '{}' nor a section: it is not a file of the "
+                               "MC, purity or correlation task, or it was written before they recorded what they hold.",
+                               schemeDir->GetName(), fileName, OutputNames::kCorrectionParticles.name, OutputNames::kPurityKeys.name));
+}
+
+// The label of a species ratio (yield_ratios' "label"): the Y title of the ratio as the task wrote it, not recorded twice.
+inline std::string SpeciesRatioLabel(const std::string& fileName, const std::string& num, const std::string& den, const Where& where = {})
+{
+  return SpeciesRatio(fileName, num, den, DeltaYLimits(fileName, where).front(), TrendKind::Measured, where).hist->GetYaxis()->GetTitle();
 }
 
 // The species of a section of a PhiAssocSpectra file: its directories that hold spectra or trends.
@@ -712,17 +728,15 @@ inline LegendText AutoLabels(const std::vector<Series>& series)
 // The owner of a plot's provenance in its .root.
 inline const std::string kPlotOwner{"Plot"};
 
-// The plot kept: 'outBase' with each extension of 'formats', and always 'outBase'.root with the canvas, a copy of each
-// series as it was computed (Objects/series<i>, a non-finite bin as it is), and the provenance: the recipe (the
-// composition or the specification, as the config_block), when, the code's commit and fingerprint, and per origin of
-// each series its file, its path and its own provenance (RootIO::CopyProvenance). A .root that is not a plot written
-// here, or that is open as an input, is never overwritten.
-namespace Detail
+// The formats a plot is exported to, next to its .root.
+inline const std::vector<std::string> kPlotFormats{"pdf", "png"};
+
+// A plot's .root, opened new with the plot's provenance (the recipe: the composition, the specification or the
+// command, as the config_block; when; the code's commit and fingerprint). It replaces only a plot's .root: never an
+// input of the plot, never a file the plots did not write.
+inline std::unique_ptr<TFile> OpenPlotFile(const std::string& rootName, const std::string& recipe, const std::string& ctx)
 {
-// A plot's .root may replace only a plot's .root: never an input of the plot, never a file the plots did not write.
-inline void RequirePlotOutput(const std::string& rootName, const std::string& ctx)
-{
-  if (!OpenFiles()[rootName].expired())
+  if (!Detail::OpenFiles()[rootName].expired())
     throw std::runtime_error(std::format("[FATAL] {}: '{}' is open as an input of this plot.", ctx, rootName));
   if (std::filesystem::exists(rootName)) {
     std::unique_ptr<TFile> existing(TFile::Open(rootName.c_str(), "READ"));
@@ -731,22 +745,29 @@ inline void RequirePlotOutput(const std::string& rootName, const std::string& ct
                                            "output.",
                                            ctx, rootName));
   }
-  if (const std::filesystem::path dir = std::filesystem::path(rootName).parent_path(); !dir.empty())
-    RootIO::CreateDirectoriesOrThrow(dir, ctx);
+  std::unique_ptr<TFile> out = RootIO::OpenOrThrow(rootName, "RECREATE", ctx);
+  RootIO::WriteProvenance(out.get(), kPlotOwner, RootIO::StartProvenance(recipe));
+  return out;
 }
-} // namespace Detail
 
-inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<Series>& series, const std::string& recipe,
-                 const std::vector<std::string>& formats = {"pdf", "png"})
+// The provenance of an input file of a plot (its scheme's), copied into the plot's .root as 'record'.
+inline void CopyInputProvenance(TFile* plotFile, const std::string& fileName, const std::string& scheme, const std::string& record)
 {
-  const std::string rootName = outBase + ".root";
-  Detail::RequirePlotOutput(rootName, "PlotSeries::Save");
+  RootIO::CopyProvenance(Detail::Open(fileName).get(), scheme, plotFile, kPlotOwner, record, fileName);
+}
+
+// The plot kept: 'outBase' with each extension of 'formats', and always 'outBase'.root (OpenPlotFile) with the canvas,
+// a copy of each series as it was computed (Objects/series<i>, a non-finite bin as it is), and per origin of each series
+// its file, its path and its own provenance (RootIO::CopyProvenance).
+inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<Series>& series, const std::string& recipe,
+                 const std::vector<std::string>& formats = kPlotFormats)
+{
+  if (const std::filesystem::path dir = std::filesystem::path(outBase).parent_path(); !dir.empty())
+    RootIO::CreateDirectoriesOrThrow(dir, "PlotSeries::Save");
+  std::unique_ptr<TFile> out = OpenPlotFile(outBase + ".root", recipe, "PlotSeries::Save");
   for (const std::string& format : formats)
     canvas->SaveAs(std::format("{}.{}", outBase, format).c_str());
-
-  std::unique_ptr<TFile> out = RootIO::OpenOrThrow(rootName, "RECREATE", "PlotSeries::Save");
   out->WriteTObject(canvas, canvas->GetName(), "Overwrite");
-  RootIO::WriteProvenance(out.get(), kPlotOwner, RootIO::StartProvenance(recipe));
   for (std::size_t i = 0; i < series.size(); ++i) {
     RootIO::MakePath(out.get(), {"Objects", std::format("series{}", i)})->WriteTObject(series[i].hist.get(), series[i].hist->GetName(), "Overwrite");
     if (!series[i].notes.empty())

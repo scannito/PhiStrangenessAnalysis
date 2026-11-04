@@ -152,7 +152,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // =========================================================================
     // The ratios written, as a table next to the |dy| limits, for a reader with no configuration (the summaries below
     // among them): empty when none was asked for or none could be computed.
-    std::vector<std::vector<std::string>> ratiosWritten;
+    std::vector<std::string> ratioNumerators, ratioDenominators;
     if (!requestedRatios.empty()) {
       // Create or access the "Ratios" directory inside Extract1D/2D
       TDirectory* ratioDir = RootIO::MakePath(outputFile.get(), OutputNames::RatiosPath(globalCfgs.binningName, SectionDirName()));
@@ -178,7 +178,8 @@ class CorrelationTaskBase : public IAnalysisTask
         const bool denHasExtrap = extrapolatedParticles.contains(den.name);
         const bool doExtrapRatio = numHasExtrap || denHasExtrap;
 
-        ratiosWritten.push_back({num.name, den.name});
+        ratioNumerators.push_back(num.name);
+        ratioDenominators.push_back(den.name);
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
 
@@ -204,7 +205,7 @@ class CorrelationTaskBase : public IAnalysisTask
     } else {
       Logger::Info("{}: No yield ratios requested. Skipping.", GetName());
     }
-    RootIO::WriteStringTable(sectionDir, OutputNames::kSpeciesRatios, OutputNames::kSpeciesRatioColumns, ratiosWritten);
+    RootIO::WriteStringTable(sectionDir, OutputNames::kSpeciesRatios, {ratioNumerators, ratioDenominators});
 
     // =========================================================================
     // 3. Close the output file, then draw the summaries from what was written, as any reader of the file would draw
