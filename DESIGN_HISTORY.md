@@ -1759,9 +1759,10 @@ already in the files. The summaries keep their own look, not the designs', by th
 **Why files record what they hold.** To draw a summary or list a file without a configuration, something had to say
 which particles, purity keys and species ratios a file holds. Reading them back from the names would have been the
 second copy of the naming rule that sank `phiplot`'s parser; reading them from the configuration would tie a plot to
-the run that made the file. So the task that writes a file writes the list too, as a small table of names
-(`RootIO::WriteStringTable`, one row type per table, declared once in `OutputNames`), and a file written before the
-tables is refused with the task to re-run.
+the run that made the file. So the task that writes a file writes the list too, as a small table (`RootIO::WriteTable`,
+one typed branch per column, each table declared once in `OutputNames`; the |dy| limits, first written as a list of
+values in a histogram, became one of them when the whole branch was reviewed), and a file written before the tables is
+refused with the task to re-run.
 
 **Why a specification after all.** The decision of 3 November left it as a possibility (a plot "editable as data
 without Claude"); phase G made it, for two readers: the owner offline, and a local model, which must not write code.

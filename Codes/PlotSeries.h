@@ -13,6 +13,7 @@
 #include "TH1.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <cmath>
 #include <filesystem>
@@ -21,8 +22,10 @@
 #include <memory>
 #include <optional>
 #include <ranges>
+#include <span>
 #include <stdexcept>
 #include <string>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -82,6 +85,9 @@ struct Look {
   std::optional<int> color, marker;
   std::optional<double> markerSize;
 };
+// The filled marker shapes, in the order a look by shape gives them, and the outline of each (TAttMarker): the first
+// is the marker of a series that is given none.
+inline constexpr std::pair<int, int> kShapes[] = {{20, 24}, {21, 25}, {33, 27}, {34, 28}, {29, 30}, {22, 26}, {23, 32}};
 
 struct Series {
   std::shared_ptr<TH1> hist;   // detached, as read: a non-finite bin stays non-finite
@@ -101,8 +107,8 @@ enum class TrendKind { Measured,
 
 // Where in a PhiAssocSpectra file: the binning scheme and the section (Extract1D, Extract2D); empty means the only one.
 struct Where {
-  std::string scheme;
-  std::string section;
+  std::string scheme{};
+  std::string section{};
 };
 
 namespace Detail
@@ -181,6 +187,45 @@ inline int MultIndex(std::span<const double> edges, Interval interval, const std
                                             }))));
 }
 
+// A table of what a file holds (OutputNames::kCorrectionParticles...), its rows; none when the file does not have it.
+template <class... T>
+std::optional<std::vector<std::tuple<T...>>> TryTable(TDirectory* dir, const OutputNames::Table& table)
+{
+  return RootIO::ReadTable<T...>(dir, table.name, table.columns);
+}
+
+// The same, required: absent, the file is of another kind or was written before the table existed.
+template <class... T>
+std::vector<std::tuple<T...>> Table(TDirectory* dir, const OutputNames::Table& table, const std::string& fileName)
+{
+  std::optional<std::vector<std::tuple<T...>>> rows = TryTable<T...>(dir, table);
+  if (!rows)
+    throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' does not record '{}' in '{}': it is a file of another kind, or it was written "
+                                 "before the record existed (re-run the {}).",
+                                 fileName, table.name, dir->GetName(), table.writer));
+  return *rows;
+}
+
+// A one-column table as the list of its values.
+template <class T>
+std::vector<T> Column(const std::vector<std::tuple<T>>& rows)
+{
+  std::vector<T> values;
+  for (const auto& [value] : rows)
+    values.push_back(value);
+  return values;
+}
+
+// A bin that cannot be drawn or combined as a number: its content or its error is not finite.
+inline bool NonFiniteBin(const TH1* h, int bin) { return !std::isfinite(h->GetBinContent(bin)) || !std::isfinite(h->GetBinError(bin)); }
+inline int CountNonFinite(const TH1* h)
+{
+  int n = 0;
+  for (int bin = 1; bin <= h->GetNbinsX(); ++bin)
+    n += NonFiniteBin(h, bin);
+  return n;
+}
+
 // A PhiAssocSpectra file opened at a scheme and a section that hold the |dy| limit 'dy', when the limits were recorded
 // (OutputNames::kDeltaYLimits); a file written before they were is left to the missing object.
 struct Located {
@@ -198,16 +243,15 @@ inline Located LocateSection(const std::string& fileName, const Where& where)
 inline Located Locate(const std::string& fileName, const Where& where, double dy)
 {
   const Located at = LocateSection(fileName, where);
-  const std::optional<std::vector<double>> limits = RootIO::ReadValueList(at.sectionDir, OutputNames::kDeltaYLimits, fileName);
-  if (limits && std::ranges::none_of(*limits, [&](double limit) { return std::abs(limit - dy) <= BinningUtils::kEdgeTolerance; }))
+  const auto rows = TryTable<double>(at.sectionDir, OutputNames::kDeltaYLimits);
+  const std::vector<double> limits = rows ? Column(*rows) : std::vector<double>{};
+  if (rows && std::ranges::none_of(limits, [&](double limit) { return std::abs(limit - dy) <= BinningUtils::kEdgeTolerance; }))
     throw NotInFiles(std::format("[FATAL] PlotSeries: |dy| < {} is not a limit of section '{}' of '{}'. Available: {}.",
                                  dy, at.sectionDir->GetName(), fileName,
-                                 Logger::Join(*limits | std::views::transform(BinningUtils::FormatDeltaY))));
+                                 Logger::Join(limits | std::views::transform(BinningUtils::FormatDeltaY))));
   return at;
 }
 
-// The histogram at 'path', detached and as it is; its non-finite visible bins counted and warned about. Absent is
-// NotInFiles; present but not a histogram (a TGraph) is said as such.
 // The object under 'path', of class T. Absent is NotInFiles (the request names what the file does not have); another
 // class is an error of the file, said apart.
 template <class T>
@@ -223,6 +267,7 @@ inline std::unique_ptr<T> Get(TFile* file, const std::string& fileName, const st
   return std::unique_ptr<T>(typed);
 }
 
+// The histogram at 'path', detached and as it is; its non-finite visible bins counted and warned about.
 inline Series Read(const std::shared_ptr<TFile>& file, const std::string& fileName, const std::string& path,
                    TDirectory* schemeDir, std::vector<TDirectory*> speciesDirs)
 {
@@ -230,10 +275,7 @@ inline Series Read(const std::shared_ptr<TFile>& file, const std::string& fileNa
   raw->SetDirectory(0);
   std::shared_ptr<TH1> hist(raw.release());
 
-  int nonFinite = 0;
-  for (int bin = 1; bin <= hist->GetNbinsX(); ++bin)
-    if (!std::isfinite(hist->GetBinContent(bin)) || !std::isfinite(hist->GetBinError(bin)))
-      ++nonFinite;
+  const int nonFinite = CountNonFinite(hist.get());
   if (nonFinite)
     Logger::Warn("PlotSeries: '{}' in '{}' has {} non-finite bin(s): left empty where drawn, carried through any sum or ratio.",
                  path, fileName, nonFinite);
@@ -325,11 +367,22 @@ inline Series SpeciesRatio(const std::string& fileName, const std::string& num, 
 // -----------------------------------------------------------------------------
 // The series of a Purity file and of a Corrections file (a scheme, no section)
 // -----------------------------------------------------------------------------
+namespace Detail
+{
+// The scheme of a file that has no sections: a section asked of it means nothing.
+inline TDirectory* SchemeOnly(TFile* file, const Where& where, const std::string& fileName)
+{
+  if (!where.section.empty())
+    throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' has no sections; '{}' means nothing in it.", fileName, where.section));
+  return Scheme(file, where.scheme, fileName);
+}
+} // namespace Detail
+
 inline Series Purity(const std::string& fileName, const std::string& purityKey, Interval mult,
-                     OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const std::string& scheme = "")
+                     OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const Where& where = {})
 {
   auto file = Detail::Open(fileName);
-  TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
+  TDirectory* schemeDir = Detail::SchemeOnly(file.get(), where, fileName);
   const std::vector<double> edges = Detail::MultBinning(schemeDir, fileName);
   const int multBin = Detail::MultIndex(edges, mult, fileName);
   Series s = Detail::Read(file, fileName,
@@ -346,12 +399,7 @@ inline Series Purity(const std::string& fileName, const std::string& purityKey, 
 inline std::vector<double> DeltaYLimits(const std::string& fileName, const Where& where = {})
 {
   const Detail::Located at = Detail::LocateSection(fileName, where);
-  std::optional<std::vector<double>> limits = RootIO::ReadValueList(at.sectionDir, OutputNames::kDeltaYLimits, fileName);
-  if (!limits)
-    throw NotInFiles(std::format("[FATAL] PlotSeries: section '{}' of '{}' does not record its |dy| limits ('{}'): it was written "
-                                 "before they were; re-run the correlation task.",
-                                 at.sectionDir->GetName(), fileName, OutputNames::kDeltaYLimits));
-  return *limits;
+  return Detail::Column(Detail::Table<double>(at.sectionDir, OutputNames::kDeltaYLimits, fileName));
 }
 
 // The scheme and the section a request names, with the empty ones resolved to the only one the file has.
@@ -365,50 +413,34 @@ inline std::string SchemeName(const std::string& fileName, const std::string& sc
   return Detail::Scheme(Detail::Open(fileName).get(), scheme, fileName)->GetName();
 }
 
-namespace Detail
-{
-// A table of what a file holds (OutputNames::kCorrectionParticles...), column by column. Absent, the file is of another
-// kind or was written before the table existed.
-inline std::vector<std::vector<std::string>> Table(TDirectory* dir, const OutputNames::StringTable& table, const std::string& fileName)
-{
-  std::optional<std::vector<std::vector<std::string>>> columns = RootIO::ReadStringTable(dir, table);
-  if (!columns)
-    throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' does not record '{}' in '{}': it is a file of another kind, or it was written "
-                                 "before the record existed (re-run the {}).",
-                                 fileName, table.name, dir->GetName(), table.writer));
-  return *columns;
-}
-} // namespace Detail
-
 // The particles a corrections file holds maps of, as MCTask recorded them.
 inline std::vector<std::string> CorrectionParticles(const std::string& fileName, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
-  return Detail::Table(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kCorrectionParticles, fileName).front();
+  return Detail::Column(Detail::Table<std::string>(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kCorrectionParticles, fileName));
 }
 
 // The purity keys a purity file holds spectra of, as PurityTask recorded them.
 inline std::vector<std::string> PurityKeys(const std::string& fileName, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
-  return Detail::Table(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kPurityKeys, fileName).front();
+  return Detail::Column(Detail::Table<std::string>(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kPurityKeys, fileName));
 }
 
 // The species ratios a section holds, numerator and denominator, as the correlation task recorded them.
 inline std::vector<std::pair<std::string, std::string>> SpeciesRatios(const std::string& fileName, const Where& where = {})
 {
   const Detail::Located at = Detail::LocateSection(fileName, where);
-  const std::vector<std::vector<std::string>> columns = Detail::Table(at.sectionDir, OutputNames::kSpeciesRatios, fileName);
   std::vector<std::pair<std::string, std::string>> ratios;
-  for (std::size_t i = 0; i < columns[0].size(); ++i)
-    ratios.emplace_back(columns[0][i], columns[1][i]);
+  for (const auto& [num, den] : Detail::Table<std::string, std::string>(at.sectionDir, OutputNames::kSpeciesRatios, fileName))
+    ratios.emplace_back(num, den);
   return ratios;
 }
 
 // Which task wrote a file, told by what its scheme holds: the particles of a corrections file, the purity keys of a
-// purity file, the sections of a spectra file. A file with none of them is of no kind the plots know, or was written
-// before the records existed.
-enum class FileKind { Corrections, Purity, Spectra };
+// purity file, the sections of a spectra file, the fits of the phi fit file. A file with none of them is of no kind the
+// plots know, or was written before the records existed.
+enum class FileKind { Corrections, Purity, Spectra, PhiFits };
 inline std::string_view Name(FileKind kind)
 {
   switch (kind) {
@@ -418,6 +450,8 @@ inline std::string_view Name(FileKind kind)
       return "purity";
     case FileKind::Spectra:
       return "spectra";
+    case FileKind::PhiFits:
+      return "phi_fits";
   }
   throw std::logic_error("[FATAL] PlotSeries: a kind of file with no name.");
 }
@@ -444,8 +478,10 @@ inline FileKind KindOf(const std::string& fileName, const std::string& scheme = 
     return FileKind::Purity;
   if (!Sections(fileName, schemeDir->GetName()).empty())
     return FileKind::Spectra;
-  throw NotInFiles(std::format("[FATAL] PlotSeries: scheme '{}' of '{}' holds neither '{}', '{}' nor a section: it is not a file of the "
-                               "MC, purity or correlation task, or it was written before they recorded what they hold.",
+  if (RootIO::FindPath(file.get(), OutputNames::PhiFitsPath(schemeDir->GetName())))
+    return FileKind::PhiFits;
+  throw NotInFiles(std::format("[FATAL] PlotSeries: scheme '{}' of '{}' holds neither '{}', '{}', a section nor phi fits: it is not a "
+                               "file of the MC, purity, correlation or phi fit task, or it was written before they recorded what they hold.",
                                schemeDir->GetName(), fileName, OutputNames::kCorrectionParticles.name, OutputNames::kPurityKeys.name));
 }
 
@@ -469,10 +505,10 @@ inline std::vector<std::string> SpeciesIn(const std::string& fileName, const Whe
 // A correction map of one class, or integrated over multiplicity (no interval).
 inline Series CorrectionMap(const std::string& fileName, const std::string& particle, OutputNames::CorrectionMap map,
                             std::optional<Interval> mult,
-                            OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const std::string& scheme = "")
+                            OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const Where& where = {})
 {
   auto file = Detail::Open(fileName);
-  TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
+  TDirectory* schemeDir = Detail::SchemeOnly(file.get(), where, fileName);
   std::string multTag = OutputNames::kMultIntegrated;
   std::string multFact = "multiplicity-integrated";
   if (mult) {
@@ -500,6 +536,43 @@ inline Series Object(const std::string& fileName, const std::string& path)
   return s;
 }
 
+// The mass-fit canvas of one cell, already written by the task that fitted it (PhiFitTask, or PurityTask for a purity
+// key): not a series, a canvas, kept with where it was read so that a plot of it records its input. The cell is named
+// by its intervals (OutputNames::CellTag); the multiplicity class is checked against the scheme's stamp, and the phi's
+// pT interval against its ptPhi stamp (a purity key's pT binning is not stamped: a wrong one is the missing canvas).
+struct FitCanvas {
+  std::unique_ptr<TCanvas> canvas;
+  Origin origin;
+  std::string tag;
+};
+inline FitCanvas Fit(const std::string& fileName, const std::optional<std::string>& purityKey, Interval mult, Interval pt,
+                     OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const Where& where = {})
+{
+  auto file = Detail::Open(fileName);
+  TDirectory* schemeDir = Detail::SchemeOnly(file.get(), where, fileName);
+  const std::vector<double> multEdges = Detail::MultBinning(schemeDir, fileName);
+  const int multBin = Detail::MultIndex(multEdges, mult, fileName);
+  std::vector<double> ptEdges{pt.low, pt.high};
+  int ptBin = 0;
+  if (!purityKey) {
+    ptEdges = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtPhi, fileName);
+    const std::optional<int> low = BinningUtils::FindEdgeIndex(ptEdges, pt.low);
+    if (!low || BinningUtils::FindEdgeIndex(ptEdges, pt.high) != *low + 1)
+      throw NotInFiles(std::format("[FATAL] PlotSeries: pT {}-{} is not a bin of the phi fits of '{}'. Available: {}.", pt.low, pt.high, fileName,
+                                   Logger::Join(BinningUtils::BinIndices(ptEdges) | std::views::transform([&](int bin) {
+                                                  return BinningUtils::BinLabel(ptEdges, bin);
+                                                }))));
+    ptBin = *low;
+  }
+  const std::string tag = OutputNames::CellTag(multEdges, multBin, ptEdges, ptBin);
+  const std::string path = purityKey ? RootIO::ObjectPath(OutputNames::PurityFitsPath(schemeDir->GetName(), *purityKey, binning),
+                                                          OutputNames::PurityFitCanvas(*purityKey, tag, binning))
+                                     : RootIO::ObjectPath(OutputNames::PhiFitsPath(schemeDir->GetName()), OutputNames::PhiFitCanvas(tag));
+  return {.canvas = Detail::Get<TCanvas>(file.get(), fileName, path),
+          .origin = {.file = file, .fileName = fileName, .path = path, .schemeDir = schemeDir},
+          .tag = tag};
+}
+
 // -----------------------------------------------------------------------------
 // Comparing and combining
 // -----------------------------------------------------------------------------
@@ -511,18 +584,18 @@ struct Comparison {
 
 // Series on one plot, or in one ratio, share the quantity on their X axis: each that has one against the first that has
 // one (a foreign object, which has none, says nothing either way).
-inline void RequireOneQuantityOnX(const std::vector<const Series*>& series)
+inline void RequireOneQuantityOnX(std::span<const Series> series)
 {
   const Series* first = nullptr;
-  for (const Series* s : series) {
-    if (!s->x)
+  for (const Series& s : series) {
+    if (!s.x)
       continue;
     if (!first)
-      first = s;
-    else if (*s->x != *first->x)
+      first = &s;
+    else if (*s.x != *first->x)
       throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' is against {} and '{}' against {}: one plot, or one ratio, has one "
                                            "quantity on X.",
-                                           first->origins.front().path, Name(*first->x), s->origins.front().path, Name(*s->x)));
+                                           first->origins.front().path, Name(*first->x), s.origins.front().path, Name(*s.x)));
   }
 }
 
@@ -567,7 +640,7 @@ inline Comparison Compare(const Series& a, const Series& b)
 // not be checked is warned.
 inline void RequireCombinable(const Series& a, const Series& b)
 {
-  RequireOneQuantityOnX({&a, &b});
+  RequireOneQuantityOnX(std::array{a, b});
   const Comparison c = Compare(a, b);
   for (const std::string& n : c.notChecked)
     Logger::Warn("PlotSeries: '{}' and '{}', not checked: {}", a.origins.front().path, b.origins.front().path, n);
@@ -592,9 +665,7 @@ inline Series Combined(const Series& a, const Series& b, std::unique_ptr<TH1> hi
   s.facts = {.kind = kind, .species = common(a.facts.species, b.facts.species), .dy = common(a.facts.dy, b.facts.dy),
              .mult = common(a.facts.mult, b.facts.mult), .binning = common(a.facts.binning, b.facts.binning)};
   s.x = a.x ? a.x : b.x; // RequireCombinable has refused two different ones; a foreign operand has none
-  for (int bin = 1; bin <= s.hist->GetNbinsX(); ++bin)
-    if (!std::isfinite(s.hist->GetBinContent(bin)) || !std::isfinite(s.hist->GetBinError(bin)))
-      ++s.nonFiniteBins;
+  s.nonFiniteBins = CountNonFinite(s.hist.get());
   return s;
 }
 } // namespace Detail
@@ -643,10 +714,7 @@ inline Series Scale(const Series& a, double factor)
 // legend.
 inline std::vector<TH1*> Draw(const std::vector<Series>& series, const std::string& option = "E1")
 {
-  std::vector<const Series*> all;
-  for (const Series& s : series)
-    all.push_back(&s);
-  RequireOneQuantityOnX(all);
+  RequireOneQuantityOnX(series);
   for (std::size_t i = 1; i < series.size(); ++i) {
     const Comparison c = Compare(series.front(), series[i]);
     for (const std::string& d : c.differs)
@@ -672,14 +740,14 @@ inline std::vector<TH1*> Draw(const std::vector<Series>& series, const std::stri
     std::unique_ptr<TH1> copy(static_cast<TH1*>(series[i].hist->Clone()));
     copy->SetDirectory(0);
     for (int bin = 1; bin <= copy->GetNbinsX(); ++bin)
-      if (!std::isfinite(copy->GetBinContent(bin)) || !std::isfinite(copy->GetBinError(bin))) {
+      if (Detail::NonFiniteBin(copy.get(), bin)) {
         copy->SetBinContent(bin, 0.);
         copy->SetBinError(bin, 0.);
       }
     const std::string opt = i == 0 ? option : std::format("{} SAME", option);
     const Look& look = series[i].look;
     TH1* d = CanvasManager::DrawStyledCopy(copy.get(), opt.c_str(), look.color.value_or(CanvasManager::ClassColor(static_cast<int>(i))),
-                                           look.marker.value_or(20));
+                                           look.marker.value_or(kShapes[0].first));
     if (look.markerSize)
       d->SetMarkerSize(*look.markerSize);
     // No statistics box: a plot never wants one, and ROOT's default would draw it when the file is opened elsewhere.
@@ -698,9 +766,11 @@ inline std::vector<TH1*> Draw(const std::vector<Series>& series, const std::stri
 
 // What was resolved, said before drawing: each series, where it comes from and what was done to it, and what the
 // series drawn together disagree on (DIFFERS) or could not be checked for (NOT checked).
-inline std::string Describe(const std::vector<Series>& series)
+inline std::string Describe(const std::vector<Series>& series, const std::vector<Origin>& inputs = {})
 {
   std::string out;
+  for (std::size_t i = 0; i < inputs.size(); ++i)
+    out += std::format("input {}: {} in {}\n", i, inputs[i].path, inputs[i].fileName);
   for (std::size_t i = 0; i < series.size(); ++i) {
     const Series& s = series[i];
     out += std::format("series {}: '{}'\n", i, s.label);
@@ -802,8 +872,12 @@ inline const std::vector<std::string> kPlotFormats{"pdf", "png"};
 inline std::unique_ptr<TFile> OpenPlotFile(const std::string& rootName, const std::string& recipe, const std::string& ctx,
                                            const std::map<std::string, std::string>& facts = {})
 {
-  if (!Detail::OpenFiles()[rootName].expired())
-    throw std::runtime_error(std::format("[FATAL] {}: '{}' is open as an input of this plot.", ctx, rootName));
+  // By the file, not the spelling: Plots/a.root and ./Plots/a.root are one file.
+  std::error_code ec;
+  const std::filesystem::path target = std::filesystem::weakly_canonical(rootName, ec);
+  for (const auto& [name, file] : Detail::OpenFiles())
+    if (!file.expired() && std::filesystem::weakly_canonical(name, ec) == target)
+      throw std::runtime_error(std::format("[FATAL] {}: '{}' is open as an input of this plot.", ctx, rootName));
   if (std::filesystem::exists(rootName)) {
     std::unique_ptr<TFile> existing(TFile::Open(rootName.c_str(), "READ"));
     if (!existing || RootIO::ReadProvenance(existing.get(), kPlotOwner).empty())
@@ -826,9 +900,11 @@ inline void CopyInputProvenance(TFile* plotFile, const std::string& fileName, co
 
 // The plot kept: 'outBase' with each extension of 'formats', and always 'outBase'.root (OpenPlotFile) with the canvas,
 // a copy of each series as it was computed (Objects/series<i>, a non-finite bin as it is), and per origin of each series
-// its file, its path and its own provenance (RootIO::CopyProvenance).
+// its file, its path and its own provenance (RootIO::CopyProvenance); the same for each input that is not a series (a
+// fit canvas).
 inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<Series>& series, const std::string& recipe,
-                 const std::map<std::string, std::string>& facts = {}, const std::vector<std::string>& formats = kPlotFormats)
+                 const std::map<std::string, std::string>& facts = {}, const std::vector<Origin>& inputs = {},
+                 const std::vector<std::string>& formats = kPlotFormats)
 {
   if (const std::filesystem::path dir = std::filesystem::path(outBase).parent_path(); !dir.empty())
     RootIO::CreateDirectoriesOrThrow(dir, "PlotSeries::Save");
@@ -836,17 +912,18 @@ inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<
   for (const std::string& format : formats)
     canvas->SaveAs(std::format("{}.{}", outBase, format).c_str());
   out->WriteTObject(canvas, canvas->GetName(), "Overwrite");
+  auto record = [&](const Origin& o, const std::string& name) {
+    RootIO::WriteProvenance(out.get(), kPlotOwner, {{"file", o.fileName}, {"path", o.path}}, name);
+    RootIO::CopyProvenance(o.file.get(), o.schemeDir ? o.schemeDir->GetName() : "", out.get(), kPlotOwner, std::format("{}_input", name), o.fileName);
+  };
+  for (std::size_t i = 0; i < inputs.size(); ++i)
+    record(inputs[i], std::format("input{}", i));
   for (std::size_t i = 0; i < series.size(); ++i) {
     RootIO::MakePath(out.get(), {"Objects", std::format("series{}", i)})->WriteTObject(series[i].hist.get(), series[i].hist->GetName(), "Overwrite");
     if (!series[i].notes.empty())
       RootIO::WriteProvenance(out.get(), kPlotOwner, {{"operations", Logger::Join(series[i].notes, "\n")}}, std::format("series{}", i));
-    for (std::size_t j = 0; j < series[i].origins.size(); ++j) {
-      const Origin& o = series[i].origins[j];
-      const std::string record = std::format("series{}_origin{}", i, j);
-      RootIO::WriteProvenance(out.get(), kPlotOwner, {{"file", o.fileName}, {"path", o.path}}, record);
-      RootIO::CopyProvenance(o.file.get(), o.schemeDir ? o.schemeDir->GetName() : "", out.get(), kPlotOwner,
-                             std::format("{}_input", record), o.fileName);
-    }
+    for (std::size_t j = 0; j < series[i].origins.size(); ++j)
+      record(series[i].origins[j], std::format("series{}_origin{}", i, j));
   }
   out->Close();
 }
@@ -867,7 +944,8 @@ inline std::vector<Interval> Intervals(const std::string& fileName, const std::s
 
 // What a file holds, for whoever asks for a plot of it: per binning scheme, the task that wrote it, its multiplicity
 // classes, and what its finders take (the particles of a corrections file, the purity keys of a purity file, the
-// sections of a spectra file with their species, |dy| limits and species ratios), with when and by what it was made.
+// sections of a spectra file with their species, |dy| limits and species ratios, the pT bins of the phi fits), with
+// when and by what it was made.
 // Built by the same functions the finders resolve through, so it lists exactly what a request can name.
 struct Catalog {
   struct Section {
@@ -880,6 +958,7 @@ struct Catalog {
     std::string name;
     FileKind kind;
     std::vector<Interval> classes;
+    std::vector<Interval> ptIntervals;   // the phi fit file: the pT bins of its fits
     std::vector<std::string> particles;  // a corrections file
     std::vector<std::string> purityKeys; // a purity file
     std::vector<Section> sections;       // a spectra file
@@ -909,7 +988,11 @@ inline Catalog ReadCatalog(const std::string& fileName)
       scheme.particles = CorrectionParticles(fileName, name);
     else if (scheme.kind == FileKind::Purity)
       scheme.purityKeys = PurityKeys(fileName, name);
-    else
+    else if (scheme.kind == FileKind::PhiFits) {
+      const std::vector<double> edges = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtPhi, fileName);
+      for (int ptBin : BinningUtils::BinIndices(edges))
+        scheme.ptIntervals.push_back({edges[ptBin], edges[ptBin + 1]});
+    } else
       for (const std::string& section : Sections(fileName, name)) {
         const Where where{name, section};
         scheme.sections.push_back({.name = section, .species = SpeciesIn(fileName, where), .deltaYLimits = DeltaYLimits(fileName, where),

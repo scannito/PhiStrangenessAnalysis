@@ -12,6 +12,7 @@ graphify-out/
 
 # Build artifacts
 build/
+__pycache__/
 
 # RooFit research: scratch programs and outputs, copied out of /private/tmp so they survive a reboot.
 # Large and regenerable; the notes in RooFitKnowledge/ are what is tracked.

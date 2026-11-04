@@ -320,10 +320,10 @@ class MCTask : public IAnalysisTask
     TDirectory* schemeDir = RootIO::MakePath(outputFile.get(), {globalCfgs.binningName});
     RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
     // The particles this file holds maps of, for a reader with no configuration (the summaries below among them).
-    std::vector<std::string> particles;
+    std::vector<std::tuple<std::string>> particles;
     for (const auto& data : dataCollection)
-      particles.push_back(data.name);
-    RootIO::WriteStringTable(schemeDir, OutputNames::kCorrectionParticles, {particles});
+      particles.emplace_back(data.name);
+    RootIO::WriteTable(schemeDir, OutputNames::kCorrectionParticles.name, OutputNames::kCorrectionParticles.columns, particles);
 
     RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
     const std::string fileName = outputFile->GetName();
@@ -331,8 +331,7 @@ class MCTask : public IAnalysisTask
 
     // The summaries are drawn from what was written, as any reader of the file would draw them, and written into it
     // (their directories are under the scheme ClearPath emptied in Init).
-    PlotSummaries::WriteInto(fileName, GetName(),
-                             [&](CanvasManager& canvases) { PlotSummaries::Corrections(canvases, fileName, globalCfgs.binningName); });
+    PlotSummaries::WriteInto(fileName, GetName(), {globalCfgs.binningName});
 
     Logger::Info("{}: DONE.", GetName());
   }

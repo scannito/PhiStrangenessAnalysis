@@ -39,33 +39,48 @@ inline const std::string kRatiosDir{"Ratios"};
 // At the root of a section, next to the species: the relative uncertainty of the per-trigger normalisation, per
 // multiplicity class (CorrelationTaskBase::GenerateSpectraAndTrends).
 inline const std::string kNormalisationRelError{"h1NormalisationRelError"};
-// Next to it: the |dy| limits the section was produced with (RootIO::WriteValueList), so that a reader can list them
-// without parsing names.
-inline const std::string kDeltaYLimits{"deltaY_limits"};
-// Where a section keeps a species' spectra and trends, and the cross-species ratios.
+// A section of a scheme, a species in it, and where the species keeps its spectra and trends, and the section its
+// cross-species ratios: the layout, spelled here only (the correlation tasks build their own paths from SectionPath).
+inline std::vector<std::string> SectionPath(const std::string& scheme, const std::string& section) { return {scheme, section}; }
+inline std::vector<std::string> SpeciesPath(const std::string& scheme, const std::string& section, const std::string& species)
+{
+  std::vector<std::string> path = SectionPath(scheme, section);
+  path.push_back(species);
+  return path;
+}
 inline std::vector<std::string> SpectraPath(const std::string& scheme, const std::string& section, const std::string& species)
 {
-  return {scheme, section, species, kSpectraDir};
+  std::vector<std::string> path = SpeciesPath(scheme, section, species);
+  path.push_back(kSpectraDir);
+  return path;
 }
 inline std::vector<std::string> TrendsPath(const std::string& scheme, const std::string& section, const std::string& species)
 {
-  return {scheme, section, species, kTrendsDir};
+  std::vector<std::string> path = SpeciesPath(scheme, section, species);
+  path.push_back(kTrendsDir);
+  return path;
 }
-inline std::vector<std::string> RatiosPath(const std::string& scheme, const std::string& section) { return {scheme, section, kRatiosDir}; }
+inline std::vector<std::string> RatiosPath(const std::string& scheme, const std::string& section)
+{
+  std::vector<std::string> path = SectionPath(scheme, section);
+  path.push_back(kRatiosDir);
+  return path;
+}
 
-// What a file holds, as tables of names (RootIO::WriteStringTable), so that a reader with no configuration finds it
-// without parsing object names: the particles of a corrections file and the purity keys of a purity file, in the
-// scheme directory; the species ratios of a section, next to its |dy| limits. A ratio's label is not here: it is the Y
-// title of the ratio itself (PlotSeries::SpeciesRatioLabel). Each table says its columns and which task writes it, for
-// the message that asks for it to be re-run.
-struct StringTable {
+// What a file holds, as tables (RootIO::WriteTable), so that a reader with no configuration finds it without parsing
+// object names: the particles of a corrections file and the purity keys of a purity file, in the scheme directory; the
+// |dy| limits a section was produced with and its species ratios, next to its species. A ratio's label is not here: it
+// is the Y title of the ratio itself (PlotSeries::SpeciesRatioLabel). Each table says its columns and the task to
+// re-run when a file lacks it (its GetName()).
+struct Table {
   std::string name;
   std::vector<std::string> columns;
   std::string writer;
 };
-inline const StringTable kCorrectionParticles{"particles", {"particle"}, "MC task"};
-inline const StringTable kPurityKeys{"purity_keys", {"purity_key"}, "purity task"};
-inline const StringTable kSpeciesRatios{"species_ratios", {"numerator", "denominator"}, "correlation task"};
+inline const Table kCorrectionParticles{"particles", {"particle"}, "mc_task"};
+inline const Table kPurityKeys{"purity_keys", {"purity_key"}, "purity_task"};
+inline const Table kDeltaYLimits{"deltaY_limits", {"dy"}, "correlation_task or correlation_wpdg_task"};
+inline const Table kSpeciesRatios{"species_ratios", {"numerator", "denominator"}, "correlation_task or correlation_wpdg_task"};
 
 // The files between the fit tasks and CorrelationTask: the name that follows the output prefix.
 // Written once here, since the writer and the reader would otherwise each spell it, and a
@@ -172,9 +187,11 @@ enum class CorrectionMap { Efficiency,
 namespace Detail
 {
 // One row per map, the only place its names are spelled: the directory of the map, the subdirectory of its objects,
-// the object's name, its summary canvas's, and what it is in words.
+// the object's name, its summary canvas's, and what it is in words; and whether its summary goes below the objects'
+// subdirectory's name too (the map that shares its directory with another).
 struct CorrectionMapNames {
   std::string_view dir, objectsDir, object, canvas, title;
+  bool summaryApart{false};
 };
 inline CorrectionMapNames NamesOf(CorrectionMap map)
 {
@@ -184,7 +201,7 @@ inline CorrectionMapNames NamesOf(CorrectionMap map)
     case CorrectionMap::SignalLoss:
       return {"SigLoss", "MultBin", "SigLoss", "SignalLoss", "signal loss"};
     case CorrectionMap::SignalLossOverEventLoss:
-      return {"SigLoss", "OverEvLoss", "SigLossOverEvLoss", "SignalLossOverEventLoss", "signal loss over event loss"};
+      return {"SigLoss", "OverEvLoss", "SigLossOverEvLoss", "SignalLossOverEventLoss", "signal loss over event loss", true};
   }
   throw std::runtime_error(std::format("[FATAL] OutputNames: CorrectionMap {} has no names.", static_cast<int>(map)));
 }
@@ -252,9 +269,10 @@ inline std::string CorrectionSummaryCanvas(std::string_view particle, Correction
 inline std::vector<std::string> CorrectionSummaryPath(const std::string& binningName, CorrectionMap map,
                                                       SpectrumBinning binning = SpectrumBinning::Analysis)
 {
-  std::vector<std::string> path{binningName, std::string(Detail::NamesOf(map).dir), "Summary"};
-  if (map == CorrectionMap::SignalLossOverEventLoss)
-    path.emplace_back("OverEvLoss");
+  const Detail::CorrectionMapNames names = Detail::NamesOf(map);
+  std::vector<std::string> path{binningName, std::string(names.dir), "Summary"};
+  if (names.summaryApart)
+    path.emplace_back(names.objectsDir);
   return BinningPath(std::move(path), binning);
 }
 

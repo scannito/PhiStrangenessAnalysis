@@ -126,7 +126,7 @@ class PhiFitTask : public IAnalysisTask
         const std::string title = OutputNames::CellTitle("#phi", multBinning, multBin, ptPhiBinning, ptPhiBin);
         TCanvas* cFit = canvasManager.CreateCanvas(canvasName, title, 800, 800);
         fitter.DrawFit(cFit, title, /*logY=*/false); // a peak on a smooth background, which log scale flattens
-        CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
+        CanvasManager::DrawAliceLabel(cFit);
         canvasManager.WriteAndDestroy(canvasName, fitDir);
 
         // Save the results for CorrelationTask
@@ -152,11 +152,15 @@ class PhiFitTask : public IAnalysisTask
     h2TriggerBkgRatio->Write(nullptr, TObject::kOverwrite);
 
     // The trigger matrices cross into CorrelationTask, so this file is a link in
-    // the chain and not a by-product: it has to say what produced it. No binning
-    // stamp is needed here - both axes of the matrices are the real binnings.
+    // the chain and not a by-product: it has to say what produced it.
     RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
 
-    fitQuality.Write(RootIO::MakePath(outputFile.get(), {globalCfgs.binningName}), GetName());
+    // The matrices carry their binnings on their axes; the fit canvases carry them only in their names (CellTag), so
+    // the binnings are stamped as well, for a reader that looks a fit up by its cell (PlotSeries::Fit, the catalog).
+    TDirectory* schemeDir = RootIO::MakePath(outputFile.get(), {globalCfgs.binningName});
+    RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
+    RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhiBinning);
+    fitQuality.Write(schemeDir, GetName());
 
     outputFile->Close();
 

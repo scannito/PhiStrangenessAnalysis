@@ -2,7 +2,6 @@
 
 #include "BinningUtils.h"
 #include "Logger.h"
-#include "OutputNames.h"
 #include "RunEnvironment.h"
 
 #include "TDirectory.h"
@@ -23,6 +22,7 @@
 #include <string>
 #include <span>
 #include <string_view>
+#include <tuple>
 #include <vector>
 #include <type_traits>
 #include <utility>
@@ -374,94 +374,81 @@ inline void RequireSameOptionalStamp(TDirectory* reference, TDirectory* other, c
   Detail::Enforce(CompareBinningStamps(reference, other, name, referenceCtx, otherCtx));
 }
 
-// A list of values that is not a binning: they need not be ordered, and one value is a list, so it cannot be a stamp
-// with real edges. One bin per value, its content the value, on a counter axis that nothing divides by. A TH1D and not a
-// TVectorD so that Macros/CompareRootFiles compares it. Read back by ReadValueList: absent (a file written before the
-// list existed) is nullopt, not an empty list, which the writer never produces.
-inline void WriteValueList(TDirectory* dir, const std::string& name, std::span<const double> values)
+namespace Detail
 {
-  if (!dir)
-    throw std::runtime_error(std::format("[FATAL] RootIO::WriteValueList: no directory to write '{}' into.", name));
-  TH1D list(name.c_str(), "value list: the bin contents are the values, the axis is unused", static_cast<int>(values.size()), 0.,
-            static_cast<double>(values.size()));
-  list.SetDirectory(0);
-  for (std::size_t i = 0; i < values.size(); ++i)
-    list.SetBinContent(static_cast<int>(i) + 1, values[i]);
-  dir->WriteTObject(&list, name.c_str(), "Overwrite");
-}
+// A cell of a table row, bound to its branch: a value of a fundamental type is its own address, a string is read through
+// a pointer the tree allocates (TTree::SetBranchAddress's two forms).
+template <class T>
+struct TableCell {
+  T value{};
+  T* Address() { return &value; }
+  const T& Get() const { return value; }
+};
+template <>
+struct TableCell<std::string> {
+  std::string* value{nullptr};
+  std::string** Address() { return &value; }
+  const std::string& Get() const { return *value; }
+  ~TableCell() { delete value; }
+};
+} // namespace Detail
 
-inline std::optional<std::vector<double>> ReadValueList(TDirectory* dir, const std::string& name, std::string_view errCtx)
+// What a file holds that a reader must find without parsing names (OutputNames::kCorrectionParticles...): a table whose
+// rows have the same typed fields, one branch per column. A detached TTree filled in memory and written like a
+// histogram, the shape of FitQualityRecorder's table, which Macros/CompareRootFiles compares branch by branch. An empty
+// table is written as such: it says "none", where an absent one says "written before the table existed".
+template <class... T>
+void WriteTable(TDirectory* dir, const std::string& name, std::span<const std::string> columns, const std::vector<std::tuple<T...>>& rows)
 {
   if (!dir)
-    throw std::runtime_error(std::format("[FATAL] {}: no directory to read the '{}' list from: the file holds nothing of "
-                                         "this binning scheme or section.",
-                                         errCtx, name));
-  std::unique_ptr<TH1> list = Detail::GetDetachedTH1(dir, name);
-  if (!list)
-    return std::nullopt;
-  std::vector<double> values;
-  for (int bin = 1; bin <= list->GetNbinsX(); ++bin)
-    values.push_back(list->GetBinContent(bin));
-  return values;
-}
-
-// What a file holds that a reader must find without parsing names (OutputNames::kCorrectionParticles...): a table of
-// strings, given and returned column by column, all of one length. A detached TTree filled in memory and written like
-// a histogram, the shape of FitQualityRecorder's table, which Macros/CompareRootFiles compares branch by branch. An
-// empty table is written as such: it says "none", where an absent one says "written before the table existed". Read
-// back by ReadStringTable: absent is nullopt; another class, or other columns, stop.
-inline void WriteStringTable(TDirectory* dir, const OutputNames::StringTable& table, const std::vector<std::vector<std::string>>& columns)
-{
-  if (!dir)
-    throw std::runtime_error(std::format("[FATAL] RootIO::WriteStringTable: no directory to write '{}' into.", table.name));
-  if (columns.size() != table.columns.size() || std::ranges::any_of(columns, [&](const auto& c) { return c.size() != columns.front().size(); }))
-    throw std::runtime_error(std::format("[FATAL] RootIO::WriteStringTable: '{}' takes {} columns of one length ({}).", table.name,
-                                         table.columns.size(), Logger::Join(table.columns, ", ")));
-  TTree tree(table.name.c_str(), std::format("{}: one row per entry", table.name).c_str());
+    throw std::runtime_error(std::format("[FATAL] RootIO::WriteTable: no directory to write '{}' into.", name));
+  if (columns.size() != sizeof...(T))
+    throw std::logic_error(std::format("[FATAL] RootIO::WriteTable: '{}' names {} columns for rows of {}.", name, columns.size(), sizeof...(T)));
+  TTree tree(name.c_str(), std::format("{}: one row per entry", name).c_str());
   tree.SetDirectory(0);
-  std::vector<std::string> row(columns.size());
-  for (std::size_t c = 0; c < columns.size(); ++c)
-    tree.Branch(table.columns[c].c_str(), &row[c]);
-  for (std::size_t entry = 0; entry < columns.front().size(); ++entry) {
-    for (std::size_t c = 0; c < columns.size(); ++c)
-      row[c] = columns[c][entry];
+  std::tuple<T...> row;
+  [&]<std::size_t... I>(std::index_sequence<I...>) { (tree.Branch(columns[I].c_str(), &std::get<I>(row)), ...); }(std::index_sequence_for<T...>{});
+  for (const std::tuple<T...>& r : rows) {
+    row = r;
     tree.Fill();
   }
-  dir->WriteTObject(&tree, table.name.c_str(), "Overwrite");
+  dir->WriteTObject(&tree, name.c_str(), "Overwrite");
 }
 
-inline std::optional<std::vector<std::vector<std::string>>> ReadStringTable(TDirectory* dir, const OutputNames::StringTable& table)
+// A table written by WriteTable, its rows as written: absent is nullopt; another class, other columns, or a column of
+// another type stop.
+template <class... T>
+std::optional<std::vector<std::tuple<T...>>> ReadTable(TDirectory* dir, const std::string& name, std::span<const std::string> columns)
 {
   if (!dir)
-    throw std::runtime_error(std::format("[FATAL] RootIO::ReadStringTable: no directory to read '{}' from.", table.name));
-  std::unique_ptr<TObject> object(dir->Get(table.name.c_str()));
+    throw std::runtime_error(std::format("[FATAL] RootIO::ReadTable: no directory to read '{}' from.", name));
+  std::unique_ptr<TObject> object(dir->Get(name.c_str()));
   if (!object)
     return std::nullopt;
   auto* tree = dynamic_cast<TTree*>(object.get());
   if (!tree)
-    throw std::runtime_error(std::format("[FATAL] RootIO::ReadStringTable: '{}' in '{}' is a {}, not the table it should be.", table.name,
-                                         FileNameOf(dir), object->ClassName()));
-  if (tree->GetListOfBranches()->GetEntries() != static_cast<int>(table.columns.size()))
-    throw std::runtime_error(std::format("[FATAL] RootIO::ReadStringTable: '{}' in '{}' has {} columns, {} expected ({}).", table.name,
-                                         FileNameOf(dir), tree->GetListOfBranches()->GetEntries(), table.columns.size(),
-                                         Logger::Join(table.columns, ", ")));
-  std::vector<std::string*> values(table.columns.size(), nullptr);
-  for (std::size_t c = 0; c < table.columns.size(); ++c) {
-    if (!tree->GetBranch(table.columns[c].c_str()))
-      throw std::runtime_error(std::format("[FATAL] RootIO::ReadStringTable: '{}' in '{}' has no column '{}'.", table.name, FileNameOf(dir),
-                                           table.columns[c]));
-    tree->SetBranchAddress(table.columns[c].c_str(), &values[c]);
-  }
-  std::vector<std::vector<std::string>> columns(table.columns.size());
+    throw std::runtime_error(std::format("[FATAL] RootIO::ReadTable: '{}' in '{}' is a {}, not the table it should be.", name, FileNameOf(dir),
+                                         object->ClassName()));
+  if (tree->GetListOfBranches()->GetEntries() != static_cast<int>(columns.size()))
+    throw std::runtime_error(std::format("[FATAL] RootIO::ReadTable: '{}' in '{}' has {} columns, {} expected ({}).", name, FileNameOf(dir),
+                                         tree->GetListOfBranches()->GetEntries(), columns.size(), Logger::Join(columns, ", ")));
+  std::tuple<Detail::TableCell<T>...> cells;
+  [&]<std::size_t... I>(std::index_sequence<I...>) {
+    auto bind = [&](const std::string& column, auto* address) {
+      // Negative is a missing branch or one of another type (TTree::ESetBranchAddressStatus).
+      if (!tree->GetBranch(column.c_str()) || tree->SetBranchAddress(column.c_str(), address) < 0)
+        throw std::runtime_error(std::format("[FATAL] RootIO::ReadTable: '{}' in '{}' has no column '{}' of the type expected.", name,
+                                             FileNameOf(dir), column));
+    };
+    (bind(columns[I], std::get<I>(cells).Address()), ...);
+  }(std::index_sequence_for<T...>{});
+  std::vector<std::tuple<T...>> rows;
   for (Long64_t entry = 0; entry < tree->GetEntries(); ++entry) {
     tree->GetEntry(entry);
-    for (std::size_t c = 0; c < values.size(); ++c)
-      columns[c].push_back(*values[c]);
+    rows.push_back(std::apply([](const auto&... cell) { return std::tuple<T...>(cell.Get()...); }, cells));
   }
   tree->ResetBranchAddresses();
-  for (std::string* value : values)
-    delete value;
-  return columns;
+  return rows;
 }
 
 

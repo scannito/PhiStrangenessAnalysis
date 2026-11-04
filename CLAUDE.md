@@ -265,8 +265,9 @@ strings.
 - Tasks communicate through ROOT files, never in memory. `WorkflowManager` destroys
   each task right after `Terminate()`.
 - **Decouple data from presentation**: Data structures (`LoadedMC`, `ParticleTask`)
-  hold strictly physics inputs and binnings, never graphics or canvases. Tasks
-  (`MCTask`, `PurityTask`, `CorrelationTaskBase`) own the presentation lifecycle via `CanvasManager`.
+  hold strictly physics inputs and binnings, never graphics or canvases. The fit tasks draw their mass fits via
+  `CanvasManager`; a task's summaries are drawn from the file it has just written and closed, by `PlotSummaries`
+  (`WriteInto`), as any reader of the file would draw them.
   A histogram that is written carries no style: what is drawn is a styled copy (`CanvasManager::DrawStyledCopy`).
 - **ROOT's global lists know nothing about `TDirectory`.** `TCanvas` registers in
   one: two canvases with the same name alive at once collide even in different
@@ -301,6 +302,10 @@ it to be replaced silently, so ownership there is exercised by throwing when the
 directory already holds projections of another binning - see
 `ResolveBinningAndCache`. Clearing and refusing are opposite answers to the same
 question, and which one is right depends on what it costs to lose the contents.
+
+A task that draws its summaries reopens its file once more, in `UPDATE` with no clearing, after closing it
+(`PlotSummaries::WriteInto`): the summaries are drawn from what the file holds, and their directories are under the
+subtree the task cleared in `Init`.
 
 A new task that writes into a file somebody else also writes into belongs in row two.
 
