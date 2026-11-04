@@ -5,11 +5,14 @@
 #include "TDirectory.h"
 
 #include <algorithm>
+#include <array>
 #include <format>
 #include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <tuple>
+#include <type_traits>
 #include <vector>
 
 // The names and the layout of what the correlation tasks write into PhiAssocSpectra.root, the
@@ -44,43 +47,34 @@ inline const std::string kNormalisationRelError{"h1NormalisationRelError"};
 inline std::vector<std::string> SectionPath(const std::string& scheme, const std::string& section) { return {scheme, section}; }
 inline std::vector<std::string> SpeciesPath(const std::string& scheme, const std::string& section, const std::string& species)
 {
-  std::vector<std::string> path = SectionPath(scheme, section);
-  path.push_back(species);
-  return path;
+  return {scheme, section, species};
 }
 inline std::vector<std::string> SpectraPath(const std::string& scheme, const std::string& section, const std::string& species)
 {
-  std::vector<std::string> path = SpeciesPath(scheme, section, species);
-  path.push_back(kSpectraDir);
-  return path;
+  return {scheme, section, species, kSpectraDir};
 }
 inline std::vector<std::string> TrendsPath(const std::string& scheme, const std::string& section, const std::string& species)
 {
-  std::vector<std::string> path = SpeciesPath(scheme, section, species);
-  path.push_back(kTrendsDir);
-  return path;
+  return {scheme, section, species, kTrendsDir};
 }
-inline std::vector<std::string> RatiosPath(const std::string& scheme, const std::string& section)
-{
-  std::vector<std::string> path = SectionPath(scheme, section);
-  path.push_back(kRatiosDir);
-  return path;
-}
+inline std::vector<std::string> RatiosPath(const std::string& scheme, const std::string& section) { return {scheme, section, kRatiosDir}; }
 
 // What a file holds, as tables (RootIO::WriteTable), so that a reader with no configuration finds it without parsing
 // object names: the particles of a corrections file and the purity keys of a purity file, in the scheme directory; the
 // |dy| limits a section was produced with and its species ratios, next to its species. A ratio's label is not here: it
-// is the Y title of the ratio itself (PlotSeries::SpeciesRatioLabel). Each table says its columns and the task to
-// re-run when a file lacks it (its GetName()).
+// is the Y title of the ratio itself (PlotSeries::SpeciesRatioLabel). Each table declares its columns with their types
+// (a row is the value itself for one column), and the task to re-run when a file lacks it, for the message.
+template <class... T>
 struct Table {
+  using Row = std::conditional_t<sizeof...(T) == 1, std::tuple_element_t<0, std::tuple<T...>>, std::tuple<T...>>;
   std::string name;
-  std::vector<std::string> columns;
+  std::array<std::string, sizeof...(T)> columns;
   std::string writer;
 };
-inline const Table kCorrectionParticles{"particles", {"particle"}, "mc_task"};
-inline const Table kPurityKeys{"purity_keys", {"purity_key"}, "purity_task"};
-inline const Table kDeltaYLimits{"deltaY_limits", {"dy"}, "correlation_task or correlation_wpdg_task"};
-inline const Table kSpeciesRatios{"species_ratios", {"numerator", "denominator"}, "correlation_task or correlation_wpdg_task"};
+inline const Table<std::string> kCorrectionParticles{"particles", {"particle"}, "MC task"};
+inline const Table<std::string> kPurityKeys{"purity_keys", {"purity_key"}, "purity task"};
+inline const Table<double> kDeltaYLimits{"deltaY_limits", {"dy"}, "correlation task"};
+inline const Table<std::string, std::string> kSpeciesRatios{"species_ratios", {"numerator", "denominator"}, "correlation task"};
 
 // The files between the fit tasks and CorrelationTask: the name that follows the output prefix.
 // Written once here, since the writer and the reader would otherwise each spell it, and a

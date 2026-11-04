@@ -141,10 +141,7 @@ class CorrelationTaskBase : public IAnalysisTask
     sectionDir->cd();
     hNormalisationRelError->Write(nullptr, TObject::kOverwrite);
     // The |dy| limits of this section, for a reader that lists what the file holds (the plots' catalog).
-    std::vector<std::tuple<double>> limitRows;
-    for (double dy : deltaYLimits)
-      limitRows.emplace_back(dy);
-    RootIO::WriteTable(sectionDir, OutputNames::kDeltaYLimits.name, OutputNames::kDeltaYLimits.columns, limitRows);
+    RootIO::WriteTable(sectionDir, OutputNames::kDeltaYLimits, deltaYLimits);
 
     // The spectra leave this task and, once the trends and ratios move to a task
     // of their own, this is what will say which method produced them.
@@ -207,7 +204,7 @@ class CorrelationTaskBase : public IAnalysisTask
     } else {
       Logger::Info("{}: No yield ratios requested. Skipping.", GetName());
     }
-    RootIO::WriteTable(sectionDir, OutputNames::kSpeciesRatios.name, OutputNames::kSpeciesRatios.columns, ratioRows);
+    RootIO::WriteTable(sectionDir, OutputNames::kSpeciesRatios, ratioRows);
 
     // =========================================================================
     // 3. Close the output file, then draw the summaries from what was written, as any reader of the file would draw
@@ -1421,14 +1418,8 @@ class CorrelationTaskBase : public IAnalysisTask
   // A correction or a purity names its particle: the trigger, "Phi", or one of the associated particles.
   void RequireKnownParticle(const std::string& particle, std::string_view errCtx) const { (void)PtBinningOf(particle, errCtx); }
 
-  // The path of this task's section (OutputNames::SectionPath), and of what is below it: the layout spelled once, not
-  // at every call.
-  std::vector<std::string> SectionPath(std::initializer_list<std::string> below = {}) const
-  {
-    std::vector<std::string> path = OutputNames::SectionPath(globalCfgs.binningName, SectionDirName());
-    path.insert(path.end(), below);
-    return path;
-  }
+  // The path of this task's section (OutputNames::SectionPath): the layout spelled once, not at every call.
+  std::vector<std::string> SectionPath() const { return OutputNames::SectionPath(globalCfgs.binningName, SectionDirName()); }
 
   // The directory of one particle's projections. With use_projection_cache on it is looked
   // up, not created, and it is missing when the cache was never built for this binning and

@@ -88,6 +88,10 @@ struct Look {
 // The filled marker shapes, in the order a look by shape gives them, and the outline of each (TAttMarker): the first
 // is the marker of a series that is given none.
 inline constexpr std::pair<int, int> kShapes[] = {{20, 24}, {21, 25}, {33, 27}, {34, 28}, {29, 30}, {22, 26}, {23, 32}};
+inline constexpr std::size_t kDiamond = 2; // kShapes[kDiamond]
+// A diamond looks smaller than a circle or a square of the same size: drawn larger by this much, the 2.0 against 1.4 of
+// the owner's ratio plots (26 October 2026).
+inline constexpr double kDiamondScale = 2.0 / 1.4;
 
 struct Series {
   std::shared_ptr<TH1> hist;   // detached, as read: a non-finite bin stays non-finite
@@ -119,13 +123,24 @@ inline std::map<std::string, std::weak_ptr<TFile>>& OpenFiles()
   return open;
 }
 
-// One open file per name, shared by every series read from it.
+// A file by what it is, not by how its path is spelled (Plots/a.root and ./Plots/a.root are one file).
+inline std::string Canonical(const std::string& fileName)
+{
+  std::error_code ec;
+  const std::filesystem::path path = std::filesystem::weakly_canonical(fileName, ec);
+  if (ec)
+    throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' cannot be resolved to a path: {}.", fileName, ec.message()));
+  return path.string();
+}
+
+// One open file per file, shared by every series read from it.
 inline std::shared_ptr<TFile> Open(const std::string& fileName)
 {
-  if (auto file = OpenFiles()[fileName].lock())
+  std::weak_ptr<TFile>& open = OpenFiles()[Canonical(fileName)];
+  if (auto file = open.lock())
     return file;
   std::shared_ptr<TFile> file(RootIO::OpenOrThrow(fileName, "READ", "PlotSeries").release());
-  OpenFiles()[fileName] = file;
+  open = file;
   return file;
 }
 
@@ -163,57 +178,58 @@ inline TDirectory* Species(TDirectory* sectionDir, const std::string& species, c
   return PickDir(sectionDir, species, "species", fileName, OutputNames::IsSpeciesDir);
 }
 
-// The multiplicity binning of a scheme, from its stamp: no interval can be looked up in a file without it.
-inline std::vector<double> MultBinning(TDirectory* schemeDir, const std::string& fileName)
+// A binning of a scheme, from its stamp: no interval can be looked up in a file without it.
+inline std::vector<double> StampedBinning(TDirectory* schemeDir, const std::string& stamp, const std::string& fileName)
 {
-  std::vector<double> edges = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult, fileName);
+  std::vector<double> edges = RootIO::ReadBinningStamp(schemeDir, stamp, fileName);
   if (edges.empty())
-    throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' carries no '{}' stamp, so no multiplicity interval can be "
-                                 "looked up in it: re-run the task that wrote it.",
-                                 fileName, RootIO::kStampMult));
+    throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' carries no '{}' stamp, so no interval of it can be looked up: re-run the "
+                                 "task that wrote it.",
+                                 fileName, stamp));
   return edges;
 }
+inline std::vector<double> MultBinning(TDirectory* schemeDir, const std::string& fileName)
+{
+  return StampedBinning(schemeDir, RootIO::kStampMult, fileName);
+}
 
-// The index of 'interval' in 'edges', by the framework's one test of "is an edge" (BinningUtils::FindEdgeIndex).
-inline int MultIndex(std::span<const double> edges, Interval interval, const std::string& fileName)
+// The index of 'interval' in 'edges', by the framework's one test of "is an edge" (BinningUtils::FindEdgeIndex); 'what'
+// names the binning in the refusal.
+inline int IntervalIndex(std::span<const double> edges, Interval interval, std::string_view what, const std::string& fileName)
 {
   const std::optional<int> low = BinningUtils::FindEdgeIndex(edges, interval.low);
   if (low && BinningUtils::FindEdgeIndex(edges, interval.high) == *low + 1)
     return *low;
-  throw NotInFiles(std::format("[FATAL] PlotSeries: {}-{} is not a multiplicity interval of '{}'. Available: {}.",
-                               interval.low, interval.high, fileName,
-                               Logger::Join(BinningUtils::BinIndices(edges) | std::views::transform([&](int multBin) {
-                                              return BinningUtils::BinLabel(edges, multBin);
+  throw NotInFiles(std::format("[FATAL] PlotSeries: {}-{} is not a {} interval of '{}'. Available: {}.", interval.low, interval.high, what, fileName,
+                               Logger::Join(BinningUtils::BinIndices(edges) | std::views::transform([&](int bin) {
+                                              return BinningUtils::BinLabel(edges, bin);
                                             }))));
 }
-
-// A table of what a file holds (OutputNames::kCorrectionParticles...), its rows; none when the file does not have it.
-template <class... T>
-std::optional<std::vector<std::tuple<T...>>> TryTable(TDirectory* dir, const OutputNames::Table& table)
+inline int MultIndex(std::span<const double> edges, Interval interval, const std::string& fileName)
 {
-  return RootIO::ReadTable<T...>(dir, table.name, table.columns);
+  return IntervalIndex(edges, interval, "multiplicity", fileName);
 }
 
-// The same, required: absent, the file is of another kind or was written before the table existed.
-template <class... T>
-std::vector<std::tuple<T...>> Table(TDirectory* dir, const OutputNames::Table& table, const std::string& fileName)
+// The bins of a binning, as intervals.
+inline std::vector<Interval> IntervalsOf(std::span<const double> edges)
 {
-  std::optional<std::vector<std::tuple<T...>>> rows = TryTable<T...>(dir, table);
+  std::vector<Interval> intervals;
+  for (int bin : BinningUtils::BinIndices(edges))
+    intervals.push_back({edges[bin], edges[bin + 1]});
+  return intervals;
+}
+
+// A table of what a file holds (OutputNames::kCorrectionParticles...), its rows: absent, the file is of another kind or
+// was written before the table existed.
+template <class Table>
+std::vector<typename Table::Row> Records(TDirectory* dir, const Table& table, const std::string& fileName)
+{
+  auto rows = RootIO::ReadTable(dir, table);
   if (!rows)
     throw NotInFiles(std::format("[FATAL] PlotSeries: '{}' does not record '{}' in '{}': it is a file of another kind, or it was written "
                                  "before the record existed (re-run the {}).",
                                  fileName, table.name, dir->GetName(), table.writer));
   return *rows;
-}
-
-// A one-column table as the list of its values.
-template <class T>
-std::vector<T> Column(const std::vector<std::tuple<T>>& rows)
-{
-  std::vector<T> values;
-  for (const auto& [value] : rows)
-    values.push_back(value);
-  return values;
 }
 
 // A bin that cannot be drawn or combined as a number: its content or its error is not finite.
@@ -243,12 +259,11 @@ inline Located LocateSection(const std::string& fileName, const Where& where)
 inline Located Locate(const std::string& fileName, const Where& where, double dy)
 {
   const Located at = LocateSection(fileName, where);
-  const auto rows = TryTable<double>(at.sectionDir, OutputNames::kDeltaYLimits);
-  const std::vector<double> limits = rows ? Column(*rows) : std::vector<double>{};
-  if (rows && std::ranges::none_of(limits, [&](double limit) { return std::abs(limit - dy) <= BinningUtils::kEdgeTolerance; }))
+  const auto limits = RootIO::ReadTable(at.sectionDir, OutputNames::kDeltaYLimits);
+  if (limits && std::ranges::none_of(*limits, [&](double limit) { return std::abs(limit - dy) <= BinningUtils::kEdgeTolerance; }))
     throw NotInFiles(std::format("[FATAL] PlotSeries: |dy| < {} is not a limit of section '{}' of '{}'. Available: {}.",
                                  dy, at.sectionDir->GetName(), fileName,
-                                 Logger::Join(limits | std::views::transform(BinningUtils::FormatDeltaY))));
+                                 Logger::Join(*limits | std::views::transform(BinningUtils::FormatDeltaY))));
   return at;
 }
 
@@ -367,22 +382,11 @@ inline Series SpeciesRatio(const std::string& fileName, const std::string& num, 
 // -----------------------------------------------------------------------------
 // The series of a Purity file and of a Corrections file (a scheme, no section)
 // -----------------------------------------------------------------------------
-namespace Detail
-{
-// The scheme of a file that has no sections: a section asked of it means nothing.
-inline TDirectory* SchemeOnly(TFile* file, const Where& where, const std::string& fileName)
-{
-  if (!where.section.empty())
-    throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' has no sections; '{}' means nothing in it.", fileName, where.section));
-  return Scheme(file, where.scheme, fileName);
-}
-} // namespace Detail
-
 inline Series Purity(const std::string& fileName, const std::string& purityKey, Interval mult,
-                     OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const Where& where = {})
+                     OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
-  TDirectory* schemeDir = Detail::SchemeOnly(file.get(), where, fileName);
+  TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
   const std::vector<double> edges = Detail::MultBinning(schemeDir, fileName);
   const int multBin = Detail::MultIndex(edges, mult, fileName);
   Series s = Detail::Read(file, fileName,
@@ -399,7 +403,7 @@ inline Series Purity(const std::string& fileName, const std::string& purityKey, 
 inline std::vector<double> DeltaYLimits(const std::string& fileName, const Where& where = {})
 {
   const Detail::Located at = Detail::LocateSection(fileName, where);
-  return Detail::Column(Detail::Table<double>(at.sectionDir, OutputNames::kDeltaYLimits, fileName));
+  return Detail::Records(at.sectionDir, OutputNames::kDeltaYLimits, fileName);
 }
 
 // The scheme and the section a request names, with the empty ones resolved to the only one the file has.
@@ -417,14 +421,14 @@ inline std::string SchemeName(const std::string& fileName, const std::string& sc
 inline std::vector<std::string> CorrectionParticles(const std::string& fileName, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
-  return Detail::Column(Detail::Table<std::string>(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kCorrectionParticles, fileName));
+  return Detail::Records(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kCorrectionParticles, fileName);
 }
 
 // The purity keys a purity file holds spectra of, as PurityTask recorded them.
 inline std::vector<std::string> PurityKeys(const std::string& fileName, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
-  return Detail::Column(Detail::Table<std::string>(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kPurityKeys, fileName));
+  return Detail::Records(Detail::Scheme(file.get(), scheme, fileName), OutputNames::kPurityKeys, fileName);
 }
 
 // The species ratios a section holds, numerator and denominator, as the correlation task recorded them.
@@ -432,7 +436,7 @@ inline std::vector<std::pair<std::string, std::string>> SpeciesRatios(const std:
 {
   const Detail::Located at = Detail::LocateSection(fileName, where);
   std::vector<std::pair<std::string, std::string>> ratios;
-  for (const auto& [num, den] : Detail::Table<std::string, std::string>(at.sectionDir, OutputNames::kSpeciesRatios, fileName))
+  for (const auto& [num, den] : Detail::Records(at.sectionDir, OutputNames::kSpeciesRatios, fileName))
     ratios.emplace_back(num, den);
   return ratios;
 }
@@ -505,10 +509,10 @@ inline std::vector<std::string> SpeciesIn(const std::string& fileName, const Whe
 // A correction map of one class, or integrated over multiplicity (no interval).
 inline Series CorrectionMap(const std::string& fileName, const std::string& particle, OutputNames::CorrectionMap map,
                             std::optional<Interval> mult,
-                            OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const Where& where = {})
+                            OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
-  TDirectory* schemeDir = Detail::SchemeOnly(file.get(), where, fileName);
+  TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
   std::string multTag = OutputNames::kMultIntegrated;
   std::string multFact = "multiplicity-integrated";
   if (mult) {
@@ -539,30 +543,30 @@ inline Series Object(const std::string& fileName, const std::string& path)
 // The mass-fit canvas of one cell, already written by the task that fitted it (PhiFitTask, or PurityTask for a purity
 // key): not a series, a canvas, kept with where it was read so that a plot of it records its input. The cell is named
 // by its intervals (OutputNames::CellTag); the multiplicity class is checked against the scheme's stamp, and the phi's
-// pT interval against its ptPhi stamp (a purity key's pT binning is not stamped: a wrong one is the missing canvas).
+// pT interval against its ptPhi stamp (a purity key's pT binning is not stamped: a wrong one is the missing canvas). The
+// phi's fits have one binning, the analysis one.
 struct FitCanvas {
   std::unique_ptr<TCanvas> canvas;
+  // Keeps the file open, which a canvas drawn from it needs: a pad cloned from it (DrawClonePad) has its frame
+  // histograms in the file's directory, and closing the file deleted them, the axes with them (measured 4 November
+  // 2026: the grids drawn while FitCanvasGrid closed the file had no axes).
   Origin origin;
   std::string tag;
 };
 inline FitCanvas Fit(const std::string& fileName, const std::optional<std::string>& purityKey, Interval mult, Interval pt,
-                     OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const Where& where = {})
+                     OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const std::string& scheme = "")
 {
+  if (!purityKey && binning != OutputNames::SpectrumBinning::Analysis)
+    throw std::runtime_error("[FATAL] PlotSeries::Fit: the phi's fits have the analysis binning only; a binning is a purity key's.");
   auto file = Detail::Open(fileName);
-  TDirectory* schemeDir = Detail::SchemeOnly(file.get(), where, fileName);
+  TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
   const std::vector<double> multEdges = Detail::MultBinning(schemeDir, fileName);
   const int multBin = Detail::MultIndex(multEdges, mult, fileName);
   std::vector<double> ptEdges{pt.low, pt.high};
   int ptBin = 0;
   if (!purityKey) {
-    ptEdges = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtPhi, fileName);
-    const std::optional<int> low = BinningUtils::FindEdgeIndex(ptEdges, pt.low);
-    if (!low || BinningUtils::FindEdgeIndex(ptEdges, pt.high) != *low + 1)
-      throw NotInFiles(std::format("[FATAL] PlotSeries: pT {}-{} is not a bin of the phi fits of '{}'. Available: {}.", pt.low, pt.high, fileName,
-                                   Logger::Join(BinningUtils::BinIndices(ptEdges) | std::views::transform([&](int bin) {
-                                                  return BinningUtils::BinLabel(ptEdges, bin);
-                                                }))));
-    ptBin = *low;
+    ptEdges = Detail::StampedBinning(schemeDir, RootIO::kStampPtPhi, fileName);
+    ptBin = Detail::IntervalIndex(ptEdges, pt, "phi pT", fileName);
   }
   const std::string tag = OutputNames::CellTag(multEdges, multBin, ptEdges, ptBin);
   const std::string path = purityKey ? RootIO::ObjectPath(OutputNames::PurityFitsPath(schemeDir->GetName(), *purityKey, binning),
@@ -640,7 +644,9 @@ inline Comparison Compare(const Series& a, const Series& b)
 // not be checked is warned.
 inline void RequireCombinable(const Series& a, const Series& b)
 {
-  RequireOneQuantityOnX(std::array{a, b});
+  if (a.x && b.x && *a.x != *b.x)
+    throw std::runtime_error(std::format("[FATAL] PlotSeries: '{}' is against {} and '{}' against {}: a ratio or a sum has one quantity on X.",
+                                         a.origins.front().path, Name(*a.x), b.origins.front().path, Name(*b.x)));
   const Comparison c = Compare(a, b);
   for (const std::string& n : c.notChecked)
     Logger::Warn("PlotSeries: '{}' and '{}', not checked: {}", a.origins.front().path, b.origins.front().path, n);
@@ -766,7 +772,7 @@ inline std::vector<TH1*> Draw(const std::vector<Series>& series, const std::stri
 
 // What was resolved, said before drawing: each series, where it comes from and what was done to it, and what the
 // series drawn together disagree on (DIFFERS) or could not be checked for (NOT checked).
-inline std::string Describe(const std::vector<Series>& series, const std::vector<Origin>& inputs = {})
+inline std::string Describe(const std::vector<Series>& series, const std::vector<Origin>& inputs)
 {
   std::string out;
   for (std::size_t i = 0; i < inputs.size(); ++i)
@@ -872,12 +878,8 @@ inline const std::vector<std::string> kPlotFormats{"pdf", "png"};
 inline std::unique_ptr<TFile> OpenPlotFile(const std::string& rootName, const std::string& recipe, const std::string& ctx,
                                            const std::map<std::string, std::string>& facts = {})
 {
-  // By the file, not the spelling: Plots/a.root and ./Plots/a.root are one file.
-  std::error_code ec;
-  const std::filesystem::path target = std::filesystem::weakly_canonical(rootName, ec);
-  for (const auto& [name, file] : Detail::OpenFiles())
-    if (!file.expired() && std::filesystem::weakly_canonical(name, ec) == target)
-      throw std::runtime_error(std::format("[FATAL] {}: '{}' is open as an input of this plot.", ctx, rootName));
+  if (const auto open = Detail::OpenFiles().find(Detail::Canonical(rootName)); open != Detail::OpenFiles().end() && !open->second.expired())
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' is open as an input of this plot.", ctx, rootName));
   if (std::filesystem::exists(rootName)) {
     std::unique_ptr<TFile> existing(TFile::Open(rootName.c_str(), "READ"));
     if (!existing || RootIO::ReadProvenance(existing.get(), kPlotOwner).empty())
@@ -902,8 +904,8 @@ inline void CopyInputProvenance(TFile* plotFile, const std::string& fileName, co
 // a copy of each series as it was computed (Objects/series<i>, a non-finite bin as it is), and per origin of each series
 // its file, its path and its own provenance (RootIO::CopyProvenance); the same for each input that is not a series (a
 // fit canvas).
-inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<Series>& series, const std::string& recipe,
-                 const std::map<std::string, std::string>& facts = {}, const std::vector<Origin>& inputs = {},
+inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<Series>& series, const std::vector<Origin>& inputs,
+                 const std::string& recipe, const std::map<std::string, std::string>& facts = {},
                  const std::vector<std::string>& formats = kPlotFormats)
 {
   if (const std::filesystem::path dir = std::filesystem::path(outBase).parent_path(); !dir.empty())
@@ -935,11 +937,7 @@ inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<
 inline std::vector<Interval> Intervals(const std::string& fileName, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
-  const std::vector<double> edges = Detail::MultBinning(Detail::Scheme(file.get(), scheme, fileName), fileName);
-  std::vector<Interval> intervals;
-  for (int multBin : BinningUtils::BinIndices(edges))
-    intervals.push_back({edges[multBin], edges[multBin + 1]});
-  return intervals;
+  return Detail::IntervalsOf(Detail::MultBinning(Detail::Scheme(file.get(), scheme, fileName), fileName));
 }
 
 // What a file holds, for whoever asks for a plot of it: per binning scheme, the task that wrote it, its multiplicity
@@ -988,11 +986,9 @@ inline Catalog ReadCatalog(const std::string& fileName)
       scheme.particles = CorrectionParticles(fileName, name);
     else if (scheme.kind == FileKind::Purity)
       scheme.purityKeys = PurityKeys(fileName, name);
-    else if (scheme.kind == FileKind::PhiFits) {
-      const std::vector<double> edges = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtPhi, fileName);
-      for (int ptBin : BinningUtils::BinIndices(edges))
-        scheme.ptIntervals.push_back({edges[ptBin], edges[ptBin + 1]});
-    } else
+    else if (scheme.kind == FileKind::PhiFits)
+      scheme.ptIntervals = Detail::IntervalsOf(Detail::StampedBinning(schemeDir, RootIO::kStampPtPhi, fileName));
+    else
       for (const std::string& section : Sections(fileName, name)) {
         const Where where{name, section};
         scheme.sections.push_back({.name = section, .species = SpeciesIn(fileName, where), .deltaYLimits = DeltaYLimits(fileName, where),

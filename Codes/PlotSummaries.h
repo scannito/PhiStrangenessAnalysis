@@ -130,7 +130,7 @@ inline std::vector<PlotSeries::Series> CorrectionSeries(const std::string& fileN
                                                         OutputNames::CorrectionMap map, OutputNames::SpectrumBinning binning)
 {
   using Detail::Presence;
-  auto resolve = [&](std::optional<PlotSeries::Interval> mult) { return PlotSeries::CorrectionMap(fileName, particle, map, mult, binning, {scheme}); };
+  auto resolve = [&](std::optional<PlotSeries::Interval> mult) { return PlotSeries::CorrectionMap(fileName, particle, map, mult, binning, scheme); };
   const bool overEventLoss = map == OutputNames::CorrectionMap::SignalLossOverEventLoss;
   const Presence presence = overEventLoss ? Presence::EachOptional : binning == OutputNames::SpectrumBinning::Analysis ? Presence::Required : Presence::IfProduced;
   std::vector<PlotSeries::Series> series = Detail::ByClass(fileName, scheme, resolve, presence);
@@ -165,7 +165,7 @@ inline void Corrections(CanvasManager& canvases, const std::string& fileName, co
 inline std::vector<PlotSeries::Series> PuritySeries(const std::string& fileName, const std::string& scheme, const std::string& purityKey,
                                                     OutputNames::SpectrumBinning binning)
 {
-  auto ofClass = [&](const PlotSeries::Interval& mult) { return PlotSeries::Purity(fileName, purityKey, mult, binning, {scheme}); };
+  auto ofClass = [&](const PlotSeries::Interval& mult) { return PlotSeries::Purity(fileName, purityKey, mult, binning, scheme); };
   return Detail::ByClass(fileName, scheme, ofClass,
                          binning == OutputNames::SpectrumBinning::Analysis ? Detail::Presence::Required : Detail::Presence::IfProduced);
 }
@@ -271,14 +271,20 @@ inline PlotSeries::Where OfFile(CanvasManager& canvases, const std::string& file
     throw std::runtime_error(std::format("[FATAL] PlotSummaries: '{}' is not a spectra file; a section ('{}') means nothing in it.", fileName,
                                          where.section));
   const std::string scheme = PlotSeries::SchemeName(fileName, where.scheme);
-  if (kind == PlotSeries::FileKind::PhiFits)
-    throw std::runtime_error(std::format("[FATAL] PlotSummaries: '{}' is the phi fit file, whose task draws no summary (its fits: "
-                                         "PlotDesigns::FitCanvasGrid).",
-                                         fileName));
-  if (kind == PlotSeries::FileKind::Purity)
-    Purities(canvases, fileName, scheme);
-  else
-    Corrections(canvases, fileName, scheme);
+  switch (kind) {
+    case PlotSeries::FileKind::Corrections:
+      Corrections(canvases, fileName, scheme);
+      break;
+    case PlotSeries::FileKind::Purity:
+      Purities(canvases, fileName, scheme);
+      break;
+    case PlotSeries::FileKind::PhiFits:
+      throw std::runtime_error(std::format("[FATAL] PlotSummaries: '{}' is the phi fit file, whose task draws no summary (its fits: "
+                                           "PlotDesigns::FitCanvasGrid).",
+                                           fileName));
+    case PlotSeries::FileKind::Spectra:
+      break; // drawn above, with its section
+  }
   return {scheme, ""};
 }
 

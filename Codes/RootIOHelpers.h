@@ -376,76 +376,102 @@ inline void RequireSameOptionalStamp(TDirectory* reference, TDirectory* other, c
 
 namespace Detail
 {
-// A cell of a table row, bound to its branch: a value of a fundamental type is its own address, a string is read through
-// a pointer the tree allocates (TTree::SetBranchAddress's two forms).
+template <class>
+inline constexpr bool kIsTuple = false;
+template <class... T>
+inline constexpr bool kIsTuple<std::tuple<T...>> = true;
+
+// The fields of a table's row: the tuple itself, or the one value of a one-column row.
+template <class Row>
+using Fields = std::conditional_t<kIsTuple<Row>, Row, std::tuple<Row>>;
+
+template <std::size_t I, class Row>
+auto& Field(Row& row)
+{
+  if constexpr (kIsTuple<Row>)
+    return std::get<I>(row);
+  else
+    return row;
+}
+
+// A field bound to its branch for reading, through the address form of TTree::SetBranchAddress its type takes: a
+// fundamental value its own address, an object a pointer to it. The object is ours, so the tree neither allocates nor
+// deletes it.
 template <class T>
 struct TableCell {
   T value{};
   T* Address() { return &value; }
-  const T& Get() const { return value; }
 };
 template <>
 struct TableCell<std::string> {
-  std::string* value{nullptr};
-  std::string** Address() { return &value; }
-  const std::string& Get() const { return *value; }
-  ~TableCell() { delete value; }
+  std::string value;
+  std::string* pointer{&value};
+  std::string** Address() { return &pointer; }
+};
+template <class Tuple>
+struct CellsOf;
+template <class... T>
+struct CellsOf<std::tuple<T...>> {
+  using type = std::tuple<TableCell<T>...>;
 };
 } // namespace Detail
 
 // What a file holds that a reader must find without parsing names (OutputNames::kCorrectionParticles...): a table whose
-// rows have the same typed fields, one branch per column. A detached TTree filled in memory and written like a
+// rows have the same typed fields, one branch per column, as its descriptor declares them ('Table': name, columns,
+// writer, and its Row type, the value itself for one column). A detached TTree filled in memory and written like a
 // histogram, the shape of FitQualityRecorder's table, which Macros/CompareRootFiles compares branch by branch. An empty
 // table is written as such: it says "none", where an absent one says "written before the table existed".
-template <class... T>
-void WriteTable(TDirectory* dir, const std::string& name, std::span<const std::string> columns, const std::vector<std::tuple<T...>>& rows)
+template <class Table>
+void WriteTable(TDirectory* dir, const Table& table, const std::vector<typename Table::Row>& rows)
 {
   if (!dir)
-    throw std::runtime_error(std::format("[FATAL] RootIO::WriteTable: no directory to write '{}' into.", name));
-  if (columns.size() != sizeof...(T))
-    throw std::logic_error(std::format("[FATAL] RootIO::WriteTable: '{}' names {} columns for rows of {}.", name, columns.size(), sizeof...(T)));
-  TTree tree(name.c_str(), std::format("{}: one row per entry", name).c_str());
+    throw std::runtime_error(std::format("[FATAL] RootIO::WriteTable: no directory to write '{}' into.", table.name));
+  TTree tree(table.name.c_str(), std::format("{}: one row per entry", table.name).c_str());
   tree.SetDirectory(0);
-  std::tuple<T...> row;
-  [&]<std::size_t... I>(std::index_sequence<I...>) { (tree.Branch(columns[I].c_str(), &std::get<I>(row)), ...); }(std::index_sequence_for<T...>{});
-  for (const std::tuple<T...>& r : rows) {
+  typename Table::Row row{};
+  [&]<std::size_t... I>(std::index_sequence<I...>) {
+    (tree.Branch(table.columns[I].c_str(), &Detail::Field<I>(row)), ...);
+  }(std::make_index_sequence<std::tuple_size_v<decltype(table.columns)>>{});
+  for (const typename Table::Row& r : rows) {
     row = r;
     tree.Fill();
   }
-  dir->WriteTObject(&tree, name.c_str(), "Overwrite");
+  dir->WriteTObject(&tree, table.name.c_str(), "Overwrite");
 }
 
 // A table written by WriteTable, its rows as written: absent is nullopt; another class, other columns, or a column of
-// another type stop.
-template <class... T>
-std::optional<std::vector<std::tuple<T...>>> ReadTable(TDirectory* dir, const std::string& name, std::span<const std::string> columns)
+// another type stop, with the task to re-run.
+template <class Table>
+std::optional<std::vector<typename Table::Row>> ReadTable(TDirectory* dir, const Table& table)
 {
+  using Row = typename Table::Row;
   if (!dir)
-    throw std::runtime_error(std::format("[FATAL] RootIO::ReadTable: no directory to read '{}' from.", name));
-  std::unique_ptr<TObject> object(dir->Get(name.c_str()));
+    throw std::runtime_error(std::format("[FATAL] RootIO::ReadTable: no directory to read '{}' from.", table.name));
+  std::unique_ptr<TObject> object(dir->Get(table.name.c_str()));
   if (!object)
     return std::nullopt;
+  auto refuse = [&](const std::string& why) {
+    return std::runtime_error(std::format("[FATAL] RootIO::ReadTable: '{}' in '{}' {}; re-run the {}.", table.name, FileNameOf(dir), why, table.writer));
+  };
   auto* tree = dynamic_cast<TTree*>(object.get());
   if (!tree)
-    throw std::runtime_error(std::format("[FATAL] RootIO::ReadTable: '{}' in '{}' is a {}, not the table it should be.", name, FileNameOf(dir),
-                                         object->ClassName()));
-  if (tree->GetListOfBranches()->GetEntries() != static_cast<int>(columns.size()))
-    throw std::runtime_error(std::format("[FATAL] RootIO::ReadTable: '{}' in '{}' has {} columns, {} expected ({}).", name, FileNameOf(dir),
-                                         tree->GetListOfBranches()->GetEntries(), columns.size(), Logger::Join(columns, ", ")));
-  std::tuple<Detail::TableCell<T>...> cells;
+    throw refuse(std::format("is a {}, not the table it should be", object->ClassName()));
+  if (tree->GetListOfBranches()->GetEntries() != static_cast<int>(table.columns.size()))
+    throw refuse(std::format("has {} columns, {} expected ({})", tree->GetListOfBranches()->GetEntries(), table.columns.size(),
+                             Logger::Join(table.columns, ", ")));
+  typename Detail::CellsOf<Detail::Fields<Row>>::type cells;
   [&]<std::size_t... I>(std::index_sequence<I...>) {
     auto bind = [&](const std::string& column, auto* address) {
       // Negative is a missing branch or one of another type (TTree::ESetBranchAddressStatus).
       if (!tree->GetBranch(column.c_str()) || tree->SetBranchAddress(column.c_str(), address) < 0)
-        throw std::runtime_error(std::format("[FATAL] RootIO::ReadTable: '{}' in '{}' has no column '{}' of the type expected.", name,
-                                             FileNameOf(dir), column));
+        throw refuse(std::format("has no column '{}' of the type expected", column));
     };
-    (bind(columns[I], std::get<I>(cells).Address()), ...);
-  }(std::index_sequence_for<T...>{});
-  std::vector<std::tuple<T...>> rows;
+    (bind(table.columns[I], std::get<I>(cells).Address()), ...);
+  }(std::make_index_sequence<std::tuple_size_v<decltype(table.columns)>>{});
+  std::vector<Row> rows;
   for (Long64_t entry = 0; entry < tree->GetEntries(); ++entry) {
     tree->GetEntry(entry);
-    rows.push_back(std::apply([](const auto&... cell) { return std::tuple<T...>(cell.Get()...); }, cells));
+    rows.push_back(std::apply([](const auto&... cell) { return Row{cell.value...}; }, cells));
   }
   tree->ResetBranchAddresses();
   return rows;

@@ -145,11 +145,9 @@ inline std::vector<std::size_t> ValueIndices(const std::vector<PlotSeries::Serie
   return indices;
 }
 
+using PlotSeries::kDiamond;
+using PlotSeries::kDiamondScale;
 using PlotSeries::kShapes;
-inline constexpr std::size_t kDiamond = 2; // kShapes[kDiamond]
-// A diamond looks smaller than a circle or a square of the same size: drawn larger by this much, the 2.0 against 1.4 of
-// the owner's ratio plots (26 October 2026).
-inline constexpr double kDiamondScale = 2.0 / 1.4;
 
 // The pair of kShapes a marker belongs to, and whether it is the open one; none for a marker outside them.
 inline std::optional<std::pair<std::size_t, bool>> ShapeOf(int marker)
@@ -532,14 +530,14 @@ struct FitCell {
 
 inline Drawn FitCanvasGrid(CanvasManager& canvases, const std::string& name, const std::string& fileName,
                            const std::optional<std::string>& purityKey, const std::vector<FitCell>& cells, int nCols,
-                           OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const PlotSeries::Where& where = {},
+                           OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const std::string& scheme = "",
                            const Frame& frame = {})
 {
   TCanvas* canvas = canvases.CreateGridCanvas(name, name, nCols, Detail::Rows(cells.size(), nCols), frame.width, frame.height,
                                               CanvasManager::PadMargins{0, 0, 0, 0});
   Drawn drawn{.canvas = canvas};
   for (std::size_t i = 0; i < cells.size(); ++i) {
-    const PlotSeries::FitCanvas fit = PlotSeries::Fit(fileName, purityKey, cells[i].mult, cells[i].pt, binning, where);
+    const PlotSeries::FitCanvas fit = PlotSeries::Fit(fileName, purityKey, cells[i].mult, cells[i].pt, binning, scheme);
     canvas->cd(static_cast<int>(i) + 1);
     fit.canvas->DrawClonePad();
     Detail::WriteText(0.15, 0.95, cells[i].label.empty() ? fit.tag : cells[i].label, frame);
@@ -572,10 +570,11 @@ inline std::string Table(const std::vector<PlotSeries::Series>& series)
   return out;
 }
 
-// What a design drew, kept: PlotSeries::Save with the series the design returned.
+// What a design drew, described and kept: PlotSeries::Describe and Save with the series and the inputs it returned.
+inline std::string Describe(const Drawn& drawn) { return PlotSeries::Describe(drawn.series, drawn.inputs); }
 inline void Save(const Drawn& drawn, const std::string& outBase, const std::string& recipe, const std::map<std::string, std::string>& facts = {})
 {
-  PlotSeries::Save(drawn.canvas, outBase, drawn.series, recipe, facts, drawn.inputs);
+  PlotSeries::Save(drawn.canvas, outBase, drawn.series, drawn.inputs, recipe, facts);
 }
 
 // The body of a composition's main: batch mode, no window, and the exit code a caller acts on: 0 done, 1 refused or
