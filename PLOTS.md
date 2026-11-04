@@ -21,7 +21,8 @@ Contents:
 11. [Plots asked in words: `plot_ask.py` and a local model](#11-plots-asked-in-words-plot_askpy-and-a-local-model)
 12. [The Claude Code skill](#12-the-claude-code-skill)
 13. [How it was verified, and how to verify it again](#13-how-it-was-verified-and-how-to-verify-it-again)
-14. [What is not done](#14-what-is-not-done)
+14. [When something stops](#14-when-something-stops)
+15. [What is not done](#15-what-is-not-done)
 
 ---
 
@@ -172,8 +173,10 @@ purity or spectra, by the record the scheme holds), `Resolve` / `SchemeName` (th
 - `AutoLabels(series)`: the legend from the facts: what the series share as a header, what tells each apart as its
   label, file names cut to the words that differ.
 - `Save(canvas, outBase, series, recipe, facts)`: `outBase.pdf`, `.png` and `.root` with the canvas, a copy of each
-  series as computed (`Objects/series<i>`) and the provenance: the recipe, when, the commit, the input files'
-  provenance per origin, and any facts given (a note). `OpenPlotFile` refuses to replace a file the plots did not
+  series as computed (`Objects/series<i>`) and the provenance: the recipe, when, the commit and the header
+  fingerprint of the code that drew it, the input files' provenance per origin, and any facts given (a note). The code
+  is the repository the program was built from, which CMake (for `phistrangeplot`) and `runplot.sh` (for a
+  composition) name at compile time, so it is recorded whatever directory the plot is made from. `OpenPlotFile` refuses to replace a file the plots did not
   write, or one open as an input.
 
 ## 5. PlotDesigns: the six layouts, `Table` and the look
@@ -441,6 +444,30 @@ are in section 9.
   and every refusal of the specification tried by hand with its message and exit code.
 - **The model**: `Macros/plot_ask_test.py`, after any change to the prompt, the schema, the examples or the model.
 
-## 14. What is not done
+## 14. When something stops
+
+Every refusal starts with `[FATAL]` and names what it refused; the exit code says which kind (section 9). The ones met
+most often:
+
+| What you see | Why, and what to do |
+|---|---|
+| `... is not a multiplicity interval of '...'. Available: ...` (exit 3) | `mult` must be one of the file's classes, as `list` shows them. |
+| `\|dy\| < ... is not a limit of section '...'. Available: ...` (exit 3) | the same for `dy`. |
+| `... holds 2 binning schemes (...); name the one to read.` (exit 1) | the file has more than one binning scheme or section: give `scheme` (or `section`). |
+| `... does not record 'particles' / 'purity_keys' / 'species_ratios' ...` or `... does not record its \|dy\| limits` (exit 3) | the file was written before the records of section 7: re-run the task the message names. |
+| `... is against multiplicity and '...' against pT` | a spectrum and a trend on one plot, or in one ratio: two plots. |
+| `... cannot be combined, their binnings differ:` | a ratio or a sum of series whose stamps or X axes differ; the lines after it say which. Drawn side by side they are allowed, with a warning. |
+| `... has N non-finite bin(s), which option '...' would draw at 0` | draw with `E`, `E1` or `P` (`draw_option`), which leave the bin empty. |
+| `... exists and is not a plot written here; it is not overwritten.` | `--out` points at a file the plots did not write (a data file, perhaps): choose another. |
+| `/series/0: unknown key '...'; the object takes ...` and the like | the specification does not follow the schema; the path and the keys allowed are in the message. |
+| `'...' names 2 file(s) (...); 1 given.` | `--file` once per file the example names, in the order they first appear. |
+| `[FATAL] plot_ask: cannot reach the model at ...` | the engine is not running: `ollama serve` (or `brew services start ollama`), or `llama-server -m ... -c 16384`. |
+| `[plot_ask] WARNING: the prompt filled the whole context ...` | Ollama cut the prompt and the model did not see the catalog: fewer files in one request, or a larger `--num-ctx`. |
+| `[FATAL] plot_ask: the prompt needs about N tokens and llama-server has M` | restart llama-server with the `-c` the message gives. |
+| `[plot_ask] WARNING: ... is not the model measured` | the results of section 11 do not apply to it: run `plot_ask_test.py` before relying on it. |
+| `/divide_option: not one of [""]` from the model | it chose a binomial division, which is offered only with `--allow-binomial`; the front end hands the refusal back. |
+| `runplot: ROOT is not in the environment` | `enterO2P` first. |
+
+## 15. What is not done
 
 `DESIGN_NOTES.md` section 15, *Plots: what is left open*.

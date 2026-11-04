@@ -7,7 +7,8 @@
 set -e
 [ $# -ge 1 ] || { echo "usage: runplot.sh <composition.cpp> [arguments...]"; exit 2; }
 src=$1; shift
-codes="$(cd "$(dirname "$0")/../Codes" && pwd)"
+repo="$(cd "$(dirname "$0")/.." && pwd)"
+codes="$repo/Codes"
 command -v root-config >/dev/null || { echo "runplot: ROOT is not in the environment (enterO2P)"; exit 2; }
 # The standard is ROOT's, as in CMakeLists.txt: headers and ABI must agree. Below C++20 the headers do not compile.
 std=$(root-config --cflags | grep -o -- '-std=[^ ]*' || true)
@@ -17,5 +18,6 @@ case "$std" in
 esac
 work=$(mktemp -d "${TMPDIR:-/tmp}/runplot.XXXXXX")
 trap 'rm -rf "$work"' EXIT
-c++ -O1 -Wall -Wextra -I"$codes" $(root-config --cflags) "$src" -o "$work/plot" $(root-config --libs)
+# The repository, for the commit and fingerprint of the plot's provenance (RunEnvironment::Facts).
+c++ -O1 -Wall -Wextra -I"$codes" -DPHISTRANGE_SOURCE_DIR="\"$repo\"" $(root-config --cflags) "$src" -o "$work/plot" $(root-config --libs)
 "$work/plot" "$@"
