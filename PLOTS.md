@@ -47,14 +47,13 @@ an operation, a layout) adds it to them first, with its check, review and verifi
 | Series | `Codes/PlotSeries.h` | a histogram found by meaning, with its origins and facts; the comparability rule; the closed list of operations; drawing a set of series; saving a plot (phases B, C) |
 | Layouts | `Codes/PlotDesigns.h` | the six recurring layouts, the looks taken from facts, legends of the look (phases D, G4) |
 | Summaries | `Codes/PlotSummaries.h` | what the tasks draw at the end of `Terminate`, redrawn from any file of their kind (phases E, F) |
-| Records | `RootIO::WriteStringTable`, `OutputNames::k*` | what a file holds, written by the task that made it (phase F) |
+| Records | `RootIO::WriteTable`, `OutputNames::k*` | what a file holds, written by the task that made it (phases C, F) |
 | Specification | `Codes/PlotSpec.h` | a plot as JSON, one schema that both validates and is given to a model (phase G) |
 | Command | `Codes/phistrangeplot.cpp`, target `phistrangeplot` | `summaries`, `list`, `schema`, `describe`, `render` |
 | Compositions | `Macros/runplot.sh` | compiles and runs a plot written in C++ on the components |
 | Front end | `Macros/plot_ask.py`, `PlotSpecs/` | a local model (Ollama or llama.cpp) writes the specification |
 | Test of the model | `Macros/plot_ask_test.py` | requests with what each must give |
 | Skill | `.claude/skills/plots/SKILL.md` | the steps Claude Code follows for a plot |
-| Build check | `Codes/PlotComponentsCheck.cpp`, target `plotcomponents` | compiles the plot headers with every build, though no task includes all of them |
 
 Layering: `PlotSeries` uses `OutputNames`, `RootIO`, `BinningUtils`, `HistogramUtils`, `CanvasManager`;
 `PlotDesigns` uses `PlotSeries`; `PlotSummaries` uses `PlotSeries` (and is the one plot header the tasks include);
@@ -131,12 +130,13 @@ empty one meaning "the only one in the file"), checks what can be checked, and r
 
 | Finder | Reads | Its facts |
 |---|---|---|
-| `Spectrum(file, species, dy, mult, where)` | the pT spectrum of one class | spectrum, species, |dy|, class |
+| `Spectrum(file, species, dy, mult, where)` | the pT spectrum of one class | spectrum, species, \|dy\|, class |
 | `SpectrumExtended(file, species, dy, mult, where)` | the same extended to pT = 0, its fitted curve attached | |
 | `Trend(file, species, dy, kind, where)` | the yield against multiplicity: `Measured`, `Extrapolated`, `ExtrapOverMeas` | |
 | `SpeciesRatio(file, num, den, dy, kind, where)` | the ratio of two species' yields, as the task wrote it | |
-| `Purity(file, key, mult, binning, scheme)` | the purity of a purity key in one class | |
-| `CorrectionMap(file, particle, map, mult, binning, scheme)` | efficiency, signal loss or signal loss over event loss; no class = integrated | |
+| `Purity(file, key, mult, binning, where)` | the purity of a purity key in one class (a file with no sections: a section in `where` stops) | |
+| `CorrectionMap(file, particle, map, mult, binning, where)` | efficiency, signal loss or signal loss over event loss; no class = integrated | |
+| `Fit(file, purityKey, mult, pt, binning, where)` | a mass-fit canvas, the phi's without a purity key; not a series: a `FitCanvas{canvas, origin, tag}` | |
 | `Object(file, path)` | anything in a file the framework did not write (a preliminary); no stamp, no facts | |
 
 What they refuse: an object that is not there (`NotInFiles`, exit code 3), an object of another class, a multiplicity
@@ -172,11 +172,11 @@ purity or spectra, by the record the scheme holds), `Resolve` / `SchemeName` (th
 - `Describe(series)`: each series, where it comes from, what was done to it, what the series disagree on.
 - `AutoLabels(series)`: the legend from the facts: what the series share as a header, what tells each apart as its
   label, file names cut to the words that differ.
-- `Save(canvas, outBase, series, recipe, facts)`: `outBase.pdf`, `.png` and `.root` with the canvas, a copy of each
-  series as computed (`Objects/series<i>`) and the provenance: the recipe, when, the commit and the header
+- `Save(canvas, outBase, series, recipe, facts, inputs)`: `outBase.pdf`, `.png` and `.root` with the canvas, a copy of
+  each series as computed (`Objects/series<i>`) and the provenance: the recipe, when, the commit and the header
   fingerprint of the code that drew it, whatever directory the plot is made from, the input files' provenance per
-  origin, and any facts given (a note). `OpenPlotFile` refuses to replace a file the plots did not
-  write, or one open as an input.
+  origin of each series and per input that is not a series (a fit canvas), and any facts given (a note). `OpenPlotFile`
+  refuses to replace a file the plots did not write, or one open as an input (by the file, however its path is spelled).
 
 ## 5. PlotDesigns: the six layouts, `Table` and the look
 
@@ -194,8 +194,9 @@ purity or spectra, by the record the scheme holds), `Resolve` / `SchemeName` (th
 
 ### The layouts
 
-The six layouts return `Drawn{canvas, series}`, every series drawn included (the ratios too), for `Save` and `Table`;
-`Table` returns the text.
+The six layouts return `Drawn{canvas, series, inputs}`: every series drawn included (the ratios too), for `Save` and
+`Table`, and where what is not a series was read (the fit canvases), so that `Save` records it too. `Table` returns the
+text.
 
 | Design | What it draws |
 |---|---|
@@ -204,7 +205,7 @@ The six layouts return `Drawn{canvas, series}`, every series drawn included (the
 | `CompareWithRatio(canvases, name, panel, reference, divideOption, ratioRange, ratioTitle, frame)` | the series on top, the ratio of each to the reference below, each drawn as its numerator is |
 | `JoinedPads(canvases, name, panels, yRange, frame)` | panels side by side, joined, one Y axis and one range (given, or the union of the pads' own) |
 | `WithReference(canvases, name, panel, reference, systematic, divideOption, ratioRange, frame)` | the series against a foreign reference, its systematic as a band, the ratios below |
-| `FitCanvasGrid(canvases, name, file, scheme, purityKey, cells, nCols, binning, frame)` | the mass-fit canvases of some cells (`FitCell{mult, pt, label}`), already in the file |
+| `FitCanvasGrid(canvases, name, file, purityKey, cells, nCols, binning, where, frame)` | the mass-fit canvases of some cells (`FitCell{mult, pt, label}`), already in the file, each found by `PlotSeries::Fit` |
 | `Table(series)` | the values bin by bin, the series on one X axis |
 
 `Run(body)` wraps a composition's `main`: batch mode, and exit code 0 done, 1 refused or failed, 3 not in the files.
@@ -214,9 +215,10 @@ The six layouts return `Drawn{canvas, series}`, every series drawn included (the
 `ColourBy`, `ShapeBy` and `FillBy` give the series that share the value of a fact the same colour, shape or filling.
 Given the panels of a design, they number the values over all of them, so one value has one look in every pad and a
 key drawn in one pad holds for the others. They do not depend on the order they are called in (the shape keeps the
-filling and the other way round), refuse a look given by hand, refuse more values than they can say (a palette with
-fewer colours than values, more than seven shapes, more than two fillings), and draw diamonds larger (2.0 against 1.4,
-the owner's ratio plots). `FactValues(series, fact)` is the one rule for "the values of a fact, in the order the series
+filling and the other way round), refuse a look given by hand (a colour; a marker outside the shapes, `PlotSeries::kShapes`,
+whose open or filled form a shape keeps), refuse more values than they can say (a palette with fewer colours than
+values, more than seven shapes, more than two fillings), and draw diamonds larger (2.0 against 1.4, the owner's ratio
+plots). A specification follows the same rule: it is theirs, not repeated by the reader. `FactValues(series, fact)` is the one rule for "the values of a fact, in the order the series
 bring them", used by the looks, by the keys and by a specification's key labels.
 
 ## 6. PlotSummaries: the tasks' summaries, drawn from the files
@@ -235,7 +237,7 @@ loss over event loss alone may lack a class. The look is the one the canvases al
 Y range applied when the manager writes). Each task calls, at the end of `Terminate`, after closing its file:
 
 ```cpp
-PlotSummaries::WriteInto(fileName, GetName(), [&](CanvasManager& c) { PlotSummaries::Purities(c, fileName, scheme); });
+PlotSummaries::WriteInto(fileName, GetName(), {globalCfgs.binningName});   // {scheme, section} for a correlation task
 ```
 
 `OfFile(canvases, file, where)` draws whichever summaries a file has (by `KindOf`); `Save` keeps them for a reader.
@@ -243,18 +245,20 @@ PlotSummaries::WriteInto(fileName, GetName(), [&](CanvasManager& c) { PlotSummar
 ## 7. What the files record about themselves
 
 So that a file can be read with no configuration (by the summaries and by `list`), the tasks write what it holds, as
-small tables of names (`RootIO::WriteStringTable`, a detached `TTree` that `CompareRootFiles` compares; an empty table
-means "none", an absent one "written before the record existed"):
+small tables (`RootIO::WriteTable`: a detached `TTree`, one row per entry and one typed branch per column, which
+`CompareRootFiles` compares; an empty table means "none", an absent one "written before the record existed"):
 
 | Record | Where | Written by | Columns |
 |---|---|---|---|
 | `particles` | `{scheme}` of the corrections file | `MCTask` | particle |
 | `purity_keys` | `{scheme}` of the purity file | `PurityTask` | purity_key |
+| `deltaY_limits` | `{scheme}/{section}` of a spectra file | the correlation tasks | dy (a number) |
 | `species_ratios` | `{scheme}/{section}` of a spectra file | the correlation tasks | numerator, denominator |
 
-Each table is one value in `OutputNames` (`StringTable{name, columns, writer}`). Next to them, the correlation tasks
-write the |dy| limits of each section, `deltaY_limits` (`OutputNames::kDeltaYLimits`), a list of numbers
-(`RootIO::WriteValueList`, phase C). A file produced before these records
+Each table is one value in `OutputNames` (`Table{name, columns, writer}`, the writer being the task to re-run, by its
+`GetName()`); `RootIO::ReadTable` reads it back with the types of its columns. The phi fit file has no table: it is told
+by its `Fits` directory, and its binnings are stamped (`binning_mult`, `binning_ptPhi`), which gives `list` the cells of
+its fits. A file produced before these records
 is refused by `list` and `summaries` with exit code 3 and the task to re-run; nothing falls back to parsing names.
 
 ## 8. PlotSpec: a plot as data

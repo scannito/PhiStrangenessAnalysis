@@ -120,13 +120,21 @@ inline constexpr std::string_view kDrawOptions[] = {"E1", "E", "P"};
 inline constexpr std::string_view kDivideOptions[] = {"", "B"};
 inline constexpr std::pair<std::string_view, PlotDesigns::Key::Shows> kShowsNames[] = {{"color", PlotDesigns::Key::Shows::Color},
                                                                                           {"fill", PlotDesigns::Key::Shows::Fill}};
-// A fact is named as PlotSeries names it, or by the key of a series that gives it alone (the trend or the map tell the
-// kind; the purity key or the particle tell the species): what a person, or a model, writing a series calls it. Not
-// the numerator: a species ratio's species is the pair.
-inline constexpr std::pair<std::string_view, PlotSeries::Fact> kFactNames[] = {
-  {"kind", &PlotSeries::Facts::kind},       {"species", &PlotSeries::Facts::species}, {"dy", &PlotSeries::Facts::dy},
-  {"mult", &PlotSeries::Facts::mult},       {"binning", &PlotSeries::Facts::binning}, {"trend", &PlotSeries::Facts::kind},
-  {"map", &PlotSeries::Facts::kind},        {"purity_key", &PlotSeries::Facts::species}, {"particle", &PlotSeries::Facts::species}};
+// A fact is named as PlotSeries names it (kFacts), or by the key of a series that gives it alone (the trend or the map
+// tell the kind; the purity key or the particle tell the species): what a person, or a model, writing a series calls
+// it. Not the numerator: a species ratio's species is the pair.
+inline const std::vector<std::pair<std::string_view, PlotSeries::Fact>>& FactNames()
+{
+  static const std::vector<std::pair<std::string_view, PlotSeries::Fact>> names = [] {
+    std::vector<std::pair<std::string_view, PlotSeries::Fact>> all(std::begin(PlotSeries::kFacts), std::end(PlotSeries::kFacts));
+    all.insert(all.end(), {{kTrend, &PlotSeries::Facts::kind},
+                           {kMap, &PlotSeries::Facts::kind},
+                           {kPurityKey, &PlotSeries::Facts::species},
+                           {kParticle, &PlotSeries::Facts::species}});
+    return all;
+  }();
+  return names;
+}
 
 // Names as the entries of a JSON "enum".
 template <class Names>
@@ -135,20 +143,20 @@ std::string EnumList(Names&& names)
   return Logger::Join(names | std::views::transform([](std::string_view n) { return std::format("\"{}\"", n); }));
 }
 
-template <class Table>
-auto Resolve(const Table& table, const std::string& name, std::string_view what)
-{
-  for (const auto& [n, value] : table)
-    if (n == name)
-      return value;
-  throw std::runtime_error(std::format("[FATAL] PlotSpec: '{}' is not a {}.", name, what));
-}
-
 inline const std::string kCtx = "PlotSpec";
+
+// The value of 'name' in one of the tables above, read under 'key' (JsonConfig::ResolveEnum, which lists what there is).
+template <class Table>
+auto Resolve(const Table& table, std::string_view name, const char* key)
+{
+  using E = typename std::ranges::range_value_t<Table>::second_type;
+  return JsonConfig::ResolveEnum<E>(name, std::span<const std::pair<std::string_view, E>>(std::ranges::data(table), std::ranges::size(table)), key,
+                                    kCtx);
+}
 
 inline OutputNames::SpectrumBinning ReadBinning(const rapidjson::Value& node)
 {
-  return Resolve(kBinnings, JsonConfig::OptionalString(node, kBinning, kDefaultBinning, kCtx), "binning");
+  return Resolve(kBinnings, JsonConfig::OptionalString(node, kBinning, kDefaultBinning, kCtx), kBinning);
 }
 
 // A key of a form and the schema of its value.
@@ -304,7 +312,7 @@ inline const std::vector<SeriesForm>& SeriesForms()
      {{kSpecies, kStringSchema}, Ref(kDy), {kTrend, std::format(R"({{"enum": [{}]}})", EnumList(kTrendKinds | std::views::keys))}, Ref(kSection)},
      {kSpecies, kDy, kTrend},
      [](const rapidjson::Value& s, const std::string& file, const Where& where, std::optional<double> dy, std::optional<Interval>) {
-       return Trend(file, RequireString(s, kSpecies, kCtx), *dy, Resolve(kTrendKinds, RequireString(s, kTrend, kCtx), "trend"), where);
+       return Trend(file, RequireString(s, kSpecies, kCtx), *dy, Resolve(kTrendKinds, RequireString(s, kTrend, kCtx), kTrend), where);
      }},
     // A species ratio is measured or extrapolated, the first two kinds of a trend.
     {"species_ratio", FileKind::Spectra, "The ratio of two species' yields against multiplicity, as the correlation task wrote it.",
@@ -313,21 +321,21 @@ inline const std::vector<SeriesForm>& SeriesForms()
      {kNumerator, kDenominator, kDy, kTrend},
      [](const rapidjson::Value& s, const std::string& file, const Where& where, std::optional<double> dy, std::optional<Interval>) {
        return SpeciesRatio(file, RequireString(s, kNumerator, kCtx), RequireString(s, kDenominator, kCtx), *dy,
-                           Resolve(kTrendKinds, RequireString(s, kTrend, kCtx), "trend"), where);
+                           Resolve(kTrendKinds, RequireString(s, kTrend, kCtx), kTrend), where);
      }},
     {"purity", FileKind::Purity, "The purity S/(S+B) of a purity key against pT, in one multiplicity class.",
      {{kPurityKey, kStringSchema}, Ref(kMult), Ref(kBinning)},
      {kPurityKey, kMult},
      [](const rapidjson::Value& s, const std::string& file, const Where& where, std::optional<double>, std::optional<Interval> mult) {
-       return Purity(file, RequireString(s, kPurityKey, kCtx), *mult, ReadBinning(s), where.scheme);
+       return Purity(file, RequireString(s, kPurityKey, kCtx), *mult, ReadBinning(s), where);
      }},
     {"correction_map", FileKind::Corrections,
      "A correction map of a particle against pT, in one multiplicity class or integrated over multiplicity (no mult).",
      {{kParticle, kStringSchema}, {kMap, std::format(R"({{"enum": [{}]}})", EnumList(kMaps | std::views::keys))}, Ref(kMult), Ref(kBinning)},
      {kParticle, kMap},
      [](const rapidjson::Value& s, const std::string& file, const Where& where, std::optional<double>, std::optional<Interval> mult) {
-       return CorrectionMap(file, RequireString(s, kParticle, kCtx), Resolve(kMaps, RequireString(s, kMap, kCtx), "correction map"), mult,
-                            ReadBinning(s), where.scheme);
+       return CorrectionMap(file, RequireString(s, kParticle, kCtx), Resolve(kMaps, RequireString(s, kMap, kCtx), kMap), mult,
+                            ReadBinning(s), where);
      }},
   };
   return forms;
@@ -363,7 +371,7 @@ inline std::vector<std::pair<std::string, std::string>> FormDefinitions()
     {"form_object", ObjectSchema({Ref(kFile), {kPath, R"({"type": "string", "description": "The object's path in the file."})"}, Ref(kLabel), Ref(kColor),
                                   Ref(kMarker), Ref(kMarkerSize)},
                                  {kFile, kPath})},
-    {"form_fact", std::format(R"({{"enum": [{}]}})", EnumList(kFactNames | std::views::keys))},
+    {"form_fact", std::format(R"({{"enum": [{}]}})", EnumList(FactNames() | std::views::keys))},
     {"form_key", ObjectSchema({{kFact, R"({"$ref": "#/definitions/form_fact"})"},
                                {kShows, std::format(R"({{"enum": [{}]}})", EnumList(kShowsNames | std::views::keys))},
                                {kBox, R"({"type": "array", "items": {"type": "number"}, "minItems": 4, "maxItems": 4, "description": "x1, y1, x2, y2, fractions of the pad."})"},
@@ -373,43 +381,96 @@ inline std::vector<std::pair<std::string, std::string>> FormDefinitions()
   };
 }
 
+// What the designs read, defined below with the rest of the reader.
+inline std::vector<PlotDesigns::Panel> ReadPanels(const rapidjson::Value& spec, bool several);
+inline PlotSeries::Series ReadObject(const rapidjson::Value& o);
+
+// A design: its schema, and how it is drawn from a specification of it, on 'canvases' as 'name' in 'frame'. One table
+// for both, so that a design the schema lets through is one the reader draws.
+struct DesignForm {
+  std::string_view name;
+  std::string_view description;
+  std::vector<KeySchema> keys;
+  std::vector<std::string_view> required;
+  std::vector<std::pair<const char*, const char*>> dependencies;
+  PlotDesigns::Drawn (*draw)(const rapidjson::Value& spec, CanvasManager& canvases, const std::string& name, const PlotDesigns::Frame& frame);
+};
+
 // One form per design: a single panel's keys at the top for overlay, compare_with_ratio (two series and its divide
 // option) and with_reference (its object); panels of their own for grid (and its columns) and joined_pads (and the one Y
 // range they share), the look by fact at the top of all of them; the fits' own keys for fit_canvas_grid.
-inline std::string DesignForms()
+inline const std::vector<DesignForm>& DesignForms()
 {
-  const std::vector<KeySchema> look = Refs(LookValueKeys()), frame = Refs(FrameValueKeys());
-  const std::vector<std::pair<const char*, const char*>> colorsNeedBy = {{kColors, kColorBy}};
-  const std::vector<KeySchema> ratio = {
-    {kReference, R"({"type": "integer", "minimum": 0, "description": "The index of the series the others are divided by; 0 when absent."})"},
-    Ref(kDivideOption), Ref(kRatioRange), {kRatioTitle, kStringSchema}};
-  const std::string object = R"({"$ref": "#/definitions/form_object"})";
-  const std::vector<KeySchema> reference = {{kReferenceObject, object}, {kSystematic, object}, Ref(kDivideOption), Ref(kRatioRange)};
-  const std::vector<KeySchema> grid = {
-    {kPanels, R"({"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/form_panel"}})"},
-    {kNCols, R"({"type": "integer", "minimum": 1, "description": "Panels per row."})"}};
-  const std::vector<KeySchema> joined = {
-    {kPanels, R"({"type": "array", "minItems": 2, "items": {"$ref": "#/definitions/form_joined_panel"}})"}, Ref(kYRange)};
-  const std::vector<KeySchema> fits = {
-    {kFile, R"({"type": "string", "description": "A purity file, or the phi fit file."})"},
-    Ref(kScheme),
-    {kPurityKey, R"({"type": "string", "description": "The purity key whose fits are shown; the phi's when absent."})"},
-    {kCells, std::format(R"({{"type": "array", "minItems": 1, "items": {}, "description": "The fits shown: a multiplicity class and a pT interval each, as the fits' binning has them."}})",
-                         ObjectSchema({{kMult, kRangeSchema}, {kPt, kRangeSchema}, {kLabel, kStringSchema}}, {kMult, kPt}))},
-    {kNCols, R"({"type": "integer", "minimum": 1, "description": "Fits per row."})"},
-    Ref(kBinning), Ref(kWidth), Ref(kHeight), Ref(kTextPx)};
-  return Form(kDesign, "overlay", "Every series on one pad.", Joined(Joined(PanelKeys(1, true), look), frame), {kSeries}, colorsNeedBy) + "," +
-         Form(kDesign, "compare_with_ratio", "The series on top, and below the ratio of each to the reference series.",
-              Joined(Joined(Joined(PanelKeys(2, true), look), frame), ratio), {kSeries, kDivideOption}, colorsNeedBy) + "," +
-         Form(kDesign, "with_reference",
-              "The series against an object of a file the framework did not write (a preliminary), with its systematic uncertainty as a band, and the ratio of each to it below.",
-              Joined(Joined(Joined(PanelKeys(1, true), look), frame), reference), {kSeries, kReferenceObject, kDivideOption}, colorsNeedBy) + "," +
-         Form(kDesign, "grid", "Panels in a grid, row by row, n_cols per row.", Joined(Joined(grid, look), frame), {kPanels, kNCols}, colorsNeedBy) + "," +
-         Form(kDesign, "joined_pads", "Panels side by side, joined, with one Y axis and one range for all.", Joined(Joined(joined, look), frame), {kPanels},
-              colorsNeedBy) + "," +
-         // The phi's fits have one binning: a binning is the purity key's.
-         Form(kDesign, "fit_canvas_grid", "The mass-fit canvases of some cells, already in the file, laid out in a grid.", fits, {kFile, kCells, kNCols},
-              {{kBinning, kPurityKey}});
+  using PlotDesigns::Frame;
+  using Range = std::pair<double, double>;
+  static const std::vector<DesignForm> forms = [] {
+    const std::vector<KeySchema> look = Refs(LookValueKeys()), frame = Refs(FrameValueKeys());
+    const std::vector<std::pair<const char*, const char*>> colorsNeedBy = {{kColors, kColorBy}};
+    const std::vector<KeySchema> ratio = {
+      {kReference, R"({"type": "integer", "minimum": 0, "description": "The index of the series the others are divided by; 0 when absent."})"},
+      Ref(kDivideOption), Ref(kRatioRange), {kRatioTitle, kStringSchema}};
+    const std::string object = R"({"$ref": "#/definitions/form_object"})";
+    const std::vector<KeySchema> reference = {{kReferenceObject, object}, {kSystematic, object}, Ref(kDivideOption), Ref(kRatioRange)};
+    const std::vector<KeySchema> grid = {
+      {kPanels, R"({"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/form_panel"}})"},
+      {kNCols, R"({"type": "integer", "minimum": 1, "description": "Panels per row."})"}};
+    const std::vector<KeySchema> joined = {
+      {kPanels, R"({"type": "array", "minItems": 2, "items": {"$ref": "#/definitions/form_joined_panel"}})"}, Ref(kYRange)};
+    const std::vector<KeySchema> fits = {
+      {kFile, R"({"type": "string", "description": "A purity file, or the phi fit file."})"},
+      Ref(kScheme),
+      {kPurityKey, R"({"type": "string", "description": "The purity key whose fits are shown; the phi's when absent."})"},
+      {kCells, std::format(R"({{"type": "array", "minItems": 1, "items": {}, "description": "The fits shown: a multiplicity class and a pT interval each, as the fits' binning has them."}})",
+                           ObjectSchema({{kMult, kRangeSchema}, {kPt, kRangeSchema}, {kLabel, kStringSchema}}, {kMult, kPt}))},
+      {kNCols, R"({"type": "integer", "minimum": 1, "description": "Fits per row."})"},
+      Ref(kBinning), Ref(kWidth), Ref(kHeight), Ref(kTextPx)};
+    return std::vector<DesignForm>{
+      {"overlay", "Every series on one pad.", Joined(Joined(PanelKeys(1, true), look), frame), {kSeries}, colorsNeedBy,
+       [](const rapidjson::Value& spec, CanvasManager& canvases, const std::string& name, const Frame& f) {
+         return PlotDesigns::Overlay(canvases, name, ReadPanels(spec, false).front(), f);
+       }},
+      {"compare_with_ratio", "The series on top, and below the ratio of each to the reference series.",
+       Joined(Joined(Joined(PanelKeys(2, true), look), frame), ratio), {kSeries, kDivideOption}, colorsNeedBy,
+       [](const rapidjson::Value& spec, CanvasManager& canvases, const std::string& name, const Frame& f) {
+         return PlotDesigns::CompareWithRatio(canvases, name, ReadPanels(spec, false).front(),
+                                              static_cast<std::size_t>(JsonConfig::OptionalInt(spec, kReference, 0, kCtx)),
+                                              JsonConfig::RequireString(spec, kDivideOption, kCtx), JsonConfig::TryRange<Range>(spec, kRatioRange, kCtx),
+                                              JsonConfig::OptionalString(spec, kRatioTitle, "ratio", kCtx), f);
+       }},
+      {"with_reference",
+       "The series against an object of a file the framework did not write (a preliminary), with its systematic uncertainty as a band, and the ratio of each to it below.",
+       Joined(Joined(Joined(PanelKeys(1, true), look), frame), reference), {kSeries, kReferenceObject, kDivideOption}, colorsNeedBy,
+       [](const rapidjson::Value& spec, CanvasManager& canvases, const std::string& name, const Frame& f) {
+         const rapidjson::Value* systematic = JsonConfig::OptionalMember(spec, kSystematic);
+         return PlotDesigns::WithReference(canvases, name, ReadPanels(spec, false).front(), ReadObject(JsonConfig::RequireMember(spec, kReferenceObject, kCtx)),
+                                           systematic ? std::optional(ReadObject(*systematic)) : std::nullopt,
+                                           JsonConfig::RequireString(spec, kDivideOption, kCtx), JsonConfig::TryRange<Range>(spec, kRatioRange, kCtx), f);
+       }},
+      {"grid", "Panels in a grid, row by row, n_cols per row.", Joined(Joined(grid, look), frame), {kPanels, kNCols}, colorsNeedBy,
+       [](const rapidjson::Value& spec, CanvasManager& canvases, const std::string& name, const Frame& f) {
+         return PlotDesigns::Grid(canvases, name, ReadPanels(spec, true), JsonConfig::RequireInt(spec, kNCols, kCtx), f);
+       }},
+      {"joined_pads", "Panels side by side, joined, with one Y axis and one range for all.", Joined(Joined(joined, look), frame), {kPanels},
+       colorsNeedBy,
+       [](const rapidjson::Value& spec, CanvasManager& canvases, const std::string& name, const Frame& f) {
+         return PlotDesigns::JoinedPads(canvases, name, ReadPanels(spec, true), JsonConfig::TryRange<Range>(spec, kYRange, kCtx), f);
+       }},
+      // The phi's fits have one binning: a binning is the purity key's.
+      {"fit_canvas_grid", "The mass-fit canvases of some cells, already in the file, laid out in a grid.", fits, {kFile, kCells, kNCols},
+       {{kBinning, kPurityKey}},
+       [](const rapidjson::Value& spec, CanvasManager& canvases, const std::string& name, const Frame& f) {
+         std::vector<PlotDesigns::FitCell> cells;
+         for (const auto& c : JsonConfig::RequireArray(spec, kCells, kCtx))
+           cells.push_back({JsonConfig::ToRange<PlotSeries::Interval>(JsonConfig::RequireMember(c, kMult, kCtx), kMult, kCtx),
+                            JsonConfig::ToRange<PlotSeries::Interval>(JsonConfig::RequireMember(c, kPt, kCtx), kPt, kCtx),
+                            JsonConfig::OptionalString(c, kLabel, "", kCtx)});
+         return PlotDesigns::FitCanvasGrid(canvases, name, JsonConfig::RequireString(spec, kFile, kCtx), JsonConfig::TryString(spec, kPurityKey, kCtx),
+                                           cells, JsonConfig::RequireInt(spec, kNCols, kCtx), ReadBinning(spec),
+                                           {JsonConfig::OptionalString(spec, kScheme, "", kCtx)}, f);
+       }},
+    };
+  }();
+  return forms;
 }
 
 inline std::string PointerText(const rapidjson::Pointer& pointer)
@@ -513,7 +574,12 @@ inline const std::string& Schema()
     std::string t = std::format("{{\n  \"$schema\": \"http://json-schema.org/draft-04/schema#\",\n"
                                 "  \"title\": \"A plot of the phi-strangeness analysis: one design and the series it draws\",\n"
                                 "  \"definitions\": {{{}\n  }},\n  \"oneOf\": [{}]\n}}",
-                                definitions, Detail::DesignForms());
+                                definitions, [] {
+                                  std::string forms;
+                                  for (const Detail::DesignForm& f : Detail::DesignForms())
+                                    forms += (forms.empty() ? "" : ",") + Detail::Form(Detail::kDesign, f.name, f.description, f.keys, f.required, f.dependencies);
+                                  return forms;
+                                }());
     rapidjson::Document check;
     if (check.Parse(t.c_str()).HasParseError())
       throw std::logic_error(std::format("[FATAL] PlotSpec: the schema built from the tables is not JSON (at offset {}).", check.GetErrorOffset()));
@@ -625,13 +691,10 @@ inline PlotDesigns::Panel ReadPanel(const rapidjson::Value& p)
   if (auto keys = JsonConfig::TryArray(p, kKeys, kCtx))
     for (const auto& k : *keys) {
       const std::vector<double> box = JsonConfig::ReadNumberArray(JsonConfig::RequireArray(k, kBox, kCtx), kBox, kCtx);
-      const PlotSeries::Fact fact = Resolve(kFactNames, JsonConfig::RequireString(k, kFact, kCtx), "fact");
+      const PlotSeries::Fact fact = Resolve(FactNames(), JsonConfig::RequireString(k, kFact, kCtx), kFact);
       std::vector<std::pair<std::string, std::string>> text;
       if (auto labels = JsonConfig::TryArray(k, kLabels, kCtx)) {
-        std::vector<const PlotSeries::Series*> pointers;
-        for (const PlotSeries::Series& s : panel.series)
-          pointers.push_back(&s);
-        const std::vector<std::string> values = PlotDesigns::FactValues(pointers, fact, "key");
+        const std::vector<std::string> values = PlotDesigns::FactValues(panel.series, fact, "key");
         if (labels->Size() != values.size())
           throw std::runtime_error(std::format("[FATAL] PlotSpec: a key gives {} labels for {} values ({}).", labels->Size(), values.size(),
                                                Logger::Join(values, ", ")));
@@ -639,7 +702,7 @@ inline PlotDesigns::Panel ReadPanel(const rapidjson::Value& p)
           text.emplace_back(values[i], JsonConfig::ToString((*labels)[static_cast<rapidjson::SizeType>(i)], kLabels, kCtx));
       }
       panel.keys.push_back({.fact = fact,
-                            .shows = Resolve(kShowsNames, JsonConfig::RequireString(k, kShows, kCtx), "key"),
+                            .shows = Resolve(kShowsNames, JsonConfig::RequireString(k, kShows, kCtx), kShows),
                             .where = {box[0], box[1], box[2], box[3], JsonConfig::OptionalInt(k, kColumns, 1, kCtx)},
                             .text = std::move(text)});
     }
@@ -649,31 +712,21 @@ inline PlotDesigns::Panel ReadPanel(const rapidjson::Value& p)
   return panel;
 }
 
-// The look by fact of a design, over every series of all its panels: one value, one look in every pad. A colour or a
-// marker an entry gives by hand would be overwritten, so it stops instead.
+// The look by fact of a design, over every series of all its panels: one value, one look in every pad. What a look
+// given by hand allows is PlotDesigns' rule (ColourBy, ShapeBy, FillBy), the same for a specification and a composition.
 inline void ApplyLooks(const rapidjson::Value& spec, std::vector<PlotDesigns::Panel>& panels)
 {
-  auto refuseOwn = [&](const char* by, std::optional<int> PlotSeries::Look::* own, const char* what) {
-    for (const PlotDesigns::Panel& panel : panels)
-      for (const PlotSeries::Series& s : panel.series)
-        if (s.look.*own)
-          throw std::runtime_error(std::format("[FATAL] PlotSpec: '{}' has a {} of its own and '{}' gives every series one: leave one of the two out.",
-                                               s.origins.front().path, what, by));
-  };
   if (auto by = JsonConfig::TryString(spec, kColorBy, kCtx)) {
-    refuseOwn(kColorBy, &PlotSeries::Look::color, kColor);
     std::vector<int> palette;
     if (auto colors = JsonConfig::TryArray(spec, kColors, kCtx))
       for (const auto& c : *colors)
         palette.push_back(static_cast<int>(JsonConfig::ToNumber(c, kColors, kCtx)));
-    PlotDesigns::ColourBy(panels, Resolve(kFactNames, *by, "fact"), palette);
+    PlotDesigns::ColourBy(panels, Resolve(FactNames(), *by, kColorBy), palette);
   }
-  if (auto by = JsonConfig::TryString(spec, kShapeBy, kCtx)) {
-    refuseOwn(kShapeBy, &PlotSeries::Look::marker, kMarker);
-    PlotDesigns::ShapeBy(panels, Resolve(kFactNames, *by, "fact"));
-  }
+  if (auto by = JsonConfig::TryString(spec, kShapeBy, kCtx))
+    PlotDesigns::ShapeBy(panels, Resolve(FactNames(), *by, kShapeBy));
   if (auto by = JsonConfig::TryString(spec, kFillBy, kCtx))
-    PlotDesigns::FillBy(panels, Resolve(kFactNames, *by, "fact"));
+    PlotDesigns::FillBy(panels, Resolve(FactNames(), *by, kFillBy));
 }
 
 inline PlotDesigns::Frame ReadFrame(const rapidjson::Value& spec)
@@ -731,34 +784,9 @@ inline PlotDesigns::Drawn Draw(const rapidjson::Document& spec, CanvasManager& c
   PlotDesigns::Frame frame = ReadFrame(spec);
   frame.alice = alice;
   const std::string design = JsonConfig::RequireString(spec, kDesign, kCtx);
-  const auto ratioRange = JsonConfig::TryRange<std::pair<double, double>>(spec, kRatioRange, kCtx);
-  if (design == "overlay")
-    return PlotDesigns::Overlay(canvases, name, ReadPanels(spec, false).front(), frame);
-  if (design == "compare_with_ratio")
-    return PlotDesigns::CompareWithRatio(canvases, name, ReadPanels(spec, false).front(),
-                                         static_cast<std::size_t>(JsonConfig::OptionalInt(spec, kReference, 0, kCtx)),
-                                         JsonConfig::RequireString(spec, kDivideOption, kCtx), ratioRange,
-                                         JsonConfig::OptionalString(spec, kRatioTitle, "ratio", kCtx), frame);
-  if (design == "with_reference") {
-    const rapidjson::Value* systematic = JsonConfig::OptionalMember(spec, kSystematic);
-    return PlotDesigns::WithReference(canvases, name, ReadPanels(spec, false).front(), ReadObject(JsonConfig::RequireMember(spec, kReferenceObject, kCtx)),
-                                      systematic ? std::optional(ReadObject(*systematic)) : std::nullopt,
-                                      JsonConfig::RequireString(spec, kDivideOption, kCtx), ratioRange, frame);
-  }
-  if (design == "grid")
-    return PlotDesigns::Grid(canvases, name, ReadPanels(spec, true), JsonConfig::RequireInt(spec, kNCols, kCtx), frame);
-  if (design == "joined_pads")
-    return PlotDesigns::JoinedPads(canvases, name, ReadPanels(spec, true), JsonConfig::TryRange<std::pair<double, double>>(spec, kYRange, kCtx), frame);
-  if (design == "fit_canvas_grid") {
-    const std::string file = JsonConfig::RequireString(spec, kFile, kCtx);
-    std::vector<PlotDesigns::FitCell> cells;
-    for (const auto& c : JsonConfig::RequireArray(spec, kCells, kCtx))
-      cells.push_back({*JsonConfig::TryRange<PlotSeries::Interval>(c, kMult, kCtx), *JsonConfig::TryRange<PlotSeries::Interval>(c, kPt, kCtx),
-                       JsonConfig::OptionalString(c, kLabel, "", kCtx)});
-    return PlotDesigns::FitCanvasGrid(canvases, name, file, PlotSeries::SchemeName(file, JsonConfig::OptionalString(spec, kScheme, "", kCtx)),
-                                      JsonConfig::TryString(spec, kPurityKey, kCtx), cells, JsonConfig::RequireInt(spec, kNCols, kCtx),
-                                      ReadBinning(spec), frame);
-  }
+  const auto form = std::ranges::find(DesignForms(), design, &DesignForm::name);
+  if (form != DesignForms().end())
+    return form->draw(spec, canvases, name, frame);
   throw std::logic_error(std::format("[FATAL] PlotSpec: the schema let through a design '{}' with nothing to draw it.", design));
 }
 
@@ -825,25 +853,33 @@ inline std::string CatalogJson(const std::vector<PlotSeries::Catalog>& catalogs)
     rapidjson::Value file(rapidjson::kObjectType), schemes(rapidjson::kArrayType);
     file.AddMember(rapidjson::StringRef(kFile), str(catalog.fileName), a);
     for (const PlotSeries::Catalog::Scheme& scheme : catalog.schemes) {
-      rapidjson::Value sc(rapidjson::kObjectType), classes(rapidjson::kArrayType), forms(rapidjson::kArrayType);
+      rapidjson::Value sc(rapidjson::kObjectType), forms(rapidjson::kArrayType);
       sc.AddMember(rapidjson::StringRef(kScheme), str(scheme.name), a);
       sc.AddMember(rapidjson::StringRef(kKind), str(PlotSeries::Name(scheme.kind)), a);
       for (const SeriesForm& f : SeriesForms())
         if (f.reads == scheme.kind)
           forms.PushBack(str(f.of), a);
       sc.AddMember(rapidjson::StringRef(kSeriesForms), forms, a);
-      for (const PlotSeries::Interval& c : scheme.classes) {
-        rapidjson::Value interval(rapidjson::kArrayType);
-        interval.PushBack(c.low, a).PushBack(c.high, a);
-        classes.PushBack(interval, a);
-      }
-      sc.AddMember(rapidjson::StringRef(kMult), classes, a);
+      auto intervals = [&](const std::vector<PlotSeries::Interval>& list) {
+        rapidjson::Value v(rapidjson::kArrayType);
+        for (const PlotSeries::Interval& i : list) {
+          rapidjson::Value interval(rapidjson::kArrayType);
+          interval.PushBack(i.low, a).PushBack(i.high, a);
+          v.PushBack(interval, a);
+        }
+        return v;
+      };
+      sc.AddMember(rapidjson::StringRef(kMult), intervals(scheme.classes), a);
       switch (scheme.kind) {
         case PlotSeries::FileKind::Corrections:
           sc.AddMember(rapidjson::StringRef(kParticle), strings(scheme.particles), a);
           break;
         case PlotSeries::FileKind::Purity:
           sc.AddMember(rapidjson::StringRef(kPurityKey), strings(scheme.purityKeys), a);
+          break;
+        // The fits' cells, for a fit_canvas_grid: the classes above and these pT bins.
+        case PlotSeries::FileKind::PhiFits:
+          sc.AddMember(rapidjson::StringRef(kPt), intervals(scheme.ptIntervals), a);
           break;
         case PlotSeries::FileKind::Spectra: {
           rapidjson::Value sections(rapidjson::kArrayType);

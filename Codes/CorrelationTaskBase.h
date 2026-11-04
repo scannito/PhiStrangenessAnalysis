@@ -74,7 +74,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // spectra used to sit flat in the scheme directory while only the trends had a
       // per-particle folder, so a reader had to know the naming convention to tell
       // which spectrum belonged to which species. This makes the layout say it.
-      const std::vector<std::string> particlePath = SectionPath({pName});
+      const std::vector<std::string> particlePath = OutputNames::SpeciesPath(globalCfgs.binningName, SectionDirName(), pName);
       const std::vector<std::string> trendsPath = OutputNames::TrendsPath(globalCfgs.binningName, SectionDirName(), pName);
 
       TDirectory* trendsDir = RootIO::MakePath(outputFile.get(), trendsPath);
@@ -141,7 +141,10 @@ class CorrelationTaskBase : public IAnalysisTask
     sectionDir->cd();
     hNormalisationRelError->Write(nullptr, TObject::kOverwrite);
     // The |dy| limits of this section, for a reader that lists what the file holds (the plots' catalog).
-    RootIO::WriteValueList(sectionDir, OutputNames::kDeltaYLimits, deltaYLimits);
+    std::vector<std::tuple<double>> limitRows;
+    for (double dy : deltaYLimits)
+      limitRows.emplace_back(dy);
+    RootIO::WriteTable(sectionDir, OutputNames::kDeltaYLimits.name, OutputNames::kDeltaYLimits.columns, limitRows);
 
     // The spectra leave this task and, once the trends and ratios move to a task
     // of their own, this is what will say which method produced them.
@@ -152,7 +155,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // =========================================================================
     // The ratios written, as a table next to the |dy| limits, for a reader with no configuration (the summaries below
     // among them): empty when none was asked for or none could be computed.
-    std::vector<std::string> ratioNumerators, ratioDenominators;
+    std::vector<std::tuple<std::string, std::string>> ratioRows;
     if (!requestedRatios.empty()) {
       // Create or access the "Ratios" directory inside Extract1D/2D
       TDirectory* ratioDir = RootIO::MakePath(outputFile.get(), OutputNames::RatiosPath(globalCfgs.binningName, SectionDirName()));
@@ -178,8 +181,7 @@ class CorrelationTaskBase : public IAnalysisTask
         const bool denHasExtrap = extrapolatedParticles.contains(den.name);
         const bool doExtrapRatio = numHasExtrap || denHasExtrap;
 
-        ratioNumerators.push_back(num.name);
-        ratioDenominators.push_back(den.name);
+        ratioRows.emplace_back(num.name, den.name);
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
 
@@ -205,7 +207,7 @@ class CorrelationTaskBase : public IAnalysisTask
     } else {
       Logger::Info("{}: No yield ratios requested. Skipping.", GetName());
     }
-    RootIO::WriteStringTable(sectionDir, OutputNames::kSpeciesRatios, {ratioNumerators, ratioDenominators});
+    RootIO::WriteTable(sectionDir, OutputNames::kSpeciesRatios.name, OutputNames::kSpeciesRatios.columns, ratioRows);
 
     // =========================================================================
     // 3. Close the output file, then draw the summaries from what was written, as any reader of the file would draw
@@ -213,9 +215,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // =========================================================================
     const std::string fileName = outputFile->GetName();
     outputFile->Close();
-    PlotSummaries::WriteInto(fileName, GetName(), [&](CanvasManager& canvases) {
-      PlotSummaries::Correlations(canvases, fileName, globalCfgs.binningName, SectionDirName());
-    });
+    PlotSummaries::WriteInto(fileName, GetName(), {globalCfgs.binningName, SectionDirName()});
 
     // =========================================================================
     // 4. Close the input files
@@ -686,14 +686,18 @@ class CorrelationTaskBase : public IAnalysisTask
       const bool applyEfficiencyBinned = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Binned;
       const bool applyEfficiencyIntegrated = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Integrated;
 
-      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::Efficiency), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::Efficiency, OutputNames::MultUnionTag(multBinning)), applyEfficiencyIntegrated, targetBinning);
+      // A map of this particle, its directory and its name built from the one map named once.
+      auto fetchMap = [&](OutputNames::CorrectionMap map, const std::string& multTag, bool apply) {
+        return fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, map), OutputNames::CorrectionMapName(particle, map, multTag),
+                         apply, targetBinning);
+      };
+      using OutputNames::CorrectionMap;
+      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchMap(CorrectionMap::Efficiency, OutputNames::MultUnionTag(multBinning), applyEfficiencyIntegrated);
 
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
         const std::string multTag = OutputNames::MultTag(multBinning, multBin);
-        std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::Efficiency), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::Efficiency, multTag), applyEfficiencyBinned, targetBinning);
-        std::unique_ptr<TH1> hSignalLossBinned = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::SignalLoss), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::SignalLoss, multTag),
-                                                                     pc.signalLoss.has_value(), // always per multiplicity class
-                                                                     targetBinning);
+        std::unique_ptr<TH1> hEfficiencyBinned = fetchMap(CorrectionMap::Efficiency, multTag, applyEfficiencyBinned);
+        std::unique_ptr<TH1> hSignalLossBinned = fetchMap(CorrectionMap::SignalLoss, multTag, pc.signalLoss.has_value()); // always per multiplicity class
 
         corr.h1Corrections[multBin] = combineHists(hEfficiencyIntegrated ? hEfficiencyIntegrated.get() : hEfficiencyBinned.get(), hSignalLossBinned.get(),
                                              std::format("h1Corrected_{}_{}", particle, multTag));
@@ -1417,11 +1421,11 @@ class CorrelationTaskBase : public IAnalysisTask
   // A correction or a purity names its particle: the trigger, "Phi", or one of the associated particles.
   void RequireKnownParticle(const std::string& particle, std::string_view errCtx) const { (void)PtBinningOf(particle, errCtx); }
 
-  // The path of this task's section, {binning_name, section}, and of what is below it:
-  // the layout spelled once, not at every call.
+  // The path of this task's section (OutputNames::SectionPath), and of what is below it: the layout spelled once, not
+  // at every call.
   std::vector<std::string> SectionPath(std::initializer_list<std::string> below = {}) const
   {
-    std::vector<std::string> path{globalCfgs.binningName, SectionDirName()};
+    std::vector<std::string> path = OutputNames::SectionPath(globalCfgs.binningName, SectionDirName());
     path.insert(path.end(), below);
     return path;
   }

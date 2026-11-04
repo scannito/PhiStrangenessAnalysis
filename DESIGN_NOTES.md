@@ -1616,8 +1616,9 @@ components, composed*); `PLOTS.md` explains every part and how to use it.
   of the 4 that ask for the other layouts; every miss is a refusal or a "cannot". The owner's view (4 November): a
   larger model rather than more tuning of the prompt for this one. Not measured yet: a larger model, and llama-server
   on the four.
-- **The pT intervals of the fits are not in the catalog**: `list` gives the multiplicity classes, so the cells of a
-  `fit_canvas_grid` are written as the fits' binning has them, and a wrong one stops as not in the file.
+- **The pT intervals of a purity key's fits are not in the catalog**: `list` gives those of the phi fits (from the
+  file's stamps) but a purity file stamps only the multiplicity, so the cells of a purity `fit_canvas_grid` are written
+  as the fits' binning has them, and a wrong one stops as not in the file.
 - **Not in the specification**: `Table`, a band (`Panel::band`) outside `with_reference`, and the words of a key by
   value (a specification gives them by position). A request for them is a C++ composition.
 - **Files written before the records of what they hold** (`particles`, `purity_keys`, `species_ratios`,

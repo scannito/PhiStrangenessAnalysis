@@ -154,10 +154,10 @@ class PurityTask : public IAnalysisTask
     TDirectory* schemeDir = RootIO::MakePath(outputFile.get(), {globalCfgs.binningName});
     RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, multBinning);
     // The purity keys this file holds, for a reader with no configuration (the summaries below among them).
-    std::vector<std::string> purityKeys;
+    std::vector<std::tuple<std::string>> purityKeys;
     for (const auto& task : particleTasks)
-      purityKeys.push_back(task.purityKey);
-    RootIO::WriteStringTable(schemeDir, OutputNames::kPurityKeys, {purityKeys});
+      purityKeys.emplace_back(task.purityKey);
+    RootIO::WriteTable(schemeDir, OutputNames::kPurityKeys.name, OutputNames::kPurityKeys.columns, purityKeys);
     fitQuality.Write(schemeDir, GetName());
 
     // 2. Write the CCDB-ready maps, one file per particle, object named "ccdb_object"
@@ -173,7 +173,7 @@ class PurityTask : public IAnalysisTask
     // them, and write them into it (their directories are under the scheme ClearPath emptied in Init)
     const std::string fileName = outputFile->GetName();
     outputFile->Close();
-    PlotSummaries::WriteInto(fileName, GetName(), [&](CanvasManager& canvases) { PlotSummaries::Purities(canvases, fileName, globalCfgs.binningName); });
+    PlotSummaries::WriteInto(fileName, GetName(), {globalCfgs.binningName});
 
     Logger::Info("{}: DONE.", GetName());
   }
@@ -281,7 +281,7 @@ class PurityTask : public IAnalysisTask
       TCanvas* cFit = canvasManager.CreateCanvas(cName, title, 800, 800);
       // log: the background under a peak of 1e5-1e8 counts is at 1e-2-1e-4 of it, and it decides the purity
       fitter.DrawFit(cFit, title, /*logY=*/true);
-      CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
+      CanvasManager::DrawAliceLabel(cFit);
       canvasManager.WriteAndDestroy(cName, fitDir);
     }
 

@@ -545,7 +545,6 @@ through `PlotSummaries` at the end of `Terminate`. `PLOTS.md` explains each.
 | `PlotSummaries.h` | `namespace PlotSummaries` — the summaries of `MCTask`, `PurityTask` and the correlation tasks, drawn from a file of their kind. |
 | `PlotSpec.h` | `namespace PlotSpec` — a plot as JSON: the schema, built from the keys that read it, and the reading of a specification into the components. |
 | `phistrangeplot.cpp` | The command `build/phistrangeplot`: `summaries`, `list`, `schema`, `describe`, `render`. |
-| `PlotComponentsCheck.cpp` | Compiles every plot header with each build (target `plotcomponents`), since no single program includes them all. |
 
 ---
 

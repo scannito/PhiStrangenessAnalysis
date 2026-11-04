@@ -16,13 +16,11 @@
 #include "TROOT.h"
 
 #include <algorithm>
-#include <array>
 #include <format>
 #include <limits>
 #include <functional>
 #include <map>
 #include <optional>
-#include <set>
 #include <string>
 #include <utility>
 #include <vector>
@@ -87,15 +85,24 @@ struct Panel {
   std::optional<PlotSeries::Series> band;
 };
 
-// The values of 'fact' among the series, distinct, in the order the series bring them: what a look by fact numbers and
-// a key lists. A series without the fact stops ('what' names the caller): its look, or its entry, would say nothing.
-inline std::vector<std::string> FactValues(const std::vector<const PlotSeries::Series*>& series, PlotSeries::Fact fact, std::string_view what)
+namespace Detail
+{
+inline const PlotSeries::Series& Deref(const PlotSeries::Series& s) { return s; }
+inline const PlotSeries::Series& Deref(const PlotSeries::Series* s) { return *s; }
+} // namespace Detail
+
+// The values of 'fact' among the series (or pointers to them), distinct, in the order the series bring them: what a look
+// by fact numbers and a key lists. A series without the fact stops ('what' names the caller): its look, or its entry,
+// would say nothing.
+template <class Range>
+std::vector<std::string> FactValues(const Range& series, PlotSeries::Fact fact, std::string_view what)
 {
   std::vector<std::string> values;
-  for (const PlotSeries::Series* s : series) {
-    const std::optional<std::string>& value = s->facts.*fact;
+  for (const auto& each : series) {
+    const PlotSeries::Series& s = Detail::Deref(each);
+    const std::optional<std::string>& value = s.facts.*fact;
     if (!value)
-      throw std::runtime_error(std::format("[FATAL] PlotDesigns::{}: '{}' has no value for the fact it is taken from.", what, s->origins.front().path));
+      throw std::runtime_error(std::format("[FATAL] PlotDesigns::{}: '{}' has no value for the fact it is taken from.", what, s.origins.front().path));
     if (std::ranges::find(values, *value) == values.end())
       values.push_back(*value);
   }
@@ -129,7 +136,7 @@ inline std::vector<PlotSeries::Series*> SeriesOf(std::vector<Panel>& panels)
 inline std::vector<std::size_t> ValueIndices(const std::vector<PlotSeries::Series*>& series, PlotSeries::Fact fact, std::string_view what,
                                              std::size_t maxValues)
 {
-  const std::vector<std::string> values = FactValues({series.begin(), series.end()}, fact, what);
+  const std::vector<std::string> values = FactValues(series, fact, what);
   if (values.size() > maxValues)
     throw std::runtime_error(std::format("[FATAL] PlotDesigns::{}: {} values ({}), {} at most.", what, values.size(), Logger::Join(values, ", "), maxValues));
   std::vector<std::size_t> indices;
@@ -138,8 +145,7 @@ inline std::vector<std::size_t> ValueIndices(const std::vector<PlotSeries::Serie
   return indices;
 }
 
-// The filled shapes, in the order ShapeBy gives them, and the outline of each (TAttMarker).
-inline constexpr std::pair<int, int> kShapes[] = {{20, 24}, {21, 25}, {33, 27}, {34, 28}, {29, 30}, {22, 26}, {23, 32}};
+using PlotSeries::kShapes;
 inline constexpr std::size_t kDiamond = 2; // kShapes[kDiamond]
 // A diamond looks smaller than a circle or a square of the same size: drawn larger by this much, the 2.0 against 1.4 of
 // the owner's ratio plots (26 October 2026).
@@ -160,7 +166,9 @@ inline void ColourBy(const std::vector<PlotSeries::Series*>& series, PlotSeries:
     ValueIndices(series, fact, "ColourBy", palette.empty() ? std::numeric_limits<std::size_t>::max() : palette.size());
   for (std::size_t i = 0; i < series.size(); ++i) {
     if (series[i]->look.color)
-      throw std::runtime_error(std::format("[FATAL] PlotDesigns::ColourBy: '{}' has a colour of its own.", series[i]->origins.front().path));
+      throw std::runtime_error(std::format("[FATAL] PlotDesigns::ColourBy: '{}' has a colour of its own and a colour by fact gives every series "
+                                           "one: leave one of the two out.",
+                                           series[i]->origins.front().path));
     series[i]->look.color = palette.empty() ? CanvasManager::VariantColor(static_cast<int>(indices[i])) : palette[indices[i]];
   }
 }
@@ -172,7 +180,9 @@ inline void ShapeBy(const std::vector<PlotSeries::Series*>& series, PlotSeries::
     PlotSeries::Look& look = series[i]->look;
     const auto shape = look.marker ? ShapeOf(*look.marker) : std::nullopt;
     if (look.marker && !shape)
-      throw std::runtime_error(std::format("[FATAL] PlotDesigns::ShapeBy: '{}' has a marker of its own.", series[i]->origins.front().path));
+      throw std::runtime_error(std::format("[FATAL] PlotDesigns::ShapeBy: '{}' has a marker of its own, not one of the shapes (open or filled) "
+                                           "a shape by fact gives: leave one of the two out.",
+                                           series[i]->origins.front().path));
     look.marker = shape && shape->second ? kShapes[indices[i]].second : kShapes[indices[i]].first;
     if (indices[i] == kDiamond)
       look.markerSize = look.markerSize.value_or(CanvasManager::kMarkerSize) * kDiamondScale;
@@ -210,10 +220,12 @@ inline void ShapeBy(std::vector<Panel>& panels, PlotSeries::Fact fact) { Detail:
 inline void FillBy(std::vector<PlotSeries::Series>& series, PlotSeries::Fact fact) { Detail::FillBy(Detail::SeriesOf(series), fact); }
 inline void FillBy(std::vector<Panel>& panels, PlotSeries::Fact fact) { Detail::FillBy(Detail::SeriesOf(panels), fact); }
 
-// What a design drew: the canvas and every series on it, those it computed included.
+// What a design drew: the canvas and every series on it, those it computed included, and where what it drew that is not
+// a series was read (the fit canvases).
 struct Drawn {
   TCanvas* canvas{nullptr};
   std::vector<PlotSeries::Series> series;
+  std::vector<PlotSeries::Origin> inputs{};
 };
 
 namespace Detail
@@ -256,15 +268,14 @@ inline int Rows(std::size_t n, int nCols)
   return (static_cast<int>(n) + nCols - 1) / nCols;
 }
 
-// The open markers of ROOT's table (TAttMarker): the outline of a filled one. The others are filled, or are lines (a
-// cross, a star) which a Fill key cannot tell apart; those are refused there.
+// Whether a marker is the open one of its pair of kShapes, what a key of the filling says; a marker outside them has no
+// pair to tell it from, and is refused there.
 inline bool IsOpenMarker(int style)
 {
-  static const std::set<int> kOpen{4, 24, 25, 26, 27, 28, 30, 32, 35, 36, 37, 38, 40, 42, 44, 46};
-  static const std::set<int> kFilled{8, 20, 21, 22, 23, 29, 33, 34, 39, 41, 43, 45, 47, 48, 49};
-  if (!kOpen.contains(style) && !kFilled.contains(style))
-    throw std::runtime_error(std::format("[FATAL] PlotDesigns: marker {} is neither open nor filled; a key of the filling cannot use it.", style));
-  return kOpen.contains(style);
+  const auto shape = ShapeOf(style);
+  if (!shape)
+    throw std::runtime_error(std::format("[FATAL] PlotDesigns: marker {} has no filled and open pair; a key of the filling cannot use it.", style));
+  return shape->second;
 }
 
 // Key's entries: the values of its fact, each with the colour or the filling of its series, checked one to one. A
@@ -273,11 +284,8 @@ inline bool IsOpenMarker(int style)
 // as one more colour or shape.
 inline void DrawKey(TPad* pad, const std::vector<PlotSeries::Series>& series, const std::vector<TH1*>& drawn, const Key& key, const Frame& frame)
 {
-  std::vector<const PlotSeries::Series*> pointers;
-  for (const PlotSeries::Series& s : series)
-    pointers.push_back(&s);
   std::vector<std::pair<std::string, std::size_t>> entries; // value, its first series
-  for (const std::string& value : FactValues(pointers, key.fact, "DrawKey"))
+  for (const std::string& value : FactValues(series, key.fact, "DrawKey"))
     entries.emplace_back(value, static_cast<std::size_t>(std::ranges::find_if(series, [&](const auto& s) { return s.facts.*key.fact == value; }) -
                                                          series.begin()));
   std::map<std::string, int> attributeOf;
@@ -318,7 +326,8 @@ inline void DrawKey(TPad* pad, const std::vector<PlotSeries::Series>& series, co
       continue;
     }
     TLegendEntry* entry = legend->AddEntry(static_cast<TObject*>(nullptr), words.c_str(), "p");
-    entry->SetMarkerStyle(IsOpenMarker(drawn[first]->GetMarkerStyle()) ? 24 : 20);
+    const auto [filled, open] = kShapes[0];
+    entry->SetMarkerStyle(IsOpenMarker(drawn[first]->GetMarkerStyle()) ? open : filled);
     entry->SetMarkerSize(drawn[first]->GetMarkerSize());
     entry->SetMarkerColor(kBlack);
   }
@@ -521,25 +530,22 @@ struct FitCell {
   std::string label;
 };
 
-inline Drawn FitCanvasGrid(CanvasManager& canvases, const std::string& name, const std::string& fileName, const std::string& scheme,
+inline Drawn FitCanvasGrid(CanvasManager& canvases, const std::string& name, const std::string& fileName,
                            const std::optional<std::string>& purityKey, const std::vector<FitCell>& cells, int nCols,
-                           OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const Frame& frame = {})
+                           OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const PlotSeries::Where& where = {},
+                           const Frame& frame = {})
 {
-  auto file = RootIO::OpenOrThrow(fileName, "READ", "PlotDesigns::FitCanvasGrid");
   TCanvas* canvas = canvases.CreateGridCanvas(name, name, nCols, Detail::Rows(cells.size(), nCols), frame.width, frame.height,
                                               CanvasManager::PadMargins{0, 0, 0, 0});
+  Drawn drawn{.canvas = canvas};
   for (std::size_t i = 0; i < cells.size(); ++i) {
-    const FitCell& cell = cells[i];
-    const std::string tag = OutputNames::CellTag(std::array{cell.mult.low, cell.mult.high}, 0, std::array{cell.pt.low, cell.pt.high}, 0);
-    const std::string path = purityKey ? RootIO::ObjectPath(OutputNames::PurityFitsPath(scheme, *purityKey, binning),
-                                                            OutputNames::PurityFitCanvas(*purityKey, tag, binning))
-                                       : RootIO::ObjectPath(OutputNames::PhiFitsPath(scheme), OutputNames::PhiFitCanvas(tag));
-    std::unique_ptr<TCanvas> fit = PlotSeries::Detail::Get<TCanvas>(file.get(), fileName, path);
+    const PlotSeries::FitCanvas fit = PlotSeries::Fit(fileName, purityKey, cells[i].mult, cells[i].pt, binning, where);
     canvas->cd(static_cast<int>(i) + 1);
-    fit->DrawClonePad();
-    Detail::WriteText(0.15, 0.95, cell.label.empty() ? tag : cell.label, frame);
+    fit.canvas->DrawClonePad();
+    Detail::WriteText(0.15, 0.95, cells[i].label.empty() ? fit.tag : cells[i].label, frame);
+    drawn.inputs.push_back(fit.origin);
   }
-  return {canvas, {}};
+  return drawn;
 }
 
 // 6b. The series printed bin by bin: the values a plot draws, for a reader who wants the numbers. One column per series
@@ -569,7 +575,7 @@ inline std::string Table(const std::vector<PlotSeries::Series>& series)
 // What a design drew, kept: PlotSeries::Save with the series the design returned.
 inline void Save(const Drawn& drawn, const std::string& outBase, const std::string& recipe, const std::map<std::string, std::string>& facts = {})
 {
-  PlotSeries::Save(drawn.canvas, outBase, drawn.series, recipe, facts);
+  PlotSeries::Save(drawn.canvas, outBase, drawn.series, recipe, facts, drawn.inputs);
 }
 
 // The body of a composition's main: batch mode, no window, and the exit code a caller acts on: 0 done, 1 refused or

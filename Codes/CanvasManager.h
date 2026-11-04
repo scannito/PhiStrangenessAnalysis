@@ -649,9 +649,9 @@ class CanvasManager
   // On the pad passed, like the other Draw* helpers here, and not on gPad: which
   // pad is current after a drawing call is an accident of that call, and on a
   // ratio canvas the wrong guess puts the label on the pulls.
-  // The status and the collision system are always given: the system is not in the files, so it is never assumed.
-  static void DrawAliceLabel(TPad* pad, double x, double y, const std::string& status, const std::string& collisionSystem,
-                             double textSize = 0.045)
+  // The collision system is not in the files, so it is never assumed: none unless the caller gives it.
+  static void DrawAliceLabel(TPad* pad, double x = 0.18, double y = 0.84, const std::string& status = "Work in progress",
+                             const std::string& collisionSystem = "", double textSize = 0.045)
   {
     if (!pad)
       return;
