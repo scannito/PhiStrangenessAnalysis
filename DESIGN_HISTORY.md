@@ -1726,8 +1726,9 @@ without writing a macro each time. What it was: a catalog of what a `PhiAssocSpe
 a plot specification whose keys sat in one table that gave both the checks and a JSON schema (`PlotSpec`), a
 resolver that found every object through the stamps and refused a division between things that did not mean
 the same (`PlotRenderer`), and three front ends on that one interface: `phiplot quick` from the shell,
-`Macros/phiplot_ask.py` with a local model through Ollama, and a Claude Code skill. Its section 14 of
-DESIGN_NOTES, on that branch, is what was left open.
+`Macros/phiplot_ask.py` with a local model through Ollama, and a Claude Code skill. The branch was deleted on
+4 November 2026, with no archive (it no longer reads the files written since names carry intervals); what it
+measured and what it taught are below, and the mentions of it earlier in this file are history.
 
 **What it measured** (`Macros/phiplot_ask_test.py`, qwen2.5-coder:7b through Ollama 0.40.6, Q4_K_M, model file
 sha256 `60e05f21...`): 9 of 10 requests, seven right at the first attempt and the two impossible ones refused,
