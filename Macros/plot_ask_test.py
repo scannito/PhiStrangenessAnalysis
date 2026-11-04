@@ -35,6 +35,9 @@ OFF = F + "Data_OfflineEff_2026_HighIR_updated_PhiAssocSpectra.root"
 ON = F + "Data_OnlineEff_2026_HighIR_updated_PhiAssocSpectra.root"
 PUR = "DataFile/pp/DeltaY/Purities/Data_2026_HighIR_updated_Purity.root"
 COR = "DataFile/pp/DeltaY/Corrections/2026_HighIR_updated_Corrections.root"
+# A file the framework did not write, standing for a preliminary: the K0S trend copied under a path of its own
+# (made by hand for the test; not in git).
+PRELIM = "/Users/scannito/alice/claude-sandbox/plot-tests/preliminary_K0S.root"
 
 
 def series(spec):
@@ -93,6 +96,22 @@ TESTS = [
      lambda s: all_(s, of="correction_map", particle="K0S", map="efficiency") and sorted(str(x.get("mult")) for x in series(s)) == ["None", "[0, 1]"]),
     ("Omega spectrum at 70-100%, |dy| < 0.5, offline compared with online, divide online by offline", [OFF, ON],
      lambda s: all_(s, of="spectrum", species="Omega", dy=0.5, mult=[70, 100]) and files(s) == sorted([OFF, ON]) and ratio(s, OFF)),
+    # One per design added in G4 (4 November 2026), written before the model was run on them.
+    ("purezze di k0s, xi e omega nella classe 0-1%, un pannello per particella", [PUR],
+     lambda s: s.get("design") == "grid" and sorted(p["series"][0].get("purity_key") for p in s.get("panels", [])) == ["k0s", "omega", "xi"]
+               and all(x.get("mult") == [0, 1] for p in s["panels"] for x in p["series"])),
+    ("K0S/pi measured ratio for all three |dy|, offline and online side by side with one common y axis", [OFF, ON],
+     lambda s: s.get("design") == "joined_pads" and len(s.get("panels", [])) == 2
+               and sorted(p["series"][0].get("file") for p in s["panels"]) == sorted([OFF, ON])
+               and all(x.get("of") == "species_ratio" and x.get("numerator") == "K0S" and x.get("trend") == "measured"
+                       and x.get("dy") in ("all", [1.0, 0.5, 0.1], [0.1, 0.5, 1.0]) for p in s["panels"] for x in p["series"])),
+    (f"the online K0S trend at |dy| < 1 against the preliminary Preliminary/hK0SYieldPreliminary in {PRELIM}, with its ratio", [ON],
+     lambda s: s.get("design") == "with_reference" and s.get("reference_object", {}).get("file") == PRELIM
+               and s["reference_object"].get("path") == "Preliminary/hK0SYieldPreliminary"
+               and all_(s, of="trend", species="K0S", dy=1.0, file=ON)),
+    ("i fit di massa dei k0s nella classe 15-20%, per pT 0.8-1.2 e 1.2-1.6", [PUR],
+     lambda s: s.get("design") == "fit_canvas_grid" and s.get("purity_key") == "k0s"
+               and sorted(map(str, ((c.get("mult"), c.get("pt")) for c in s.get("cells", [])))) == sorted(map(str, [([15, 20], [0.8, 1.2]), ([15, 20], [1.2, 1.6])]))),
 ]
 
 
