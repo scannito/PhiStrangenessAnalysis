@@ -59,12 +59,40 @@
 ############################################################
 # Added (Anti-)Lambda and Omega
 
-# LHC26ac_pass1_Thin_medium (pp) Data
+# LHC26ag_pass1_Thin_small (pp w/ & w/o strangeness injection) Data
+- train_id: 786382
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root"
+
+# LHC26ad_pass1_Thin_medium (pp w/ & w/o strangeness injection) Data
+- train_id: 786383
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root"
+
+# LHC26ac_pass1_Thin_medium (pp w/ & w/o strangeness injection) Data
 - train_id: 786384
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
   output_name: "AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root"
 
+# LHC26ae_pass1_Thin_medium (pp w/ & w/o strangeness injection) Data
+- train_id: 786620
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root"
 
+# LHC23_pass4_Thin_medium (pp w/ & w/o strangeness injection) Data
+- train_id: 786623
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2023_PtMod_22ottobre.root"
+
+# LHC26ai_pass1_Thin_medium (pp w/ & w/o strangeness injection) Data
+- train_id: 786805
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root"
+
+# LHC26af_pass1_Thin_medium (pp w/ & w/o strangeness injection) Data
+- train_id: 786854
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  output_name: "AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root"
 
 
 
