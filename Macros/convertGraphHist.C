@@ -14,8 +14,8 @@
 
 // Converts between TGraphErrors and TH1, in either direction.
 //
-// This exists because ComparisonTask divides histograms, and results produced before
-// this framework are graphs. The conversion is deliberately NOT done inside the task,
+// This exists because the framework divides histograms (PlotSeries::Ratio), and results
+// produced before this framework are graphs. The conversion is deliberately NOT done inside the task,
 // for a reason sharper than convenience: the graph's abscissa is generally a DIFFERENT
 // QUANTITY from the histogram's axis - a mean multiplicity where the other has a
 // percentile, or a bare index - so which point belongs to which bin cannot be worked
@@ -23,7 +23,7 @@
 // meant.
 //
 // A converter that guessed would be the worst outcome available: it would place the
-// points somewhere plausible, and the axis check in ComparisonTask would then be
+// points somewhere plausible, and the axis check before a division would then be
 // verifying a correspondence the converter had invented.
 //
 // So the correspondence is an argument, the target binning is copied from the new

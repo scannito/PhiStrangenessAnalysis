@@ -77,6 +77,8 @@ inline constexpr const char* kReference = "reference";
 inline constexpr const char* kDivideOption = "divide_option";
 inline constexpr const char* kRatioRange = "ratio_range";
 inline constexpr const char* kRatioTitle = "ratio_title";
+inline constexpr const char* kRatioGrid = "ratio_grid";
+inline constexpr const char* kLegendHeader = "legend_header";
 inline constexpr const char* kPanels = "panels";
 inline constexpr const char* kNCols = "n_cols";
 inline constexpr const char* kColorBy = "color_by";
@@ -229,6 +231,7 @@ inline std::vector<KeySchema> PanelValueKeys()
     {kZeroBaseline, std::format(R"({{"type": "boolean", "description": "The automatic Y range starts at 0; {} when absent."}})", panel.zeroBaseline)},
     {kHeadroom, std::format(R"({{"type": "number", "minimum": 0, "description": "Room above the data, a fraction of their span; {} when absent."}})", panel.headroom)},
     {kLegend, std::format(R"({{"type": "boolean", "description": "The legend written from what the series are; {} when absent."}})", panel.legend)},
+    {kLegendHeader, R"({"type": "string", "description": "The legend's header, in place of what the series share."})"},
     {kKeys, R"({"type": "array", "items": {"$ref": "#/definitions/form_key"}, "description": "Legends of the look: what the colour or the filling stands for, by the fact it was taken from."})"},
     {kNotes, R"({"type": "array", "items": {"type": "string"}, "description": "Lines of text under the title."})"},
   };
@@ -266,6 +269,8 @@ inline std::vector<KeySchema> RatioValueKeys()
     {kDivideOption, std::format(R"({{"enum": [{}], "description": "\"\" for independent samples, \"B\" when the numerator is a subset of the denominator (a closure)."}})",
                                 EnumList(kDivideOptions))},
     {kRatioRange, kRangeSchema},
+    {kRatioTitle, std::format(R"({{"type": "string", "description": "The ratio pad's Y title; \"{}\" when absent."}})", PlotDesigns::RatioPad{}.title)},
+    {kRatioGrid, R"({"type": "boolean", "description": "The ratio pad's horizontal grid, a dotted line at each labelled value; none when absent."})"},
     {kYRange, kRangeSchema},
   };
 }
@@ -379,6 +384,17 @@ inline std::vector<std::pair<std::string, std::string>> FormDefinitions()
 inline std::vector<PlotDesigns::Panel> ReadPanels(const rapidjson::Value& spec, bool several);
 inline PlotSeries::Series ReadObject(const rapidjson::Value& o);
 
+// The ratio pad of a design that has one, its defaults RatioPad's.
+inline PlotDesigns::RatioPad ReadRatioPad(const rapidjson::Value& spec)
+{
+  const PlotDesigns::RatioPad defaults;
+  return {.divideOption = JsonConfig::RequireString(spec, kDivideOption, kCtx),
+          .range = JsonConfig::TryRange<std::pair<double, double>>(spec, kRatioRange, kCtx),
+          .title = JsonConfig::OptionalString(spec, kRatioTitle, defaults.title, kCtx),
+          .grid = JsonConfig::OptionalBool(spec, kRatioGrid, defaults.grid, kCtx)};
+}
+
+
 // A design: its schema, and how it is drawn from a specification of it, on 'canvases' as 'name' in 'frame'. One table
 // for both, so that a design the schema lets through is one the reader draws.
 struct DesignForm {
@@ -400,11 +416,12 @@ inline const std::vector<DesignForm>& DesignForms()
   static const std::vector<DesignForm> forms = [] {
     const std::vector<KeySchema> look = Refs(LookValueKeys()), frame = Refs(FrameValueKeys());
     const std::vector<std::pair<const char*, const char*>> colorsNeedBy = {{kColors, kColorBy}};
-    const std::vector<KeySchema> ratio = {
-      {kReference, R"({"type": "integer", "minimum": 0, "description": "The index of the series the others are divided by; 0 when absent."})"},
-      Ref(kDivideOption), Ref(kRatioRange), {kRatioTitle, kStringSchema}};
+    // The ratio pad's keys (PlotDesigns::RatioPad), the same in both designs that have one.
+    const std::vector<KeySchema> ratioPad = {Ref(kDivideOption), Ref(kRatioRange), Ref(kRatioTitle), Ref(kRatioGrid)};
+    const std::vector<KeySchema> ratio = Joined(
+      {{kReference, R"({"type": "integer", "minimum": 0, "description": "The index of the series the others are divided by; 0 when absent."})"}}, ratioPad);
     const std::string object = R"({"$ref": "#/definitions/form_object"})";
-    const std::vector<KeySchema> reference = {{kReferenceObject, object}, {kSystematic, object}, Ref(kDivideOption), Ref(kRatioRange)};
+    const std::vector<KeySchema> reference = Joined({{kReferenceObject, object}, {kSystematic, object}}, ratioPad);
     const std::vector<KeySchema> grid = {
       {kPanels, R"({"type": "array", "minItems": 1, "items": {"$ref": "#/definitions/form_panel"}})"},
       {kNCols, R"({"type": "integer", "minimum": 1, "description": "Panels per row."})"}};
@@ -427,9 +444,7 @@ inline const std::vector<DesignForm>& DesignForms()
        Joined(Joined(Joined(PanelKeys(2, true), look), frame), ratio), {kSeries, kDivideOption}, colorsNeedBy,
        [](const rapidjson::Value& spec, CanvasManager& canvases, const std::string& name, const Frame& f) {
          return PlotDesigns::CompareWithRatio(canvases, name, ReadPanels(spec, false).front(),
-                                              static_cast<std::size_t>(JsonConfig::OptionalInt(spec, kReference, 0, kCtx)),
-                                              JsonConfig::RequireString(spec, kDivideOption, kCtx), JsonConfig::TryRange<Range>(spec, kRatioRange, kCtx),
-                                              JsonConfig::OptionalString(spec, kRatioTitle, "ratio", kCtx), f);
+                                              static_cast<std::size_t>(JsonConfig::OptionalInt(spec, kReference, 0, kCtx)), ReadRatioPad(spec), f);
        }},
       {"with_reference",
        "The series against an object of a file the framework did not write (a preliminary), with its systematic uncertainty as a band, and the ratio of each to it below.",
@@ -437,8 +452,7 @@ inline const std::vector<DesignForm>& DesignForms()
        [](const rapidjson::Value& spec, CanvasManager& canvases, const std::string& name, const Frame& f) {
          const rapidjson::Value* systematic = JsonConfig::OptionalMember(spec, kSystematic);
          return PlotDesigns::WithReference(canvases, name, ReadPanels(spec, false).front(), ReadObject(JsonConfig::RequireMember(spec, kReferenceObject, kCtx)),
-                                           systematic ? std::optional(ReadObject(*systematic)) : std::nullopt,
-                                           JsonConfig::RequireString(spec, kDivideOption, kCtx), JsonConfig::TryRange<Range>(spec, kRatioRange, kCtx), f);
+                                           systematic ? std::optional(ReadObject(*systematic)) : std::nullopt, ReadRatioPad(spec), f);
        }},
       {"grid", "Panels in a grid, row by row, n_cols per row.", Joined(Joined(grid, look), frame), {kPanels, kNCols}, colorsNeedBy,
        [](const rapidjson::Value& spec, CanvasManager& canvases, const std::string& name, const Frame& f) {
@@ -682,6 +696,7 @@ inline PlotDesigns::Panel ReadPanel(const rapidjson::Value& p)
   panel.zeroBaseline = JsonConfig::OptionalBool(p, kZeroBaseline, panel.zeroBaseline, kCtx);
   panel.headroom = JsonConfig::OptionalDouble(p, kHeadroom, panel.headroom, kCtx);
   panel.legend = JsonConfig::OptionalBool(p, kLegend, panel.legend, kCtx);
+  panel.legendHeader = JsonConfig::OptionalString(p, kLegendHeader, "", kCtx);
   if (auto keys = JsonConfig::TryArray(p, kKeys, kCtx))
     for (const auto& k : *keys) {
       const std::vector<double> box = JsonConfig::ReadNumberArray(JsonConfig::RequireArray(k, kBox, kCtx), kBox, kCtx);
@@ -804,7 +819,7 @@ inline std::string WithFiles(const std::string& text, const std::string& origin,
       return;
     // Erased (in order, unlike RemoveMember, which would move the last member into the hole and change which file
     // comes first) before the file is found: erasing moves the members after it.
-    for (const char* key : {kTitle, kRatioTitle, kNotes, v.HasMember(kFile) ? kLabel : nullptr})
+    for (const char* key : {kTitle, kRatioTitle, kNotes, kLegendHeader, v.HasMember(kFile) ? kLabel : nullptr})
       if (key && v.EraseMember(key))
         dropped.emplace(key);
     if (auto file = v.FindMember(kFile); file != v.MemberEnd()) {

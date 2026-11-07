@@ -239,7 +239,7 @@ strings.
   fraction) or `IntegralAndErrorInBins` (a TH3 region already in ROOT bins). `TH1::IntegralAndError`, with its error by reference, stays inside them, never in the code of a task or of
   another helper (the owner's choice, 30 October 2026).
 - **The names and layout of `PhiAssocSpectra` come from `OutputNames`**, in the task that writes
-  them and in every reader (`comparison_task`): object names, the `Spectra`/`Trends`/`Ratios`
+  them and in every reader (the plots, `PlotSeries`): object names, the `Spectra`/`Trends`/`Ratios`
   directories, the section names. So do the other names one task writes and another looks up (the
   correction maps, the purity spectra) and the cell tags (`MultTag`, `CellTag`), which are also the
   keys of the per-cell overrides of `fitConfig.json` and `extrapConfig.json`. The binning stamps' names, the same in every file that carries
@@ -286,7 +286,7 @@ Opening mode and clearing are two separate decisions:
 
 | | when | who |
 |---|---|---|
-| `RECREATE` | the whole file is this task's | `ComparisonTask`, the per-particle maps |
+| `RECREATE` | the whole file is this task's | the per-particle maps |
 | `UPDATE` + `RootIO::ClearPath` | the file is shared; the owned subtree is rewritten from scratch | `CorrelationTask`, `CorrelationWPDGTask` (`PhiAssocSpectra.root`), `MCTask` (`Corrections.root`), `PhiFitTask` (`PhiDataHistograms.root`), `PurityTask` (`Purity.root`); the last three own `{binning_name}`, so that two schemes coexist in one file |
 | `UPDATE`, no clearing | the file is shared; the owned subtree is defended by REFUSING | the projection caches |
 
@@ -360,7 +360,8 @@ A plot is composed from the components, never written from scratch (the owner, 3
 read no stamp, divided across binnings, skipped missing objects and drew NaN as 0). `PlotSeries.h` decides what is
 read and how it is combined: a series is found by meaning (`Spectrum`, `Trend`, `SpeciesRatio`, `Purity`,
 `CorrectionMap`; `Object` for a foreign file), with the names of `OutputNames` and the binning stamps, and the
-operations are a closed list (`Ratio`, `Sum`, `Scale`) that check comparability the way `ComparisonTask` does.
+operations are a closed list (`Ratio`, `Sum`, `Scale`) that check comparability (the binning stamps, the axes) before
+they combine. Two productions are compared there too: there is no comparison task (retired 7 November 2026).
 `PlotDesigns.h` holds the recurring layouts (`Overlay`, `Grid`, `CompareWithRatio`, `JoinedPads`, `WithReference`,
 `FitCanvasGrid`, `Table`). A composition chooses series, layout and look (colours, markers, ranges, text, legend
 corners) and nothing else; it is compiled and run with `Macros/runplot.sh`, and `PlotSeries::Save` keeps the canvas

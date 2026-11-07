@@ -346,10 +346,11 @@ should read is the user's to say. Found on 16 October 2026 while running the cha
 the corrections refactoring; left for later on the user's request, and that check was done
 without `mcclosure`. `globalConfigMCClosureppref.json` was changed by the same commit and was
 not looked at.
-It also blocks `globalConfigComparisonpp.json` (found on 19 October 2026): its closure comparisons
+It also blocked `globalConfigComparisonpp.json` (found on 19 October 2026): its closure comparisons
 read `MCClosurewPDG_OnlineEff_{2024,2026}` and `MCClosureGen_{2024,2026}_PhiAssocSpectra.root`, which
-date from 12 August, before the binning stamps, and `comparison_task` stops at the missing
-`binning_mult`, as it should. They come back with the `mcclosure` runs.
+date from 12 August, before the binning stamps. The file went with `comparison_task` (7 November 2026);
+a closure is now a plot of the two files (README, *Comparing two productions*), once the `mcclosure`
+runs have made them again.
 
 **The extrapolated error of a species depends, in the last digits, on what was fitted before
 it.** Found on 16 October 2026 while checking the corrections block: with only the K0S efficiency
@@ -756,15 +757,16 @@ chain does not generate them; it consumes them. Only the fit systematic and the
 extrapolation model are born offline.
 
 That changes what the driver is. It is not primarily a configuration generator:
-it is a **collector**, and the thing that produces variation-over-nominal ratios
-already exists — `ComparisonTask`, which was built to divide the same quantity
-produced by two separate runs.
+it is a **collector**. Until 7 November 2026 the variation-over-nominal ratios were to come from
+`ComparisonTask`, retired that day; the collector now divides for itself, with what the
+plots use for the same purpose: `RootIO::CompareBinningStamps` on the two files, then
+`HistogramUtils::MakeRatioHist`. (A task does not include the plot layer.)
 
 Steps, in dependency order:
 
 1. Run the chain on each variation production. One configuration per variation,
    changing `input_data_file` and `output_prefix` and nothing else. No new code.
-2. Ratio each variation to the nominal with `ComparisonTask`, `target: "spectra"`.
+2. The collector (step 3) ratios each variation to the nominal, spectrum by spectrum, after checking the stamps.
 3. A new collector task reads the N ratios and emits `hsys`: a TH1 shaped like the
    spectrum whose bin errors are the combined systematic. Barlow decides whether a
    variation is significant; the uncorrelated sources add in quadrature.
@@ -811,60 +813,32 @@ tasks use, and treat an unmatched block name as fatal.
   fit responds non-monotonically, and nothing verifies it.
 - They need somewhere to go. Today the only thing that touches them is a
   `std::cout` in `CorrelationTaskBase`. Two TH1 beside the trends, `_systHi` and
-  `_systLo` — two and not one, because they are genuinely asymmetric. And decide
-  what `ComparisonTask` should do with them: `ListHistograms` discovers by content,
-  so it would divide them on its own.
+  `_systLo` — two and not one, because they are genuinely asymmetric.
 
-**MC closure has no verdict — half of it now exists.** `ComparisonTask` computes
-the corrected/generated ratio bin by bin, with `divide_option: "B"` for the
-correlated case, and writes it. What it deliberately does *not* do is state whether
-it closes: no threshold, no pass/fail. That was a design decision rather than an
-omission — the task divides, the physicist reads — but it means the second half of
-this item is still open. Closure not closing is a systematic, and nothing yet turns
+**MC closure has no verdict — half of it now exists.** A plot computes the
+corrected/generated ratio bin by bin (`trend_two_files_ratio.json` on the two files,
+`divide_option: "B"` for the correlated case) and keeps it, with `--table` its values.
+What it deliberately does *not* do is state whether it closes: no threshold, no
+pass/fail. That was a design decision rather than an omission — the code divides, the
+physicist reads — but it means the second half of this item is still open. Closure not closing is a systematic, and nothing yet turns
 the ratio into one.
 
 ---
 
-## 7. Comparing against pre-framework results: `objects` is the temporary answer
+## 7. Comparing against pre-framework results
 
-`ComparisonTask` has two modes. Normally it discovers what to divide and verifies
-three levels of binning. When `objects` is listed, the denominator is a file this
-framework did not write, nothing can be discovered, and nothing can be verified
-beyond the axes of the objects themselves.
+Until 7 November 2026 this was `ComparisonTask` in its declared mode (`objects`): a denominator the framework did
+not write, nothing to discover, nothing to verify beyond the axes. With the task retired, it is the plot design
+`with_reference` (`OldComparison/preliminary.json`): the foreign object is read by its path (`PlotSeries::Object`),
+carries no stamps, and only the axis check is left. **Naming it asserts that the two are comparable**, which is the
+same assertion the `objects` entry made.
 
-That second mode is deliberately a stopgap, and the reasoning is worth keeping
-because it will look like an incomplete feature otherwise.
-
-**Why it is not a separate task.** It arguably should be: `objects` sits in a
-per-comparison entry while what it denotes — "the denominator is foreign" — is a
-property of the whole task, since `target` lives at task level and cannot mean two
-things at once. That is why mixing declared and discovered comparisons in one block
-is now refused outright. Once mixing is forbidden, a task is entirely in one mode or
-the other, which is very nearly two tasks already.
-
-It was left as one because splitting costs about 280 lines moved for roughly 30
-duplicated, and buys structure for a mode that should not outlive the checks it
-exists for.
-
-**What to do instead when these comparisons stop being occasional.** Not a richer
-`objects`, and not a task of its own: **convert the old results into this
-framework's layout, once.** `Macros/convertGraphHist.C` already takes the target
-binning from the new result, so it can equally write the converted histogram at the
-same path and under the same name in a file of its own. The ordinary discovered
-comparison then works, with `RequireSameAxis` on every pair.
-
-The stamps are the part that decides this, and the answer is not the obvious one:
-**do not copy them from the reference.** That would verify the numerator against
-itself, and a circular check is worse than no check because it looks like a check.
-Write the converted file *without* stamps —
-`RootIO::RequireMatchingBinningStamp` warns and continues when a stamp is missing,
-rather than throwing, so the comparison runs and says out loud, per stamp, what it
-could not verify. Which is the honest outcome: the assertion is still yours, it is
-just made once at conversion time instead of once per JSON entry.
-
-One thing to fix if that route is taken: the wording of that warning is written for
-the projection cache — it ends with "delete the cache files" — and would read as a
-non sequitur in a comparison.
+What stays true from the task's notes: when these comparisons stop being occasional, the better route is to
+**convert the old results into this framework's layout once** (`Macros/convertGraphHist.C` takes the target binning
+from the new result; it could write the converted histogram at the path a finder looks it up by), so that it is read
+by meaning like any other series. **Do not copy the stamps from the reference** when doing so: that would verify the
+numerator against itself, and a circular check is worse than none because it looks like one. Written without
+stamps, the comparison runs and says, per stamp, what it could not verify.
 
 ---
 
@@ -929,7 +903,7 @@ The old macro delivers pairs of `TGraphAsymmErrors` sharing the same points and
 differing only in the error, grouped in `TMultiGraph`, and finally a canvas.
 
 **The decision: TH1 stays the internal currency, the graph is a terminal
-rendering.** Everything that compares works on histograms — `ComparisonTask`,
+rendering.** Everything that compares works on histograms — `PlotSeries::Ratio`,
 `RequireSameAxis`, `TH1::Divide` with `"B"` — and a `TGraph` has neither an axis to
 verify nor a division. So the conversion happens once, at the exit, in one
 direction. Old results come *in* as TH1 through `Macros/convertGraphHist.C`; new
@@ -1230,7 +1204,7 @@ key without touching the global state, and leaves `gDirectory` where the caller 
 makes canvas names unique and every `TF1` owned (CLAUDE.md). `RootIO::WriteCcdbFile` is the first place that
 does it, by the owner's choice; the other writes are worth moving the same way where they are touched for another
 reason (about 40 `Write` calls, in `CorrelationCalculator`, `CorrelationTaskBase`, `PhiFitTask`, `MCTask`,
-`PurityTask`, `ComparisonTask`, `CanvasManager`, `FitQualityRecorder`; not every `cd()` is a write). The thing to
+`PurityTask`, `CanvasManager`, `FitQualityRecorder`; not every `cd()` is a write). The thing to
 check at each: a `TCanvas` or a `TTree` writes differently from a histogram, and the output must stay identical
 (`CompareRootFiles`).
 

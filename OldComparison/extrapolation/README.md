@@ -15,8 +15,8 @@ cd Codes && ./runAnalysis.sh data pp --compile && cd ..
 OldComparison/extrapolation/run.sh                # or run.sh <PhiAssocSpectra.root>
 ```
 
-About forty seconds. The input is the 2024 file the comparison divides, under the comparison's binning, both read
-from `../globalConfigComparisonOld.json` as `../run.sh` reads them. Everything goes to `output/` (not in git): the
+About forty seconds. The input is the first 2024 file the comparison draws, under the scheme it reads, both read
+from `../preliminary.json` as `../run.sh` reads them. Everything goes to `output/` (not in git): the
 tables, the figures, the logs, the ROOT files the figures are drawn from. `reference/` (in git) is what that gave
 on 21 October 2026, on the output of commit `25fe5fb`, with the date in each name as in `../reference/`.
 

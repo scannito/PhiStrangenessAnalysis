@@ -6,8 +6,8 @@
 // number in the last bit has changed something. Histograms (any dimension), THnSparse,
 // TGraph, TTree (entries, branches, values), TObjString and the titles of plain TNamed are
 // compared; canvases are skipped (they hold drawn copies of the rest), and so is every
-// directory whose name starts with "Provenance" (timestamp, commit; ComparisonTask copies its
-// inputs' into Provenance_numerator and Provenance_denominator).
+// directory whose name starts with "Provenance" (timestamp, commit; a plot copies its inputs'
+// into Provenance_series<i>_origin<j>_input, PlotSeries::Save).
 //
 // What it cannot compare it says, and counts as a failure: an object of another class, a
 // subclass of TNamed other than those above (a TTree is a TNamed, and so is a RooFitResult:

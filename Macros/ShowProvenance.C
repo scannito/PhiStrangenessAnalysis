@@ -178,8 +178,9 @@ void ShowProvenance(const std::string& target, const std::string& mode = "table"
         if (!firstJsonEntry)
           std::cout << "," << std::endl;
         firstJsonEntry = false;
+        const std::string commit = facts.count("git_commit") ? facts.at("git_commit") : "";
         std::cout << "  {\"file\":\"" << path << "\",\"scheme\":\"" << scheme
-                  << "\",\"produced_at\":\"" << producedAt
+                  << "\",\"produced_at\":\"" << producedAt << "\",\"git_commit\":\"" << commit
                   << "\",\"config_block\":" << (configBlock.empty() ? "null" : configBlock) << "}";
       }
     }

@@ -356,7 +356,7 @@ inline void Enforce(const StampComparison& c)
 } // namespace Detail
 
 // Was the file this directory belongs to produced with the binning of the run reading it? Used for the
-// corrections, the purities and the files ComparisonTask divides, so the messages name none of them and
+// corrections, the purities and the phi fits, so the messages name none of them and
 // errCtx says which. The objects are named by interval, so a mismatch would also show up as a missing object; the
 // stamp stops the run earlier and better, before anything is read, with the edge that differs and both
 // values, where a missing object says only what was expected.
@@ -364,14 +364,6 @@ inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name
                                         std::string_view errCtx)
 {
   Detail::Enforce(CompareBinningStamp(dir, name, current, errCtx));
-}
-
-// The same stamp of two directories produced apart, as ComparisonTask needs it: a difference stops, a stamp missing
-// on either side is warned.
-inline void RequireSameOptionalStamp(TDirectory* reference, TDirectory* other, const std::string& name,
-                                     std::string_view referenceCtx, std::string_view otherCtx)
-{
-  Detail::Enforce(CompareBinningStamps(reference, other, name, referenceCtx, otherCtx));
 }
 
 namespace Detail
@@ -497,7 +489,7 @@ std::optional<std::vector<typename Table::Row>> ReadTable(TDirectory* dir, const
 // for the top of the file - named the same in every file the framework writes. These functions
 // find it themselves, and decide whether it is created (writing) or only looked up (reading),
 // so that no caller spells either. A file that keeps several records side by side
-// (comparison_task: one per input, next to its own) qualifies them with 'record'.
+// (a plot: one per input, next to its own) qualifies them with 'record'.
 namespace Detail
 {
 inline const std::string kProvenanceDir{"Provenance"};
@@ -553,7 +545,7 @@ inline std::map<std::string, std::string> ReadProvenance(TDirectory* base, const
   return facts;
 }
 
-// The provenance of an input, copied next to a result made from it (ComparisonTask, the plots). An input may
+// The provenance of an input, copied next to a result made from it (a plot, PlotSeries::Save). An input may
 // legitimately carry none - a file this framework did not write, or one produced before the records existed - and
 // then the reason is written instead of an empty directory, which would read as "something failed while writing
 // this"; the file name goes in because it is the only thing that identifies such an input. Never throws on the facts.

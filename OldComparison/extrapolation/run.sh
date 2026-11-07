@@ -5,21 +5,22 @@
 # study fits do not depend on the extrapolation; the checks of the saved curves read the current output).
 #
 # Usage: run.sh [PhiAssocSpectra.root]
-# The default input is the 2024 result that the comparison divides, and the binning is the comparison's, both read
-# from the same place as ../run.sh reads them (globalConfigComparisonOld.json, paths relative to Codes/), so that the
-# two cannot drift apart. The extrapolation configuration is the one the input records in its provenance.
+# The default input is the 2024 result that the comparison with the preliminary draws first, and the binning is the
+# scheme it reads, both from the same place as ../run.sh reads them (../preliminary.json, paths relative to the
+# repository), so that the two cannot drift apart. The extrapolation configuration is the one the input records in its
+# provenance.
 set -e -o pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(cd "$here/../.." && pwd)"
 out="$here/output"
 
 command -v root-config > /dev/null || { echo "[ERROR] ROOT is not in the environment (enterO2P)."; exit 1; }
-read -r binning numerator < <(python3 -I -c '
+read -r binning file < <(python3 -I -c '
 import json, sys
-c = json.load(open(sys.argv[1]))
-print(c["workflow"]["global_binning"]["binning_name"], c["comparison_task_old_k0spi"]["comparisons"][0]["numerator"])' \
-  "$here/../globalConfigComparisonOld.json")
-input="${1:-$repo/Codes/$numerator}"
+s = json.load(open(sys.argv[1]))["series"][0]
+print(s["scheme"], s["file"])' \
+  "$here/../preliminary.json")
+input="${1:-$repo/$file}"
 [ -f "$input" ] || { echo "[ERROR] $input is missing: run 'cd Codes && ./runAnalysis.sh data pp --compile' first."; exit 1; }
 mkdir -p "$out/bin"
 

@@ -1,27 +1,51 @@
 #!/bin/bash
-# Remakes the old K0S/pi ratio from its own inputs and compares it with the framework's 2024 one
-# (OldComparison/README.md). Needs ROOT in the environment and the chain run on data pp.
+# Remakes the old K0S/pi ratio from its own inputs and draws the framework's 2024 ones against it, with the ratios and
+# their table (OldComparison/README.md). Needs ROOT in the environment and the 2024 results of the chain.
 set -e -o pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 repo="$(dirname "$here")"
-config="$here/globalConfigComparisonOld.json"
+spec="$here/preliminary.json"
+drawn="$here/output/preliminary.drawn.json"
 
 command -v root-config > /dev/null || { echo "[ERROR] ROOT is not in the environment (enterO2P)."; exit 1; }
 [ -f "$here/data/ResultsData2.root" ] || { echo "[ERROR] the old inputs are not in $here/data (README.md)."; exit 1; }
+mkdir -p "$here/output"
 
-# The numerators as the comparison will divide them: from the configuration, the one place they are written (paths
-# there are relative to Codes/, where the chain runs), as "label|file|object;...". Stops, naming them, if any is missing.
-pairs=$(python3 -I -c '
-import json, os, sys
-pairs = json.load(open(sys.argv[1]))["comparison_task_old_k0spi"]["comparisons"]
-files = [os.path.join(sys.argv[2], "Codes", p["numerator"]) for p in pairs]
-missing = [f for f in files if not os.path.isfile(f)]
-if missing:
-    sys.exit("[ERROR] missing, run the three 2024 correlation tasks first (README.md): " + " ".join(missing))
-print(";".join(p["label"] + "|" + f + "|" + p["objects"][0]["numerator"] for p, f in zip(pairs, files)))' "$config" "$repo")
+# The framework's files, from the specification (the one place they are written, paths relative to the repository),
+# each with its provenance for the scheme the plot reads (Macros/ShowProvenance.C): when and from which commit it was
+# produced, since the comparison is only as current as these files, and with which apply_purity. The three must agree
+# on it (the old yields come from fits, so like for like is with the purity; README.md), and the setting goes into the
+# legend's header of the specification drawn, kept in output/ and, as the plot's recipe, in its .root.
+echo "== the 2024 files"
+python3 -I - "$spec" "$repo" "$drawn" << 'EOF'
+import json, os, subprocess, sys
+spec_path, repo, drawn = sys.argv[1:4]
+spec = json.load(open(spec_path))
+settings = set()
+for series in spec["series"]:
+    name, path = os.path.basename(series["file"]), os.path.join(repo, series["file"])
+    if not os.path.isfile(path):
+        sys.exit("[ERROR] %s is missing: run the three 2024 correlation tasks first (README.md)." % series["file"])
+    run = subprocess.run(["root", "-l", "-b", "-q", '%s/Macros/ShowProvenance.C("%s","json")' % (repo, path)], capture_output=True, text=True)
+    sys.stderr.write(run.stderr)
+    lines = run.stdout.splitlines()
+    if run.returncode != 0 or "[" not in lines or "]" not in lines:
+        sys.exit("[ERROR] ShowProvenance.C failed on %s." % name)
+    # The JSON array the macro prints, between its own "[" and "]" lines.
+    entries = json.loads("\n".join(lines[lines.index("["):lines.index("]") + 1]))
+    mine = [e for e in entries if e["scheme"] == series["scheme"]]
+    applied = (mine[0]["config_block"] or {}).get("apply_purity") if len(mine) == 1 else None
+    if applied is None:
+        sys.exit("[ERROR] %s records no provenance, or no apply_purity, for '%s': re-run the chain." % (name, series["scheme"]))
+    settings.add(applied)
+    print("%s: produced %s, commit %s, apply_purity %s" % (name, mine[0]["produced_at"], mine[0]["git_commit"] or "unknown", str(applied).lower()))
+if len(settings) != 1:
+    sys.exit("[ERROR] the files disagree on apply_purity: re-run the three tasks with one setting.")
+spec["legend_header"] += ", purity " + ("applied" if settings.pop() else "not applied")
+json.dump(spec, open(drawn, "w"), indent=1)
+EOF
 
 fail() { grep -h "FATAL" "$1" || true; echo "[ERROR] $2 failed: see $1"; exit 1; }
-mkdir -p "$here/output"
 
 # The macro writes next to its inputs (and overwrites one systematics file), so it runs on a copy;
 # ResultsData2/ is where it saves its per-species canvases.
@@ -35,12 +59,8 @@ echo "== the old ratio, remade (output/export.log)"
   || fail "$here/output/export.log" "the old macro"
 mv "$work/oldK0SPiRatio.root" "$here/output/"
 
-echo "== comparison_task (output/comparison.log)"
-# Through runAnalysis.sh, which rebuilds the binary when the sources are newer than it.
-(cd "$repo/Codes" && ./runAnalysis.sh ../OldComparison/globalConfigComparisonOld.json --compile) > "$here/output/comparison.log" 2>&1 \
-  || fail "$here/output/comparison.log" "comparison_task"
-grep -E "divided|SUMMARY" "$here/output/comparison.log"
-
-echo "== the table, and output/overlay.png"
-root -l -b -q "$here/macro/show.C(\"$pairs\",\"$here/output/oldK0SPiRatio.root\",\"$here/output/Old_Comparisons.root\",\"$here/output/overlay.png\")" 2>&1 \
-  | grep -v "^Info in\|^Processing\|^$"
+echo "== the plot and its table (output/overlay.*, output/table.txt)"
+(cd "$repo" && cmake --build build --target phistrangeplot > "$here/output/build.log" 2>&1) || fail "$here/output/build.log" "building phistrangeplot"
+(cd "$repo" && build/phistrangeplot render "$drawn" --out "$here/output/overlay" --table "$here/output/table.txt") \
+  > "$here/output/plot.log" 2>&1 || fail "$here/output/plot.log" "phistrangeplot"
+cat "$here/output/table.txt"

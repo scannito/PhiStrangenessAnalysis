@@ -5,28 +5,31 @@ A self-contained corner of the repository, kept apart so that it can be removed 
 depends on it.
 
 **What it does.** It remakes the K0S/π ratio of the analysis done before this framework existed,
-with the macro of the time (`OldCodes/ratioK0SPiCorrectedUpdated.C`) on its own inputs, and divides
-the framework's 2024 ratio by it with `comparison_task`.
+with the macro of the time (`OldCodes/ratioK0SPiCorrectedUpdated.C`) on its own inputs, and draws the framework's
+2024 ratios against it, with the ratios below and their table (`phistrangeplot render`, the specification
+`preliminary.json`). Until 7 November 2026 the division was `comparison_task`'s and the plot `macro/show.C`'s; both
+were retired for the plots (main `DESIGN_HISTORY.md`, *comparison_task retired*), and the plot kept its look.
 
 ```bash
 enterO2P                                      # ROOT in the environment
-cd Codes && ./runAnalysis.sh data pp --compile && cd ..   # a current 2024 result (see below)
+cd Codes && ./runAnalysis.sh data pp --compile && cd ..   # a current 2024 result (see below): the 2024 blocks are
+                                                          # in inactive_task_blocks, bring them back first
 OldComparison/run.sh
 ```
 
-It writes `OldComparison/output/`: `oldK0SPiRatio.root` (the old ratio), `Old_Comparisons.root` (the
-division), `overlay.png`, and the logs (the chain also leaves its own in
-`Logs/log_output_globalConfigComparisonOld.log`). The table goes to the screen, headed by when and from which
-commit the 2024 file was produced: the comparison is only as current as that file. The `DataFile/`
-outputs of an older run (before the current layout of 19 October 2026) give a wrong or missing
-numerator, so run the chain first.
+It writes `OldComparison/output/`: `oldK0SPiRatio.root` (the old ratio), `overlay.png`, `.pdf` and `.root` (the
+plot, with every series drawn, the ratios, and the provenance of each input), `table.txt` (the values drawn, bin by
+bin, the ratios included), `preliminary.drawn.json` (the specification drawn, kept also in the plot's `.root` as its
+recipe) and the logs. Before drawing, it prints when and from which commit each 2024 file was produced, from their
+provenance (`Macros/ShowProvenance.C`): the comparison is only as current as those files. It stops if the three
+differ in `apply_purity`, and writes the setting in the legend's header. Files produced before the records the plots
+read (the `deltaY_limits` of 4 November 2026) are refused: run the chain first.
 
 | | |
 |---|---|
 | `macro/ratioK0SPiCorrectedUpdated_export.C` | The old macro, made to export its result (its header says exactly what changed). |
 | `macro/YieldMean.C` | The extrapolation code the old macro includes, as it was then (not `OldCodes/YieldMean.h`, which has another signature and four fixed defects). |
-| `macro/show.C` | The table (checked bin by bin against the divisions) and the overlay of the three 2024 results, with the old systematic band and a ratio pad. |
-| `globalConfigComparisonOld.json` | The `comparison_task` block: three declared pairs, the 2024 ratio of each efficiency mode (offline, online, online without φ) over the old one, with their statistical errors. The only place the numerators' files and objects are written: `run.sh` reads them from here. |
+| `preliminary.json` | The plot as a specification (`with_reference`): the 2024 ratio of each efficiency mode (offline, online, online without φ) against the old one, its systematic as a band, the ratios below with the systematic again, relative. The only place the numerators' files are written: `run.sh` and `extrapolation/run.sh` read them from here. |
 | `run.sh` | All of it, in order. Needs the three 2024 results of the chain. |
 | `data/` | The old inputs (not in git): copied from `~/Downloads/OldAnalysis` on 20 October 2026. |
 | `output/` | What `run.sh` makes (not in git). |
@@ -68,9 +71,9 @@ are otherwise the same. Not checkable: whether `macro/YieldMean.C` is exactly th
 
 ## The comparison
 
-`comparison_task` in its declared mode (`objects`): the denominator is not a product of the framework, so
-only the axes are checked (`RequireSameAxis`; the classes coincide), with `divide_option: ""` (independent
-samples). The old systematic uncertainty is shown as a band in the overlay and as a column in the table, not
+The plot design `with_reference` (until 7 November, `comparison_task` in its declared mode): the denominator is
+not a product of the framework, so only the axes are checked (`RequireSameAxis`; the classes coincide), with
+`divide_option: ""` (independent samples). The old systematic uncertainty is shown as a band in the overlay and as a column in the table, not
 divided: a ratio carrying 2024's statistical and the old systematic error would be neither. Numerators: `Ratio_K0S_Pi_Extrap_dy1_00` of `Data_OfflineEff_2024_`, `Data_OnlineEff_2024_` and
 `Data_OnlineEff_NoPhi_2024_PhiAssocSpectra.root`, the 2024 result of each efficiency mode, |Δy| < 1.0, the extrapolated
 yields (main README, *The extrapolated yield*). Until 26 October there was one pair, the offline one; the 20 and 21
@@ -217,8 +220,9 @@ account for is about 7.5 %, not 3 %.
 To remake the two snapshots, in order: the 2024 MC corrections (`mc_task_2024` and `mc_task_2024_wtrigger` in
 `globalConfigMCpp.json`); the 2024 purities (`purity_task_2024`, needed for the second); the three 2024 correlation
 tasks with that `Pi` block, once with `apply_purity: false` and once with `true`; `OldComparison/run.sh` after each. The
-plot is `output/overlay.png`, the table what `run.sh` prints under "the table"; `show.C` stops if the three files
-differ in `apply_purity`, and writes the setting on the plot.
+plot is `output/overlay.png`, the table what `run.sh` prints (`output/table.txt`; the snapshots of 20-26 October
+are in `show.C`'s layout); `run.sh` stops if the three files differ in `apply_purity`, and writes the setting on the
+plot.
 
 ## Removing it
 

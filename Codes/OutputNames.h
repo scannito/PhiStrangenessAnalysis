@@ -21,7 +21,7 @@
 // purities, the projections, the results), and of the directories and objects in them that another
 // task looks up (the corrections, the trigger matrices, the purity spectra), with the cell tags they
 // are built from and the title form of a cell (CellTitle). The directories of PhiAssocSpectra.root
-// are written by CorrelationTaskBase and read by ComparisonTask; the object names are built here and
+// are written by CorrelationTaskBase and read by the plots (PlotSeries); the object names are built here and
 // not where each object is written, so that a reader that looks an object up by what it is builds
 // the same string, and a rename is one change. The names shared by every file the framework writes
 // - the binning stamps and the provenance directory - and the object of a CCDB file are RootIO's,

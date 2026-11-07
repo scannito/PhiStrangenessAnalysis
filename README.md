@@ -66,7 +66,7 @@ cd Codes
 ```
 
 `<keyword>` selects the configuration file — `data`, `purity`, `mc`, `mcclosure`,
-`mcclosurewpdg`, `mcclosuregen`, `comparison`, or a path to a `.json` — and `<system>` is appended
+`mcclosurewpdg`, `mcclosuregen`, or a path to a `.json` — and `<system>` is appended
 to the file name, so `./runAnalysis.sh mc pp` runs `JSONConfigs/globalConfigMCpp.json`.
 Anything else is passed through as a file name. Output is teed to
 `Logs/log_output_<config>.log`, and the script exits with ROOT's own status.
@@ -144,8 +144,8 @@ lets the same task run several times in one workflow with different settings. Th
 registry is checked longest-name-first, so `correlation_wpdg_task` is not swallowed by
 `correlation_task`.
 
-Six task types are registered: `purity_task`, `mc_task`, `phi_fit_task`,
-`correlation_wpdg_task`, `correlation_task`, `comparison_task`. An unknown prefix is a
+Five task types are registered: `purity_task`, `mc_task`, `phi_fit_task`,
+`correlation_wpdg_task`, `correlation_task`. An unknown prefix is a
 fatal error that lists the ones that exist.
 
 ### `workflow.inactive_tasks` and `inactive_task_blocks`
@@ -200,7 +200,6 @@ the value is matched against, so it cannot go stale.
 | `projection_axis` | correlation | `delta_y`, `delta_phi` (Δφ refused at `Init` for now: the spectra in Δφ are not defined yet, `DESIGN_NOTES.md` section 6) | none: required |
 | `particle_correction_mode` | `mc_task` | `efficiency_only`, `signal_loss_only`, `combined` | `efficiency_only` |
 | `run_mode` | `correlation_task` | `legacy`, `optimized` | none: required |
-| `target` | `comparison_task` | `spectra`, `trends`, `ratios` | `ratios` |
 
 ### Per-cell overrides in `fitConfig.json` and `extrapConfig.json`
 
@@ -325,59 +324,32 @@ this block replaced (`apply_efficiency`, `active_corrections`, `apply_efficiency
 plus `is_pure_gen` (required); `projections_dir` is where it writes its projection caches; it has no purity stage
 and no `run_mode` (it always builds the 1D engine).
 
-**`comparison_task`** — divides results produced by two separate runs of the chain.
+**Comparing two productions** — there is no task for it. The same quantity produced apart (the efficiency from
+the general-purpose MC against the strangeness-injected one, two periods, 2023 against 2026) is divided by the
+plots, on any two files and without re-running anything: the checked specifications
+`PlotSpecs/examples/species_ratio_two_files_ratio.json` and `trend_two_files_ratio.json`, drawn as
 
-This is the axis the chain did not have. `yield_ratios` inside a correlation task
-divides two *different* quantities produced *together*; everything here divides the
-*same* quantity produced *apart* — MC closure against generated, an old production
-against a new one, 2024 against 2026. No verdict is computed: the task writes the
-ratio and stops.
+```bash
+build/phistrangeplot render PlotSpecs/examples/trend_two_files_ratio.json --file A.root --file B.root --out <base> [--table <file>]
+```
 
-| Key | | Notes |
-|---|---|---|
-| `output_dir_final` | required | Writes `output_dir_final/<output_prefix>Comparisons.root`. |
-| `comparisons` | required | Array, one entry per ratio. |
-| ↳ `numerator`, `denominator` | required | The two input files. |
-| ↳ `divide_option` | required | `""` or `"B"`. Never inferred — see below. |
-| ↳ `label` | optional | Names the output directory. Defaults to `comparisonN`. |
-| ↳ `objects` | optional | Explicit pairs, for a foreign denominator. See below. |
-| `target` | optional | `spectra`, `trends`, `ratios`. See enumerations above. |
-| `input_binning_name`, `input_dir_name` | optional | Where to look inside each input. Default to the global binning name and `Extract1D`. |
-| `output_prefix` | optional | |
+(`PLOTS.md`). Before dividing, the two series are checked for comparability: the stamps of the directories they were
+read from and their X axes (`PlotSeries::Compare`); the plot's `.root` keeps the ratio and the provenance of both
+inputs. Until 7 November 2026 this was `comparison_task`, retired because the plots did the same with the same
+check (`DESIGN_HISTORY.md`, *comparison_task retired*).
 
-N-vs-M is expressed by listing entries: 1-vs-1 is one entry, 1-vs-2 is two entries
-sharing a denominator, 2-vs-2 is two entries. Deliberately not a `reference` plus a
-list of `targets` — that shorthand saves typing in the common case and then grows a
-rule for every other one.
+`divide_option` is required, not defaulted, because nothing can tell which case it is. Plain division (`""`) is
+right when the two inputs are independent samples; for a closure, where numerator and denominator come from the
+*same* events and are strongly correlated, treating their errors as independent inflates the uncertainty and makes
+a closure that does not close look compatible with unity. `"B"` is the binomial treatment used elsewhere in this
+framework when the numerator counts a subset of the denominator. The two examples above divide independent samples
+(`""`): **for a closure, copy one and set `"divide_option": "B"`**; `--file` replaces the files, never the option.
 
-`divide_option` is required rather than defaulted because the task cannot tell which
-case it is in. Plain division is right when the two inputs are independent samples;
-for a closure, where numerator and denominator come from the *same* events and are
-strongly correlated, treating their errors as independent inflates the uncertainty and
-makes a closure that does not close look compatible with unity. `"B"` is the binomial
-treatment used elsewhere in this framework when the numerator counts a subset of the
-denominator.
-
-Objects are normally **discovered**: the task lists what the numerator directory holds
-and divides whatever the denominator holds under the same name, so nothing in it
-depends on how the producer spells its bins. Both files are then verified against each
-other — the multiplicity and φ-pT stamps at scheme level, the associated-pT stamp per
-particle, and `RequireSameAxis` on each pair.
-
-Listing `objects` switches that off, and it is for one situation: a denominator this
-framework did not produce, whose objects have unrelated names. A foreign file carries
-no stamps, so what is left is `RequireSameAxis` — and what that covers depends on what
-you listed. For a trend it is the multiplicity, which is exactly what the stamps would
-have checked. For a spectrum it is the associated pT, and the multiplicity interval
-stays unchecked, because that one lives in the name. **In this mode you assert that the
-two objects are comparable**, and nothing restricts the pairs to one kind of object.
-Convert graphs first with `Macros/convertGraphHist.C`, taking the binning from the new
-result, and `RequireSameAxis` has something to say again: it checks that the conversion
-landed where it was meant to.
-
-`Comparisons.root` is opened `RECREATE` — the whole file is this task's — and holds one
-directory per `label`, mirroring the input sub-paths, with the provenance of *both*
-inputs copied in beside the ratios.
+A denominator this framework did not produce (a preliminary) is drawn with `with_reference`
+(`OldComparison/preliminary.json`): a foreign object carries no stamps, so what is left is the axis check, and
+**listing it asserts that the two are comparable**. Convert graphs first with `Macros/convertGraphHist.C`, taking
+the binning from the new result, so that the axis check has something to say: it checks that the conversion landed
+where it was meant to.
 
 ### The extrapolated yield
 
@@ -522,7 +494,6 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | `CorrelationTaskBase.h` | Everything shared by the two correlation tasks: corrections loading, binning resolution, spectra, trends, ratios, `Terminate`. |
 | `CorrelationTask.h` | Correlations on data. |
 | `CorrelationWPDGTask.h` | Correlations on PDG-matched MC, for closure. |
-| `ComparisonTask.h` | Ratios between results produced by two separate runs of the chain. |
 
 ### Entry point
 
@@ -558,7 +529,7 @@ chain and no task depends on them.
 | `CompareAxes.C` | Axis diagnostic: reports where two inputs disagree, edge by edge. |
 | `ShowProvenance.C` | What produced the files in a directory — reads back the provenance records. |
 | `CompareRootFiles.cpp` | Before/after check of a change that must not move any number: two ROOT files compared object by object, exactly (histograms, sparse, graphs, trees branch by branch, strings, plain `TNamed`; two NaN count as equal). What it cannot compare it lists as NOT COMPARED, and that fails the check. A compiled program, not a macro (build line in its header), so it does not need Cling. |
-| `convertGraphHist.C` | `TGraphErrors` ↔ `TH1`, in either direction. Feeds a pre-framework result into `comparison_task`. |
+| `convertGraphHist.C` | `TGraphErrors` ↔ `TH1`, in either direction. Feeds a pre-framework result into a plot (`with_reference`). |
 | `copyTFileContent.C` | Recursive copy of a ROOT file, excluding chosen directories. |
 | `TestProjections.C`, `esporta_fit.C` | Ad-hoc checks. |
 | `uploadToCCDB.{C,py}`, `downloadHYOutput.py` | Moving maps in and out of CCDB / HEPData. |
@@ -617,8 +588,8 @@ interval, the relative uncertainty of what every spectrum of that interval is di
 count from the φ fits (the trigger-pT bins in quadrature, the whole fit error: `QUESTIONS_FOR_EXPERTS.md`)
 and the event-loss correction, in quadrature. Not the φ efficiency, which divides the pairs of each
 trigger-pT bin as well and largely cancels. It is kept apart because it is common to everything with the
-same triggers: it cancels in the ratios between species, and in a `comparison_task` division of two
-files that share the triggers, so it is added once, by whoever builds a total error.
+same triggers: it cancels in the ratios between species, and in a division of two files that share the
+triggers (a plot comparing two productions), so it is added once, by whoever builds a total error.
 
 Everything that carries a cell in its name names it by its **interval**, never by its
 index: `_mult10-15`, `_ptPhi0.8-1`, `_pt1.2-1.6` (`BinningUtils::BinLabel`). A reader with
@@ -626,7 +597,7 @@ another binning then does not find the object, where an index would find it and 
 another interval. The stamps stop such a run earlier and better: before anything is read,
 naming the edge that differs and both values. They sit at the level whose binning they describe —
 multiplicity and trigger pT are common to the scheme, the associated pT belongs to the
-species — and `comparison_task` is the main consumer.
+species — and a plot dividing two files checks them before it divides (`PlotSeries::Compare`).
 
 The correlation tasks open this file `UPDATE` and clear only the subtree they own, since
 another binning scheme or the other `Extract1D`/`Extract2D` may be sitting beside it. The

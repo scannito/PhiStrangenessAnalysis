@@ -78,11 +78,22 @@ struct Panel {
   bool zeroBaseline{true};                         // the automatic range starts at 0 (linear scale, positive data)
   double headroom{0.35};                           // room above the data, as a fraction of their span, for the text
   bool logY{false};
-  bool legend{true};              // the legend AutoLabels writes, one entry per series
+  bool legend{true};              // the legend AutoLabels writes, one entry per series (and the band, when labelled)
+  std::string legendHeader;       // the legend's header, in place of what AutoLabels finds the series share
   std::vector<Key> keys;          // legends of the look, each in its own corners
   std::vector<std::string> notes; // lines of text under the title
   // A systematic uncertainty, drawn as a band behind the series; combinable with the first series.
   std::optional<PlotSeries::Series> band;
+};
+
+// The ratio pad of CompareWithRatio and WithReference: how the series are divided (the option stated, never guessed:
+// "" for independent samples, "B" when the numerator is a subset of the denominator), the pad's Y range (the ratios'
+// own when absent), its title, and its horizontal grid, a dotted line at each labelled value.
+struct RatioPad {
+  std::string divideOption;
+  std::optional<std::pair<double, double>> range;
+  std::string title{"ratio"};
+  bool grid{false};
 };
 
 namespace Detail
@@ -332,15 +343,19 @@ inline void DrawKey(TPad* pad, const std::vector<PlotSeries::Series>& series, co
   legend->Draw();
 }
 
-inline void DrawLegend(TPad* pad, const std::vector<PlotSeries::Series>& series, const std::vector<TH1*>& drawn, const Frame& frame)
+// The panel's header, when it gives one, replaces the one AutoLabels finds; its band, drawn as 'band', gets an entry
+// of its own, a filled box, when it has a label.
+inline void DrawLegend(TPad* pad, const Panel& panel, const std::vector<TH1*>& drawn, TH1* band, const Frame& frame)
 {
-  const PlotSeries::LegendText text = PlotSeries::AutoLabels(series);
+  const PlotSeries::LegendText text = PlotSeries::AutoLabels(panel.series);
   pad->cd();
   TLegend* legend = NewLegend(frame.legend, frame);
-  if (!text.header.empty())
-    legend->SetHeader(text.header.c_str());
+  if (const std::string& header = panel.legendHeader.empty() ? text.header : panel.legendHeader; !header.empty())
+    legend->SetHeader(header.c_str());
   for (std::size_t i = 0; i < drawn.size(); ++i)
     legend->AddEntry(drawn[i], text.labels[i].c_str(), "lp");
+  if (band && !panel.band->label.empty())
+    legend->AddEntry(band, panel.band->label.c_str(), "f");
   legend->Draw();
 }
 
@@ -357,12 +372,13 @@ inline std::vector<TH1*> DrawPanel(TPad* pad, const Panel& panel, const Frame& f
   if (drawn.empty())
     return drawn;
   std::vector<TH1*> ranged = drawn;
+  TH1* band = nullptr;
   if (panel.band) {
     PlotSeries::RequireCombinable(*panel.band, panel.series.front());
     if (panel.band->nonFiniteBins)
       throw std::runtime_error(std::format("[FATAL] PlotDesigns: the band '{}' has {} non-finite bin(s); a band cannot leave a bin out.",
                                            panel.band->origins.front().path, panel.band->nonFiniteBins));
-    TH1* band = panel.band->hist->DrawCopy("E2 SAME");
+    band = panel.band->hist->DrawCopy("E2 SAME");
     band->SetFillColorAlpha(kGray + 1, 0.4);
     band->SetLineWidth(0);
     band->SetMarkerSize(0);
@@ -382,7 +398,7 @@ inline std::vector<TH1*> DrawPanel(TPad* pad, const Panel& panel, const Frame& f
   if (!panel.yTitle.empty())
     drawn.front()->GetYaxis()->SetTitle(panel.yTitle.c_str());
   if (panel.legend)
-    DrawLegend(pad, panel.series, drawn, frame);
+    DrawLegend(pad, panel, drawn, band, frame);
   for (const Key& key : panel.keys)
     DrawKey(pad, panel.series, drawn, key, frame);
   // In pixels, so that pads of different heights space the lines alike; the title a little larger than the text.
@@ -438,11 +454,11 @@ inline Drawn Grid(CanvasManager& canvases, const std::string& name, const std::v
   return {canvas, Detail::AllSeries(panels)};
 }
 
-// 3. Series against a reference, with their ratio to it below, each ratio drawn as its numerator is above. The option
-// of the division is stated, never guessed (PlotSeries::Ratio): "" for independent samples, "B" for a closure.
+// 3. Series against a reference, with their ratio to it below, each ratio drawn as its numerator is above: the ratio pad
+// as 'ratioPad' says (its option of the division stated, never guessed), with 'ratioBand' behind the ratios when given
+// (the reference's systematic, relative: WithReference).
 inline Drawn CompareWithRatio(CanvasManager& canvases, const std::string& name, const Panel& panel, std::size_t reference,
-                              const std::string& divideOption, std::optional<std::pair<double, double>> ratioRange = std::nullopt,
-                              const std::string& ratioTitle = "ratio", const Frame& frame = {})
+                              const RatioPad& ratioPad, const Frame& frame = {}, const std::optional<PlotSeries::Series>& ratioBand = std::nullopt)
 {
   if (reference >= panel.series.size())
     throw std::runtime_error(std::format("[FATAL] PlotDesigns::CompareWithRatio: reference {} of {} series.", reference, panel.series.size()));
@@ -452,17 +468,20 @@ inline Drawn CompareWithRatio(CanvasManager& canvases, const std::string& name, 
   top.front()->GetXaxis()->SetLabelSize(0);
   top.front()->GetXaxis()->SetTitleSize(0);
 
-  Panel ratios{.yRange = ratioRange, .zeroBaseline = false, .headroom = 0.1, .legend = false};
+  Panel ratios{.yRange = ratioPad.range, .zeroBaseline = false, .headroom = 0.1, .legend = false, .band = ratioBand};
   for (std::size_t i = 0; i < panel.series.size(); ++i)
     if (i != reference) {
-      PlotSeries::Series r = PlotSeries::Ratio(panel.series[i], panel.series[reference], divideOption);
+      PlotSeries::Series r = PlotSeries::Ratio(panel.series[i], panel.series[reference], ratioPad.divideOption);
       r.look = {.color = top[i]->GetMarkerColor(), .marker = top[i]->GetMarkerStyle(), .markerSize = top[i]->GetMarkerSize()};
       ratios.series.push_back(std::move(r));
     }
   const std::vector<TH1*> bottom = Detail::DrawPanel(rc.bottomPad, ratios, frame, 1.6, false);
   if (!bottom.empty()) {
-    bottom.front()->GetYaxis()->SetTitle(ratioTitle.c_str());
+    bottom.front()->GetYaxis()->SetTitle(ratioPad.title.c_str());
+    // The ratio pad is short: the default divisions crowd its labels into each other.
+    bottom.front()->GetYaxis()->SetNdivisions(505);
     CanvasManager::DrawHorizontalLine(rc.bottomPad, bottom.front()->GetXaxis()->GetXmin(), bottom.front()->GetXaxis()->GetXmax());
+    rc.bottomPad->SetGridy(ratioPad.grid);
   }
   return {rc.canvas, Detail::AllSeries({panel, ratios})};
 }
@@ -510,14 +529,19 @@ inline Drawn JoinedPads(CanvasManager& canvases, const std::string& name, const 
 // 5. Series against an external reference (a preliminary), with its systematic uncertainty as a band, and the ratio of
 // each series to it below. Only the X axes can be checked against a foreign file (PlotSeries::Object).
 inline Drawn WithReference(CanvasManager& canvases, const std::string& name, Panel panel, const PlotSeries::Series& reference,
-                           const std::optional<PlotSeries::Series>& systematic, const std::string& divideOption,
-                           std::optional<std::pair<double, double>> ratioRange = std::nullopt, const Frame& frame = {})
+                           const std::optional<PlotSeries::Series>& systematic, const RatioPad& ratioPad, const Frame& frame = {})
 {
-  panel.series.insert(panel.series.begin(), reference);
-  if (!panel.series.front().look.color)
-    panel.series.front().look.color = kBlack;
+  // The systematic belongs to the reference: checked against it here, since the panel checks a band against its first
+  // series. The reference goes after the series, so that the legend lists the new before it; it is drawn after them
+  // too, over them. The ratios are each series over it, with its systematic again below them, relative, around 1.
+  if (systematic)
+    PlotSeries::RequireCombinable(*systematic, reference);
+  panel.series.push_back(reference);
+  if (!panel.series.back().look.color)
+    panel.series.back().look.color = kBlack;
   panel.band = systematic;
-  return CompareWithRatio(canvases, name, panel, 0, divideOption, ratioRange, "ratio", frame);
+  return CompareWithRatio(canvases, name, panel, panel.series.size() - 1, ratioPad, frame,
+                          systematic ? std::optional(PlotSeries::Relative(*systematic)) : std::nullopt);
 }
 
 // 6a. The mass-fit canvases of some cells, already written, laid out in a grid ('nCols' per row), each labelled (by
@@ -564,7 +588,8 @@ inline std::string Table(const std::vector<PlotSeries::Series>& series)
   for (int bin = 1; bin <= axis->GetNbins(); ++bin) {
     out += std::format("{}  {}-{}", bin, BinningUtils::FormatEdge(axis->GetBinLowEdge(bin)), BinningUtils::FormatEdge(axis->GetBinUpEdge(bin)));
     for (const PlotSeries::Series& s : series)
-      out += std::format("  |  {} +- {}", s.hist->GetBinContent(bin), s.hist->GetBinError(bin));
+      // Six significant digits: a table to read. The series themselves, at full precision, are in the plot's .root.
+      out += std::format("  |  {:g} +- {:g}", s.hist->GetBinContent(bin), s.hist->GetBinError(bin));
     out += "\n";
   }
   return out;

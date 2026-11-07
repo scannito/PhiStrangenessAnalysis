@@ -130,7 +130,7 @@ class CorrelationTaskBase : public IAnalysisTask
     RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhiBinning);
 
     // Next to the trends and not in their errors: two trends that share the triggers - two species of this
-    // task, or the same species in two files that comparison_task divides - share this uncertainty, and a
+    // task, or the same species in two files a plot divides - share this uncertainty, and a
     // ratio would count it twice where it cancels. Whoever builds a total error adds it, once per class.
     // It could be derived from what is already stored (h2TriggerSignal in the PhiFitTask file, the phi
     // efficiency and hEventLoss in the corrections file), and it is written all the same: it holds choices -

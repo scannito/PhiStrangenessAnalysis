@@ -77,7 +77,9 @@ and the correction maps as one table (`OutputNames::Detail::NamesOf`). The strin
 identical data and identical canvases.
 
 **B, one comparability rule** (`0a323fe`). `RootIO::RequireSameOptionalStamp` moved out of `ComparisonTask`, so the
-plots and the comparison task compare two files' stamps by the same function.
+plots and the comparison task compared two files' stamps by the same function. On 7 November 2026 the comparison task
+was retired, its role being the plots' (`DESIGN_HISTORY.md`, *comparison_task retired*), and the function with it: the
+plots call `RootIO::CompareBinningStamps`.
 
 **C, the series** (`44b93a2`, `a0b2cf7`, `3f33c03`, `c4549d1`). The palettes moved to `CanvasManager`
 (`ClassColor`, `VariantColor`; colours generated past the listed ones instead of repeating every ten). The correlation
@@ -155,13 +157,15 @@ purity or spectra, by the record the scheme holds), `Resolve` / `SchemeName` (th
 ### Comparing and combining
 
 - `Compare(a, b)`: the stamps of the directories the two were read from (mult and ptPhi of the scheme, ptAssoc of each
-  species they share, by the rule of `ComparisonTask`) and their X axes. Two series of one directory share its stamp.
+  species they share, `RootIO::CompareBinningStamps`) and their X axes. Two series of one directory share its stamp.
   It only says: what differs, and what could not be checked.
 - `RequireOneQuantityOnX(series)`: a spectrum (pT) and a trend (multiplicity) on one plot, or in one ratio, stop.
 - `RequireCombinable(a, b)`: the X quantity, then `Compare`: a difference stops, a stamp not checked is warned.
 - The operations, a closed list: `Ratio(a, b, divideOption)` (the option stated, never guessed: `""` for independent
-  samples, `"B"` when the numerator is a subset of the denominator), `Sum(a, b)`, `Scale(a, factor)`. A ratio keeps
-  both origins and its notes say what was divided by what.
+  samples, `"B"` when the numerator is a subset of the denominator), `Sum(a, b)`, `Scale(a, factor)`, `Relative(a)`
+  (each bin 1, its error the relative one: a systematic band on a ratio pad; a bin of content 0 becomes non-finite).
+  A ratio keeps both origins and its notes say what was divided by what; it is labelled "numerator / denominator", a
+  relative series "<label>, relative", when the operands have labels (what `Table` and `Describe` name them by).
 
 ### Drawing and keeping
 
@@ -188,8 +192,9 @@ purity or spectra, by the record the scheme holds), `Resolve` / `SchemeName` (th
   (`Corners{x1, y1, x2, y2, columns}`), and the ALICE label (status and collision system together, or none: the
   system is not in the files).
 - `Panel`: the series; title, X and Y titles; Y range or the rule for the automatic one (`zeroBaseline`, `headroom`);
-  log Y; the automatic legend on or off; `keys` (legends of the look); `notes` (lines under the title); a `band`
-  (a systematic uncertainty drawn behind the series).
+  log Y; the automatic legend on or off, and its header (`legendHeader`, in place of what the series share);
+  `keys` (legends of the look); `notes` (lines under the title); a `band` (a systematic uncertainty drawn behind the
+  series, with an entry of its own in the legend when it has a label).
 - `Key{fact, shows, where, text}`: a legend that says what the colour (`Shows::Color`) or the filling
   (`Shows::Fill`) means, by one fact. Its entries are derived from the series as drawn: a value drawn in two colours,
   or a colour standing for two values, stops the plot instead of mislabelling it.
@@ -204,9 +209,9 @@ text.
 |---|---|
 | `Overlay(canvases, name, panel, frame)` | every series on one pad |
 | `Grid(canvases, name, panels, nCols, frame)` | panels in a grid, row by row |
-| `CompareWithRatio(canvases, name, panel, reference, divideOption, ratioRange, ratioTitle, frame)` | the series on top, the ratio of each to the reference below, each drawn as its numerator is |
+| `CompareWithRatio(canvases, name, panel, reference, ratioPad, frame, ratioBand)` | the series on top, the ratio of each to the reference below, each drawn as its numerator is; `RatioPad{divideOption, range, title, grid}` says how the pad divides and looks; a band behind the ratios on request |
 | `JoinedPads(canvases, name, panels, yRange, frame)` | panels side by side, joined, one Y axis and one range (given, or the union of the pads' own) |
-| `WithReference(canvases, name, panel, reference, systematic, divideOption, ratioRange, frame)` | the series against a foreign reference, its systematic as a band, the ratios below |
+| `WithReference(canvases, name, panel, reference, systematic, ratioPad, frame)` | the series against a foreign reference (listed and drawn after them), its systematic as a band (checked against the reference), the ratios below with the systematic again, relative, around 1 |
 | `FitCanvasGrid(canvases, name, file, purityKey, cells, nCols, binning, scheme, frame)` | the mass-fit canvases of some cells (`FitCell{mult, pt, label}`), already in the file, each found by `PlotSeries::Fit` |
 | `Table(series)` | the values bin by bin, the series on one X axis |
 
@@ -274,15 +279,15 @@ it before it is read, and the same text is given to a model.
 
 ```json
 {"design": "overlay", "series": [...], ...panel keys..., ...looks..., ...frame keys...}
-{"design": "compare_with_ratio", "series": [two or more], "divide_option": "", "reference": 0, "ratio_range": [lo, hi], "ratio_title": "..."}
-{"design": "with_reference", "series": [...], "reference_object": {"file": "...", "path": "..."}, "systematic": {...}, "divide_option": ""}
+{"design": "compare_with_ratio", "series": [two or more], "divide_option": "", "reference": 0, "ratio_range": [lo, hi], "ratio_title": "...", "ratio_grid": true}
+{"design": "with_reference", "series": [...], "reference_object": {"file": "...", "path": "..."}, "systematic": {...}, "divide_option": "", "ratio_title": "...", "ratio_grid": true}
 {"design": "grid", "n_cols": 3, "panels": [{"series": [...], ...panel keys...}, ...]}
 {"design": "joined_pads", "panels": [two or more], "y_range": [lo, hi]}
 {"design": "fit_canvas_grid", "file": "...", "purity_key": "k0s", "n_cols": 3, "cells": [{"mult": [15, 20], "pt": [0.8, 1.2]}]}
 ```
 
 Panel keys: `title`, `x_title`, `y_title`, `y_range` (not in a joined panel), `log_y`, `zero_baseline`, `headroom`,
-`legend`, `keys`, `notes`. Looks (at the top of every design but the fit grid, over all its panels): `color_by`,
+`legend`, `legend_header`, `keys`, `notes`. Looks (at the top of every design but the fit grid, over all its panels): `color_by`,
 `shape_by`, `fill_by`, `colors`. Frame: `width`, `height`, `text_px`, `draw_option`, `legend_box`, `legend_columns`.
 
 ### The series
@@ -344,12 +349,16 @@ build/phistrangeplot schema
 build/phistrangeplot describe my.spec.json
 
 # an example on other files: described first, then drawn (the files it names, in the order they first appear,
-# replaced one for one; the specification so made is the plot's recipe)
+# replaced one for one; the specification so made is the plot's recipe). With the two _two_files_ratio examples this
+# is how two productions are compared (README, Comparing two productions): the comparison task was retired for it.
 build/phistrangeplot describe PlotSpecs/examples/trend_two_files_ratio.json --file A.root --file B.root
 build/phistrangeplot render PlotSpecs/examples/trend_two_files_ratio.json --file A.root --file B.root --out Plots/a_vs_b
 
 # the plot: my_plot.pdf, .png and .root, the specification as its recipe
 build/phistrangeplot render my.spec.json --out Plots/my_plot --alice "Work in progress" --system "pp, #sqrt{#it{s}} = 13.6 TeV"
+
+# and the values it drew, bin by bin, the ratios included (the series must share their X axis)
+build/phistrangeplot render my.spec.json --out Plots/my_plot --table Plots/my_plot.txt
 
 ```
 

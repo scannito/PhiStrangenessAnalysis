@@ -1,0 +1,16 @@
+{"design": "with_reference", "divide_option": "",
+ "y_title": "2K^{0}_{S}/(#pi^{+}+#pi^{-}), |#Deltay|<1", "zero_baseline": false, "headroom": 1.1,
+ "legend_header": "pp, #sqrt{#it{s}} = 13.6 TeV", "legend_box": [0.37, 0.55, 0.93, 0.88],
+ "ratio_title": "new / preliminary", "ratio_grid": true,
+ "width": 900, "height": 850, "text_px": 24,
+ "reference_object": {"file": "OldComparison/output/oldK0SPiRatio.root", "path": "Ratio_K0S_Pi_dy1_00_stat", "label": "2024, preliminary (stat)",
+                      "color": 922, "marker": 21, "marker_size": 1.0},
+ "systematic": {"file": "OldComparison/output/oldK0SPiRatio.root", "path": "Ratio_K0S_Pi_dy1_00_syst", "label": "2024, preliminary (syst)"},
+ "series": [
+  {"of": "species_ratio", "file": "DataFile/pp/DeltaY/FinalResults/Data_OfflineEff_2024_PhiAssocSpectra.root", "numerator": "K0S", "denominator": "Pi", "dy": 1.0, "trend": "extrapolated", "scheme": "MoreFullDifferential",
+   "label": "2024, new: offline eff. (stat)", "color": 633, "marker": 20, "marker_size": 1.6},
+  {"of": "species_ratio", "file": "DataFile/pp/DeltaY/FinalResults/Data_OnlineEff_2024_PhiAssocSpectra.root", "numerator": "K0S", "denominator": "Pi", "dy": 1.0, "trend": "extrapolated", "scheme": "MoreFullDifferential",
+   "label": "2024, new: online eff. (stat)", "color": 601, "marker": 25, "marker_size": 1.4},
+  {"of": "species_ratio", "file": "DataFile/pp/DeltaY/FinalResults/Data_OnlineEff_NoPhi_2024_PhiAssocSpectra.root", "numerator": "K0S", "denominator": "Pi", "dy": 1.0, "trend": "extrapolated", "scheme": "MoreFullDifferential",
+   "label": "2024, new: online eff., no #phi (stat)", "color": 418, "marker": 27, "marker_size": 1.8}
+ ]}

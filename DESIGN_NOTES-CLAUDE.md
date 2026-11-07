@@ -7,7 +7,7 @@ entry of `DESIGN_NOTES.md`, the entry is named; that file stays the place for wh
 **What the opinions rest on.** I know well the fitter (`DynamicRooFitter`), the purity step (`PurityTask`),
 the configuration layer (`JsonConfigHelpers`, the config managers, the global configs), the logger and the
 binning checks; I studied them closely during the RooFit research (`RooFitKnowledge/`). I know
-`CorrelationTaskBase`, `SpectrumExtrapolator`, `MCTask` and `ComparisonTask` much less: on those, the
+`CorrelationTaskBase`, `SpectrumExtrapolator`, `MCTask` and `ComparisonTask` (retired since) much less: on those, the
 remarks below are about structure, not about what the code computes.
 
 **What I would not do: rewrite it.** The framework works and reproduces its results bit for bit (the purity

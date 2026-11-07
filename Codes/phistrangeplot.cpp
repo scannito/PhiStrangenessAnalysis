@@ -4,6 +4,7 @@
 
 #include <cstdio>
 #include <filesystem>
+#include <fstream>
 #include <map>
 #include <vector>
 #include <string>
@@ -21,9 +22,11 @@
 //   phistrangeplot describe <spec.json> [--file <file.root>...]
 //     what the specification resolves to, every series and what the series disagree on, without keeping anything.
 //   phistrangeplot render <spec.json> [--file <file.root>...] --out <base> [--alice <status> --system <collision system>] [--note <text>]
+//                         [--table <file>]
 //     the plot, as <base>.pdf, .png and .root, the specification kept as its recipe and the note, when one is given, as
 //     a fact of its own (a front end records there the request and the model that wrote the specification). The ALICE label only when
-//     both its status and its system are given: the system is not in the files.
+//     both its status and its system are given: the system is not in the files. With --table, the values of every series
+//     drawn (the ratios too), bin by bin, written to that file (PlotDesigns::Table; the series must share their X axis).
 //   With --file, a specification (a checked example of PlotSpecs/examples) is drawn from other files: the files it names,
 //   in the order they first appear, are replaced one for one by those given (PlotSpec::WithFiles), and the specification
 //   made so is the one described and kept as the recipe.
@@ -36,7 +39,7 @@ int Usage()
                        "       phistrangeplot list <file.root>...\n"
                        "       phistrangeplot schema\n"
                        "       phistrangeplot describe <spec.json> [--file <file.root>...]\n"
-                       "       phistrangeplot render <spec.json> [--file <file.root>...] --out <base> [--alice <status> --system <collision system>] [--note <text>]\n");
+                       "       phistrangeplot render <spec.json> [--file <file.root>...] --out <base> [--alice <status> --system <collision system>] [--note <text>] [--table <file>]\n");
   return 2;
 }
 
@@ -56,17 +59,26 @@ bool ReadOptions(int argc, char* argv[], int first, std::map<std::string, std::s
   }
   return true;
 }
-// Draws a specification, prints what it resolved to, and keeps the plot when 'out' is given (with the note, if any).
+// Draws a specification, prints what it resolved to, keeps the plot when 'out' is given (with the note, if any) and
+// writes the values drawn to 'table' when that is given.
 void DrawSpec(const std::string& text, const std::string& origin, const std::string& out, const std::string& recipe,
-              const std::optional<std::pair<std::string, std::string>>& alice, const std::string& note)
+              const std::optional<std::pair<std::string, std::string>>& alice, const std::string& note, const std::string& table)
 {
   const rapidjson::Document spec = PlotSpec::Parse(text, origin);
   CanvasManager canvases;
   const PlotDesigns::Drawn drawn = PlotSpec::Draw(spec, canvases, "plot", alice);
+  if (!table.empty() && drawn.series.empty())
+    throw std::runtime_error(std::format("[FATAL] phistrangeplot: --table asked of a design that draws no series ('{}').", origin));
   std::printf("%s", PlotDesigns::Describe(drawn).c_str());
   if (!out.empty())
     PlotDesigns::Save(drawn, out, std::format("{}\n{}", recipe, text),
                       note.empty() ? std::map<std::string, std::string>{} : std::map<std::string, std::string>{{"note", note}});
+  if (!table.empty()) {
+    std::ofstream file(table);
+    file << PlotDesigns::Table(drawn.series);
+    if (!file)
+      throw std::runtime_error(std::format("[FATAL] phistrangeplot: cannot write the table to '{}'.", table));
+  }
 }
 
 // The file of Codes/ (a header, or this one) changed after this binary was built, if any: the binary would draw with code
@@ -133,19 +145,20 @@ int main(int argc, char* argv[])
     return 0;
   }
   if ((verb == "describe" || verb == "render") && argc >= 3) {
-    std::map<std::string, std::string> options{{"--out", ""}, {"--alice", ""}, {"--system", ""}, {"--note", ""}};
+    std::map<std::string, std::string> options{{"--out", ""}, {"--alice", ""}, {"--system", ""}, {"--note", ""}, {"--table", ""}};
     std::vector<std::string> files;
     const bool render = verb == "render";
     if (!ReadOptions(argc, argv, 3, options, &files))
       return Usage();
-    // render needs where to write, describe writes nothing; the ALICE label needs its system with its status.
-    if (render != !options["--out"].empty() || options["--alice"].empty() != options["--system"].empty())
+    // render needs where to write, describe writes nothing (no table either); the ALICE label needs its system with its status.
+    if (render != !options["--out"].empty() || (!render && !options["--table"].empty()) ||
+        options["--alice"].empty() != options["--system"].empty())
       return Usage();
     const std::string specFile = argv[2];
     return PlotDesigns::Run([&] {
       const std::string text = JsonConfig::ReadFileText(specFile);
       DrawSpec(files.empty() ? text : PlotSpec::WithFiles(text, specFile, files), specFile, options["--out"], recipe,
-               Alice(options["--alice"], options["--system"]), options["--note"]);
+               Alice(options["--alice"], options["--system"]), options["--note"], options["--table"]);
     });
   }
   if (verb == "summaries" && argc >= 3) {

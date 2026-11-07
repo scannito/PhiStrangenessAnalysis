@@ -75,6 +75,34 @@ up to 50 % between models.
 
 ---
 
+## comparison_task retired
+
+**7 November 2026**, the owner's decision, on branch `plots`. `comparison_task` divided the same quantity produced
+by two runs (a closure against the generated level, two productions, a preliminary), after checking the two files'
+binning stamps and axes, and wrote the ratios. The plots do all of it: `PlotSeries::Ratio` divides after the same
+check (`RootIO::CompareBinningStamps`, one function since phase B), `PlotSeries::Save` keeps the ratio with the
+provenance of both inputs, `with_reference` draws a foreign object against the framework's series. What only the task
+did, dividing a whole family of objects at once into a file, nobody read yet; the systematics collector planned on it
+(`DESIGN_NOTES.md`) will divide for itself, with the same check. Two implementations of one division were one too many
+(about 600 lines).
+
+What went with it: `Codes/ComparisonTask.h`, its registration, the `comparison` keyword of `runAnalysis.sh`,
+`JSONConfigs/globalConfigComparisonpp.json` (its closure comparisons read files of 12 August, without stamps, and had
+not run since 19 October), `RootIO::RequireSameOptionalStamp` (its only user), and in `OldComparison/` the task's
+block and `macro/show.C`. Comparing two productions is now `PlotSpecs/examples/*_two_files_ratio.json` with
+`--file A --file B` (README, *Comparing two productions*); the rules that were the task's stay where they apply:
+`divide_option` stated, never guessed, and a foreign denominator an assertion of comparability.
+
+`OldComparison` kept its plot exactly (the owner: "voglio esattamente così il grafico"), so the components gained what
+`show.C` drew by hand, each in a general form: a legend header given (`legend_header`), a labelled band with its own
+legend entry, the reference listed after the series it is compared with, its systematic again on the ratio pad
+relative to 1 (`PlotSeries::Relative`), the ratio pad's grid (`ratio_grid`) and title for `with_reference`, the ratio
+named "numerator / reference" in the table, fewer divisions on the short ratio axis. The table `show.C` printed is
+`phistrangeplot render --table`; its check that the three files agree on `apply_purity`, and the setting in the
+header, are `run.sh`'s, from the files' provenance (`Macros/ShowProvenance.C`, which now gives the commit too).
+
+---
+
 ## `AnalysisDataStructures.h` renamed `AnalysisStructures.h`, with its namespace
 
 **2 November 2026.** It was the one shared header without a namespace: `NSigma`, `FitConfig`, `ModelConfig` and two

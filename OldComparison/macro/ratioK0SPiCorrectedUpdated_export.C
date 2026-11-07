@@ -1151,7 +1151,7 @@ void ratioK0SPiCorrectedUpdated_export(int mode) {
     // as named objects, for |dy| < 1.0 (window 0, the only one this macro computes: the others hold
     // zeros). The graphs as built above (x = <dNch/deta>), and the same numbers on the multiplicity
     // classes, index j being class [mult_axis[j], mult_axis[j+1]] as everywhere in this macro, as
-    // histograms comparison_task can divide by. Stat and syst apart.
+    // histograms a plot can divide by (../preliminary.json). Stat and syst apart.
     {
         TFile fout("oldK0SPiRatio.root", "RECREATE");
         RatioK0SPi[0]->Write("RatioK0SPi_dy1_00_vs_dNdeta_stat");

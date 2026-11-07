@@ -31,7 +31,7 @@ done
 if [ "${#POSITIONAL_ARGS[@]}" -eq 0 ]; then
     echo "Error: No configuration keyword provided."
     echo "Usage: $0 <keyword> [coll_sys] [--compile | --interpret]"
-    echo "Available keywords: data, purity, mc, mcclosure, mcclosurewpdg, mcclosuregen, comparison"
+    echo "Available keywords: data, purity, mc, mcclosure, mcclosurewpdg, mcclosuregen"
     echo "Execution mode: --interpret / -i (default), --compile / -c"
     exit 1
 fi
@@ -68,9 +68,6 @@ case "$KEYWORD" in
         ;;
     "mcclosuregen")
         JSON_PATH="../JSONConfigs/globalConfigMCClosureGen${COLL_SYS}.json"
-        ;;
-    "comparison")
-        JSON_PATH="../JSONConfigs/globalConfigComparison${COLL_SYS}.json"
         ;;
     *)
         # Fallback: if the keyword is not recognized, try to use it directly as a

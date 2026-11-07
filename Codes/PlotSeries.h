@@ -37,7 +37,7 @@
 // A name is built forward, with the OutputNames builders and the multiplicity interval found in the file's own
 // binning_mult stamp; a missing object stops the run with what was asked and what the file holds (NotInFiles), never a
 // series skipped in silence. Two series are compared by the stamps of the directories they were read from
-// (RootIO::CompareBinningStamps, the rule ComparisonTask uses) and by their X axes: dividing or summing needs them equal
+// (RootIO::CompareBinningStamps) and by their X axes: dividing or summing needs them equal
 // (RequireCombinable); drawing them together does not, and Draw says what differs. The data are kept as read, a
 // non-finite bin included, so that it propagates through a sum or a ratio; only the copy that is drawn leaves it empty.
 namespace PlotSeries
@@ -604,7 +604,7 @@ inline void RequireOneQuantityOnX(std::span<const Series> series)
 }
 
 // The stamps of the directories the two series were read from (mult and ptPhi of the scheme, ptAssoc of each species
-// they share), by the rule of ComparisonTask, and their X axes. Only says: RequireCombinable stops, Draw warns,
+// they share), by RootIO::CompareBinningStamps, and their X axes. Only says: RequireCombinable stops, Draw warns,
 // Describe reports. A combined series is compared through its first origin, whose stamps its operands shared.
 inline Comparison Compare(const Series& a, const Series& b)
 {
@@ -681,7 +681,7 @@ inline Series Combined(const Series& a, const Series& b, std::unique_ptr<TH1> hi
 inline Series Ratio(const Series& num, const Series& den, const std::string& divideOption, const std::string& name = "")
 {
   RequireCombinable(num, den);
-  return Detail::Combined(num, den,
+  Series ratio = Detail::Combined(num, den,
                           HistogramUtils::MakeRatioHist(num.hist.get(), den.hist.get(),
                                                         name.empty() ? std::format("{}_over_{}", num.hist->GetName(), den.hist->GetName()) : name,
                                                         num.hist->GetTitle(), 1.0, 1.0, divideOption.c_str()),
@@ -689,6 +689,10 @@ inline Series Ratio(const Series& num, const Series& den, const std::string& div
                           std::format("ratio of '{}' ({}) to '{}' ({}), Divide option \"{}\"", num.origins.front().path,
                                       num.origins.front().fileName, den.origins.front().path, den.origins.front().fileName,
                                       divideOption));
+  // Named after its operands when both have a label: for Table and Describe, which would otherwise name it by its file.
+  if (!num.label.empty() && !den.label.empty())
+    ratio.label = std::format("{} / {}", num.label, den.label);
+  return ratio;
 }
 
 inline Series Sum(const Series& a, const Series& b, const std::string& name = "")
@@ -709,6 +713,26 @@ inline Series Scale(const Series& a, double factor)
   s.hist->SetDirectory(0);
   s.hist->Scale(factor);
   s.notes.push_back(std::format("scaled by {}", factor));
+  return s;
+}
+
+// The relative uncertainty of a series around 1: each bin 1, with error/content as its error. What a systematic band
+// is drawn as on a ratio pad, where the series are already divided by the content it belongs to. A bin whose content is
+// 0 has no relative uncertainty: it becomes not finite, and is counted, as any other.
+inline Series Relative(const Series& a)
+{
+  Series s = a;
+  s.hist = std::shared_ptr<TH1>(static_cast<TH1*>(a.hist->Clone(std::format("{}_relative", a.hist->GetName()).c_str())));
+  s.hist->SetDirectory(0);
+  for (int bin = 1; bin <= s.hist->GetNbinsX(); ++bin) {
+    const double content = a.hist->GetBinContent(bin);
+    s.hist->SetBinContent(bin, 1.0);
+    s.hist->SetBinError(bin, content != 0.0 ? a.hist->GetBinError(bin) / std::abs(content) : std::numeric_limits<double>::quiet_NaN());
+  }
+  s.nonFiniteBins = Detail::CountNonFinite(s.hist.get());
+  s.notes.push_back("relative uncertainty, around 1");
+  if (!a.label.empty())
+    s.label = a.label + ", relative";
   return s;
 }
 

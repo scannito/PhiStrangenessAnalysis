@@ -1,6 +1,5 @@
 #pragma once
 
-#include "ComparisonTask.h"
 #include "CorrelationTask.h"
 #include "CorrelationWPDGTask.h"
 #include "IAnalysisTask.h"
@@ -64,8 +63,7 @@ class WorkflowManager
       {"mc_task", []() { return std::make_unique<MCTask>(); }},
       {"phi_fit_task", []() { return std::make_unique<PhiFitTask>(); }},
       {"correlation_wpdg_task", []() { return std::make_unique<CorrelationWPDGTask>(); }},
-      {"correlation_task", []() { return std::make_unique<CorrelationTask>(); }},
-      {"comparison_task", []() { return std::make_unique<ComparisonTask>(); }}};
+      {"correlation_task", []() { return std::make_unique<CorrelationTask>(); }}};
 
     // Loop over the tasks requested by the JSON configuration
     for (const std::string& taskName : activeTasksList) {
