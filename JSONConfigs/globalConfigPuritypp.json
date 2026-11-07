@@ -193,16 +193,6 @@
             "purity_task_2026"
         ]
     },
-    "purity_task_2024": {
-        "inherits": "purity_base_settings",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_5agosto.root",
-        "output_prefix": "Data_2024_"
-    },
-    "purity_task_2026": {
-        "inherits": "purity_base_settings",
-        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_6agosto.root",
-        "output_prefix": "Data_2026_"
-    },
     "purity_task_2026_highIR_updated": {
         "inherits": "purity_base_settings_updated",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
@@ -237,5 +227,17 @@
         "inherits": "purity_base_settings_updated",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
         "output_prefix": "Data_2023_updated_"
+    },
+    "inactive_task_blocks": {
+        "purity_task_2024": {
+            "inherits": "purity_base_settings",
+            "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2024_PtMod_5agosto.root",
+            "output_prefix": "Data_2024_"
+        },
+        "purity_task_2026": {
+            "inherits": "purity_base_settings",
+            "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_PtMod_6agosto.root",
+            "output_prefix": "Data_2026_"
+        }
     }
 }

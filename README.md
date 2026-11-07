@@ -146,13 +146,19 @@ Six task types are registered: `purity_task`, `mc_task`, `phi_fit_task`,
 `correlation_wpdg_task`, `correlation_task`, `comparison_task`. An unknown prefix is a
 fatal error that lists the ones that exist.
 
-### `workflow.inactive_tasks`
+### `workflow.inactive_tasks` and `inactive_task_blocks`
 
 The blocks of the file that are no longer run, kept instead of deleted so that the
-configuration of an older production stays readable: a task is retired by moving its name
-from `active_tasks` to `inactive_tasks`, and brought back the same way. Bookkeeping only:
-**nothing reads this list**, so nothing checks it either (a misspelled name, or a name in
-both lists, goes unnoticed). The check that would close that is described in
+configuration of an older production stays readable. Their names are listed in
+`workflow.inactive_tasks`, a recap at the top of the file; the blocks themselves are in the
+top-level object `inactive_task_blocks`, where `WorkflowManager`, which looks a block up by
+name among the top-level keys, does not see them (7 November 2026, the owner's choice). A
+task is retired by moving its name from `active_tasks` to `inactive_tasks` and its block
+into `inactive_task_blocks`, and brought back the same way. A name made active while its
+block is still parked stops the run (block not found); for the same reason a parked block
+cannot be the parent (`inherits`) of an active one. Bookkeeping only: **nothing reads the
+list or the parked blocks**, so nothing checks that they agree (a misspelled name, or a
+name in both lists, goes unnoticed). The check that would close that is described in
 `DESIGN_NOTES.md`, section 10.
 
 ### `inherits`

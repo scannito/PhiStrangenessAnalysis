@@ -1054,7 +1054,9 @@ a task left in both lists. The check, if wanted, is a few lines in `WorkflowMana
 `active_tasks` is read: read the list with `JsonConfig::TryArray` (absent stays legal), and throw `[FATAL]`
 for a name that is not a block of the file, or that is also in `active_tasks`. It changes no number and does
 not belong in the provenance. Not done because the list is documentation; the signal to do it is the first
-time a stale entry misleads someone.
+time a stale entry misleads someone. Since 7 November 2026 the inactive blocks themselves are parked in the
+top-level object `inactive_task_blocks` (README, *`workflow.inactive_tasks` and `inactive_task_blocks`*), so the same
+check would also compare the list with the keys of that object.
 
 **Splitting RootIOHelpers further — a suggestion, not a decision.** The header now
 holds two families: file access (open, get, navigate) and the records written into
