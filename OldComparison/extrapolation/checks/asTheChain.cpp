@@ -34,16 +34,20 @@ int main(int argc, char** argv)
       printf("%-4s no extrapolated trend in the file (%s): skipped\n", species, trendPath.c_str());
       continue;
     }
-    if (trend->GetNbinsX() != static_cast<int>(classes.size()))
-      Chain::Fail(std::format("{} has {} bins, the file's multiplicity binning {}", trendPath, trend->GetNbinsX(), classes.size()));
-    for (size_t m = 0; m < classes.size(); ++m) {
-      auto h = source.Spectrum(species, m, std::format("h_{}_{}", species, m));
-      const ExtrapolationResult res = Chain::Extrapolate(h.get(), source.Configured(species, m), std::format("{}_{}", species, m)).res;
-      const double chainYield = trend->GetBinContent(m + 1), chainError = trend->GetBinError(m + 1);
+    // The trend's classes are the file's, by their edges: a bin is compared with the class it is the yield of.
+    if (const std::string diff = BinningUtils::Compare(source.Edges(), BinningUtils::AxisEdges(trend->GetXaxis()), "the file's multiplicity binning",
+                                                       trendPath);
+        !diff.empty())
+      Chain::Fail(diff);
+    for (int multBin : BinningUtils::BinIndices(source.Edges())) {
+      auto h = source.Spectrum(species, multBin, std::format("h_{}_{}", species, multBin));
+      const AnalysisStructures::ExtrapolationResult res =
+        Chain::Extrapolate(h.get(), source.Configured(species, multBin), std::format("{}_{}", species, multBin)).res;
+      const double chainYield = trend->GetBinContent(BinningUtils::RootBin(multBin)), chainError = trend->GetBinError(BinningUtils::RootBin(multBin));
       const double dYield = std::abs(res.yield / chainYield - 1), dError = std::abs(res.yieldStatErr / chainError - 1);
       worst = std::max({worst, dYield, dError});
       ++compared;
-      printf("%-4s %-7s %14.8g %14.8g %10.2e   %12.6g %12.6g %10.2e\n", species, classes[m].c_str(), res.yield, chainYield, dYield,
+      printf("%-4s %-7s %14.8g %14.8g %10.2e   %12.6g %12.6g %10.2e\n", species, classes[multBin].c_str(), res.yield, chainYield, dYield,
              res.yieldStatErr, chainError, dError);
     }
   }

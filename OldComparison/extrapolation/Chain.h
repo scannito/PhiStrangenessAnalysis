@@ -40,8 +40,8 @@ constexpr double kHiPrecision = 0.1;
 
 // The pi blocks of extrapConfig.json until and since 20 October 2026, as starting points for the study's cases.
 // History, not the configuration: what the file was made with comes from Source::Configured.
-inline const std::map<std::string, MathParam> kLevyPi = {{"n", {5.0, 2.0, 20.0}}, {"T", {0.3, 0.05, 0.8}}, {"norm", {1.5, 0.0, 1000.0}}};
-inline const std::map<std::string, MathParam> kBlastWavePi = {
+inline const std::map<std::string, AnalysisStructures::MathParam> kLevyPi = {{"n", {5.0, 2.0, 20.0}}, {"T", {0.3, 0.05, 0.8}}, {"norm", {1.5, 0.0, 1000.0}}};
+inline const std::map<std::string, AnalysisStructures::MathParam> kBlastWavePi = {
   {"beta", {0.6, 0.05, 0.99}}, {"temp", {0.12, 0.03, 0.4}}, {"n", {1.0, 0.1, 5.0}}, {"norm", {1.0, 0.0, 1e6}}};
 
 [[noreturn]] inline void Fail(const std::string& message)
@@ -62,12 +62,10 @@ class Source
     if (!base)
       Fail(std::format("no binning '{}' in {}", fBinning, path));
 
-    // The spectra are addressed by index, so the labels come from the file the index refers to.
-    const std::vector<double> edges = RootIO::ReadBinningStamp(base, RootIO::kStampMult);
-    if (edges.size() < 2)
+    // The classes of the file: the spectra and the configuration's overrides are named by their intervals.
+    fEdges = RootIO::ReadBinningStamp(base, RootIO::kStampMult, path);
+    if (fEdges.size() < 2)
       Fail(std::format("no {} stamp under {} in {}", RootIO::kStampMult, fBinning, path));
-    for (size_t i = 0; i + 1 < edges.size(); ++i)
-      fClasses.push_back(std::format("{}-{}", BinningUtils::FormatEdge(edges[i]), BinningUtils::FormatEdge(edges[i + 1])));
 
     // The extrapolation configuration the file was made with, the whole extrapConfig.json as text. The manager
     // reads a file, so it gets a copy of it.
@@ -79,15 +77,31 @@ class Source
     std::ofstream(copy) << text->second;
     fConfigs = std::make_unique<ExtrapConfigManager>(copy.string());
     std::filesystem::remove(copy);
+    // The manager reads a section only once its classes are declared. Declared as the chain did for this file: the
+    // species it extrapolated, those of its spectra that have a section (CorrelationTaskBase, at Init).
+    TDirectory* section = base->GetDirectory(OutputNames::kExtract1D.c_str());
+    if (!section)
+      Fail(std::format("no {} under {} in {}", OutputNames::kExtract1D, fBinning, path));
+    for (TObject* key : *section->GetListOfKeys())
+      if (TDirectory* dir = section->GetDirectory(key->GetName()); OutputNames::IsSpeciesDir(dir) && fConfigs->HasConfig(dir->GetName()))
+        fConfigs->DeclareCells(dir->GetName(), fEdges);
   }
 
   TFile& File() { return fFile; }
-  const std::vector<std::string>& Classes() const { return fClasses; }
+  const std::vector<double>& Edges() const { return fEdges; }
+  // The classes' labels, by their intervals.
+  std::vector<std::string> Classes() const
+  {
+    std::vector<std::string> labels;
+    for (int multBin : BinningUtils::BinIndices(fEdges))
+      labels.push_back(BinningUtils::BinLabel(fEdges, multBin));
+    return labels;
+  }
 
   // Where the chain writes the measured spectrum of 'species' in class 'multBin', |Delta y| < 1.
   std::string SpectrumPath(const std::string& species, int multBin, bool extended = false) const
   {
-    const std::string name = OutputNames::Spectrum(species, 1.0, multBin);
+    const std::string name = OutputNames::Spectrum(species, 1.0, fEdges, multBin);
     return std::format("{}/{}/{}/{}/{}", fBinning, OutputNames::kExtract1D, species, OutputNames::kSpectraDir,
                        extended ? OutputNames::SpectrumExtended(name) : name);
   }
@@ -104,20 +118,22 @@ class Source
   }
 
   // The configuration the chain used for 'species' in class 'multBin', with the mass it injects.
-  ExtrapConfig Configured(const std::string& species, int multBin) const
+  AnalysisStructures::ExtrapConfig Configured(const std::string& species, int multBin) const
   {
-    ExtrapConfig cfg = fConfigs->GetConfig(species, multBin);
+    AnalysisStructures::ExtrapConfig cfg = fConfigs->GetConfig(species, OutputNames::MultTag(fEdges, multBin));
     cfg.mass = AnalysisConstants::GetMass(species);
     return cfg;
   }
 
   // A pi fit of the study's own, on the domain and with the mass of the configured pi.
-  ExtrapConfig PiConfig(const std::string& model, std::pair<double, double> fitRange, const std::map<std::string, MathParam>& params) const
+  AnalysisStructures::ExtrapConfig PiConfig(const std::string& model, AnalysisStructures::Range fitRange,
+                                            const std::map<std::string, AnalysisStructures::MathParam>& params) const
   {
-    ExtrapConfig cfg = Configured("Pi", 0);
+    AnalysisStructures::ExtrapConfig cfg = Configured("Pi", 0);
     cfg.model = model;
     cfg.fitRange = fitRange;
     cfg.params = params;
+    cfg.source = std::format("the study's own {} case for Pi, not extrapConfig.json", model);
     cfg.high.reset();
     return cfg;
   }
@@ -125,7 +141,7 @@ class Source
  private:
   TFile fFile;
   std::string fBinning;
-  std::vector<std::string> fClasses;
+  std::vector<double> fEdges;
   std::unique_ptr<ExtrapConfigManager> fConfigs;
 };
 
@@ -133,24 +149,24 @@ class Source
 // through HighConfig), named after 'name', fitted in place by SpectrumExtrapolator with the chain's options.
 struct Extrapolation {
   std::unique_ptr<TF1> main, high; // the fitted functions, live
-  ExtrapolationResult res;
+  AnalysisStructures::ExtrapolationResult res;
   bool converged = false;
 };
 
-inline Extrapolation Extrapolate(TH1* h, const ExtrapConfig& cfg, const std::string& name)
+inline Extrapolation Extrapolate(TH1* h, const AnalysisStructures::ExtrapConfig& cfg, const std::string& name)
 {
   Extrapolation out;
   out.main = ExtrapolationModelFactory::CreateModel(cfg, h->GetMaximum(), name);
   out.main->SetName(std::format("f_{}_main", name).c_str());
   SpectrumExtrapolator extrapolator(h, out.main.get());
-  extrapolator.SetFitRange(cfg.fitRange.first, cfg.fitRange.second);
-  extrapolator.SetExtrapolationLimits(cfg.domainRange.first, cfg.domainRange.second);
+  extrapolator.SetFitRange(cfg.fitRange.min, cfg.fitRange.max);
+  extrapolator.SetExtrapolationLimits(cfg.domainRange.min, cfg.domainRange.max);
   extrapolator.SetFitOption(kFitOption);
   extrapolator.SetIntegrationPrecisions(kLoPrecision, kHiPrecision);
   if (cfg.high) {
     out.high = ExtrapolationModelFactory::CreateModel(cfg.HighConfig(), h->GetMaximum(), "high_" + name);
     out.high->SetName(std::format("f_{}_high", name).c_str());
-    extrapolator.SetHighModel(out.high.get(), cfg.high->fitRange.first, cfg.high->fitRange.second);
+    extrapolator.SetHighModel(out.high.get(), cfg.high->fitRange.min, cfg.high->fitRange.max);
   }
   out.res = extrapolator.Extrapolate();
   out.converged = extrapolator.FitConverged();
@@ -159,10 +175,10 @@ inline Extrapolation Extrapolate(TH1* h, const ExtrapConfig& cfg, const std::str
 
 // Where the high fit takes over, as the chain draws its curves (CorrelationTaskBase, attachCurve): from where the
 // high fit starts; without one, the main fit serves the whole domain.
-inline double Split(const ExtrapConfig& cfg) { return cfg.high ? cfg.high->fitRange.first : cfg.domainRange.second; }
+inline double Split(const AnalysisStructures::ExtrapConfig& cfg) { return cfg.high ? cfg.high->fitRange.min : cfg.domainRange.max; }
 
 // The fit that serves the bin starting at 'lowEdge'.
-inline TF1* Serving(const Extrapolation& e, const ExtrapConfig& cfg, double lowEdge)
+inline TF1* Serving(const Extrapolation& e, const AnalysisStructures::ExtrapConfig& cfg, double lowEdge)
 {
   return (e.high && lowEdge >= Split(cfg) - 1e-9) ? e.high.get() : e.main.get();
 }
@@ -176,7 +192,7 @@ inline double BinAverage(TF1* f, const TH1* h, int b)
 
 // data / fit per bin, each bin against the average of the fit that serves it, from the live functions: what the
 // figures draw, so that they show the numbers of the tables and not those of read-back curves.
-inline std::unique_ptr<TH1> DataOverFit(const TH1* h, const Extrapolation& e, const ExtrapConfig& cfg, const std::string& name)
+inline std::unique_ptr<TH1> DataOverFit(const TH1* h, const Extrapolation& e, const AnalysisStructures::ExtrapConfig& cfg, const std::string& name)
 {
   std::unique_ptr<TH1> ratio(static_cast<TH1*>(h->Clone(name.c_str())));
   ratio->SetDirectory(0);

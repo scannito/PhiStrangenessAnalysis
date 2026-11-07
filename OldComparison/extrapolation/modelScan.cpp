@@ -27,7 +27,7 @@ int main(int argc, char** argv)
   // where a first trial converged in every class. A start that fails shows as "NO" in the convergence column.
   struct Model {
     std::string name;
-    std::map<std::string, MathParam> params;
+    std::map<std::string, AnalysisStructures::MathParam> params;
   };
   const std::vector<Model> models = {
     {"LevyTsallis", Chain::kLevyPi},
@@ -36,7 +36,7 @@ int main(int argc, char** argv)
     {"PtExponential", {{"T", {0.2, 0.02, 1.0}}, {"norm", {15.0, 0.0, 1e5}}}},
     {"BlastWave", Chain::kBlastWavePi},
   };
-  const std::vector<std::pair<double, double>> ranges = {{0.2, 1.0}, {0.2, 3.0}};
+  const std::vector<AnalysisStructures::Range> ranges = {{0.2, 1.0}, {0.2, 3.0}};
 
   Chain::Source source(argv[1], argv[2]);
   const std::vector<std::string>& classes = source.Classes();
@@ -51,20 +51,20 @@ int main(int argc, char** argv)
   printf("%-14s %-9s %-7s conv  chi2/ndf     low%%   high%%   yield\n", "model", "fit", "class");
   for (const auto& model : models) {
     for (const auto& range : ranges) {
-      const ExtrapConfig cfg = source.PiConfig(model.name, range, model.params);
+      const AnalysisStructures::ExtrapConfig cfg = source.PiConfig(model.name, range, model.params);
       for (size_t m = 0; m < classes.size(); ++m) {
-        const std::string tag = std::format("{}_{:g}_{}", model.name, range.second, m);
+        const std::string tag = std::format("{}_{:g}_{}", model.name, range.max, m);
         auto h = source.Spectrum("Pi", m, "h_" + tag);
         Chain::Extrapolation e = Chain::Extrapolate(h.get(), cfg, tag);
-        const ExtrapolationResult& res = e.res;
-        printf("%-14s %3.1f-%-5.1f %-7s %-4s  %8.2f   %6.2f  %6.2f   %.4f\n", model.name.c_str(), range.first, range.second, classes[m].c_str(),
+        const AnalysisStructures::ExtrapolationResult& res = e.res;
+        printf("%-14s %3.1f-%-5.1f %-7s %-4s  %8.2f   %6.2f  %6.2f   %.4f\n", model.name.c_str(), range.min, range.max, classes[m].c_str(),
                e.converged ? "yes" : "NO", res.fit.ReducedChi2(), 100 * res.extrapolatedYieldLow / res.yield,
                100 * res.extrapolatedYieldHigh / res.yield, res.yield);
 
         out.cd();
         Chain::DataOverFit(h.get(), e, cfg, "ratio_" + tag)->Write();
-        Chain::WriteCurve(e.main.get(), cfg.domainRange.first, cfg.domainRange.second,
-                          std::format("{} {:g}-{:g}", model.name, range.first, range.second));
+        Chain::WriteCurve(e.main.get(), cfg.domainRange.min, cfg.domainRange.max,
+                          std::format("{} {:g}-{:g}", model.name, range.min, range.max));
       }
     }
   }

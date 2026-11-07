@@ -31,7 +31,7 @@ namespace
 struct Case {
   std::string key;   // how drawTwoFits.C and the comparisons below ask for it
   std::string label; // what the tables and the figure call it
-  ExtrapConfig cfg;
+  AnalysisStructures::ExtrapConfig cfg;
 };
 
 // chi2 of 'n' bins from the one where 'from' lies, each against the average of 'f' over it.
@@ -53,11 +53,12 @@ int main(int argc, char** argv)
   const std::vector<std::string>& classes = source.Classes();
   const size_t nClasses = classes.size();
 
-  auto withHigh = [](ExtrapConfig cfg, std::pair<double, double> highRange) {
-    cfg.high = ExtrapFit{"LevyTsallis", highRange, Chain::kLevyPi};
+  auto withHigh = [](AnalysisStructures::ExtrapConfig cfg, AnalysisStructures::Range highRange) {
+    cfg.high = AnalysisStructures::ExtrapFit{.model = "LevyTsallis", .fitRange = highRange, .params = Chain::kLevyPi,
+                                             .source = "the study's own high LevyTsallis case for Pi, not extrapConfig.json"};
     return cfg;
   };
-  const ExtrapConfig levy = source.PiConfig("LevyTsallis", {0.2, 1.0}, Chain::kLevyPi);
+  const AnalysisStructures::ExtrapConfig levy = source.PiConfig("LevyTsallis", {0.2, 1.0}, Chain::kLevyPi);
   const std::vector<Case> cases = {
     {"levy", "Levy-Tsallis 0.2-1 (until 20 Oct)", levy},
     {"blastwave", "Blast-wave 0.2-3 (since 20 Oct)", source.PiConfig("BlastWave", {0.2, 3.0}, Chain::kBlastWavePi)},
@@ -87,7 +88,7 @@ int main(int argc, char** argv)
     for (size_t m = 0; m < nClasses; ++m) {
       auto h = source.Spectrum("Pi", m, std::format("h_{}_{}", cases[c].key, m));
       results[c].push_back(Chain::Extrapolate(h.get(), cases[c].cfg, std::format("{}_{}", cases[c].key, m)));
-      const ExtrapolationResult& res = results[c].back().res;
+      const AnalysisStructures::ExtrapolationResult& res = results[c].back().res;
       printf("%-38s %-7s %-4s  %6.1f/%-3d       %6.1f/%-3d    %6.2f  %6.2f   %.4f\n", cases[c].label.c_str(), classes[m].c_str(),
              results[c].back().converged ? "yes" : "NO", res.fit.chi2, res.fit.ndf, res.highFit ? res.highFit->chi2 : 0.0,
              res.highFit ? res.highFit->ndf : 0, 100 * res.extrapolatedYieldLow / res.yield, 100 * res.extrapolatedYieldHigh / res.yield, res.yield);
@@ -124,13 +125,13 @@ int main(int argc, char** argv)
     }
   }
 
-  const double fitFrom = cases[blastWave].cfg.fitRange.first;
+  const double fitFrom = cases[blastWave].cfg.fitRange.min;
   printf("\n'%s' against '%s':\n", cases[blastWave].label.c_str(), cases[twoLevy].label.c_str());
   printf("%-7s | chi2/ndf of the fits            | chi2, first 3 bins from %g GeV/c\n", "class", fitFrom);
   for (size_t m = 0; m < nClasses; ++m) {
-    const FitQuality& bw = results[blastWave][m].res.fit;
-    const FitQuality& low = results[twoLevy][m].res.fit;
-    const FitQuality& high = *results[twoLevy][m].res.highFit;
+    const AnalysisStructures::FitQuality& bw = results[blastWave][m].res.fit;
+    const AnalysisStructures::FitQuality& low = results[twoLevy][m].res.fit;
+    const AnalysisStructures::FitQuality& high = *results[twoLevy][m].res.highFit;
     const double twoChi2 = low.chi2 + high.chi2;
     const int twoNdf = low.ndf + high.ndf;
     printf("%-7s | %6.1f/%d = %5.1f  %6.1f/%d = %5.1f | %6.1f  %6.1f\n", classes[m].c_str(), bw.chi2, bw.ndf, bw.ReducedChi2(), twoChi2, twoNdf,
@@ -161,11 +162,11 @@ int main(int argc, char** argv)
     spectra[m]->Write();
     for (size_t c = 0; c < cases.size(); ++c) {
       Chain::Extrapolation& e = results[c][m];
-      const ExtrapConfig& cfg = cases[c].cfg;
+      const AnalysisStructures::ExtrapConfig& cfg = cases[c].cfg;
       Chain::DataOverFit(spectra[m].get(), e, cfg, std::format("ratio_{}_{}", cases[c].key, m))->Write();
-      Chain::WriteCurve(e.main.get(), cfg.domainRange.first, Chain::Split(cfg), cases[c].label);
+      Chain::WriteCurve(e.main.get(), cfg.domainRange.min, Chain::Split(cfg), cases[c].label);
       if (e.high)
-        Chain::WriteCurve(e.high.get(), Chain::Split(cfg), cfg.domainRange.second, cases[c].label);
+        Chain::WriteCurve(e.high.get(), Chain::Split(cfg), cfg.domainRange.max, cases[c].label);
     }
   }
   return 0;
