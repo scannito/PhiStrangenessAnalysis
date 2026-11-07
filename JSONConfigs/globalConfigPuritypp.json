@@ -180,7 +180,13 @@
             }
         },
         "active_tasks": [
-            "purity_task_2026_highIR_updated"
+            "purity_task_2026_highIR_updated",
+            "purity_task_2026_lowIRad_updated",
+            "purity_task_2026_lowIRae_updated",
+            "purity_task_2026_lowIRaf_updated",
+            "purity_task_2026_lowIRag_updated",
+            "purity_task_2026_lowIRai_updated",
+            "purity_task_2023_updated"
         ],
         "inactive_tasks": [
             "purity_task_2024",
@@ -201,5 +207,35 @@
         "inherits": "purity_base_settings_updated",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
         "output_prefix": "Data_2026_HighIR_updated_"
+    },
+    "purity_task_2026_lowIRad_updated": {
+        "inherits": "purity_base_settings_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "output_prefix": "Data_2026_LowIRad_updated_"
+    },
+    "purity_task_2026_lowIRae_updated": {
+        "inherits": "purity_base_settings_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "output_prefix": "Data_2026_LowIRae_updated_"
+    },
+    "purity_task_2026_lowIRaf_updated": {
+        "inherits": "purity_base_settings_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "output_prefix": "Data_2026_LowIRaf_updated_"
+    },
+    "purity_task_2026_lowIRag_updated": {
+        "inherits": "purity_base_settings_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "output_prefix": "Data_2026_LowIRag_updated_"
+    },
+    "purity_task_2026_lowIRai_updated": {
+        "inherits": "purity_base_settings_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "output_prefix": "Data_2026_LowIRai_updated_"
+    },
+    "purity_task_2023_updated": {
+        "inherits": "purity_base_settings_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "output_prefix": "Data_2023_updated_"
     }
 }

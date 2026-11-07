@@ -79,7 +79,65 @@
             "phi_fit_task_online_efficiency_2026_highIR_updated",
             "correlation_task_offline_efficiency_2026_highIR_updated",
             "correlation_task_online_efficiency_2026_highIR_updated",
-            "correlation_task_online_efficiency_no_phi_2026_highIR_updated"
+            "correlation_task_online_efficiency_no_phi_2026_highIR_updated",
+            "phi_fit_task_online_efficiency_2026_strange_injected_highIR_updated",
+            "correlation_task_offline_efficiency_2026_strange_injected_highIR_updated",
+            "correlation_task_online_efficiency_2026_strange_injected_highIR_updated",
+            "correlation_task_online_efficiency_no_phi_2026_strange_injected_highIR_updated",
+            "phi_fit_task_offline_efficiency_2026_lowIRad_updated",
+            "phi_fit_task_online_efficiency_2026_lowIRad_updated",
+            "correlation_task_offline_efficiency_2026_lowIRad_updated",
+            "correlation_task_online_efficiency_2026_lowIRad_updated",
+            "correlation_task_online_efficiency_no_phi_2026_lowIRad_updated",
+            "phi_fit_task_online_efficiency_2026_strange_injected_lowIRad_updated",
+            "correlation_task_offline_efficiency_2026_strange_injected_lowIRad_updated",
+            "correlation_task_online_efficiency_2026_strange_injected_lowIRad_updated",
+            "correlation_task_online_efficiency_no_phi_2026_strange_injected_lowIRad_updated",
+            "phi_fit_task_offline_efficiency_2026_lowIRae_updated",
+            "phi_fit_task_online_efficiency_2026_lowIRae_updated",
+            "correlation_task_offline_efficiency_2026_lowIRae_updated",
+            "correlation_task_online_efficiency_2026_lowIRae_updated",
+            "correlation_task_online_efficiency_no_phi_2026_lowIRae_updated",
+            "phi_fit_task_online_efficiency_2026_strange_injected_lowIRae_updated",
+            "correlation_task_offline_efficiency_2026_strange_injected_lowIRae_updated",
+            "correlation_task_online_efficiency_2026_strange_injected_lowIRae_updated",
+            "correlation_task_online_efficiency_no_phi_2026_strange_injected_lowIRae_updated",
+            "phi_fit_task_offline_efficiency_2026_lowIRaf_updated",
+            "phi_fit_task_online_efficiency_2026_lowIRaf_updated",
+            "correlation_task_offline_efficiency_2026_lowIRaf_updated",
+            "correlation_task_online_efficiency_2026_lowIRaf_updated",
+            "correlation_task_online_efficiency_no_phi_2026_lowIRaf_updated",
+            "phi_fit_task_online_efficiency_2026_strange_injected_lowIRaf_updated",
+            "correlation_task_offline_efficiency_2026_strange_injected_lowIRaf_updated",
+            "correlation_task_online_efficiency_2026_strange_injected_lowIRaf_updated",
+            "correlation_task_online_efficiency_no_phi_2026_strange_injected_lowIRaf_updated",
+            "phi_fit_task_offline_efficiency_2026_lowIRag_updated",
+            "phi_fit_task_online_efficiency_2026_lowIRag_updated",
+            "correlation_task_offline_efficiency_2026_lowIRag_updated",
+            "correlation_task_online_efficiency_2026_lowIRag_updated",
+            "correlation_task_online_efficiency_no_phi_2026_lowIRag_updated",
+            "phi_fit_task_online_efficiency_2026_strange_injected_lowIRag_updated",
+            "correlation_task_offline_efficiency_2026_strange_injected_lowIRag_updated",
+            "correlation_task_online_efficiency_2026_strange_injected_lowIRag_updated",
+            "correlation_task_online_efficiency_no_phi_2026_strange_injected_lowIRag_updated",
+            "phi_fit_task_offline_efficiency_2026_lowIRai_updated",
+            "phi_fit_task_online_efficiency_2026_lowIRai_updated",
+            "correlation_task_offline_efficiency_2026_lowIRai_updated",
+            "correlation_task_online_efficiency_2026_lowIRai_updated",
+            "correlation_task_online_efficiency_no_phi_2026_lowIRai_updated",
+            "phi_fit_task_online_efficiency_2026_strange_injected_lowIRai_updated",
+            "correlation_task_offline_efficiency_2026_strange_injected_lowIRai_updated",
+            "correlation_task_online_efficiency_2026_strange_injected_lowIRai_updated",
+            "correlation_task_online_efficiency_no_phi_2026_strange_injected_lowIRai_updated",
+            "phi_fit_task_offline_efficiency_2023_updated",
+            "phi_fit_task_online_efficiency_2023_updated",
+            "correlation_task_offline_efficiency_2023_updated",
+            "correlation_task_online_efficiency_2023_updated",
+            "correlation_task_online_efficiency_no_phi_2023_updated",
+            "phi_fit_task_online_efficiency_2023_strange_injected_updated",
+            "correlation_task_offline_efficiency_2023_strange_injected_updated",
+            "correlation_task_online_efficiency_2023_strange_injected_updated",
+            "correlation_task_online_efficiency_no_phi_2023_strange_injected_updated"
         ],
         "inactive_tasks": [
             "phi_fit_task_offline_efficiency_2024",
@@ -211,5 +269,535 @@
         "purity_prefix": "Data_2026_HighIR_updated_",
         "trigger_prefix": "Data_OfflineEff_2026_HighIR_updated_",
         "output_prefix": "Data_OnlineEff_NoPhi_2026_HighIR_updated_"
+    },
+    "phi_fit_task_online_efficiency_2026_strange_injected_highIR_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66811/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_HighIR_updated_"
+    },
+    "correlation_task_offline_efficiency_2026_strange_injected_highIR_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66811/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66811/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_HighIR_updated_Corrections.root",
+        "purity_prefix": "Data_2026_HighIR_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_HighIR_updated_",
+        "output_prefix": "Data_OfflineEff_2026_StrInj_HighIR_updated_"
+    },
+    "correlation_task_online_efficiency_2026_strange_injected_highIR_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66811/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66811/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2026_HighIR_updated_",
+        "trigger_prefix": "Data_OnlineEff_2026_StrInj_HighIR_updated_",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_HighIR_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2026_strange_injected_highIR_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66811/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66811/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_HighIR_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2026_HighIR_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_HighIR_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2026_StrInj_HighIR_updated_"
+    },
+    "phi_fit_task_offline_efficiency_2026_lowIRad_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OfflineEff_2026_LowIRad_updated_"
+    },
+    "phi_fit_task_online_efficiency_2026_lowIRad_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2026_LowIRad_updated_"
+    },
+    "correlation_task_offline_efficiency_2026_lowIRad_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_LowIRad_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRad_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRad_updated_",
+        "output_prefix": "Data_OfflineEff_2026_LowIRad_updated_"
+    },
+    "correlation_task_online_efficiency_2026_lowIRad_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2026_LowIRad_updated_",
+        "trigger_prefix": "Data_OnlineEff_2026_LowIRad_updated_",
+        "output_prefix": "Data_OnlineEff_2026_LowIRad_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2026_lowIRad_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66810/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_LowIRad_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRad_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRad_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2026_LowIRad_updated_"
+    },
+    "phi_fit_task_online_efficiency_2026_strange_injected_lowIRad_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_LowIRad_updated_"
+    },
+    "correlation_task_offline_efficiency_2026_strange_injected_lowIRad_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66812/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_LowIRad_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRad_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRad_updated_",
+        "output_prefix": "Data_OfflineEff_2026_StrInj_LowIRad_updated_"
+    },
+    "correlation_task_online_efficiency_2026_strange_injected_lowIRad_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2026_LowIRad_updated_",
+        "trigger_prefix": "Data_OnlineEff_2026_StrInj_LowIRad_updated_",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_LowIRad_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2026_strange_injected_lowIRad_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66812/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_LowIRad_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRad_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRad_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2026_StrInj_LowIRad_updated_"
+    },
+    "phi_fit_task_offline_efficiency_2026_lowIRae_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OfflineEff_2026_LowIRae_updated_"
+    },
+    "phi_fit_task_online_efficiency_2026_lowIRae_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2026_LowIRae_updated_"
+    },
+    "correlation_task_offline_efficiency_2026_lowIRae_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_LowIRae_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRae_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRae_updated_",
+        "output_prefix": "Data_OfflineEff_2026_LowIRae_updated_"
+    },
+    "correlation_task_online_efficiency_2026_lowIRae_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2026_LowIRae_updated_",
+        "trigger_prefix": "Data_OnlineEff_2026_LowIRae_updated_",
+        "output_prefix": "Data_OnlineEff_2026_LowIRae_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2026_lowIRae_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66810/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_LowIRae_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRae_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRae_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2026_LowIRae_updated_"
+    },
+    "phi_fit_task_online_efficiency_2026_strange_injected_lowIRae_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_LowIRae_updated_"
+    },
+    "correlation_task_offline_efficiency_2026_strange_injected_lowIRae_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66812/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_LowIRae_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRae_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRae_updated_",
+        "output_prefix": "Data_OfflineEff_2026_StrInj_LowIRae_updated_"
+    },
+    "correlation_task_online_efficiency_2026_strange_injected_lowIRae_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2026_LowIRae_updated_",
+        "trigger_prefix": "Data_OnlineEff_2026_StrInj_LowIRae_updated_",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_LowIRae_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2026_strange_injected_lowIRae_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66812/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_LowIRae_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRae_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRae_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2026_StrInj_LowIRae_updated_"
+    },
+    "phi_fit_task_offline_efficiency_2026_lowIRaf_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OfflineEff_2026_LowIRaf_updated_"
+    },
+    "phi_fit_task_online_efficiency_2026_lowIRaf_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2026_LowIRaf_updated_"
+    },
+    "correlation_task_offline_efficiency_2026_lowIRaf_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_LowIRaf_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRaf_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRaf_updated_",
+        "output_prefix": "Data_OfflineEff_2026_LowIRaf_updated_"
+    },
+    "correlation_task_online_efficiency_2026_lowIRaf_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2026_LowIRaf_updated_",
+        "trigger_prefix": "Data_OnlineEff_2026_LowIRaf_updated_",
+        "output_prefix": "Data_OnlineEff_2026_LowIRaf_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2026_lowIRaf_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66810/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_LowIRaf_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRaf_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRaf_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2026_LowIRaf_updated_"
+    },
+    "phi_fit_task_online_efficiency_2026_strange_injected_lowIRaf_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_LowIRaf_updated_"
+    },
+    "correlation_task_offline_efficiency_2026_strange_injected_lowIRaf_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66812/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_LowIRaf_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRaf_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRaf_updated_",
+        "output_prefix": "Data_OfflineEff_2026_StrInj_LowIRaf_updated_"
+    },
+    "correlation_task_online_efficiency_2026_strange_injected_lowIRaf_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2026_LowIRaf_updated_",
+        "trigger_prefix": "Data_OnlineEff_2026_StrInj_LowIRaf_updated_",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_LowIRaf_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2026_strange_injected_lowIRaf_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66812/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_LowIRaf_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRaf_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRaf_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2026_StrInj_LowIRaf_updated_"
+    },
+    "phi_fit_task_offline_efficiency_2026_lowIRag_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OfflineEff_2026_LowIRag_updated_"
+    },
+    "phi_fit_task_online_efficiency_2026_lowIRag_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2026_LowIRag_updated_"
+    },
+    "correlation_task_offline_efficiency_2026_lowIRag_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_LowIRag_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRag_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRag_updated_",
+        "output_prefix": "Data_OfflineEff_2026_LowIRag_updated_"
+    },
+    "correlation_task_online_efficiency_2026_lowIRag_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2026_LowIRag_updated_",
+        "trigger_prefix": "Data_OnlineEff_2026_LowIRag_updated_",
+        "output_prefix": "Data_OnlineEff_2026_LowIRag_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2026_lowIRag_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66810/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_LowIRag_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRag_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRag_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2026_LowIRag_updated_"
+    },
+    "phi_fit_task_online_efficiency_2026_strange_injected_lowIRag_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_LowIRag_updated_"
+    },
+    "correlation_task_offline_efficiency_2026_strange_injected_lowIRag_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66812/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_LowIRag_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRag_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRag_updated_",
+        "output_prefix": "Data_OfflineEff_2026_StrInj_LowIRag_updated_"
+    },
+    "correlation_task_online_efficiency_2026_strange_injected_lowIRag_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2026_LowIRag_updated_",
+        "trigger_prefix": "Data_OnlineEff_2026_StrInj_LowIRag_updated_",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_LowIRag_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2026_strange_injected_lowIRag_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66812/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_LowIRag_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRag_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRag_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2026_StrInj_LowIRag_updated_"
+    },
+    "phi_fit_task_offline_efficiency_2026_lowIRai_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OfflineEff_2026_LowIRai_updated_"
+    },
+    "phi_fit_task_online_efficiency_2026_lowIRai_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2026_LowIRai_updated_"
+    },
+    "correlation_task_offline_efficiency_2026_lowIRai_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66810/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_LowIRai_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRai_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRai_updated_",
+        "output_prefix": "Data_OfflineEff_2026_LowIRai_updated_"
+    },
+    "correlation_task_online_efficiency_2026_lowIRai_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66810/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2026_LowIRai_updated_",
+        "trigger_prefix": "Data_OnlineEff_2026_LowIRai_updated_",
+        "output_prefix": "Data_OnlineEff_2026_LowIRai_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2026_lowIRai_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66810/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66810/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_LowIRai_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRai_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRai_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2026_LowIRai_updated_"
+    },
+    "phi_fit_task_online_efficiency_2026_strange_injected_lowIRai_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_LowIRai_updated_"
+    },
+    "correlation_task_offline_efficiency_2026_strange_injected_lowIRai_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66812/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_LowIRai_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRai_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRai_updated_",
+        "output_prefix": "Data_OfflineEff_2026_StrInj_LowIRai_updated_"
+    },
+    "correlation_task_online_efficiency_2026_strange_injected_lowIRai_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66812/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2026_LowIRai_updated_",
+        "trigger_prefix": "Data_OnlineEff_2026_StrInj_LowIRai_updated_",
+        "output_prefix": "Data_OnlineEff_2026_StrInj_LowIRai_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2026_strange_injected_lowIRai_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66812/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66812/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2026_StrInj_LowIRai_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2026_LowIRai_updated_",
+        "trigger_prefix": "Data_OfflineEff_2026_LowIRai_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2026_StrInj_LowIRai_updated_"
+    },
+    "phi_fit_task_offline_efficiency_2023_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66240/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OfflineEff_2023_updated_"
+    },
+    "phi_fit_task_online_efficiency_2023_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66240/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2023_updated_"
+    },
+    "correlation_task_offline_efficiency_2023_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66240/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66240/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2023_updated_Corrections.root",
+        "purity_prefix": "Data_2023_updated_",
+        "trigger_prefix": "Data_OfflineEff_2023_updated_",
+        "output_prefix": "Data_OfflineEff_2023_updated_"
+    },
+    "correlation_task_online_efficiency_2023_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66240/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66240/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2023_updated_",
+        "trigger_prefix": "Data_OnlineEff_2023_updated_",
+        "output_prefix": "Data_OnlineEff_2023_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2023_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66240/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66240/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2023_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2023_updated_",
+        "trigger_prefix": "Data_OfflineEff_2023_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2023_updated_"
+    },
+    "phi_fit_task_online_efficiency_2023_strange_injected_updated": {
+        "inherits": "phi_fit_base_settings",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66307/phiStrangenessCorrelation/",
+        "output_prefix": "Data_OnlineEff_2023_StrInj_updated_"
+    },
+    "correlation_task_offline_efficiency_2023_strange_injected_updated": {
+        "inherits": "correlation_task_offline_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_id66307/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_id66307/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2023_StrInj_updated_Corrections.root",
+        "purity_prefix": "Data_2023_updated_",
+        "trigger_prefix": "Data_OfflineEff_2023_updated_",
+        "output_prefix": "Data_OfflineEff_2023_StrInj_updated_"
+    },
+    "correlation_task_online_efficiency_2023_strange_injected_updated": {
+        "inherits": "correlation_task_online_efficiency_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiency_id66307/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiency_id66307/phiStrangenessCorrelation/",
+        "purity_prefix": "Data_2023_updated_",
+        "trigger_prefix": "Data_OnlineEff_2023_StrInj_updated_",
+        "output_prefix": "Data_OnlineEff_2023_StrInj_updated_"
+    },
+    "correlation_task_online_efficiency_no_phi_2023_strange_injected_updated": {
+        "inherits": "correlation_task_online_efficiency_no_phi_updated",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_data": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66307/phiStrangenessCorrelation/",
+        "input_me_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
+        "base_path_me": "phi-strange-correlation_OnlineEfficiencyNoPhi_id66307/phiStrangenessCorrelation/",
+        "corrections_file": "../DataFile/pp/DeltaY/Corrections/2023_StrInj_WTrigger_updated_Corrections.root",
+        "purity_prefix": "Data_2023_updated_",
+        "trigger_prefix": "Data_OfflineEff_2023_updated_",
+        "output_prefix": "Data_OnlineEff_NoPhi_2023_StrInj_updated_"
     }
 }
