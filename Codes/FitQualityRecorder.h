@@ -135,6 +135,11 @@ class FitQualityRecorder
       if constexpr (std::is_arithmetic_v<std::remove_pointer_t<decltype(address)>>) {
         code = tree->SetBranchAddress(name, address);
       } else {
+        // A shared_ptr not for shared ownership but for two of its properties. The holder is on the heap, so its
+        // address, the one ROOT keeps, does not move when 'holders' grows and reallocates (a vector of the pointers
+        // themselves would move them). And shared_ptr<void> holds pointers of different types in one vector and still
+        // destroys each as its own type, its deleter being fixed here, where the type is known; unique_ptr<void> does
+        // not compile without a deleter written by hand.
         auto holder = std::make_shared<decltype(address)>(address);
         holders.push_back(holder);
         code = tree->SetBranchAddress(name, holder.get());
