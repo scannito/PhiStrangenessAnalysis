@@ -9,6 +9,7 @@
 #include "TDirectory.h"
 #include "TFile.h"
 #include "TH1.h"
+#include "THLimitsFinder.h"
 #include "TKey.h"
 #include "TLatex.h"
 #include "TLegend.h"
@@ -238,7 +239,8 @@ class CanvasManager
   // ---------------------------------------------------------------------------
 
   // Creates a HEP-standard 2-pad ratio canvas (top: spectrum/fit, bottom: ratio/pull).
-  // Pads are joined without gap (top bottom-margin = bottom top-margin = 0.02).
+  // Pads are joined without gap (top bottom-margin = bottom top-margin = 0): the ratio reads as the continuation of
+  // the plot above, on its X axis. Whoever draws on them calls HideLabelAtJoint for each pad, once its range is set.
   RatioCanvas CreateRatioCanvas(const std::string& name, const std::string& title = "",
                                 int width = 800, int height = 800,
                                 double splitRatio = 0.30)
@@ -263,13 +265,13 @@ class CanvasManager
 
     // Top Pad (Distribution / Fit / Numerator & Denominator)
     TPad* topPad = new TPad(std::format("{}_top", name).c_str(), "top", 0.0, splitRatio, 1.0, 1.0);
-    SetPadMargins(topPad, {.left = 0.14, .right = 0.05, .top = 0.08, .bottom = 0.02}); // Seamless junction with bottom pad
+    SetPadMargins(topPad, {.left = 0.14, .right = 0.05, .top = 0.08, .bottom = 0.0}); // Seamless junction with bottom pad
     topPad->Draw();
 
     // Bottom Pad (Ratio / Residuals / Pulls)
     TPad* bottomPad = new TPad(std::format("{}_bottom", name).c_str(), "bottom", 0.0, 0.0, 1.0, splitRatio);
     // Seamless junction with the top pad; ample space below for the X axis labels and title.
-    SetPadMargins(bottomPad, {.left = 0.14, .right = 0.05, .top = 0.02, .bottom = 0.35});
+    SetPadMargins(bottomPad, {.left = 0.14, .right = 0.05, .top = 0.0, .bottom = 0.35});
     bottomPad->Draw();
 
     // In ROOT fractional coordinates, text on the smaller bottom pad appears
@@ -281,6 +283,25 @@ class CanvasManager
     }
     TCanvas* raw = RecordCanvas(std::move(c));
     return RatioCanvas{raw, topPad, bottomPad, fontScale};
+  }
+
+  // On a pad joined to another at its lower edge ('upper' false: the top pad of a ratio canvas) or at its upper one
+  // (the bottom pad), the Y label that falls on the joint is not drawn: the joint would cut it and it would run into
+  // the other pad. On the joint means within half a label's height of it, measured on this pad; where the labels fall
+  // is what THLimitsFinder::Optimize gives for the axis's primary divisions over [lo, hi], the pad's Y range, as the
+  // painter draws them. Linear axes only: the caller skips a logarithmic one.
+  static void HideLabelAtJoint(const TPad* pad, TAxis* axis, double lo, double hi, bool upper)
+  {
+    const double padPx = pad->GetWh() * pad->GetHNDC();
+    const double plotPx = padPx * (1.0 - pad->GetTopMargin() - pad->GetBottomMargin());
+    // A size in pixels with a font of precision 3, otherwise a fraction of the pad's smaller side.
+    const double labelPx = axis->GetLabelFont() % 10 == 3 ? axis->GetLabelSize()
+                                                          : axis->GetLabelSize() * std::min(padPx, pad->GetWw() * pad->GetWNDC());
+    double first = 0., last = 0., width = 0.;
+    int n = 0;
+    THLimitsFinder::Optimize(lo, hi, axis->GetNdivisions() % 100, first, last, n, width);
+    if (std::abs(upper ? hi - last : first - lo) < 0.5 * labelPx / plotPx * (hi - lo))
+      axis->ChangeLabel(upper ? -1 : 1, -1, 0);
   }
 
   // 'n' pads in a row with no gap between them: the first pad carries the left margin and the last the right one, each

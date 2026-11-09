@@ -487,6 +487,10 @@ class DynamicRooFitter
 
         CanvasManager::FormatBottomPadAxes(pullFrame, "Pull (#sigma)", -5.0, 5.0, fontScale);
         pullFrame->Draw();
+        // The two pads are joined (CreateRatioCanvas): no label on the joint, on either side.
+        CanvasManager::HideLabelAtJoint(pullPad, pullFrame->GetYaxis(), -5.0, 5.0, /*upper=*/true);
+        if (!logY)
+          CanvasManager::HideLabelAtJoint(mainPad, frame->GetYaxis(), yMin, yMax, /*upper=*/false);
 
         CanvasManager::DrawHorizontalLine(pullPad, obs->getMin(), obs->getMax(), 0.0, kDashed, kGray + 2, 2);
         CanvasManager::DrawHorizontalRange(pullPad, obs->getMin(), obs->getMax(), -2.0, 2.0, kDotted, kRed - 7, 1);

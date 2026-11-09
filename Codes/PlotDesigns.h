@@ -476,10 +476,16 @@ inline Drawn CompareWithRatio(CanvasManager& canvases, const std::string& name, 
       ratios.series.push_back(std::move(r));
     }
   const std::vector<TH1*> bottom = Detail::DrawPanel(rc.bottomPad, ratios, frame, 1.6, false);
+  // The pads are joined (CreateRatioCanvas): a label on the joint is not drawn, on either side. The ranges are the
+  // ones DrawPanel set; a logarithmic top pad keeps its label.
+  if (!panel.logY)
+    CanvasManager::HideLabelAtJoint(rc.topPad, top.front()->GetYaxis(), top.front()->GetMinimum(), top.front()->GetMaximum(), /*upper=*/false);
   if (!bottom.empty()) {
     bottom.front()->GetYaxis()->SetTitle(ratioPad.title.c_str());
     // The ratio pad is short: the default divisions crowd its labels into each other.
     bottom.front()->GetYaxis()->SetNdivisions(505);
+    CanvasManager::HideLabelAtJoint(rc.bottomPad, bottom.front()->GetYaxis(), bottom.front()->GetMinimum(), bottom.front()->GetMaximum(),
+                                    /*upper=*/true);
     CanvasManager::DrawHorizontalLine(rc.bottomPad, bottom.front()->GetXaxis()->GetXmin(), bottom.front()->GetXaxis()->GetXmax());
     rc.bottomPad->SetGridy(ratioPad.grid);
   }
