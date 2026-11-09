@@ -226,78 +226,65 @@
                         "n1_sig_0": 10000.0
                     }
                 },
-                "mult0-1_pt1.2-1.6": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
-                },
                 "mult0-1_pt2-2.4": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult1-5_pt1.2-1.6": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
+                "mult0-1_pt3-4.2": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult1-5_pt2-2.4": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult10-15_pt1.2-1.6": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult10-15_pt3-4.2": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult15-20_pt1.2-1.6": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
+                "mult15-20_pt0-0.3": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
-                "mult20-30_pt0.3-0.5": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
-                },
-                "mult20-30_pt1.2-1.6": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
+                "mult15-20_pt3-4.2": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult20-30_pt2-2.4": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult30-40_pt0-0.3": {
-                    "bkg_model": "Chebychev1"
+                "mult20-30_pt3-4.2": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult30-40_pt1.2-1.6": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
+                "mult30-40_pt3-4.2": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult40-50_pt1.2-1.6": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
-                },
-                "mult5-10_pt1.2-1.6": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
+                "mult40-50_pt3-4.2": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult5-10_pt2-2.4": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult50-70_pt1.2-1.6": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult5-10_pt4.2-6.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult50-70_pt0-0.3": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult50-70_pt3-4.2": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult70-100_pt0-0.3": {
                     "params": {
@@ -305,107 +292,92 @@
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult70-100_pt1.2-1.6": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
-                },
-                "mult0-1_pt1.4-1.5": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
-                },
-                "mult0-1_pt1.5-1.6": {
-                    "bkg_model": "Chebychev1"
-                },
-                "mult0-1_pt1.6-1.7": {
-                    "bkg_model": "Chebychev2",
-                    "params": {
-                        "n1_sig_0": 10000.0,
-                        "n2_sig_0": 10000.0
-                    }
-                },
-                "mult0-1_pt1.7-1.8": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
+                "mult70-100_pt3-4.2": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult0-1_pt2-2.2": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
+                "mult0-1_pt2.8-3": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult0-1_pt3.6-3.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult0-1_pt5-5.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult0-1_pt5.4-5.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt5.9-6.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult0-1_pt6.4-7": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult0-1_pt7-8": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult0-1_pt8-10": {
                     "bkg_model": "Chebychev1",
                     "params": {
                         "n1_sig_0": 10000.0,
                         "n2_sig_0": 10000.0
-                    }
-                },
-                "mult1-5_pt1.2-1.3": {
-                    "bkg_model": "Chebychev2"
-                },
-                "mult1-5_pt1.3-1.4": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
-                },
-                "mult1-5_pt1.4-1.5": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
-                },
-                "mult1-5_pt1.5-1.6": {
-                    "bkg_model": "Chebychev1"
-                },
-                "mult1-5_pt1.6-1.7": {
-                    "sig_model": "DSCB",
-                    "params": {
-                        "n2_sig": 10000.0
-                    }
-                },
-                "mult1-5_pt1.7-1.8": {
-                    "params": {
-                        "n1_sig_0": 10000.0,
-                        "n2_sig_0": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB+Gaussian"
                 },
                 "mult1-5_pt2-2.2": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
+                "mult1-5_pt3.3-3.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult1-5_pt3.6-3.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult1-5_pt3.9-4.2": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult1-5_pt5-5.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
                 "mult1-5_pt5.4-5.9": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult10-15_pt1.2-1.3": {
+                "mult1-5_pt5.9-6.4": {
+                    "sig_model": "DSCB+Gaussian",
                     "bkg_model": "Chebychev2"
                 },
-                "mult10-15_pt1.4-1.5": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult1-5_pt6.4-7": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
-                "mult10-15_pt1.5-1.6": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult1-5_pt7-8": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
-                "mult10-15_pt1.6-1.7": {
-                    "sig_model": "DSCB",
-                    "bkg_model": "Chebychev2",
-                    "params": {
-                        "n2_sig": 10000.0
-                    }
-                },
-                "mult10-15_pt1.7-1.8": {
-                    "params": {
-                        "n1_sig_0": 10000.0,
-                        "n2_sig_0": 10000.0
-                    }
+                "mult1-5_pt8-10": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult10-15_pt1.9-2": {
                     "params": {
@@ -417,100 +389,129 @@
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult15-20_pt1.2-1.3": {
+                "mult10-15_pt2.8-3": {
+                    "sig_model": "DSCB+Gaussian",
                     "bkg_model": "Chebychev2"
                 },
-                "mult15-20_pt1.4-1.5": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult10-15_pt3.3-3.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult15-20_pt1.5-1.6": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult10-15_pt3.6-3.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult15-20_pt1.6-1.7": {
-                    "sig_model": "DSCB",
-                    "params": {
-                        "n2_sig": 10000.0
-                    }
+                "mult10-15_pt4.2-4.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult15-20_pt1.7-1.8": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult10-15_pt4.6-5": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult10-15_pt5-5.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult10-15_pt5.4-5.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult10-15_pt5.9-6.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult10-15_pt6.4-7": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult10-15_pt7-8": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult10-15_pt8-10": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult15-20_pt2-2.2": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
+                "mult15-20_pt2.8-3": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult15-20_pt3.3-3.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
                 "mult15-20_pt3.6-3.9": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult20-30_pt1.4-1.5": {
-                    "params": {
-                        "n1_sig_0": 10000.0,
-                        "n2_sig_0": 10000.0
-                    }
+                "mult15-20_pt5-5.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult20-30_pt1.5-1.6": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult15-20_pt5.4-5.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
-                "mult20-30_pt1.6-1.7": {
-                    "sig_model": "DSCB",
-                    "params": {
-                        "n2_sig": 10000.0
-                    }
+                "mult15-20_pt5.9-6.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
-                "mult20-30_pt1.7-1.8": {
-                    "params": {
-                        "n1_sig_0": 10000.0,
-                        "n2_sig_0": 10000.0
-                    }
+                "mult15-20_pt7-8": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult15-20_pt8-10": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult20-30_pt1.9-2": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
+                "mult20-30_pt3.3-3.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult20-30_pt3.6-3.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult20-30_pt4.2-4.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult20-30_pt4.6-5": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult20-30_pt5.4-5.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
                 "mult20-30_pt5.9-6.4": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult20-30_pt7-8": {
+                "mult20-30_pt6.4-7": {
+                    "sig_model": "DSCB+Gaussian",
                     "bkg_model": "Chebychev1"
                 },
-                "mult30-40_pt1.4-1.5": {
-                    "params": {
-                        "n1_sig_0": 10000.0,
-                        "n2_sig_0": 10000.0
-                    }
+                "mult20-30_pt7-8": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
-                "mult30-40_pt1.5-1.6": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
-                },
-                "mult30-40_pt1.6-1.7": {
-                    "sig_model": "DSCB",
-                    "params": {
-                        "n2_sig": 10000.0
-                    }
-                },
-                "mult30-40_pt1.7-1.8": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult20-30_pt8-10": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult30-40_pt1.9-2": {
                     "params": {
@@ -522,65 +523,94 @@
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult40-50_pt1.3-1.4": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult30-40_pt2.8-3": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult40-50_pt1.4-1.5": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult30-40_pt3.3-3.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult40-50_pt1.5-1.6": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult30-40_pt3.6-3.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult40-50_pt1.6-1.7": {
-                    "sig_model": "DSCB",
-                    "bkg_model": "Chebychev2",
-                    "params": {
-                        "n2_sig": 10000.0
-                    }
+                "mult30-40_pt4.2-4.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult40-50_pt1.7-1.8": {
-                    "params": {
-                        "n1_sig_0": 10000.0,
-                        "n2_sig_0": 10000.0
-                    }
+                "mult30-40_pt4.6-5": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt5-5.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt5.4-5.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt5.9-6.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult30-40_pt7-8": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult30-40_pt8-10": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult40-50_pt1.9-2": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult5-10_pt0.8-0.9": {
-                    "bkg_model": "Chebychev1"
-                },
-                "mult5-10_pt1.2-1.3": {
+                "mult40-50_pt2.6-2.8": {
+                    "sig_model": "DSCB+Gaussian",
                     "bkg_model": "Chebychev2"
                 },
-                "mult5-10_pt1.4-1.5": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
+                "mult40-50_pt2.8-3": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult5-10_pt1.5-1.6": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult40-50_pt3.3-3.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult5-10_pt1.6-1.7": {
+                "mult40-50_pt3.6-3.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult40-50_pt4.6-5": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult40-50_pt5-5.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult40-50_pt5.4-5.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult40-50_pt5.9-6.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult40-50_pt6.4-7": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult40-50_pt7-8": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult40-50_pt8-10": {
                     "sig_model": "DSCB",
-                    "params": {
-                        "n2_sig": 10000.0
-                    }
-                },
-                "mult5-10_pt1.7-1.8": {
-                    "sig_model": "Gaussian+Gaussian"
+                    "bkg_model": "Chebychev2"
                 },
                 "mult5-10_pt2-2.2": {
                     "params": {
@@ -592,84 +622,123 @@
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult50-70_pt1.4-1.5": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult5-10_pt3.3-3.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult50-70_pt1.5-1.6": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult5-10_pt3.6-3.9": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult50-70_pt1.6-1.7": {
-                    "sig_model": "DSCB",
-                    "params": {
-                        "n2_sig": 10000.0
-                    }
+                "mult5-10_pt4.2-4.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult50-70_pt1.7-1.8": {
-                    "params": {
-                        "n1_sig_0": 10000.0,
-                        "n2_sig_0": 10000.0
-                    }
+                "mult5-10_pt4.6-5": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt5-5.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt5.9-6.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt6.4-7": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt7-8": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult5-10_pt8-10": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult50-70_pt1.9-2": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
+                "mult50-70_pt2.8-3": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
                 "mult50-70_pt4.2-4.6": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
-                "mult70-100_pt0.5-0.6": {
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
+                "mult50-70_pt4.6-5": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
-                "mult70-100_pt0.7-0.8": {
+                "mult50-70_pt5-5.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult50-70_pt5.4-5.9": {
+                    "sig_model": "DSCB+Gaussian",
                     "bkg_model": "Chebychev1"
                 },
-                "mult70-100_pt1.3-1.4": {
+                "mult50-70_pt5.9-6.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult50-70_pt7-8": {
+                    "sig_model": "DSCB+Gaussian",
                     "bkg_model": "Chebychev2"
                 },
-                "mult70-100_pt1.4-1.5": {
-                    "params": {
-                        "n1_sig_0": 10000.0
-                    }
-                },
-                "mult70-100_pt1.5-1.6": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n2_sig_0": 10000.0
-                    }
-                },
-                "mult70-100_pt1.6-1.7": {
-                    "sig_model": "DSCB",
-                    "bkg_model": "Chebychev2"
-                },
-                "mult70-100_pt1.7-1.8": {
-                    "params": {
-                        "n1_sig_0": 10000.0,
-                        "n2_sig_0": 10000.0
-                    }
+                "mult50-70_pt8-10": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult70-100_pt1.9-2": {
                     "params": {
                         "n2_sig_0": 10000.0
                     }
                 },
+                "mult70-100_pt2.8-3": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult70-100_pt3.3-3.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult70-100_pt4.2-4.6": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult70-100_pt4.6-5": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult70-100_pt5-5.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
                 "mult70-100_pt5.9-6.4": {
+                    "sig_model": "DSCB+Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult70-100_pt6.4-7": {
+                    "sig_model": "DSCB+Gaussian",
                     "bkg_model": "Chebychev1"
                 },
                 "mult70-100_pt7-8": {
                     "bkg_model": "Chebychev1",
                     "params": {
                         "n2_sig_0": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB+Gaussian"
+                },
+                "mult70-100_pt8-10": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 }
             }
         }
@@ -754,6 +823,18 @@
                         "n2_sig": 10000.0
                     }
                 },
+                "mult0-1_pt1.6-2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt2.4-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult1-5_pt0.8-1.2": {
                     "params": {
                         "n1_sig": 10000.0
@@ -798,7 +879,8 @@
                     "bkg_model": "Chebychev1",
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB"
                 },
                 "mult5-10_pt1.2-1.6": {
                     "params": {
@@ -825,6 +907,10 @@
                         "n2_sig": 10000.0
                     }
                 },
+                "mult70-100_pt4.2-6.5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult0-1_pt1-1.1": {
                     "params": {
                         "n1_sig": 10000.0
@@ -840,15 +926,75 @@
                         "n2_sig": 10000.0
                     }
                 },
+                "mult0-1_pt1.4-1.5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt1.5-1.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt1.6-1.7": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt1.7-1.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt1.8-1.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt1.9-2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt2-2.2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt2.2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt2.8-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt4.6-5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult0-1_pt5-5.4": {
                     "params": {
                         "n2_sig": 10000.0
                     }
                 },
+                "mult0-1_pt5.4-5.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult0-1_pt5.9-6.5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult1-5_pt0.9-1": {
                     "params": {
                         "n1_sig": 10000.0
                     }
+                },
+                "mult1-5_pt1.4-1.5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult1-5_pt1.5-1.6": {
                     "params": {
@@ -859,6 +1005,30 @@
                     "params": {
                         "n2_sig": 10000.0
                     }
+                },
+                "mult1-5_pt1.7-1.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult1-5_pt1.8-1.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult1-5_pt4.6-5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult1-5_pt5-5.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult1-5_pt5.4-5.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult1-5_pt5.9-6.5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult10-15_pt0.9-1": {
                     "params": {
@@ -885,6 +1055,30 @@
                         "n2_sig": 10000.0
                     }
                 },
+                "mult10-15_pt1.6-1.7": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult10-15_pt1.9-2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult10-15_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult10-15_pt2.8-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult10-15_pt5-5.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult10-15_pt5.4-5.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult10-15_pt5.9-6.5": {
                     "params": {
                         "n1_sig": 10000.0,
@@ -900,17 +1094,62 @@
                     "bkg_model": "Chebychev1",
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB"
+                },
+                "mult15-20_pt1.4-1.5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult15-20_pt1.5-1.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult15-20_pt1.6-1.7": {
                     "params": {
                         "n2_sig": 10000.0
                     }
                 },
+                "mult15-20_pt1.7-1.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult15-20_pt1.8-1.9": {
                     "params": {
                         "n2_sig": 10000.0
                     }
+                },
+                "mult15-20_pt1.9-2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult15-20_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult15-20_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult15-20_pt2.8-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult15-20_pt4.6-5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult15-20_pt5-5.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult15-20_pt5.4-5.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult15-20_pt5.9-6.5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult20-30_pt0.8-0.9": {
                     "params": {
@@ -933,16 +1172,28 @@
                         "n2_sig": 10000.0
                     }
                 },
-                "mult20-30_pt4.2-4.6": {
-                    "params": {
-                        "n2_sig": 10000.0
-                    }
+                "mult20-30_pt1.5-1.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult20-30_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult20-30_pt4.6-5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult20-30_pt5.4-5.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult20-30_pt5.9-6.5": {
                     "bkg_model": "Chebychev1",
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB"
                 },
                 "mult30-40_pt0.8-0.9": {
                     "params": {
@@ -979,7 +1230,28 @@
                         "n2_sig": 10000.0
                     }
                 },
-                "mult30-40_pt2-2.2": {
+                "mult30-40_pt1.6-1.7": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult30-40_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult30-40_pt4.6-5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult30-40_pt5-5.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult30-40_pt5.4-5.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult30-40_pt5.9-6.5": {
+                    "sig_model": "DSCB",
                     "bkg_model": "Chebychev1"
                 },
                 "mult40-50_pt0.9-1": {
@@ -987,12 +1259,49 @@
                         "n1_sig": 10000.0
                     }
                 },
+                "mult40-50_pt1.3-1.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult40-50_pt1.4-1.5": {
                     "params": {
                         "n2_sig": 10000.0
                     }
                 },
+                "mult40-50_pt1.5-1.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult40-50_pt1.6-1.7": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult40-50_pt1.7-1.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult40-50_pt1.8-1.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult40-50_pt1.9-2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult40-50_pt2.2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult40-50_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult40-50_pt5-5.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult40-50_pt5.4-5.9": {
+                    "sig_model": "DSCB",
                     "bkg_model": "Chebychev1"
                 },
                 "mult40-50_pt5.9-6.5": {
@@ -1021,12 +1330,41 @@
                         "n2_sig": 10000.0
                     }
                 },
+                "mult5-10_pt1.4-1.5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult5-10_pt1.5-1.6": {
                     "params": {
                         "n2_sig": 10000.0
                     }
                 },
-                "mult5-10_pt2.8-3": {
+                "mult5-10_pt1.6-1.7": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult5-10_pt1.7-1.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult5-10_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult5-10_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult5-10_pt4.6-5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult5-10_pt5.4-5.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult5-10_pt5.9-6.5": {
+                    "sig_model": "DSCB",
                     "bkg_model": "Chebychev1"
                 },
                 "mult50-70_pt0.8-0.9": {
@@ -1053,7 +1391,8 @@
                     "bkg_model": "Chebychev1",
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB"
                 },
                 "mult50-70_pt1.4-1.5": {
                     "params": {
@@ -1065,7 +1404,32 @@
                         "n2_sig": 10000.0
                     }
                 },
-                "mult50-70_pt2.8-3": {
+                "mult50-70_pt1.6-1.7": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult50-70_pt1.7-1.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult50-70_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult50-70_pt4.6-5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult50-70_pt5-5.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult50-70_pt5.4-5.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult50-70_pt5.9-6.5": {
+                    "sig_model": "DSCB",
                     "bkg_model": "Chebychev1"
                 },
                 "mult70-100_pt0.9-1": {
@@ -1098,23 +1462,57 @@
                         "n2_sig": 10000.0
                     }
                 },
+                "mult70-100_pt1.6-1.7": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult70-100_pt1.7-1.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult70-100_pt1.8-1.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult70-100_pt1.9-2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult70-100_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult70-100_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult70-100_pt4.2-4.6": {
                     "params": {
                         "n1_sig": 10000.0
                     }
                 },
+                "mult70-100_pt4.6-5": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
+                },
                 "mult70-100_pt5-5.4": {
                     "bkg_model": "Chebychev1",
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB"
+                },
+                "mult70-100_pt5.4-5.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult70-100_pt5.9-6.5": {
                     "bkg_model": "Chebychev1",
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB"
                 }
             }
         }
@@ -1129,7 +1527,7 @@
         "fit_setup": {
             "default": {
                 "sig_model": "DSCB",
-                "bkg_model": "Chebychev2",
+                "bkg_model": "Chebychev1",
                 "integration_range": [
                     1.655,
                     1.685
@@ -1203,16 +1601,52 @@
                         "n2_sig": 10000.0
                     }
                 },
+                "mult0-1_pt1.6-2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult0-1_pt2.4-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult0-1_pt3-4.2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
                 "mult1-5_pt1.6-2": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult1-5_pt2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult1-5_pt2.4-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult1-5_pt3-4.2": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult10-15_pt2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult10-15_pt2.4-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult10-15_pt3-4.2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult15-20_pt0.8-1.2": {
                     "bkg_model": "Chebychev1",
@@ -1227,11 +1661,21 @@
                         "n2_sig": 10000.0
                     }
                 },
+                "mult15-20_pt2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult15-20_pt2.4-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
                 "mult15-20_pt3-4.2": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult20-30_pt0.8-1.2": {
                     "bkg_model": "Chebychev1",
@@ -1244,7 +1688,25 @@
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult20-30_pt1.6-2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult20-30_pt2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult20-30_pt2.4-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult20-30_pt3-4.2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult30-40_pt0.8-1.2": {
                     "bkg_model": "Chebychev1",
@@ -1253,21 +1715,47 @@
                         "n2_sig": 10000.0
                     }
                 },
+                "mult30-40_pt1.6-2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt2.4-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt3-4.2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
                 "mult40-50_pt1.2-1.6": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult40-50_pt2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult40-50_pt2.4-3": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult40-50_pt3-4.2": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult5-10_pt0.8-1.2": {
                     "bkg_model": "Chebychev1",
@@ -1279,7 +1767,25 @@
                 "mult5-10_pt1.2-1.6": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt1.6-2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt2.4-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt3-4.2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult50-70_pt0.8-1.2": {
                     "bkg_model": "Chebychev1",
@@ -1288,11 +1794,27 @@
                         "n2_sig": 10000.0
                     }
                 },
+                "mult50-70_pt2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult50-70_pt2.4-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult50-70_pt3-4.2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
                 "mult70-100_pt1.6-2": {
                     "bkg_model": "Chebychev1",
                     "params": {
                         "n2_sig": 10000.0
                     }
+                },
+                "mult70-100_pt2.4-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult0-1_pt0.8-0.9": {
                     "sig_model": "Gaussian",
@@ -1330,12 +1852,36 @@
                         "n2_sig": 10000.0
                     }
                 },
+                "mult0-1_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult0-1_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult0-1_pt2.8-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
                 "mult0-1_pt3-3.3": {
                     "bkg_model": "Chebychev1",
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
                     }
+                },
+                "mult0-1_pt3.3-3.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult0-1_pt5.4-5.9": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult0-1_pt5.9-6.5": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult1-5_pt0.8-0.9": {
                     "bkg_model": "Chebychev1",
@@ -1383,30 +1929,55 @@
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult1-5_pt1.6-1.7": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult1-5_pt1.7-1.8": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "n2_sig": 10000.0
-                    }
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult1-5_pt1.8-1.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult1-5_pt1.9-2": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult1-5_pt2.2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult1-5_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult1-5_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult1-5_pt2.8-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult1-5_pt3.3-3.6": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult1-5_pt4.2-4.6": {
                     "bkg_model": "Chebychev1",
@@ -1463,28 +2034,48 @@
                         "n2_sig": 10000.0
                     }
                 },
-                "mult10-15_pt1.5-1.6": {
-                    "params": {
-                        "n2_sig": 10000.0
-                    }
-                },
-                "mult10-15_pt1.7-1.8": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "n2_sig": 10000.0
-                    }
+                "mult10-15_pt2-2.2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult10-15_pt2.2-2.4": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult10-15_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult10-15_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult10-15_pt2.8-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult10-15_pt3.3-3.6": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult10-15_pt3.6-3.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult10-15_pt3.9-4.2": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult10-15_pt5.9-6.5": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult15-20_pt0.8-0.9": {
                     "sig_model": "Gaussian",
@@ -1528,12 +2119,28 @@
                 "mult15-20_pt2.2-2.4": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult15-20_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult15-20_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult15-20_pt2.8-3": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult15-20_pt3.6-3.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult20-30_pt0.8-0.9": {
                     "sig_model": "Gaussian",
@@ -1564,7 +2171,9 @@
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult20-30_pt1.4-1.5": {
                     "bkg_model": "Chebychev1",
@@ -1576,24 +2185,44 @@
                 "mult20-30_pt1.9-2": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult20-30_pt2.2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult20-30_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult20-30_pt2.6-2.8": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult20-30_pt2.8-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult20-30_pt3.3-3.6": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult20-30_pt3.6-3.9": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult30-40_pt0.8-0.9": {
                     "sig_model": "Gaussian",
@@ -1621,22 +2250,30 @@
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult30-40_pt1.4-1.5": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult30-40_pt1.5-1.6": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult30-40_pt1.6-1.7": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult30-40_pt1.8-1.9": {
                     "bkg_model": "Chebychev1",
@@ -1646,17 +2283,40 @@
                     }
                 },
                 "mult30-40_pt1.9-2": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "n2_sig": 10000.0
-                    }
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt2.2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt2.8-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt3.3-3.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult30-40_pt3.6-3.9": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult30-40_pt5.9-6.5": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult40-50_pt0.8-0.9": {
                     "bkg_model": "Chebychev1",
@@ -1697,29 +2357,42 @@
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
-                },
-                "mult40-50_pt1.6-1.7": {
-                    "bkg_model": "Chebychev1",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult40-50_pt1.9-2": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult40-50_pt2-2.2": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult40-50_pt2.2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult40-50_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult40-50_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult40-50_pt2.8-3": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult40-50_pt3-3.3": {
                     "bkg_model": "Chebychev1",
@@ -1727,11 +2400,23 @@
                         "n1_sig": 10000.0
                     }
                 },
+                "mult40-50_pt3.3-3.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult40-50_pt3.6-3.9": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
                 "mult40-50_pt3.9-4.2": {
                     "bkg_model": "Chebychev1",
                     "params": {
                         "n1_sig": 10000.0
                     }
+                },
+                "mult40-50_pt5.4-5.9": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult40-50_pt5.9-6.5": {
                     "bkg_model": "Chebychev1",
@@ -1769,13 +2454,33 @@
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt2.2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult5-10_pt2.8-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult5-10_pt3.3-3.6": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult5-10_pt4.2-4.6": {
                     "bkg_model": "Chebychev1",
@@ -1805,7 +2510,9 @@
                 "mult50-70_pt1.1-1.2": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult50-70_pt1.2-1.3": {
                     "bkg_model": "Chebychev1",
@@ -1823,23 +2530,51 @@
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult50-70_pt1.8-1.9": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult50-70_pt2-2.2": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult50-70_pt2.2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult50-70_pt2.4-2.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult50-70_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult50-70_pt2.8-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult50-70_pt3-3.3": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult50-70_pt3.3-3.6": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult50-70_pt4.6-5": {
                     "bkg_model": "Chebychev1",
@@ -1849,7 +2584,8 @@
                     }
                 },
                 "mult50-70_pt5.9-6.5": {
-                    "sig_model": "Gaussian"
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Chebychev1"
                 },
                 "mult70-100_pt0.8-0.9": {
                     "bkg_model": "Chebychev1",
@@ -1882,20 +2618,42 @@
                 "mult70-100_pt1.5-1.6": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult70-100_pt1.6-1.7": {
                     "params": {
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult70-100_pt2.2-2.4": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult70-100_pt2.4-2.6": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult70-100_pt2.6-2.8": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
+                },
+                "mult70-100_pt2.8-3": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Chebychev2"
                 },
                 "mult70-100_pt4.6-5": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Chebychev1"
+                },
+                "mult70-100_pt5.4-5.9": {
                     "sig_model": "Gaussian",
                     "bkg_model": "Chebychev1"
                 },
@@ -2162,15 +2920,6 @@
                         "n1_sig": 10000.0
                     }
                 },
-                "mult1-5_pt3.4-3.6": {
-                    "params": {
-                        "n2_sig": [
-                            5.0,
-                            1.0,
-                            50.0
-                        ]
-                    }
-                },
                 "mult10-15_pt0.2-0.25": {
                     "params": {
                         "n1_sig": 10000.0
@@ -2370,11 +3119,6 @@
                         "n1_sig": 10000.0
                     }
                 },
-                "mult70-100_pt0.7-0.75": {
-                    "params": {
-                        "n1_sig": 10000.0
-                    }
-                },
                 "mult70-100_pt2-2.2": {
                     "params": {
                         "n2_sig": [
@@ -2408,15 +3152,6 @@
                     "params": {
                         "n1_sig": 10000.0
                     }
-                },
-                "mult70-100_pt3.4-3.6": {
-                    "params": {
-                        "n2_sig": [
-                            5.0,
-                            1.0,
-                            50.0
-                        ]
-                    }
                 }
             }
         }
@@ -2431,7 +3166,7 @@
         "fit_setup": {
             "default": {
                 "sig_model": "DSCB",
-                "bkg_model": "Exponential",
+                "bkg_model": "Gaussian+Exponential",
                 "integration_range": [
                     -3.0,
                     3.0
@@ -2482,6 +3217,36 @@
                         5.0,
                         1.0,
                         50.0
+                    ],
+                    "mean_bkg_0": [
+                        9.0,
+                        5.0,
+                        20.0
+                    ],
+                    "sigma_bkg_0": [
+                        1.5,
+                        0.5,
+                        2.5
+                    ],
+                    "slope_bkg_1": [
+                        -0.1,
+                        -5.0,
+                        5.0
+                    ],
+                    "frac_bkg_0": [
+                        0.5,
+                        0.0,
+                        1.0
+                    ],
+                    "mean_bkg": [
+                        9.0,
+                        5.0,
+                        20.0
+                    ],
+                    "sigma_bkg": [
+                        1.5,
+                        0.5,
+                        2.5
                     ]
                 }
             },
@@ -2494,68 +3259,28 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult0-1_pt0.6-0.8": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult0-1_pt1.2-1.5": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult0-1_pt1.5-2": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
-                "mult0-1_pt2-3": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                "mult1-5_pt0.2-0.3": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
                 },
                 "mult1-5_pt0.4-0.5": {
                     "params": {
@@ -2565,68 +3290,28 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult1-5_pt0.6-0.8": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult1-5_pt1.2-1.5": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult1-5_pt1.5-2": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
-                "mult1-5_pt2-3": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                "mult10-15_pt0.2-0.3": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
                 },
                 "mult10-15_pt0.4-0.5": {
                     "params": {
@@ -2636,32 +3321,9 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult10-15_pt0.8-1": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult10-15_pt1.2-1.5": {
                     "bkg_model": "Gaussian+Exponential",
@@ -2692,32 +3354,13 @@
                 "mult10-15_pt1.5-2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
-                "mult10-15_pt2-3": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                "mult15-20_pt0.2-0.3": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
                 },
                 "mult15-20_pt0.4-0.5": {
                     "params": {
@@ -2727,32 +3370,9 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult15-20_pt0.8-1": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult15-20_pt1.2-1.5": {
                     "bkg_model": "Gaussian+Exponential",
@@ -2783,78 +3403,13 @@
                 "mult15-20_pt1.5-2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
-                },
-                "mult15-20_pt2-3": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult20-30_pt0.2-0.3": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "n2_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
-                },
-                "mult20-30_pt0.4-0.5": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
-                },
-                "mult20-30_pt0.8-1": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
                 },
                 "mult20-30_pt1.2-1.5": {
                     "bkg_model": "Gaussian+Exponential",
@@ -2885,42 +3440,13 @@
                 "mult20-30_pt1.5-2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
-                "mult20-30_pt2-3": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult30-40_pt0.4-0.5": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
+                "mult30-40_pt0.2-0.3": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
                 },
                 "mult30-40_pt1.2-1.5": {
                     "bkg_model": "Gaussian+Exponential",
@@ -2951,42 +3477,9 @@
                 "mult30-40_pt1.5-2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
-                },
-                "mult30-40_pt2-3": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult40-50_pt0.4-0.5": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult40-50_pt1.2-1.5": {
                     "bkg_model": "Gaussian+Exponential",
@@ -3017,32 +3510,13 @@
                 "mult40-50_pt1.5-2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
-                "mult40-50_pt2-3": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                "mult5-10_pt0.2-0.3": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
                 },
                 "mult5-10_pt0.4-0.5": {
                     "params": {
@@ -3052,68 +3526,24 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult5-10_pt0.6-0.8": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult5-10_pt1.2-1.5": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult5-10_pt1.5-2": {
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0
-                    }
-                },
-                "mult5-10_pt2-3": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult50-70_pt0.4-0.5": {
                     "params": {
@@ -3123,57 +3553,9 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult50-70_pt0.6-0.8": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult50-70_pt1-1.2": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult50-70_pt1.2-1.5": {
                     "bkg_model": "Gaussian+Exponential",
@@ -3204,35 +3586,13 @@
                 "mult50-70_pt1.5-2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
-                },
-                "mult50-70_pt2-3": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult70-100_pt0.2-0.3": {
-                    "sig_model": "Gaussian"
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
                 },
                 "mult70-100_pt0.4-0.5": {
                     "params": {
@@ -3242,72 +3602,30 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult70-100_pt0.5-0.6": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult70-100_pt1.2-1.5": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult70-100_pt1.5-2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
-                },
-                "mult70-100_pt2-3": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult0-1_pt0.3-0.35": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult0-1_pt0.4-0.45": {
                     "params": {
@@ -3317,92 +3635,9 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult0-1_pt0.45-0.5": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
-                },
-                "mult0-1_pt0.55-0.6": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult0-1_pt0.6-0.65": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult0-1_pt0.65-0.7": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult0-1_pt0.7-0.75": {
                     "params": {
@@ -3411,42 +3646,16 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult0-1_pt0.8-0.85": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult0-1_pt1.1-1.2": {
-                    "params": {
-                        "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult0-1_pt1.2-1.3": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult0-1_pt1.3-1.4": {
                     "bkg_model": "Gaussian+Exponential",
@@ -3471,46 +3680,6 @@
                             0.5,
                             0.0,
                             1.0
-                        ]
-                    }
-                },
-                "mult0-1_pt1.4-1.5": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult0-1_pt1.5-1.6": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
                         ]
                     }
                 },
@@ -3568,32 +3737,6 @@
                     }
                 },
                 "mult0-1_pt1.8-1.9": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult0-1_pt1.9-2": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
                         "n2_sig": 10000.0,
@@ -3724,47 +3867,6 @@
                         ]
                     }
                 },
-                "mult0-1_pt2.8-3": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ]
-                    }
-                },
-                "mult0-1_pt3.2-3.4": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
                 "mult0-1_pt3.4-3.6": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
@@ -3845,6 +3947,14 @@
                         ]
                     }
                 },
+                "mult1-5_pt0.25-0.3": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
+                },
+                "mult1-5_pt0.3-0.35": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
+                },
                 "mult1-5_pt0.4-0.45": {
                     "params": {
                         "n1_sig": 10000.0,
@@ -3853,111 +3963,16 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult1-5_pt0.45-0.5": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
-                },
-                "mult1-5_pt0.55-0.6": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult1-5_pt0.6-0.65": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult1-5_pt0.65-0.7": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult1-5_pt0.7-0.75": {
-                    "params": {
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
-                },
-                "mult1-5_pt1.1-1.2": {
-                    "params": {
-                        "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult1-5_pt1.2-1.3": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult1-5_pt1.3-1.4": {
                     "bkg_model": "Gaussian+Exponential",
@@ -3982,47 +3997,6 @@
                             0.5,
                             0.0,
                             1.0
-                        ]
-                    }
-                },
-                "mult1-5_pt1.4-1.5": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult1-5_pt1.5-1.6": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
                         ]
                     }
                 },
@@ -4080,32 +4054,6 @@
                     }
                 },
                 "mult1-5_pt1.8-1.9": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult1-5_pt1.9-2": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
                         "n2_sig": 10000.0,
@@ -4236,47 +4184,6 @@
                         ]
                     }
                 },
-                "mult1-5_pt2.8-3": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ]
-                    }
-                },
-                "mult1-5_pt3.2-3.4": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
                 "mult1-5_pt3.4-3.6": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
@@ -4357,10 +4264,16 @@
                         ]
                     }
                 },
+                "mult10-15_pt0.25-0.3": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
+                },
                 "mult10-15_pt0.3-0.35": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult10-15_pt0.4-0.45": {
                     "params": {
@@ -4370,127 +4283,20 @@
                             -1.0,
                             0.0
                         ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
-                "mult10-15_pt0.45-0.5": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
-                },
-                "mult10-15_pt0.55-0.6": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult10-15_pt0.6-0.65": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult10-15_pt0.65-0.7": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult10-15_pt0.85-0.9": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult10-15_pt1.1-1.2": {
-                    "params": {
-                        "n1_sig": 10000.0
-                    }
+                "mult10-15_pt0.7-0.75": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult10-15_pt1.2-1.3": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult10-15_pt1.3-1.4": {
                     "bkg_model": "Gaussian+Exponential",
@@ -4515,47 +4321,6 @@
                             0.5,
                             0.0,
                             1.0
-                        ]
-                    }
-                },
-                "mult10-15_pt1.4-1.5": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult10-15_pt1.5-1.6": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
                         ]
                     }
                 },
@@ -4639,29 +4404,8 @@
                     }
                 },
                 "mult10-15_pt1.9-2": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    "sig_model": "DSCB",
+                    "bkg_model": "Gaussian"
                 },
                 "mult10-15_pt2-2.2": {
                     "bkg_model": "Gaussian+Exponential",
@@ -4768,47 +4512,6 @@
                         ]
                     }
                 },
-                "mult10-15_pt2.8-3": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ]
-                    }
-                },
-                "mult10-15_pt3.2-3.4": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
                 "mult10-15_pt3.4-3.6": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
@@ -4889,6 +4592,14 @@
                         ]
                     }
                 },
+                "mult15-20_pt0.25-0.3": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
+                },
+                "mult15-20_pt0.3-0.35": {
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
+                },
                 "mult15-20_pt0.4-0.45": {
                     "params": {
                         "n1_sig": 10000.0,
@@ -4897,102 +4608,23 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult15-20_pt0.45-0.5": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
-                },
-                "mult15-20_pt0.55-0.6": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult15-20_pt0.6-0.65": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult15-20_pt0.85-0.9": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult15-20_pt1.1-1.2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult15-20_pt1.2-1.3": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult15-20_pt1.3-1.4": {
                     "bkg_model": "Gaussian+Exponential",
@@ -5017,47 +4649,6 @@
                             0.5,
                             0.0,
                             1.0
-                        ]
-                    }
-                },
-                "mult15-20_pt1.4-1.5": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult15-20_pt1.5-1.6": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
                         ]
                     }
                 },
@@ -5116,32 +4707,6 @@
                     }
                 },
                 "mult15-20_pt1.8-1.9": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult15-20_pt1.9-2": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
                         "n2_sig": 10000.0,
@@ -5272,47 +4837,6 @@
                         ]
                     }
                 },
-                "mult15-20_pt2.8-3": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ]
-                    }
-                },
-                "mult15-20_pt3.2-3.4": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
                 "mult15-20_pt3.4-3.6": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
@@ -5394,20 +4918,15 @@
                     }
                 },
                 "mult20-30_pt0.25-0.3": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "n2_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
                 },
                 "mult20-30_pt0.3-0.35": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult20-30_pt0.4-0.45": {
                     "params": {
@@ -5417,97 +4936,16 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult20-30_pt0.45-0.5": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
-                },
-                "mult20-30_pt0.55-0.6": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult20-30_pt0.6-0.65": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult20-30_pt0.85-0.9": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult20-30_pt1.1-1.2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult20-30_pt1.2-1.3": {
                     "bkg_model": "Gaussian+Exponential",
@@ -5558,47 +4996,6 @@
                             0.5,
                             0.0,
                             1.0
-                        ]
-                    }
-                },
-                "mult20-30_pt1.4-1.5": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult20-30_pt1.5-1.6": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
                         ]
                     }
                 },
@@ -5787,47 +5184,6 @@
                         ]
                     }
                 },
-                "mult20-30_pt2.8-3": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ]
-                    }
-                },
-                "mult20-30_pt3.2-3.4": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
                 "mult20-30_pt3.4-3.6": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
@@ -5908,10 +5264,16 @@
                         ]
                     }
                 },
+                "mult30-40_pt0.25-0.3": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
+                },
                 "mult30-40_pt0.3-0.35": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult30-40_pt0.4-0.45": {
                     "params": {
@@ -5921,7 +5283,9 @@
                             -1.0,
                             0.0
                         ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult30-40_pt0.45-0.5": {
                     "params": {
@@ -5931,62 +5295,16 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult30-40_pt0.55-0.6": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult30-40_pt0.6-0.65": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult30-40_pt1.1-1.2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult30-40_pt1.2-1.3": {
                     "bkg_model": "Gaussian+Exponential",
@@ -6037,47 +5355,6 @@
                             0.5,
                             0.0,
                             1.0
-                        ]
-                    }
-                },
-                "mult30-40_pt1.4-1.5": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult30-40_pt1.5-1.6": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
                         ]
                     }
                 },
@@ -6162,29 +5439,8 @@
                     }
                 },
                 "mult30-40_pt1.9-2": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    "sig_model": "DSCB",
+                    "bkg_model": "Gaussian"
                 },
                 "mult30-40_pt2-2.2": {
                     "bkg_model": "Gaussian+Exponential",
@@ -6290,47 +5546,6 @@
                         ]
                     }
                 },
-                "mult30-40_pt2.8-3": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ]
-                    }
-                },
-                "mult30-40_pt3.2-3.4": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
                 "mult30-40_pt3.4-3.6": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
@@ -6414,7 +5629,9 @@
                 "mult40-50_pt0.3-0.35": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult40-50_pt0.4-0.45": {
                     "params": {
@@ -6424,7 +5641,9 @@
                             -1.0,
                             0.0
                         ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult40-50_pt0.45-0.5": {
                     "params": {
@@ -6434,112 +5653,16 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult40-50_pt0.5-0.55": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult40-50_pt0.55-0.6": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult40-50_pt0.6-0.65": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult40-50_pt0.65-0.7": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult40-50_pt1.1-1.2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult40-50_pt1.2-1.3": {
                     "bkg_model": "Gaussian+Exponential",
@@ -6590,27 +5713,6 @@
                             0.5,
                             0.0,
                             1.0
-                        ]
-                    }
-                },
-                "mult40-50_pt1.4-1.5": {
-                    "params": {
-                        "n1_sig": 10000.0
-                    }
-                },
-                "mult40-50_pt1.5-1.6": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
                         ]
                     }
                 },
@@ -6695,29 +5797,8 @@
                     }
                 },
                 "mult40-50_pt1.9-2": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    "sig_model": "DSCB",
+                    "bkg_model": "Gaussian"
                 },
                 "mult40-50_pt2-2.2": {
                     "bkg_model": "Gaussian+Exponential",
@@ -6823,47 +5904,6 @@
                         ]
                     }
                 },
-                "mult40-50_pt2.8-3": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ]
-                    }
-                },
-                "mult40-50_pt3.2-3.4": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
                 "mult40-50_pt3.4-3.6": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
@@ -6944,10 +5984,16 @@
                         ]
                     }
                 },
+                "mult5-10_pt0.25-0.3": {
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
+                },
                 "mult5-10_pt0.3-0.35": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult5-10_pt0.4-0.45": {
                     "params": {
@@ -6957,127 +6003,16 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult5-10_pt0.45-0.5": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
-                },
-                "mult5-10_pt0.55-0.6": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult5-10_pt0.6-0.65": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult5-10_pt0.65-0.7": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult5-10_pt0.7-0.75": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult5-10_pt1.1-1.2": {
-                    "params": {
-                        "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult5-10_pt1.2-1.3": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult5-10_pt1.3-1.4": {
                     "bkg_model": "Gaussian+Exponential",
@@ -7102,47 +6037,6 @@
                             0.5,
                             0.0,
                             1.0
-                        ]
-                    }
-                },
-                "mult5-10_pt1.4-1.5": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult5-10_pt1.5-1.6": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
                         ]
                     }
                 },
@@ -7226,29 +6120,8 @@
                     }
                 },
                 "mult5-10_pt1.9-2": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    "sig_model": "DSCB",
+                    "bkg_model": "Gaussian"
                 },
                 "mult5-10_pt2-2.2": {
                     "bkg_model": "Gaussian+Exponential",
@@ -7355,47 +6228,6 @@
                         ]
                     }
                 },
-                "mult5-10_pt2.8-3": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ]
-                    }
-                },
-                "mult5-10_pt3.2-3.4": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
                 "mult5-10_pt3.4-3.6": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
@@ -7479,7 +6311,9 @@
                 "mult50-70_pt0.3-0.35": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult50-70_pt0.4-0.45": {
                     "params": {
@@ -7489,7 +6323,9 @@
                             -1.0,
                             0.0
                         ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult50-70_pt0.45-0.5": {
                     "params": {
@@ -7499,37 +6335,16 @@
                             -1.0,
                             0.0
                         ]
-                    }
-                },
-                "mult50-70_pt0.8-0.85": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult50-70_pt1.1-1.2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult50-70_pt1.2-1.3": {
                     "bkg_model": "Gaussian+Exponential",
@@ -7581,11 +6396,6 @@
                             0.0,
                             1.0
                         ]
-                    }
-                },
-                "mult50-70_pt1.4-1.5": {
-                    "params": {
-                        "n1_sig": 10000.0
                     }
                 },
                 "mult50-70_pt1.5-1.6": {
@@ -7798,73 +6608,6 @@
                         ]
                     }
                 },
-                "mult50-70_pt2.8-3": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ]
-                    }
-                },
-                "mult50-70_pt3.2-3.4": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult50-70_pt3.4-3.6": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
                 "mult50-70_pt3.6-3.8": {
                     "bkg_model": "Gaussian+Exponential",
                     "params": {
@@ -7920,67 +6663,29 @@
                     }
                 },
                 "mult70-100_pt0.25-0.3": {
-                    "sig_model": "Gaussian"
+                    "sig_model": "Gaussian",
+                    "bkg_model": "Exponential"
                 },
                 "mult70-100_pt0.3-0.35": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
-                },
-                "mult70-100_pt0.4-0.45": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
-                },
-                "mult70-100_pt0.45-0.5": {
-                    "params": {
-                        "n1_sig": 10000.0,
-                        "slope_bkg": [
-                            -0.1,
-                            -1.0,
-                            0.0
-                        ]
-                    }
-                },
-                "mult70-100_pt0.6-0.65": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult70-100_pt1.1-1.2": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult70-100_pt1.2-1.3": {
                     "params": {
                         "n1_sig": 10000.0
-                    }
+                    },
+                    "sig_model": "DSCB",
+                    "bkg_model": "Exponential"
                 },
                 "mult70-100_pt1.3-1.4": {
                     "bkg_model": "Gaussian+Exponential",
@@ -8006,11 +6711,6 @@
                             0.0,
                             1.0
                         ]
-                    }
-                },
-                "mult70-100_pt1.4-1.5": {
-                    "params": {
-                        "n1_sig": 10000.0
                     }
                 },
                 "mult70-100_pt1.5-1.6": {
@@ -8227,73 +6927,6 @@
                     "params": {
                         "n1_sig": 10000.0,
                         "n2_sig": 10000.0,
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult70-100_pt2.8-3": {
-                    "bkg_model": "Gaussian",
-                    "params": {
-                        "n2_sig": 10000.0,
-                        "mean_bkg": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ]
-                    }
-                },
-                "mult70-100_pt3.2-3.4": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "mean_bkg_0": [
-                            9.0,
-                            5.0,
-                            20.0
-                        ],
-                        "sigma_bkg_0": [
-                            1.5,
-                            0.5,
-                            2.5
-                        ],
-                        "slope_bkg_1": [
-                            -0.1,
-                            -5.0,
-                            5.0
-                        ],
-                        "frac_bkg_0": [
-                            0.5,
-                            0.0,
-                            1.0
-                        ]
-                    }
-                },
-                "mult70-100_pt3.4-3.6": {
-                    "bkg_model": "Gaussian+Exponential",
-                    "params": {
-                        "n1_sig": 10000.0,
                         "mean_bkg_0": [
                             9.0,
                             5.0,

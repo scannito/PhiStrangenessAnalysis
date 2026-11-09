@@ -7,6 +7,45 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## One fit configuration per period, selected on its own data
+
+**9 November 2026.** Each dataset of the `_updated` blocks reads its own `fitConfig_<dataset>.json` (the owner's
+convention of 5 November) in its purity task and in its three φ fits (offline efficiency, online with the
+general-purpose MC, online with the strangeness-injected one): `2026_HighIRac`, `2026_LowIRad`, `ae`, `af`, `ag`, `ai`,
+`2023`. The φ section is the same in all of them, the model decided on 24 October (RelBWKK + BkgMattia, a Voigtian at
+pT 0.4-0.8 GeV/c): it gave no flag, or one or two covQual < 3 out of 70 fits (2023, LowIRad, LowIRae, LowIRai), in every period. The
+purity sections were selected on each period's data, through the purity task itself.
+
+**How.** Per period, six runs of the purity task with every per-cell override removed and each section's default set
+to one candidate (K0S: DSCB, DSCB+Gaussian × Chebychev1/2/3; Xi: DSCB × Chebychev1/2; Omega: DSCB, Gaussian ×
+Chebychev1/2; pi_tpc: DSCB+Gaussian; pi_tof: DSCB, Gaussian × Exponential, Gaussian, Gaussian+Exponential), and the
+reference configuration as a seventh candidate that keeps its overrides, parameters included: for HighIRac the model
+study of 23-26 October (which had been tuned with single-start fits: the configured start wins in few cells under
+`DoFit`'s several starts), for the others HighIRac's result. Per cell, from the `FitQuality` table, the candidates
+within 10 of the lowest AIC (2 `numFloating` + 2 `minNll`); among them the unflagged first, then the fewest floating
+parameters. The section's default is the model chosen most often, every other cell an override. Each configuration
+was then run as written and reproduced the chosen fit in every cell (1990-2020 per period, both binnings); wired
+into the blocks, the LowIRag purity and its StrInj φ fit gave the same values as that run.
+
+A first rule excluded flagged fits outright: it chose fits worse by up to 2.5e4 (K0S) and 1.6e6 (pi_tof) in AIC,
+where the better one had a tail or a kaon parameter at a limit. A flag weighs only between equivalent fits. Widening
+the K0S `c1_bkg` limit to [-2, 1], the most frequent flag, replaced the at-limit flags with invalid-NLL evaluations
+(the polynomial goes negative), with AIC better in as many cells as worse: [-1, 1] kept.
+
+**What came out.** The same defaults in every period, K0S DSCB+Gaussian + Chebychev3, Omega DSCB + Chebychev1 (it
+was Chebychev2), pi_tpc DSCB+Gaussian, pi_tof DSCB + Gaussian+Exponential (it was Exponential: the kaon peak), except
+the Xi: DSCB + Chebychev2 in HighIRac, ad, ae, af, ai, Chebychev1 in ag and 2023. 100-200 overrides per section. Against
+the October configuration on HighIRac no cell is worse than 10 in AIC, and 74 K0S and 187 pi_tof cells are better by
+more than 10. The flags left are the expected ones: the pi_tof kaon constraints (mean ≥ 5, σ ≤ 2.5), the owner's,
+binding, and K0S `c1_bkg` at -1.
+
+**Seen, not settled.** Where the Omega purity is low (≈ 0.3 at pT 4.2-6.5) models equivalent in AIC differ by 10-30 %
+(2023, mult 70-100: 0.35 with the HighIRac configuration, 0.24 with its own): a systematic of the model, not a choice
+of configuration. pi_tof at pT 0.2-0.3 GeV/c has nearly empty cells (TOF below 0.35 GeV/c) and its purity moves by
+up to 50 % between models.
+
+---
+
 ## `AnalysisDataStructures.h` renamed `AnalysisStructures.h`, with its namespace
 
 **2 November 2026.** It was the one shared header without a namespace: `NSigma`, `FitConfig`, `ModelConfig` and two
