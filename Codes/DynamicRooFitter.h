@@ -373,6 +373,7 @@ class DynamicRooFitter
     d.covQual = result.covQual();
     d.edm = result.edm();
     d.numInvalidNLL = result.numInvalidNLL();
+    d.numFloating = result.floatParsFinal().getSize();
     d.counts = counts;
     for (const RooAbsArg* arg : result.floatParsFinal()) {
       const auto* v = dynamic_cast<const RooRealVar*>(arg);

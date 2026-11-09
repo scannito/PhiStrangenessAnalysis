@@ -53,6 +53,7 @@ class FitQualityRecorder
     fTree->Branch("edm", &fRow.fit.edm);
     fTree->Branch("minNll", &fRow.fit.minNll);
     fTree->Branch("numInvalidNLL", &fRow.fit.numInvalidNLL);
+    fTree->Branch("numFloating", &fRow.fit.numFloating);
     fTree->Branch("atLowerLimit", &fRow.fit.atLowerLimit);
     fTree->Branch("atUpperLimit", &fRow.fit.atUpperLimit);
     fTree->Branch("upperIsShape", &fRow.fit.upperIsShape);

@@ -429,7 +429,8 @@ them (`DESIGN_NOTES.md` section 5).
 `PhiFitTask` and `PurityTask` record every fit they run in a `TTree`, `{binning_name}/FitQuality` of their output
 file, one row per fit: the cell (`section`, `binning` analysis or source, the intervals `multLow`/`multHigh` and
 `ptLow`/`ptHigh`, the `fit_setup.bins` override that applied) and what the fit's result says (`counts` the likelihood saw, `status`,
-`covQual`, `edm`, `minNll`, `numInvalidNLL`, `atLowerLimit` and `atUpperLimit`, the floating parameters within
+`covQual`, `edm`, `minNll`, `numInvalidNLL`, `numFloating` (the parameters the fit floated, the k of an information
+criterion: AIC = 2k + 2 `minNll` compares two models of one cell), `atLowerLimit` and `atUpperLimit`, the floating parameters within
 1e-5 of their range from that limit, a yield at its lower one below one count, and `upperIsShape`, the parameters
 whose model calls their upper limit a shape: a DSCB tail n there is a tail as steep as an exponential). `DoFit` fits every cell from several starts and keeps the best (`DESIGN_HISTORY.md`, *Several starts
 per fit*): `start` is the one that won (`config`, `yields`, `staged`), `minNll` its likelihood without offset, and

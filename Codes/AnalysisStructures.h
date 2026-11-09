@@ -234,6 +234,7 @@ struct FitDiagnostics {
   double edm{0.0};
   double minNll{0.0};
   int numInvalidNLL{0};
+  int numFloating{0};               // the parameters the fit floated: the k of an information criterion (AIC = 2k + 2 minNll)
   double counts{0.0};               // what the likelihood saw: the sum of the binned data over the observable range
   // Floating parameters at a limit of their range, one list per end: within 1e-5 of the range (RooFitKnowledge,
   // note 09), a yield at its lower end below one count (DynamicRooFitter::DiagnosticsOf says why).
