@@ -111,16 +111,26 @@ class FitQualityRecorder
   // stops the read: as a default value it would change what Reasons says.
   static std::vector<Row> Read(TDirectory* binningDir, std::string_view who)
   {
-    // Declared before the tree, so that the tree goes first: it points into them. An object column is read through a
-    // pointer to it, which must outlive the reading: one holder per column.
+    // 'row' is the buffer every entry is read into, and 'holders' keeps alive the pointers ROOT is given for the object
+    // columns (below). Both are declared before the tree so that the tree is destroyed first: it points into them.
     Row row;
     std::vector<std::shared_ptr<void>> holders;
     const auto tree = RootIO::GetUniqueOrThrow<TTree>(binningDir, kTreeName, who);
     const std::string where = std::format("the {} tree of '{}'", kTreeName, RootIO::FileNameOf(binningDir));
+    // Binds every column to its member of 'row', so that each GetEntry below fills 'row'. Columns calls this once per
+    // column with its name and the address of the member; the lambda is generic (auto*), so 'address' has the member's
+    // own type in each call: double*, int*, bool*, std::string*, std::vector<std::string>*.
     Columns(row, [&](const char* name, auto* address) {
       if (!tree->GetBranch(name))
         throw std::runtime_error(std::format("[FATAL] {}: {} has no column '{}': it was written by an older version of the "
                                              "task; re-run it.", who, where, name));
+      // ROOT binds the two kinds of column differently, so the kind is chosen at compile time, per column:
+      // - a number (std::is_arithmetic: double, int, bool) is a leaf, read straight into the member: SetBranchAddress
+      //   takes the member's address;
+      // - an object (std::string, std::vector<std::string>) is a class branch, and SetBranchAddress then takes the
+      //   address of a POINTER to the object (T**), because ROOT may replace the object it points to. The pointer is
+      //   the 'address' in hand; it is copied into a holder, whose address is the T** given to ROOT. ROOT keeps that
+      //   address and uses it at every GetEntry, so the holder must live as long as the reading: 'holders' keeps it.
       int code = 0;
       if constexpr (std::is_arithmetic_v<std::remove_pointer_t<decltype(address)>>) {
         code = tree->SetBranchAddress(name, address);
@@ -129,6 +139,7 @@ class FitQualityRecorder
         holders.push_back(holder);
         code = tree->SetBranchAddress(name, holder.get());
       }
+      // A negative code: the column holds another type than the member (written by an older version).
       if (code < 0)
         throw std::runtime_error(std::format("[FATAL] {}: the column '{}' of {} is not of the type this version reads "
                                              "(SetBranchAddress code {}); re-run the task.", who, name, where, code));
