@@ -15,7 +15,9 @@ For one period, with a reference fit configuration (the previous period's, or th
    (2 `numFloating` + 2 `minNll`), and among them the unflagged first, then the fewest floating parameters. The
    reference is a candidate too, and where it wins the cell keeps its setting, parameters included. The section's
    default is the model chosen most often; every other cell gets an override. Whether a fit is flagged is
-   `FitQualityRecorder::Reasons`, the framework's rule.
+   `FitQualityRecorder::Reasons`, the framework's rule. The union of the multiplicity classes (`mult0-100`), which
+   the purity task fits besides them, is a cell like the others: it votes for the default and can get an override.
+   The configurations selected before 9 November 2026 were chosen without it.
 4. **Check.** The selected configuration run as written: it must reproduce every chosen fit (`reproduce.txt`); then
    compared with the reference run (`selected_vs_reference.txt`: NLL, flags, purity ratios).
 5. **φ.** The period's three φ fits (offline, online, online with the strangeness-injected MC) run with the selected

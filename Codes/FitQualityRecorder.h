@@ -11,6 +11,7 @@
 #include <format>
 #include <map>
 #include <memory>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -67,8 +68,8 @@ class FitQualityRecorder
   // configuration it ran with (the fit_setup.bins override that applied, the models). Only the edges are recorded: the
   // canvas and the override are named by them, and a cut on an index across two productions is the mismatch the
   // framework is built against.
-  void Add(const std::string& section, const std::string& binning, const std::vector<double>& multBinning, int multBin,
-           const std::vector<double>& ptBinning, int ptBin, const AnalysisStructures::FitConfig& cfg, const AnalysisStructures::FitDiagnostics& fit)
+  void Add(const std::string& section, const std::string& binning, std::span<const double> multBinning, int multBin,
+           std::span<const double> ptBinning, int ptBin, const AnalysisStructures::FitConfig& cfg, const AnalysisStructures::FitDiagnostics& fit)
   {
     fRow = {.section = section, .binning = binning, .multLow = multBinning[multBin],
             .multHigh = multBinning[multBin + 1], .ptLow = ptBinning[ptBin], .ptHigh = ptBinning[ptBin + 1],

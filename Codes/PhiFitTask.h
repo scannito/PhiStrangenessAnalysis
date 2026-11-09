@@ -57,7 +57,7 @@ class PhiFitTask : public IAnalysisTask
     // 2. Fit Configuration
     std::string fitCfgPath = JsonConfig::RequireString(taskConfig, "fit_config_file", GetName());
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
-    fitConfigManager->DeclareCells(kFitSection, multBinning, {ptPhiBinning});
+    fitConfigManager->DeclareCells(kFitSection, {multBinning}, {ptPhiBinning});
 
     // A snapshot, not a path: this is the file being edited while the fits are
     // tuned, so knowing which one it was says nothing about what was in it.

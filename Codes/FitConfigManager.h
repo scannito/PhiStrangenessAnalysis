@@ -15,19 +15,20 @@ class FitConfigManager : public BaseConfigManager
   // Calls the Base constructor to handle file I/O
   FitConfigManager(const std::string& jsonPath = "fitConfig.json") : BaseConfigManager(jsonPath, "FitConfigManager") {}
 
-  // The cells a task fits in a section, each by OutputNames::CellTag: every pT binning in 'ptBinnings' (PurityTask
-  // fits the source and the analysis one) crossed with 'multBinning'. Declared once per section, before the fits,
-  // every binning in the same call: the overrides are checked against the cells of that call, and a call per
-  // binning would refuse a key valid for another one. The overrides are fit_setup.bins, checked and read as
-  // BaseConfigManager::DeclareTags says.
-  void DeclareCells(const std::string& section, std::span<const double> multBinning,
+  // The cells a task fits in a section, each by OutputNames::CellTag: every multiplicity binning in 'multBinnings'
+  // (PurityTask fits the classes and their union) crossed with every pT binning in 'ptBinnings' (PurityTask fits the
+  // source and the analysis one). Declared once per section, before the fits, every binning in the same call: the
+  // overrides are checked against the cells of that call, and a call per binning would refuse a key valid for
+  // another one. The overrides are fit_setup.bins, checked and read as BaseConfigManager::DeclareTags says.
+  void DeclareCells(const std::string& section, std::initializer_list<std::span<const double>> multBinnings,
                     std::initializer_list<std::span<const double>> ptBinnings)
   {
     std::set<std::string> cells;
-    for (std::span<const double> ptBinning : ptBinnings)
-      for (int multBin : BinningUtils::BinIndices(multBinning))
-        for (int ptBin : BinningUtils::BinIndices(ptBinning))
-          cells.insert(OutputNames::CellTag(multBinning, multBin, ptBinning, ptBin));
+    for (std::span<const double> multBinning : multBinnings)
+      for (std::span<const double> ptBinning : ptBinnings)
+        for (int multBin : BinningUtils::BinIndices(multBinning))
+          for (int ptBin : BinningUtils::BinIndices(ptBinning))
+            cells.insert(OutputNames::CellTag(multBinning, multBin, ptBinning, ptBin));
     const std::string fitCtx = std::format("{}.fit_setup", SectionCtx(section));
     DeclareTags(section, cells, JsonConfig::TryObject(Section(section), "fit_setup", SectionCtx(section)), fitCtx,
                 "the cells this task fits");

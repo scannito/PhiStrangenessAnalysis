@@ -24,6 +24,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -127,8 +128,10 @@ class PurityTask : public IAnalysisTask
 
     // 4. Initialize specific mathematical tools
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
+    // The classes and their union (with one class, the union is that class: the same cells, declared once).
     for (const AnalysisStructures::ParticleTask& task : particleTasks)
-      fitConfigManager->DeclareCells(task.purityKey, multBinning, {task.sourceBinning, task.AnalysisBinning()});
+      fitConfigManager->DeclareCells(task.purityKey, {multBinning, BinningUtils::Whole(multBinning)},
+                                     {task.sourceBinning, task.AnalysisBinning()});
 
     // Last, once the whole configuration has been read: a mistake in it must not cost the previous production.
     RootIO::ClearPath(outputFile.get(), {globalCfgs.binningName});
@@ -138,54 +141,17 @@ class PurityTask : public IAnalysisTask
   {
     Logger::Info("{}: RUNNING FITS...", GetName());
 
-    const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
+    for (int multBin : BinningUtils::BinIndices(multBinning))
+      for (auto& task : particleTasks)
+        FillCCDBColumn(task, multBin,
+                       FitClass(task, multBinning, multBin, globalCfgs.GetSpectraColor(multBin), multBin == 0 ? "" : "SAME").get());
 
-    for (int multBin : BinningUtils::BinIndices(multBinning)) {
-      for (auto& task : particleTasks) {
-        // Every particle's fits in a directory of its own: they share the file.
-        const std::vector<std::string> fitPath = OutputNames::PurityFitsPath(globalCfgs.binningName, task.purityKey);
-
-        TDirectory* summaryDir = RootIO::MakePath(outputFile.get(), summaryPath);
-        TDirectory* fitDir = RootIO::MakePath(outputFile.get(), fitPath);
-
-        std::unique_ptr<TH1> h1PurityAnalysis = FitPuritySpectrum(task, multBin, SpectrumBinning::Analysis, fitDir);
-
-        // Drawn on the summary canvas
-        canvasManager.RequireCanvas(OutputNames::PuritySummaryCanvas(task.purityKey, SpectrumBinning::Analysis))->cd();
-        CanvasManager::DrawStyledCopy(h1PurityAnalysis.get(), multBin == 0 ? "" : "SAME", globalCfgs.GetSpectraColor(multBin));
-
-        summaryDir->cd();
-        h1PurityAnalysis->Write(nullptr, TObject::kOverwrite);
-
-        // When 'rebinning_pt' asked for a coarser analysis binning, the purity is
-        // produced at the source binning as well. It is a second full set of fits,
-        // not a reshaping of the first: a purity is a ratio, so the fine values
-        // cannot be recovered from the merged ones. It is not what the analysis
-        // uses - a per-candidate correction needs the fine one.
-        std::unique_ptr<TH1> h1PuritySeparateSource;
-        if (task.rebinningPt) {
-          TDirectory* fitDirSource = RootIO::MakePath(outputFile.get(), OutputNames::PurityFitsPath(globalCfgs.binningName, task.purityKey, SpectrumBinning::Source));
-          h1PuritySeparateSource = FitPuritySpectrum(task, multBin, SpectrumBinning::Source, fitDirSource);
-
-          canvasManager.RequireCanvas(OutputNames::PuritySummaryCanvas(task.purityKey, SpectrumBinning::Source))->cd();
-          CanvasManager::DrawStyledCopy(h1PuritySeparateSource.get(), multBin == 0 ? "" : "SAME", globalCfgs.GetSpectraColor(multBin));
-
-          // Own subdirectory rather than sitting next to the analysis spectra.
-          // Created here, inside the branch that produces the spectrum, so it
-          // exists if and only if something was written into it.
-          RootIO::MakePath(outputFile.get(), OutputNames::SummaryPath(globalCfgs.binningName, SpectrumBinning::Source))->cd();
-          h1PuritySeparateSource->Write(nullptr, TObject::kOverwrite);
-        }
-
-        // A separate source-binning spectrum is only produced when the analysis one
-        // is coarser; without a merge the analysis spectrum IS at the source binning
-        // and fitting it twice would be wasted work. Named here so that the call
-        // below reads as what it is, and checked inside FillCCDBColumn so that a
-        // coarse spectrum can never reach the map.
-        const TH1* h1PuritySource = h1PuritySeparateSource ? h1PuritySeparateSource.get() : h1PurityAnalysis.get();
-        FillCCDBColumn(task, multBin, h1PuritySource);
-      }
-    }
+    // The union of the classes, fitted on its merged mass distribution like any class: a purity is a ratio, and an
+    // average of the classes' would not be it. Written next to them, for what compares a class with the whole; not
+    // in the CCDB map, which O2 reads class by class.
+    if (const auto classesUnion = OutputNames::PurityUnion(multBinning))
+      for (auto& task : particleTasks)
+        FitClass(task, *classesUnion, 0, kBlack, "SAME");
   }
 
   void Terminate() override
@@ -242,12 +208,54 @@ class PurityTask : public IAnalysisTask
   // of a single choice: passed separately, nothing would stop them disagreeing.
   using SpectrumBinning = OutputNames::SpectrumBinning;
 
+  // The purity of class 'classBin' of 'classes' (multBinning, or OutputNames::PurityUnion), written into the summary directory
+  // and drawn on the summary canvases in 'color'; returned at the source binning, which the CCDB map takes.
+  std::unique_ptr<TH1> FitClass(AnalysisStructures::ParticleTask& task, std::span<const double> classes, int classBin, int color,
+                                const char* drawOption)
+  {
+    auto drawOnSummary = [&](const TH1* h, SpectrumBinning which) {
+      canvasManager.RequireCanvas(OutputNames::PuritySummaryCanvas(task.purityKey, which))->cd();
+      CanvasManager::DrawStyledCopy(h, drawOption, color);
+    };
 
+    // Every particle's fits in a directory of its own: they share the file.
+    TDirectory* fitDir = RootIO::MakePath(outputFile.get(), OutputNames::PurityFitsPath(globalCfgs.binningName, task.purityKey));
+    std::unique_ptr<TH1> h1PurityAnalysis = FitPuritySpectrum(task, classes, classBin, SpectrumBinning::Analysis, fitDir);
+    drawOnSummary(h1PurityAnalysis.get(), SpectrumBinning::Analysis);
+    RootIO::MakePath(outputFile.get(), OutputNames::SummaryPath(globalCfgs.binningName))->cd();
+    h1PurityAnalysis->Write(nullptr, TObject::kOverwrite);
+
+    // A separate source-binning spectrum is only produced when the analysis one
+    // is coarser; without a merge the analysis spectrum IS at the source binning
+    // and fitting it twice would be wasted work. FillCCDBColumn checks the axis, so
+    // that a coarse spectrum can never reach the map.
+    if (!task.rebinningPt)
+      return h1PurityAnalysis;
+
+    // When 'rebinning_pt' asked for a coarser analysis binning, the purity is
+    // produced at the source binning as well. It is a second full set of fits,
+    // not a reshaping of the first: a purity is a ratio, so the fine values
+    // cannot be recovered from the merged ones. It is not what the analysis
+    // uses - a per-candidate correction needs the fine one.
+    TDirectory* fitDirSource = RootIO::MakePath(outputFile.get(), OutputNames::PurityFitsPath(globalCfgs.binningName, task.purityKey, SpectrumBinning::Source));
+    std::unique_ptr<TH1> h1PuritySource = FitPuritySpectrum(task, classes, classBin, SpectrumBinning::Source, fitDirSource);
+    drawOnSummary(h1PuritySource.get(), SpectrumBinning::Source);
+
+    // Own subdirectory rather than sitting next to the analysis spectra.
+    // Created here, inside the branch that produces the spectrum, so it
+    // exists if and only if something was written into it.
+    RootIO::MakePath(outputFile.get(), OutputNames::SummaryPath(globalCfgs.binningName, SpectrumBinning::Source))->cd();
+    h1PuritySource->Write(nullptr, TObject::kOverwrite);
+    return h1PuritySource;
+  }
 
   // Builds one purity spectrum: for every bin, fits the mass distribution obtained
   // by merging the source bins it covers and reads S/(S+B) off the fit. At the
-  // source binning each bin covers exactly itself.
-  std::unique_ptr<TH1> FitPuritySpectrum(AnalysisStructures::ParticleTask& task, int multBin, SpectrumBinning which, TDirectory* fitDir)
+  // source binning each bin covers exactly itself. The same holds on the
+  // multiplicity axis: class 'classBin' of 'classes' covers the bins of multBinning
+  // between its edges.
+  std::unique_ptr<TH1> FitPuritySpectrum(AnalysisStructures::ParticleTask& task, std::span<const double> classes, int classBin,
+                                         SpectrumBinning which, TDirectory* fitDir)
   {
     const bool atSource = (which == SpectrumBinning::Source);
     const std::vector<double>& binning = atSource ? task.sourceBinning : task.AnalysisBinning();
@@ -257,16 +265,16 @@ class PurityTask : public IAnalysisTask
     std::string label = task.purityKey;
     std::ranges::replace(label, '_', ' ');
 
-    std::string hName = OutputNames::Purity(task.purityKey, OutputNames::MultTag(multBinning, multBin), which);
+    std::string hName = OutputNames::Purity(task.purityKey, OutputNames::MultTag(classes, classBin), which);
     std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
                                                                    BinningUtils::NBins(binning), binning.data());
     h1PuritySpectrum->SetDirectory(0);
 
+    const BinningUtils::BinRange mult = BinningUtils::MapToSourceBins(multBinning, classes)[classBin];
     for (int ptBin : BinningUtils::BinIndices(binning)) {
-      const std::string cell = OutputNames::CellTag(multBinning, multBin, binning, ptBin);
+      const std::string cell = OutputNames::CellTag(classes, classBin, binning, ptBin);
       std::string histName = std::format("h1{}_{}{}", task.purityKey, cell, nameSuffix);
 
-      const auto mult = BinningUtils::BinRange::Single(multBin);
       const BinningUtils::BinRange pt = atSource ? BinningUtils::BinRange::Single(ptBin) : task.mappedSourceBins[ptBin];
       std::unique_ptr<TH1> h1Data(static_cast<TH1D*>(task.h3Source->ProjectionZ(histName.c_str(), mult.first, mult.last, pt.first, pt.last)));
       h1Data->SetDirectory(0);
@@ -276,8 +284,8 @@ class PurityTask : public IAnalysisTask
       DynamicRooFitter fitter(h1Data.get(), cfg);
 
       fitter.DoFit();
-      fitQuality.Add(task.purityKey, atSource ? FitQualityRecorder::kSourceBinning : FitQualityRecorder::kAnalysisBinning, multBinning,
-                     multBin, binning, ptBin, cfg, fitter.Diagnostics());
+      fitQuality.Add(task.purityKey, atSource ? FitQualityRecorder::kSourceBinning : FitQualityRecorder::kAnalysisBinning, classes,
+                     classBin, binning, ptBin, cfg, fitter.Diagnostics());
 
       auto res = fitter.ExtractYieldsAndPurity();
       HistogramUtils::SetBinValueAndError(h1PuritySpectrum.get(), ptBin, res.purityAndError);
@@ -286,7 +294,7 @@ class PurityTask : public IAnalysisTask
       // per fit, as in PhiFitTask: holding them all for the WriteAll in Terminate would
       // only cost memory, since nothing in the run reads a fit canvas back.
       const std::string cName = OutputNames::PurityFitCanvas(task.purityKey, cell, which);
-      const std::string title = OutputNames::CellTitle(label, multBinning, multBin, binning, ptBin) + titleSuffix;
+      const std::string title = OutputNames::CellTitle(label, classes, classBin, binning, ptBin) + titleSuffix;
       TCanvas* cFit = canvasManager.CreateCanvas(cName, title, 800, 800);
       // log: the background under a peak of 1e5-1e8 counts is at 1e-2-1e-4 of it, and it decides the purity
       fitter.DrawFit(cFit, title, /*logY=*/true);

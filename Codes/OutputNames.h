@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <format>
+#include <optional>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -101,7 +102,10 @@ inline std::string MultTag(std::span<const double> multBinning, int multBin)
 {
   return std::format("mult{}", BinningUtils::BinLabel(multBinning, multBin));
 }
-// The tag of what is integrated over every class, where a MultTag would stand.
+// The tag of what is integrated over every class, where a MultTag would stand: the correction maps' (MCTask). The
+// purity of the union of the classes is named by its interval instead (PurityUnion), because it has fit cells, which
+// fitConfig.json keys and FitQuality records by interval. Two names for one idea, left so on 9 November 2026: moving
+// the maps to the interval renames the objects of every Corrections.root already produced.
 inline const std::string kMultIntegrated{"multIntegrated"};
 // A pT interval, "pt1.2-1.6"; the trigger's is "ptPhi" + BinLabel, where both appear in one name.
 inline std::string PtTag(std::span<const double> ptBinning, int ptBin)
@@ -174,6 +178,15 @@ inline const std::string kTriggerBkgRatio{"h2TriggerBkgRatio"};
 inline std::string Purity(std::string_view purityKey, std::string_view multTag, SpectrumBinning binning = SpectrumBinning::Analysis)
 {
   return std::format("h1{}Purity_{}{}", purityKey, multTag, BinningSuffix(binning));
+}
+// The union of the classes that PurityTask fits besides them, as a binning of one class (BinningUtils::Whole): named,
+// keyed and recorded by its interval ("mult0-100") as every class is. None with a single class, which is the union
+// already, under the same names: fitting it twice would write every name twice.
+inline std::optional<std::vector<double>> PurityUnion(std::span<const double> multBinning)
+{
+  if (BinningUtils::NBins(multBinning) < 2)
+    return std::nullopt;
+  return BinningUtils::Whole(multBinning);
 }
 
 inline std::string Spectrum(std::string_view particle, double dy, std::span<const double> multBinning, int multBin)

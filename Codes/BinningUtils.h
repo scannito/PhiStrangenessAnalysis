@@ -88,6 +88,12 @@ inline int NBins(std::span<const double> edges)
   return edges.empty() ? 0 : static_cast<int>(edges.size()) - 1;
 }
 
+// The union of a binning's bins, as a binning of one bin: the first edge to the last.
+inline std::vector<double> Whole(std::span<const double> edges)
+{
+  return {edges.front(), edges.back()};
+}
+
 // The bin indices of a binning, for a loop that names its index once:
 // for (int multBin : BinningUtils::BinIndices(multBinning)). 0-based, as the edges are indexed; the ROOT bin is
 // RootBin(index). The first std::views of the framework: it is not known whether the interpreted mode

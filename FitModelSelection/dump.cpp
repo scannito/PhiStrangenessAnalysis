@@ -66,20 +66,26 @@ void DumpPurities(TFile& file, const std::string& binningName, const std::map<st
   const std::vector<double> multBinning = RootIO::ReadBinningStamp(RootIO::FindPath(&file, {binningName}), RootIO::kStampMult, kWho);
   if (multBinning.empty())
     throw std::runtime_error(std::format("[FATAL] {}: no '{}' stamp in '{}'.", kWho, RootIO::kStampMult, file.GetName()));
+  // The classes, then their union, which PurityTask fits as a cell like any other (OutputNames::PurityUnion).
+  std::vector<std::vector<double>> classBinnings{multBinning};
+  if (auto classesUnion = OutputNames::PurityUnion(multBinning))
+    classBinnings.push_back(std::move(*classesUnion));
   std::ofstream out = OpenTable(path, "quantity\tbinning\tcell\tvalue\terror");
   for (const auto& [key, withSource] : sections) {
-    for (int multBin : BinningUtils::BinIndices(multBinning)) {
-      const std::string name = OutputNames::Purity(key, OutputNames::MultTag(multBinning, multBin));
-      auto dump = [&](const std::vector<std::string>& dirPath, OutputNames::SpectrumBinning which, const std::string& label) {
-        auto h = RootIO::GetUniqueOrThrow<TH1>(RootIO::FindPath(&file, dirPath), name + std::string(OutputNames::BinningSuffix(which)), kWho);
-        const std::vector<double> pt = BinningUtils::AxisEdges(h->GetXaxis());
-        for (int ptBin : BinningUtils::BinIndices(pt))
-          WriteValues(out, key, label, OutputNames::CellTag(multBinning, multBin, pt, ptBin), h->GetBinContent(BinningUtils::RootBin(ptBin)),
-                      h->GetBinError(BinningUtils::RootBin(ptBin)));
-      };
-      dump(summaryPath, OutputNames::SpectrumBinning::Analysis, FitQualityRecorder::kAnalysisBinning);
-      if (withSource)
-        dump(OutputNames::SourceBinningPath(summaryPath), OutputNames::SpectrumBinning::Source, FitQualityRecorder::kSourceBinning);
+    for (const std::vector<double>& classes : classBinnings) {
+      for (int multBin : BinningUtils::BinIndices(classes)) {
+        const std::string name = OutputNames::Purity(key, OutputNames::MultTag(classes, multBin));
+        auto dump = [&](const std::vector<std::string>& dirPath, OutputNames::SpectrumBinning which, const std::string& label) {
+          auto h = RootIO::GetUniqueOrThrow<TH1>(RootIO::FindPath(&file, dirPath), name + std::string(OutputNames::BinningSuffix(which)), kWho);
+          const std::vector<double> pt = BinningUtils::AxisEdges(h->GetXaxis());
+          for (int ptBin : BinningUtils::BinIndices(pt))
+            WriteValues(out, key, label, OutputNames::CellTag(classes, multBin, pt, ptBin), h->GetBinContent(BinningUtils::RootBin(ptBin)),
+                        h->GetBinError(BinningUtils::RootBin(ptBin)));
+        };
+        dump(summaryPath, OutputNames::SpectrumBinning::Analysis, FitQualityRecorder::kAnalysisBinning);
+        if (withSource)
+          dump(OutputNames::SourceBinningPath(summaryPath), OutputNames::SpectrumBinning::Source, FitQualityRecorder::kSourceBinning);
+      }
     }
   }
 }
