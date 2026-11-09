@@ -39,6 +39,7 @@
 #include <cmath>
 #include <format>
 #include <initializer_list>
+#include <limits>
 #include <array>
 #include <memory>
 #include <regex>
@@ -416,7 +417,15 @@ class DynamicRooFitter
     RooPlot* frame = obs->frame(RooFit::Title(title.c_str()));
     frame->SetBit(kCanDelete);
 
-    dataHist.plotOn(frame, RooFit::Name("Data_Plot"), RooFit::MarkerStyle(20));
+    // The data's error bars as RooFit draws them by default, except where a bin holds more than INT_MAX counts: there
+    // RooHist::addBin takes the Poisson interval of Int_t(n), which overflows - a segfault, measured on 9 November 2026
+    // on the pion n-sigma of the union of the multiplicity classes (about 2e9 counts in the peak bin, LHC26ac, ad, af,
+    // ai). At such counts the Poisson interval is sqrt(n) far below what a drawing resolves, which is what SumW2 draws.
+    double maxCount = 0.;
+    for (int i = 0; i < dataHist.numEntries(); ++i)
+      maxCount = std::max(maxCount, dataHist.weight(i));
+    const auto dataError = maxCount > std::numeric_limits<Int_t>::max() ? RooAbsData::SumW2 : RooAbsData::Auto;
+    dataHist.plotOn(frame, RooFit::Name("Data_Plot"), RooFit::MarkerStyle(20), RooFit::DataError(dataError));
     model->plotOn(frame, RooFit::Name("Model_Plot"), RooFit::LineColor(kBlue), RooFit::LineWidth(2));
     model->plotOn(frame, RooFit::Components(*sigPdf), RooFit::Name("Sig_Plot"), RooFit::LineColor(kRed),
                   RooFit::LineWidth(2), RooFit::Normalization(1.0, RooAbsReal::RelativeExpected));
