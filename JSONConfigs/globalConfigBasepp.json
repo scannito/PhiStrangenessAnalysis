@@ -370,7 +370,7 @@
                 }
             }
         },
-        "apply_purity": false,
+        "apply_purity": true,
         "apply_extrapolation": true,
         "purity_sources": [
             {
