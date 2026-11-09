@@ -729,7 +729,7 @@ class CorrelationTaskBase : public IAnalysisTask
       const bool applyEfficiencyBinned = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Binned;
       const bool applyEfficiencyIntegrated = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Integrated;
 
-      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::Efficiency), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::Efficiency, OutputNames::kMultIntegrated), applyEfficiencyIntegrated, targetBinning);
+      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::Efficiency), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::Efficiency, OutputNames::MultUnionTag(multBinning)), applyEfficiencyIntegrated, targetBinning);
 
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
         const std::string multTag = OutputNames::MultTag(multBinning, multBin);

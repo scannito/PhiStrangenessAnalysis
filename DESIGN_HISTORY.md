@@ -7,6 +7,35 @@ and several of these fixes look wrong without it. Open items stay in
 
 ---
 
+## The union of the multiplicity classes: a purity of its own, and one name by interval
+
+**10 November 2026.** The owner asked for every class's purity and efficiency divided by the 0-100% one. The
+efficiency had it (the multiplicity-integrated maps); the purity did not, so `PurityTask` now also fits the union of
+the classes: the mass distribution projected over all of them, fitted like a class (a purity is a ratio: an average
+of the classes' would not be it). It is not in the CCDB map, which O2 reads by class.
+
+**One name.** The union is a binning of one class, `BinningUtils::Whole`, named by its interval as a class is
+(`mult0-100`): its fit cells are then `fitConfig.json` keys and `FitQuality` rows through the same functions as any
+class's. The integrated correction maps, until then `_multIntegrated` (`OutputNames::kMultIntegrated`, kept in the
+interval-naming change below as "not an index"), took the same name, at the owner's choice (two names for one idea
+was the alternative, recorded for a day in `OutputNames`). Cost: a `Corrections.root` written before stops
+`CorrelationTask` at the missing `_mult0-100` map when `acceptance_efficiency.mult` is `integrated`; re-run `mc`
+(about 30 s for every period). `OutputNames::MultUnion` says whether there is a union: none with a single class,
+which is the union already under the same name, so that neither `PurityTask` nor `MCTask` writes it a second time
+over the class.
+
+**What it showed.** The union's purity, a weighted average of the classes', falls outside the classes' range in some
+cells (Omega at 2.4-4.2 GeV/c by more than 3 sigma in five periods): the union is fitted with the section's default
+model, the classes with their overrides. A measure of the fit-model systematic, not a defect of the union.
+
+**Found on the way.** `RooHist::addBin` takes the Poisson interval of `Int_t(n)`: above `INT_MAX` counts in a bin it
+overflows and segfaults. The pion n-sigma of the union reaches about 2e9 in its peak bin in four periods, so
+`DynamicRooFitter` draws such data with sqrt(n) errors (`SumW2`), RooFit's default otherwise.
+
+**Checked.** The seven periods' purities: every class's spectrum and `FitQuality` row identical to before, the
+union's added. All 32 `_updated` `Corrections.root`: each `_multIntegrated` map equal bin by bin to its `_mult0-100`
+successor.
+
 ## One fit configuration per period, selected on its own data
 
 **9 November 2026.** Each dataset of the `_updated` blocks reads its own `fitConfig_<dataset>.json` (the owner's
@@ -464,7 +493,7 @@ extrapolation configuration files.
 **What stayed.** The binning stamps: with interval names a mismatch is a missing object, but the stamp stops the
 run before anything is read and names the edge. Its message, which spoke of "cached projections" to the readers of
 the corrections and the purities, now names neither. `_multIntegrated` is not an index and kept its name
-(`OutputNames::kMultIntegrated`). The `FitQuality` columns `multBin`/`ptBin` were dropped: the canvas and the
+(`OutputNames::kMultIntegrated`; renamed `_mult0-100` on 10 November 2026, see above). The `FitQuality` columns `multBin`/`ptBin` were dropped: the canvas and the
 override are named by the intervals, which the tree has, and a cut on an index across two productions is the
 mismatch this change removes. Every file produced before this change is unreadable to the code after it, so the
 chain is re-run once, in order.

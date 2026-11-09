@@ -102,11 +102,19 @@ inline std::string MultTag(std::span<const double> multBinning, int multBin)
 {
   return std::format("mult{}", BinningUtils::BinLabel(multBinning, multBin));
 }
-// The tag of what is integrated over every class, where a MultTag would stand: the correction maps' (MCTask). The
-// purity of the union of the classes is named by its interval instead (PurityUnion), because it has fit cells, which
-// fitConfig.json keys and FitQuality records by interval. Two names for one idea, left so on 9 November 2026: moving
-// the maps to the interval renames the objects of every Corrections.root already produced.
-inline const std::string kMultIntegrated{"multIntegrated"};
+// The union of the classes of 'multBinning', as a binning of one class (BinningUtils::Whole): what the correction maps
+// integrated over multiplicity and the purity of all classes together stand for, named by its interval as a class is
+// ("mult0-100", MultUnionTag), so that the union's fit cells are fitConfig.json keys and FitQuality rows like any
+// class's. None with a single class, which is the union already under the same name: written again, it would replace
+// the class.
+inline std::optional<std::vector<double>> MultUnion(std::span<const double> multBinning)
+{
+  if (BinningUtils::NBins(multBinning) < 2)
+    return std::nullopt;
+  return BinningUtils::Whole(multBinning);
+}
+// The name of the union, for a reader: with a single class, the class's, which is the union.
+inline std::string MultUnionTag(std::span<const double> multBinning) { return MultTag(BinningUtils::Whole(multBinning), 0); }
 // A pT interval, "pt1.2-1.6"; the trigger's is "ptPhi" + BinLabel, where both appear in one name.
 inline std::string PtTag(std::span<const double> ptBinning, int ptBin)
 {
@@ -131,7 +139,7 @@ inline std::string CellTitle(std::string_view particle, std::span<const double> 
 // ---------------------------------------------------------------------------
 // Builders, one per kind of object
 // ---------------------------------------------------------------------------
-// MCTask -> CorrelationTask: the maps of a particle, of one class (MultTag) or integrated (kMultIntegrated), at the
+// MCTask -> CorrelationTask: the maps of a particle, of one class (MultTag) or integrated (MultUnionTag), at the
 // analysis binning or at the source one (SpectrumBinning::Source: the suffix on the name, SourceBinning/ on the path).
 // The signal loss over the event loss is drawn as a summary and read by nothing else in the chain.
 enum class CorrectionMap { Efficiency,
@@ -178,15 +186,6 @@ inline const std::string kTriggerBkgRatio{"h2TriggerBkgRatio"};
 inline std::string Purity(std::string_view purityKey, std::string_view multTag, SpectrumBinning binning = SpectrumBinning::Analysis)
 {
   return std::format("h1{}Purity_{}{}", purityKey, multTag, BinningSuffix(binning));
-}
-// The union of the classes that PurityTask fits besides them, as a binning of one class (BinningUtils::Whole): named,
-// keyed and recorded by its interval ("mult0-100") as every class is. None with a single class, which is the union
-// already, under the same names: fitting it twice would write every name twice.
-inline std::optional<std::vector<double>> PurityUnion(std::span<const double> multBinning)
-{
-  if (BinningUtils::NBins(multBinning) < 2)
-    return std::nullopt;
-  return BinningUtils::Whole(multBinning);
 }
 
 inline std::string Spectrum(std::string_view particle, double dy, std::span<const double> multBinning, int multBin)

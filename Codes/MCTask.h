@@ -313,7 +313,7 @@ class MCTask : public IAnalysisTask
       // loss of the class, drawn on the summary canvases and written. The tag, the colour and the draw option all
       // follow from the class.
       auto summarise = [&](EfficiencyCalculator::Maps1D maps, std::optional<int> multBin) {
-        const std::string multTag = multBin ? OutputNames::MultTag(multBinning, *multBin) : OutputNames::kMultIntegrated;
+        const std::string multTag = multBin ? OutputNames::MultTag(multBinning, *multBin) : OutputNames::MultUnionTag(multBinning);
         const int color = multBin ? globalCfgs.GetSpectraColor(*multBin) : kBlack;
         const char* option = multBin == 0 ? "" : "SAME";
 
@@ -355,7 +355,9 @@ class MCTask : public IAnalysisTask
         // they are divided: rebinning the ratio afterwards would sum efficiencies.
         summarise(EfficiencyCalculator::Compute1DMaps(data, multBinning, multBin), multBin);
       }
-      summarise(EfficiencyCalculator::Compute1DMapsMultIntegrated(data), std::nullopt);
+      // The union, unless it is the only class, whose maps are already written under its name (OutputNames::MultUnion).
+      if (OutputNames::MultUnion(multBinning))
+        summarise(EfficiencyCalculator::Compute1DMapsMultIntegrated(data, multBinning), std::nullopt);
     }
   }
 

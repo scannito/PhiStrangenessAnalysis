@@ -342,8 +342,8 @@ class EfficiencyCalculator
     return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, multTag);
   }
 
-  // Same, integrated over ALL multiplicity bins.
-  static Maps1D Compute1DMapsMultIntegrated(const AnalysisStructures::LoadedMC& data)
+  // Same, integrated over ALL multiplicity bins: the union of the classes of multBinning, which is read from that axis.
+  static Maps1D Compute1DMapsMultIntegrated(const AnalysisStructures::LoadedMC& data, std::span<const double> multBinning)
   {
     // zvtx, the whole multiplicity axis ("integrated"), y
     const std::vector<HistogramUtils::AxisToCut> cuts = {HistogramUtils::AxisToCut::Whole(0), HistogramUtils::AxisToCut::Whole(1),
@@ -359,6 +359,6 @@ class EfficiencyCalculator
     std::unique_ptr<TH1> h1MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), cuts, {2}, "h1AssocTemp_Int");
     std::unique_ptr<TH1> h1MCReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), cuts, {2}, "h1RecoTemp_Int");
 
-    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, OutputNames::kMultIntegrated);
+    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, OutputNames::MultUnionTag(multBinning));
   }
 };

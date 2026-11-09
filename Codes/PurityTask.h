@@ -149,7 +149,7 @@ class PurityTask : public IAnalysisTask
     // The union of the classes, fitted on its merged mass distribution like any class: a purity is a ratio, and an
     // average of the classes' would not be it. Written next to them, for what compares a class with the whole; not
     // in the CCDB map, which O2 reads class by class.
-    if (const auto classesUnion = OutputNames::PurityUnion(multBinning))
+    if (const auto classesUnion = OutputNames::MultUnion(multBinning))
       for (auto& task : particleTasks)
         FitClass(task, *classesUnion, 0, kBlack, "SAME");
   }
@@ -208,7 +208,7 @@ class PurityTask : public IAnalysisTask
   // of a single choice: passed separately, nothing would stop them disagreeing.
   using SpectrumBinning = OutputNames::SpectrumBinning;
 
-  // The purity of class 'classBin' of 'classes' (multBinning, or OutputNames::PurityUnion), written into the summary directory
+  // The purity of class 'classBin' of 'classes' (multBinning, or OutputNames::MultUnion), written into the summary directory
   // and drawn on the summary canvases in 'color'; returned at the source binning, which the CCDB map takes.
   std::unique_ptr<TH1> FitClass(AnalysisStructures::ParticleTask& task, std::span<const double> classes, int classBin, int color,
                                 const char* drawOption)
