@@ -194,44 +194,44 @@
         ]
     },
     "purity_task_2026_highIR_updated": {
-        "fit_config_file": "../JSONConfigs/fitConfig_2026_HighIRac.json",
         "inherits": "purity_base_settings_updated",
+        "fit_config_file": "../JSONConfigs/fitConfig_2026_HighIRac.json",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_HighIRac_PtMod_22ottobre.root",
         "output_prefix": "Data_2026_HighIR_updated_"
     },
     "purity_task_2026_lowIRad_updated": {
-        "fit_config_file": "../JSONConfigs/fitConfig_2026_LowIRad.json",
         "inherits": "purity_base_settings_updated",
+        "fit_config_file": "../JSONConfigs/fitConfig_2026_LowIRad.json",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root",
         "output_prefix": "Data_2026_LowIRad_updated_"
     },
     "purity_task_2026_lowIRae_updated": {
-        "fit_config_file": "../JSONConfigs/fitConfig_2026_LowIRae.json",
         "inherits": "purity_base_settings_updated",
+        "fit_config_file": "../JSONConfigs/fitConfig_2026_LowIRae.json",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root",
         "output_prefix": "Data_2026_LowIRae_updated_"
     },
     "purity_task_2026_lowIRaf_updated": {
-        "fit_config_file": "../JSONConfigs/fitConfig_2026_LowIRaf.json",
         "inherits": "purity_base_settings_updated",
+        "fit_config_file": "../JSONConfigs/fitConfig_2026_LowIRaf.json",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root",
         "output_prefix": "Data_2026_LowIRaf_updated_"
     },
     "purity_task_2026_lowIRag_updated": {
-        "fit_config_file": "../JSONConfigs/fitConfig_2026_LowIRag.json",
         "inherits": "purity_base_settings_updated",
+        "fit_config_file": "../JSONConfigs/fitConfig_2026_LowIRag.json",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root",
         "output_prefix": "Data_2026_LowIRag_updated_"
     },
     "purity_task_2026_lowIRai_updated": {
-        "fit_config_file": "../JSONConfigs/fitConfig_2026_LowIRai.json",
         "inherits": "purity_base_settings_updated",
+        "fit_config_file": "../JSONConfigs/fitConfig_2026_LowIRai.json",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root",
         "output_prefix": "Data_2026_LowIRai_updated_"
     },
     "purity_task_2023_updated": {
-        "fit_config_file": "../JSONConfigs/fitConfig_2023.json",
         "inherits": "purity_base_settings_updated",
+        "fit_config_file": "../JSONConfigs/fitConfig_2023.json",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
         "output_prefix": "Data_2023_updated_"
     },
