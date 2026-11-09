@@ -1,6 +1,7 @@
 // What one output file of a purity or phi-fit run says about its fits, as two TSV tables for selection.py: the fit
-// quality ({binning_name}/FitQuality), one row per fit, with the verdict FitQualityRecorder::Reasons gives (the one
-// rule; the tables carry it, nobody downstream recomputes it); and the values the fits give, one row per cell (the
+// quality ({binning_name}/FitQuality, read by FitQualityRecorder::Read), one row per fit with the models it used,
+// and the verdict FitQualityRecorder::Reasons gives (the one rule; the tables carry it, nobody downstream recomputes
+// it); and the values the fits give, one row per cell (the
 // purities, or the phi's raw signal and r = B(signal region)/B(sideband)). Cells are named by OutputNames::CellTag,
 // which is also the key of a fitConfig.json override, and the object names come from OutputNames.
 //
@@ -13,7 +14,6 @@
 #include "RootIOHelpers.h"
 
 #include "TH2.h"
-#include "TTree.h"
 
 #include <cstdio>
 #include <exception>
@@ -39,36 +39,18 @@ std::ofstream OpenTable(const std::string& path, const char* header)
 // Returns the sections fitted, each with whether it was fitted at the source binning as well.
 std::map<std::string, bool> DumpQuality(TFile& file, const std::string& binningName, const std::string& path)
 {
-  auto tree = RootIO::GetUniqueOrThrow<TTree>(&file, std::format("{}/{}", binningName, FitQualityRecorder::kTreeName), kWho);
-  std::string *section = nullptr, *binning = nullptr, *binOverride = nullptr, *start = nullptr;
-  std::vector<std::string> *lower = nullptr, *upper = nullptr, *shape = nullptr;
-  double multLow, multHigh, ptLow, ptHigh;
-  AnalysisStructures::FitDiagnostics fit;
-  // Every branch is required: one missing (numFloating in a file from before it existed) would read as a default.
-  auto bind = [&](const char* name, void* address) {
-    if (tree->SetBranchAddress(name, address) < 0)
-      throw std::runtime_error(std::format("[FATAL] {}: no branch '{}' in the FitQuality of '{}': re-run the task.", kWho, name, file.GetName()));
-  };
-  bind("section", &section), bind("binning", &binning), bind("binOverride", &binOverride), bind("start", &start);
-  bind("atLowerLimit", &lower), bind("atUpperLimit", &upper), bind("upperIsShape", &shape);
-  bind("multLow", &multLow), bind("multHigh", &multHigh), bind("ptLow", &ptLow), bind("ptHigh", &ptHigh);
-  bind("counts", &fit.counts), bind("status", &fit.status), bind("covQual", &fit.covQual), bind("edm", &fit.edm);
-  bind("minNll", &fit.minNll), bind("numInvalidNLL", &fit.numInvalidNLL), bind("numFloating", &fit.numFloating);
-  bind("nllConfig", &fit.nllConfig);
-
   std::map<std::string, bool> sections;
-  std::ofstream out = OpenTable(path, "section\tbinning\tcell\tcounts\tnumFloating\tminNll\tstart\tdNLLconfig\toverride\treasons");
-  for (Long64_t entry = 0; entry < tree->GetEntries(); ++entry) {
-    tree->GetEntry(entry);
-    fit.atLowerLimit = *lower, fit.atUpperLimit = *upper, fit.upperIsShape = *shape, fit.start = *start;
-    sections[*section] |= (*binning == FitQualityRecorder::kSourceBinning);
+  std::ofstream out = OpenTable(path, "section\tbinning\tcell\tsigModel\tbkgModel\tcounts\tnumFloating\tminNll\tstart\tdNLLconfig\toverride\treasons");
+  for (const FitQualityRecorder::Row& row : FitQualityRecorder::Read(file.GetDirectory(binningName.c_str()), kWho)) {
+    sections[row.section] |= (row.binning == FitQualityRecorder::kSourceBinning);
     std::string reasons;
-    for (const std::string& reason : FitQualityRecorder::Reasons(fit))
+    for (const std::string& reason : FitQualityRecorder::Reasons(row.fit))
       reasons += (reasons.empty() ? "" : "; ") + reason;
-    const std::vector<double> mult{multLow, multHigh}, pt{ptLow, ptHigh};
-    out << *section << '\t' << *binning << '\t' << OutputNames::CellTag(mult, 0, pt, 0) << '\t' << fit.counts << '\t'
-        << fit.numFloating << '\t' << fit.minNll << '\t' << fit.start << '\t' << fit.nllConfig - fit.minNll << '\t'
-        << (binOverride->empty() ? "-" : *binOverride) << '\t' << (reasons.empty() ? "-" : reasons) << '\n';
+    const std::vector<double> mult{row.multLow, row.multHigh}, pt{row.ptLow, row.ptHigh};
+    out << row.section << '\t' << row.binning << '\t' << OutputNames::CellTag(mult, 0, pt, 0) << '\t' << row.sigModel << '\t'
+        << row.bkgModel << '\t' << row.fit.counts << '\t' << row.fit.numFloating << '\t' << row.fit.minNll << '\t' << row.fit.start
+        << '\t' << row.fit.nllConfig - row.fit.minNll << '\t' << (row.binOverride.empty() ? "-" : row.binOverride) << '\t'
+        << (reasons.empty() ? "-" : reasons) << '\n';
   }
   return sections;
 }

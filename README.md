@@ -428,14 +428,16 @@ them (`DESIGN_NOTES.md` section 5).
 
 `PhiFitTask` and `PurityTask` record every fit they run in a `TTree`, `{binning_name}/FitQuality` of their output
 file, one row per fit: the cell (`section`, `binning` analysis or source, the intervals `multLow`/`multHigh` and
-`ptLow`/`ptHigh`, the `fit_setup.bins` override that applied) and what the fit's result says (`counts` the likelihood saw, `status`,
+`ptLow`/`ptHigh`, the `fit_setup.bins` override that applied, the models it used, `sigModel` and `bkgModel`) and what the fit's result says (`counts` the likelihood saw, `status`,
 `covQual`, `edm`, `minNll`, `numInvalidNLL`, `numFloating` (the parameters the fit floated, the k of an information
 criterion: AIC = 2k + 2 `minNll` compares two models of one cell), `atLowerLimit` and `atUpperLimit`, the floating parameters within
 1e-5 of their range from that limit, a yield at its lower one below one count, and `upperIsShape`, the parameters
 whose model calls their upper limit a shape: a DSCB tail n there is a tail as steep as an exponential). `DoFit` fits every cell from several starts and keeps the best (`DESIGN_HISTORY.md`, *Several starts
 per fit*): `start` is the one that won (`config`, `yields`, `staged`), `minNll` its likelihood without offset, and
 `nllConfig` the one the `config` start reached, the fit as it was made before there were several starts. Raw facts,
-from what the fit already records: recording them refits nothing and changes no number.
+from what the fit already records: recording them refits nothing and changes no number. A program that reads the
+table back does it with `FitQualityRecorder::Read`, which binds the same list of columns the task writes
+(`FitModelSelection/dump.cpp`).
 
 ```cpp
 TFile f("Data_2024_Purity.root");

@@ -284,7 +284,7 @@ class PurityTask : public IAnalysisTask
 
       fitter.DoFit();
       fitQuality.Add(task.purityKey, atSource ? FitQualityRecorder::kSourceBinning : FitQualityRecorder::kAnalysisBinning, multBinning,
-                     multBin, binning, ptBin, cfg.binOverride, fitter.Diagnostics());
+                     multBin, binning, ptBin, cfg, fitter.Diagnostics());
 
       auto res = fitter.ExtractYieldsAndPurity();
       HistogramUtils::SetBinValueAndError(h1PuritySpectrum.get(), ptBin, res.purityAndError);

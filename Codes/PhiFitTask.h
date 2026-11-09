@@ -113,7 +113,7 @@ class PhiFitTask : public IAnalysisTask
         // Initialize RooFit Engine
         DynamicRooFitter fitter(h1PhiData.get(), cfg);
         fitter.DoFit();
-        fitQuality.Add(kFitSection, FitQualityRecorder::kAnalysisBinning, multBinning, multBin, ptPhiBinning, ptPhiBin, cfg.binOverride,
+        fitQuality.Add(kFitSection, FitQualityRecorder::kAnalysisBinning, multBinning, multBin, ptPhiBinning, ptPhiBin, cfg,
                        fitter.Diagnostics());
 
         auto res = fitter.ExtractYieldsAndPurity();

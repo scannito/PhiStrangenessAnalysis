@@ -139,23 +139,27 @@ def select(scan, reference_path, out_path):
     fit comes from."""
     reference = json.load(open(reference_path))
     sections = scanned(reference)
+    reference_fits = by_fit(table(f"{scan}/quality_reference.tsv"))
 
-    def reference_models(section, tag):
-        setup = reference[section]["fit_setup"]
-        default, override = setup["default"], setup.get("bins", {}).get(tag, {})
-        return (override.get("sig_model", default["sig_model"]), override.get("bkg_model", default["bkg_model"]))
-
-    # (section, binning, cell) -> (kind, sig, bkg) -> (origin, row); a model two runs share (a section with fewer candidates)
-    # is taken from the first. The reference's models are a distinct candidate: they come with its parameters.
+    # (section, binning, cell) -> (kind, sig, bkg) -> (origin, row), the models as each fit recorded them; a model two
+    # runs share (a section with fewer candidates) is taken from the first. The reference's models are a distinct
+    # candidate: they come with its parameters.
+    # Every run must have fitted the same cells as the reference: a cell missing from one would be chosen among fewer
+    # candidates without a word.
+    expected_fits = {fit for fit in reference_fits if fit[0] in sections}
     fits = defaultdict(dict)
     for run in range(RUNS):
-        for r in table(f"{scan}/quality_cand{run}.tsv"):
-            if r["section"] in sections:
-                fits[(r["section"], r["binning"], r["cell"])].setdefault(("candidate",) + model(r["section"], run), (f"cand{run}", r))
-    for r in table(f"{scan}/quality_reference.tsv"):
-        fit = (r["section"], r["binning"], r["cell"])
-        if fit in fits:
-            fits[fit][("reference",) + reference_models(r["section"], r["cell"])] = ("reference", r)
+        rows = [r for r in table(f"{scan}/quality_cand{run}.tsv") if r["section"] in sections]
+        if {(r["section"], r["binning"], r["cell"]) for r in rows} != expected_fits:
+            fail(f"cand{run} and the reference did not fit the same cells: re-run the scan.")
+        for r in rows:
+            expected = model(r["section"], run)
+            if (r["sigModel"], r["bkgModel"]) != expected:
+                fail(f"cand{run} fitted {r['section']} {r['cell']} with {r['sigModel']}/{r['bkgModel']}, not its candidate {expected}")
+            fits[(r["section"], r["binning"], r["cell"])].setdefault(("candidate",) + expected, (f"cand{run}", r))
+    for fit in expected_fits:
+        r = reference_fits[fit]
+        fits[fit][("reference", r["sigModel"], r["bkgModel"])] = ("reference", r)
 
     chosen = {}  # (section, binning, cell) -> ((kind, sig, bkg), origin, flagged)
     for fit, models in fits.items():
@@ -198,7 +202,8 @@ def select(scan, reference_path, out_path):
 
         mine = sorted((fit, c) for fit, c in chosen.items() if fit[0] == section)
         for (s, binning, cell), (pick, origin, is_flagged) in mine:
-            rows.append("\t".join([s, binning, cell, origin, *pick[1:], str(is_flagged), *reference_models(s, cell)]))
+            ref = reference_fits[(s, binning, cell)]
+            rows.append("\t".join([s, binning, cell, origin, *pick[1:], str(is_flagged), ref["sigModel"], ref["bkgModel"]]))
         kept = Counter((fit[1], pick[0] == "reference") for fit, (pick, _, _) in mine)
         print(f"{section:7s} default {default[0]} + {default[1]}; chosen: "
               + ", ".join(f"{'+'.join(m if m[0] == 'reference' else m[1:])} {n}" for m, n in Counter(m for _, (m, _, _) in mine).most_common()))
