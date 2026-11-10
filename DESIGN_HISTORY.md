@@ -20,7 +20,7 @@ class's. The integrated correction maps, until then `_multIntegrated` (`OutputNa
 interval-naming change below as "not an index"), took the same name, at the owner's choice (two names for one idea
 was the alternative, recorded for a day in `OutputNames`). Cost: a `Corrections.root` written before stops
 `CorrelationTask` at the missing `_mult0-100` map when `acceptance_efficiency.mult` is `integrated`; re-run `mc`
-(about 30 s for every period). `OutputNames::HasMultUnion` says whether there is a union: none with a single class,
+(about 30 s for every period). `BinningUtils::HasMultUnion` says whether there is a union: none with a single class,
 which is the union already under the same name, so that neither `PurityTask` nor `MCTask` writes it a second time
 over the class.
 

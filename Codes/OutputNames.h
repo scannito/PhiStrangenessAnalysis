@@ -105,18 +105,8 @@ inline std::string MultTag(std::span<const double> multBinning, int multBin)
 // The union of the classes of 'multBinning', as a binning of one class (BinningUtils::Whole): what the correction maps
 // integrated over multiplicity and the purity of all classes together stand for, named by its interval as a class is
 // ("mult0-100", MultUnionTag), so that the union's fit cells are fitConfig.json keys and FitQuality rows like any
-// class's. HasMultUnion: whether it is something besides the classes. Not with a single class, which is the union
-// already under the same name: written again, it would replace the class.
-inline bool HasMultUnion(std::span<const double> multBinning) { return BinningUtils::NBins(multBinning) > 1; }
-// The multiplicity binnings whose cells exist: the classes, then their union if it is not one of them. For what goes
-// through every cell (the fit cells PurityTask declares, the fit-model dump).
-inline std::vector<std::vector<double>> ClassesAndUnion(std::span<const double> multBinning)
-{
-  std::vector<std::vector<double>> binnings{{multBinning.begin(), multBinning.end()}};
-  if (HasMultUnion(multBinning))
-    binnings.push_back(BinningUtils::Whole(multBinning));
-  return binnings;
-}
+// class's. With a single class the union is that class, under the same name: written again, it would replace the
+// class, so a task writes it only where BinningUtils::HasMultUnion says it is something else.
 // The name of the union, for a reader: with a single class, the class's, which is the union.
 inline std::string MultUnionTag(std::span<const double> multBinning) { return MultTag(BinningUtils::Whole(multBinning), 0); }
 // A pT interval, "pt1.2-1.6"; the trigger's is "ptPhi" + BinLabel, where both appear in one name.

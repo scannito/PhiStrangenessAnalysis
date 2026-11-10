@@ -129,7 +129,7 @@ class PurityTask : public IAnalysisTask
     // 4. Initialize specific mathematical tools
     fitConfigManager = std::make_unique<FitConfigManager>(fitCfgPath);
     for (const AnalysisStructures::ParticleTask& task : particleTasks)
-      fitConfigManager->DeclareCells(task.purityKey, OutputNames::ClassesAndUnion(multBinning), {task.sourceBinning, task.AnalysisBinning()});
+      fitConfigManager->DeclareCells(task.purityKey, BinningUtils::ClassesAndUnion(multBinning), {task.sourceBinning, task.AnalysisBinning()});
 
     // Last, once the whole configuration has been read: a mistake in it must not cost the previous production.
     RootIO::ClearPath(outputFile.get(), {globalCfgs.binningName});
@@ -146,7 +146,7 @@ class PurityTask : public IAnalysisTask
     // The union of the classes, fitted on its merged mass distribution like any class: a purity is a ratio, and an
     // average of the classes' would not be it. Written next to them, for what compares a class with the whole; not
     // in the CCDB map, which O2 reads class by class.
-    if (OutputNames::HasMultUnion(multBinning))
+    if (BinningUtils::HasMultUnion(multBinning))
       for (auto& task : particleTasks)
         FitClass(task, std::nullopt);
   }

@@ -14,7 +14,7 @@ class FitConfigManager : public BaseConfigManager
   FitConfigManager(const std::string& jsonPath = "fitConfig.json") : BaseConfigManager(jsonPath, "FitConfigManager") {}
 
   // The cells a task fits in a section, each by OutputNames::CellTag: every multiplicity binning in 'multBinnings'
-  // (PurityTask fits the classes and their union, OutputNames::ClassesAndUnion) crossed with every pT binning in 'ptBinnings' (PurityTask fits the
+  // (PurityTask fits the classes and their union, BinningUtils::ClassesAndUnion) crossed with every pT binning in 'ptBinnings' (PurityTask fits the
   // source and the analysis one). Declared once per section, before the fits, every binning in the same call: the
   // overrides are checked against the cells of that call, and a call per binning would refuse a key valid for
   // another one. The overrides are fit_setup.bins, checked and read as BaseConfigManager::DeclareTags says.

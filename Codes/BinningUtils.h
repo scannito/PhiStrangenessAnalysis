@@ -93,6 +93,18 @@ inline std::vector<double> Whole(std::span<const double> edges)
 {
   return {edges.front(), edges.back()};
 }
+// Whether the union of the multiplicity classes is something besides them: not with a single class, which is the
+// union already.
+inline bool HasMultUnion(std::span<const double> multBinning) { return NBins(multBinning) > 1; }
+// The multiplicity binnings a task that also treats the union goes through: the classes, then their union as a
+// binning of one class (Whole) if it is not one of them. For the fit cells PurityTask declares and the fit-model dump.
+inline std::vector<std::vector<double>> ClassesAndUnion(std::span<const double> multBinning)
+{
+  std::vector<std::vector<double>> binnings{{multBinning.begin(), multBinning.end()}};
+  if (HasMultUnion(multBinning))
+    binnings.push_back(Whole(multBinning));
+  return binnings;
+}
 
 // The bin indices of a binning, for a loop that names its index once:
 // for (int multBin : BinningUtils::BinIndices(multBinning)). 0-based, as the edges are indexed; the ROOT bin is

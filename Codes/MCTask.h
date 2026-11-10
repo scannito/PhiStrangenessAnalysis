@@ -356,7 +356,7 @@ class MCTask : public IAnalysisTask
         summarise(EfficiencyCalculator::Compute1DMaps(data, multBinning, multBin), multBin);
       }
       // The union, unless it is the only class, whose maps are already written under its name.
-      if (OutputNames::HasMultUnion(multBinning))
+      if (BinningUtils::HasMultUnion(multBinning))
         summarise(EfficiencyCalculator::Compute1DMapsMultIntegrated(data, multBinning), std::nullopt);
     }
   }
