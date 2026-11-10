@@ -417,14 +417,22 @@ class DynamicRooFitter
     RooPlot* frame = obs->frame(RooFit::Title(title.c_str()));
     frame->SetBit(kCanDelete);
 
+    // The data in the fit range, on the dataset's own variable, which has the binning plotOn draws: obs's is 100 bins,
+    // which merged two K0S bins of 0.5 MeV into one and doubled the maximum; h1Data itself covers the whole online
+    // axis, outside the fit range too.
+    const auto& binnedObs = static_cast<const RooRealVar&>(*dataHist.get()->find(*obs));
+    const std::unique_ptr<TH1> inRange(dataHist.createHistogram("inRange", binnedObs));
+    inRange->SetDirectory(0);
+
     // The data's error bars as RooFit draws them by default, except where a bin holds more than INT_MAX counts: there
     // RooHist::addBin takes the Poisson interval of Int_t(n), which overflows - a segfault, measured on 9 November 2026
     // on the pion n-sigma of the union of the multiplicity classes (about 2e9 counts in the peak bin, LHC26ac, ad, af,
-    // ai). At such counts the Poisson interval is sqrt(n) far below what a drawing resolves, which is what SumW2 draws.
-    double maxCount = 0.;
-    for (int i = 0; i < dataHist.numEntries(); ++i)
-      maxCount = std::max(maxCount, dataHist.weight(i));
-    const auto dataError = maxCount > std::numeric_limits<Int_t>::max() ? RooAbsData::SumW2 : RooAbsData::Auto;
+    // ai). At such counts the Poisson interval is sqrt(n) far below what a drawing resolves, which is what SumW2 draws;
+    // it draws it for every bin of that histogram, the low ones too (an empty bin then has no error bar, and RooFit
+    // sets its pull to zero with a warning). The maximum is taken on inRange and not on the dataset's weights: it is
+    // a float histogram on the same binning, as the one RooHist reads before the Int_t (ROOT 6.36, RooHist.cxx), so
+    // a count that the float rounds up to 2^31 is caught here as it overflows there.
+    const auto dataError = inRange->GetMaximum() > std::numeric_limits<Int_t>::max() ? RooAbsData::SumW2 : RooAbsData::Auto;
     dataHist.plotOn(frame, RooFit::Name("Data_Plot"), RooFit::MarkerStyle(20), RooFit::DataError(dataError));
     model->plotOn(frame, RooFit::Name("Model_Plot"), RooFit::LineColor(kBlue), RooFit::LineWidth(2));
     model->plotOn(frame, RooFit::Components(*sigPdf), RooFit::Name("Sig_Plot"), RooFit::LineColor(kRed),
@@ -436,15 +444,10 @@ class DynamicRooFitter
       CanvasManager::FormatTopPadAxes(frame);
     }
 
-    // The y range from the data in the fit range alone. RooPlot's own includes the curves, and in log scale the signal's
-    // tails, drawn down to 1e-3 of the peak, left the data in the top quarter of the pad (the phi fits, then drawn in log
-    // scale, 24 October 2026); h1Data itself covers the whole online axis, outside the fit range too. The histogram is
-    // made on the dataset's own variable, which has the binning plotOn draws: obs's is 100 bins, which merged two K0S bins
-    // of 0.5 MeV into one and doubled the maximum. Half the span above the data, for the legend and the label; the
-    // linear axis from zero unless an error bar goes below it.
-    const auto& binnedObs = static_cast<const RooRealVar&>(*dataHist.get()->find(*obs));
-    const std::unique_ptr<TH1> inRange(dataHist.createHistogram("yRange", binnedObs));
-    inRange->SetDirectory(0);
+    // The y range from the data in the fit range alone (inRange). RooPlot's own includes the curves, and in log scale the
+    // signal's tails, drawn down to 1e-3 of the peak, left the data in the top quarter of the pad (the phi fits, then
+    // drawn in log scale, 24 October 2026). Half the span above the data, for the legend and the label; the linear axis
+    // from zero unless an error bar goes below it.
     const auto [yMin, yMax] =
       CanvasManager::ComputeGlobalYRange(std::array{inRange.get()}, {.isLogY = logY, .zeroBaseline = true, .topMargin = 0.5});
     frame->SetMinimum(yMin);

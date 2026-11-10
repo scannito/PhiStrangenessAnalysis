@@ -7,6 +7,7 @@
 
 #include <format>
 #include <map>
+#include <optional>
 #include <set>
 #include <span>
 #include <stdexcept>
@@ -157,6 +158,8 @@ struct AnalysisSettings {
   // ---------------------------------------------------------------------------
 
   int GetSpectraColor(int index) const { return spectraColors[index % spectraColors.size()]; }
+  // A multiplicity class's colour; none is the union of the classes, drawn in black.
+  int GetSpectraColor(std::optional<int> multBin) const { return multBin ? GetSpectraColor(*multBin) : kBlack; }
   int GetMultTrendColor(int index) const { return multTrendColors[index % multTrendColors.size()]; }
 
  private:

@@ -66,10 +66,8 @@ void DumpPurities(TFile& file, const std::string& binningName, const std::map<st
   const std::vector<double> multBinning = RootIO::ReadBinningStamp(RootIO::FindPath(&file, {binningName}), RootIO::kStampMult, kWho);
   if (multBinning.empty())
     throw std::runtime_error(std::format("[FATAL] {}: no '{}' stamp in '{}'.", kWho, RootIO::kStampMult, file.GetName()));
-  // The classes, then their union, which PurityTask fits as a cell like any other (OutputNames::MultUnion).
-  std::vector<std::vector<double>> classBinnings{multBinning};
-  if (auto classesUnion = OutputNames::MultUnion(multBinning))
-    classBinnings.push_back(std::move(*classesUnion));
+  // The classes, then their union, which PurityTask fits as a cell like any other.
+  const std::vector<std::vector<double>> classBinnings = OutputNames::ClassesAndUnion(multBinning);
   std::ofstream out = OpenTable(path, "quantity\tbinning\tcell\tvalue\terror");
   for (const auto& [key, withSource] : sections) {
     for (const std::vector<double>& classes : classBinnings) {

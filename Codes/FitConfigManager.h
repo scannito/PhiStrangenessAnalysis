@@ -5,9 +5,7 @@
 #include "OutputNames.h"
 
 #include <format>
-#include <initializer_list>
 #include <set>
-#include <span>
 
 class FitConfigManager : public BaseConfigManager
 {
@@ -16,16 +14,16 @@ class FitConfigManager : public BaseConfigManager
   FitConfigManager(const std::string& jsonPath = "fitConfig.json") : BaseConfigManager(jsonPath, "FitConfigManager") {}
 
   // The cells a task fits in a section, each by OutputNames::CellTag: every multiplicity binning in 'multBinnings'
-  // (PurityTask fits the classes and their union) crossed with every pT binning in 'ptBinnings' (PurityTask fits the
+  // (PurityTask fits the classes and their union, OutputNames::ClassesAndUnion) crossed with every pT binning in 'ptBinnings' (PurityTask fits the
   // source and the analysis one). Declared once per section, before the fits, every binning in the same call: the
   // overrides are checked against the cells of that call, and a call per binning would refuse a key valid for
   // another one. The overrides are fit_setup.bins, checked and read as BaseConfigManager::DeclareTags says.
-  void DeclareCells(const std::string& section, std::initializer_list<std::span<const double>> multBinnings,
-                    std::initializer_list<std::span<const double>> ptBinnings)
+  void DeclareCells(const std::string& section, const std::vector<std::vector<double>>& multBinnings,
+                    const std::vector<std::vector<double>>& ptBinnings)
   {
     std::set<std::string> cells;
-    for (std::span<const double> multBinning : multBinnings)
-      for (std::span<const double> ptBinning : ptBinnings)
+    for (const std::vector<double>& multBinning : multBinnings)
+      for (const std::vector<double>& ptBinning : ptBinnings)
         for (int multBin : BinningUtils::BinIndices(multBinning))
           for (int ptBin : BinningUtils::BinIndices(ptBinning))
             cells.insert(OutputNames::CellTag(multBinning, multBin, ptBinning, ptBin));

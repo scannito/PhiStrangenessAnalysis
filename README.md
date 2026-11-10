@@ -233,7 +233,8 @@ silently ignored.
 | ↳ `input_mc_file` | optional | Per particle, when species live in different productions. |
 | ↳ `rebinning_pt` | optional | Per particle. Merges counts *before* dividing. |
 
-**`purity_task`** — fits candidate-mass distributions to get purity per pT and multiplicity.
+**`purity_task`** — fits candidate-mass distributions to get purity per pT and multiplicity class, and of the union of
+the classes (`mult0-100`), fitted on its own merged distribution; the union is not in the CCDB map.
 
 | Key | | Notes |
 |---|---|---|

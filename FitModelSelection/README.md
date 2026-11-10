@@ -17,7 +17,8 @@ For one period, with a reference fit configuration (the previous period's, or th
    default is the model chosen most often; every other cell gets an override. Whether a fit is flagged is
    `FitQualityRecorder::Reasons`, the framework's rule. The union of the multiplicity classes (`mult0-100`), which
    the purity task fits besides them, is a cell like the others: it votes for the default and can get an override.
-   The configurations selected before 9 November 2026 were chosen without it.
+   The configurations selected up to 9 November 2026 (`ff309b9`, the ones in use) were chosen without it: their
+   union cells run with the section's default.
 4. **Check.** The selected configuration run as written: it must reproduce every chosen fit (`reproduce.txt`); then
    compared with the reference run (`selected_vs_reference.txt`: NLL, flags, purity ratios).
 5. **φ.** The period's three φ fits (offline, online, online with the strangeness-injected MC) run with the selected
