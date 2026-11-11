@@ -28,3 +28,10 @@ OldComparison/extrapolation/output/
 !OldComparison/extrapolation/reference/*
 # The fit-model selection: every run's output stays out (FitModelSelection/README.md).
 FitModelSelection/output/
+# The comparison with the old analysis as written up against its analysis note (an internal ALICE document, with
+# figures extracted from it), and the investigation behind it: kept here, not published with this repository.
+OldComparison/OLD_VS_NEW_ANALYSIS.md
+OldComparison/investigation/
+# The plots made on request (PDFs of the summaries, the three-method ratios, the comparisons), one folder per day: they
+# show unpublished results and are regenerable from their specifications, so they stay out of this public repository.
+Figures/
