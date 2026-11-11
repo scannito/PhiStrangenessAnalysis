@@ -105,7 +105,7 @@ def tests(prelim):
     ("purezza degli omega nelle classi 10-15% e 40-50%", [PUR],
      lambda s: all_(s, of="purity", purity_key="omega") and sorted(x.get("mult") for x in series(s)) == [[10, 15], [40, 50]]),
     ("efficiency of the K0S integrated over multiplicity, and in the 0-1% class", [COR],
-     lambda s: all_(s, of="correction_map", particle="K0S", map="efficiency") and sorted(str(x.get("mult")) for x in series(s)) == ["None", "[0, 1]"]),
+     lambda s: all_(s, of="correction_map", particle="K0S", map="efficiency") and sorted(str(x.get("mult")) for x in series(s)) == ["[0, 1]", "[0, 100]"]),
     ("Omega spectrum at 70-100%, |dy| < 0.5, offline compared with online, divide online by offline", [OFF, ON],
      lambda s: all_(s, of="spectrum", species="Omega", dy=0.5, mult=[70, 100]) and files(s) == sorted([OFF, ON]) and ratio(s, OFF)),
     # One per design added in G4 (4 November 2026), written before the model was run on them.

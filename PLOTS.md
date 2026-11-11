@@ -136,8 +136,8 @@ empty one meaning "the only one in the file"), checks what can be checked, and r
 | `SpectrumExtended(file, species, dy, mult, where)` | the same extended to pT = 0, its fitted curve attached | |
 | `Trend(file, species, dy, kind, where)` | the yield against multiplicity: `Measured`, `Extrapolated`, `ExtrapOverMeas` | |
 | `SpeciesRatio(file, num, den, dy, kind, where)` | the ratio of two species' yields, as the task wrote it | |
-| `Purity(file, key, mult, binning, scheme)` | the purity of a purity key in one class (a file with no sections: a scheme, no `Where`) | |
-| `CorrectionMap(file, particle, map, mult, binning, scheme)` | efficiency, signal loss or signal loss over event loss; no class = integrated | |
+| `Purity(file, key, mult, binning, scheme)` | the purity of a purity key in one class, or in the union of the classes (its interval; a file with no sections: a scheme, no `Where`) | |
+| `CorrectionMap(file, particle, map, mult, binning, scheme)` | efficiency, signal loss or signal loss over event loss, in one class or in the union of the classes (its interval) | |
 | `Fit(file, purityKey, mult, pt, binning, scheme)` | a mass-fit canvas, the phi's without a purity key (its cell checked against the stamps); not a series: a `FitCanvas{canvas, origin, tag}` | |
 | `Object(file, path)` | anything in a file the framework did not write (a preliminary); no stamp, no facts | |
 
@@ -234,8 +234,8 @@ The canvases each task writes into its own file, drawn by library functions from
 
 | Function | Task | Canvases |
 |---|---|---|
-| `Corrections(canvases, file, scheme)` | `MCTask` | per particle: efficiency, signal loss, signal loss over event loss, at the analysis and (with `rebinning_pt`) the source binning; the classes and the integrated map |
-| `Purities(canvases, file, scheme)` | `PurityTask` | per purity key and binning: the classes |
+| `Corrections(canvases, file, scheme)` | `MCTask` | per particle: efficiency, signal loss, signal loss over event loss, at the analysis and (with `rebinning_pt`) the source binning; the classes, then their union in black |
+| `Purities(canvases, file, scheme)` | `PurityTask` | per purity key and binning: the classes, then their union in black |
 | `Correlations(canvases, file, scheme, section)` | the correlation tasks | per species: spectra per |dy| (log scale), extended spectra with their curves, measured and extrapolated trends and their ratio; the species ratios with their legend |
 
 What must be in the file is said per family: a family the task always writes is required, so a wrong name stops; one
@@ -297,8 +297,11 @@ Panel keys: `title`, `x_title`, `y_title`, `y_range` (not in a joined panel), `l
 {"of": "trend", "file": "...", "species": "K0S", "dy": "all", "trend": "measured"}
 {"of": "species_ratio", "file": "...", "numerator": "K0S", "denominator": "Pi", "dy": [1.0, 0.5], "trend": "extrapolated"}
 {"of": "purity", "file": "...", "purity_key": "omega", "mult": "all", "binning": "analysis"}
-{"of": "correction_map", "file": "...", "particle": "K0S", "map": "efficiency"}
+{"of": "correction_map", "file": "...", "particle": "K0S", "map": "efficiency", "mult": [0, 100]}
 ```
+
+The union of the classes, which purity and corrections files hold, is asked for by its interval (`mult_union` in
+the catalog), as the files name it; `"all"` is the classes.
 
 Every series may also take `scheme`, `section` (spectra files), `label`, `color`, `marker`, `marker_size`. `dy` and
 `mult` take one value, a list, or `"all"` (every value the file records): one entry is then a set of series, classes

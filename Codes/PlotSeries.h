@@ -193,21 +193,42 @@ inline std::vector<double> MultBinning(TDirectory* schemeDir, const std::string&
   return StampedBinning(schemeDir, RootIO::kStampMult, fileName);
 }
 
-// The index of 'interval' in 'edges', by the framework's one test of "is an edge" (BinningUtils::FindEdgeIndex); 'what'
-// names the binning in the refusal.
-inline int IntervalIndex(std::span<const double> edges, Interval interval, std::string_view what, const std::string& fileName)
+// The index of 'interval' in 'edges', by the framework's one test of "is an edge" (BinningUtils::FindEdgeIndex); none
+// when it is not one of its bins.
+inline std::optional<int> FindInterval(std::span<const double> edges, Interval interval)
 {
   const std::optional<int> low = BinningUtils::FindEdgeIndex(edges, interval.low);
   if (low && BinningUtils::FindEdgeIndex(edges, interval.high) == *low + 1)
-    return *low;
+    return low;
+  return std::nullopt;
+}
+inline std::string BinLabels(std::span<const double> edges)
+{
+  return Logger::Join(BinningUtils::BinIndices(edges) | std::views::transform([&](int bin) { return BinningUtils::BinLabel(edges, bin); }));
+}
+// The same, refused when it is not one; 'what' names the binning in the refusal.
+inline int IntervalIndex(std::span<const double> edges, Interval interval, std::string_view what, const std::string& fileName)
+{
+  if (const std::optional<int> bin = FindInterval(edges, interval))
+    return *bin;
   throw NotInFiles(std::format("[FATAL] PlotSeries: {}-{} is not a {} interval of '{}'. Available: {}.", interval.low, interval.high, what, fileName,
-                               Logger::Join(BinningUtils::BinIndices(edges) | std::views::transform([&](int bin) {
-                                              return BinningUtils::BinLabel(edges, bin);
-                                            }))));
+                               BinLabels(edges)));
 }
 inline int MultIndex(std::span<const double> edges, Interval interval, const std::string& fileName)
 {
   return IntervalIndex(edges, interval, "multiplicity", fileName);
+}
+// The binning a multiplicity interval is a bin of, and its index there: a class of the scheme's binning 'classes', or
+// the union of the classes, which the tasks that write one (PurityTask, MCTask) name as a binning of one class
+// (BinningUtils::ClassesAndUnion). With a single class the two are one, under one name.
+inline std::pair<std::vector<double>, int> MultClassOrUnion(std::span<const double> classes, Interval mult, const std::string& fileName)
+{
+  for (std::vector<double>& binning : BinningUtils::ClassesAndUnion(classes))
+    if (const std::optional<int> bin = FindInterval(binning, mult))
+      return {std::move(binning), *bin};
+  throw NotInFiles(std::format("[FATAL] PlotSeries: {}-{} is neither a multiplicity class of '{}' nor the union of its classes. "
+                               "Classes: {}.",
+                               mult.low, mult.high, fileName, BinLabels(classes)));
 }
 
 // The bins of a binning, as intervals.
@@ -306,6 +327,13 @@ inline std::string BinningFact(OutputNames::SpectrumBinning binning)
   return binning == OutputNames::SpectrumBinning::Source ? "source binning" : "analysis binning";
 }
 
+// The tag and the fact of a class of the scheme's binning, or of the union of its classes (Detail::MultClassOrUnion).
+inline std::pair<std::string, std::string> ClassOrUnion(TDirectory* schemeDir, const std::string& fileName, Interval mult)
+{
+  const auto [edges, multBin] = MultClassOrUnion(MultBinning(schemeDir, fileName), mult, fileName);
+  return {OutputNames::MultTag(edges, multBin), MultFact(edges, multBin)};
+}
+
 inline Series SpectrumAt(const std::string& fileName, const std::string& species, double dy, Interval mult, bool extended,
                          const Where& where)
 {
@@ -382,19 +410,19 @@ inline Series SpeciesRatio(const std::string& fileName, const std::string& num, 
 // -----------------------------------------------------------------------------
 // The series of a Purity file and of a Corrections file (a scheme, no section)
 // -----------------------------------------------------------------------------
+// The purity of one multiplicity class, or of the union of the classes (its interval, Detail::MultClassOrUnion).
 inline Series Purity(const std::string& fileName, const std::string& purityKey, Interval mult,
                      OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
   TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
-  const std::vector<double> edges = Detail::MultBinning(schemeDir, fileName);
-  const int multBin = Detail::MultIndex(edges, mult, fileName);
+  const auto [multTag, multFact] = Detail::ClassOrUnion(schemeDir, fileName, mult);
   Series s = Detail::Read(file, fileName,
                           RootIO::ObjectPath(OutputNames::SummaryPath(schemeDir->GetName(), binning),
-                                             OutputNames::Purity(purityKey, OutputNames::MultTag(edges, multBin), binning)),
+                                             OutputNames::Purity(purityKey, multTag, binning)),
                           schemeDir, {});
   s.x = OnX::PT;
-  s.facts = {.kind = "purity", .species = purityKey, .mult = Detail::MultFact(edges, multBin), .binning = Detail::BinningFact(binning)};
+  s.facts = {.kind = "purity", .species = purityKey, .mult = multFact, .binning = Detail::BinningFact(binning)};
   return s;
 }
 
@@ -506,21 +534,13 @@ inline std::vector<std::string> SpeciesIn(const std::string& fileName, const Whe
   return species;
 }
 
-// A correction map of one class, or integrated over multiplicity (no interval).
-inline Series CorrectionMap(const std::string& fileName, const std::string& particle, OutputNames::CorrectionMap map,
-                            std::optional<Interval> mult,
+// A correction map of one multiplicity class, or of the union of the classes (its interval, Detail::MultClassOrUnion).
+inline Series CorrectionMap(const std::string& fileName, const std::string& particle, OutputNames::CorrectionMap map, Interval mult,
                             OutputNames::SpectrumBinning binning = OutputNames::SpectrumBinning::Analysis, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
   TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
-  const std::vector<double> edges = Detail::MultBinning(schemeDir, fileName);
-  std::string multTag = OutputNames::MultUnionTag(edges);
-  std::string multFact = "multiplicity-integrated";
-  if (mult) {
-    const int multBin = Detail::MultIndex(edges, *mult, fileName);
-    multTag = OutputNames::MultTag(edges, multBin);
-    multFact = Detail::MultFact(edges, multBin);
-  }
+  const auto [multTag, multFact] = Detail::ClassOrUnion(schemeDir, fileName, mult);
   Series s = Detail::Read(file, fileName,
                           RootIO::ObjectPath(OutputNames::CorrectionMapPath(schemeDir->GetName(), map, binning),
                                              OutputNames::CorrectionMapName(particle, map, multTag, binning)),
@@ -560,8 +580,10 @@ inline FitCanvas Fit(const std::string& fileName, const std::optional<std::strin
     throw std::runtime_error("[FATAL] PlotSeries::Fit: the phi's fits have the analysis binning only; a binning is a purity key's.");
   auto file = Detail::Open(fileName);
   TDirectory* schemeDir = Detail::Scheme(file.get(), scheme, fileName);
-  const std::vector<double> multEdges = Detail::MultBinning(schemeDir, fileName);
-  const int multBin = Detail::MultIndex(multEdges, mult, fileName);
+  // A purity key's fits include those of the union of the classes; the phi's are of the classes only.
+  const std::vector<double> classes = Detail::MultBinning(schemeDir, fileName);
+  const auto [multEdges, multBin] = purityKey ? Detail::MultClassOrUnion(classes, mult, fileName)
+                                              : std::pair{classes, Detail::MultIndex(classes, mult, fileName)};
   std::vector<double> ptEdges{pt.low, pt.high};
   int ptBin = 0;
   if (!purityKey) {
@@ -957,11 +979,24 @@ inline void Save(TCanvas* canvas, const std::string& outBase, const std::vector<
 // -----------------------------------------------------------------------------
 // What a file holds
 // -----------------------------------------------------------------------------
-// The multiplicity classes of a file's scheme, from its stamp: what a plot of one curve per class iterates over.
-inline std::vector<Interval> Intervals(const std::string& fileName, const std::string& scheme = "")
+// The union of the multiplicity classes 'classes', as an interval; none with a single class, which is the union already.
+inline std::optional<Interval> UnionOfClasses(std::span<const double> classes)
+{
+  if (!BinningUtils::HasMultUnion(classes))
+    return std::nullopt;
+  return Interval{classes.front(), classes.back()};
+}
+// The multiplicity binning of a file's scheme, from its stamp.
+inline std::vector<double> MultEdges(const std::string& fileName, const std::string& scheme = "")
 {
   auto file = Detail::Open(fileName);
-  return Detail::IntervalsOf(Detail::MultBinning(Detail::Scheme(file.get(), scheme, fileName), fileName));
+  return Detail::MultBinning(Detail::Scheme(file.get(), scheme, fileName), fileName);
+}
+// The multiplicity classes of a file's scheme, from its stamp: what a plot of one curve per class iterates over.
+inline std::vector<Interval> Intervals(std::span<const double> classes) { return Detail::IntervalsOf(classes); }
+inline std::vector<Interval> Intervals(const std::string& fileName, const std::string& scheme = "")
+{
+  return Intervals(MultEdges(fileName, scheme));
 }
 
 // What a file holds, for whoever asks for a plot of it: per binning scheme, the task that wrote it, its multiplicity
@@ -980,6 +1015,7 @@ struct Catalog {
     std::string name;
     FileKind kind;
     std::vector<Interval> classes;
+    std::optional<Interval> classesUnion; // a purity or corrections file with more than one class: the union of the classes
     std::vector<Interval> ptIntervals;   // the phi fit file: the pT bins of its fits
     std::vector<std::string> particles;  // a corrections file
     std::vector<std::string> purityKeys; // a purity file
@@ -1004,8 +1040,11 @@ inline Catalog ReadCatalog(const std::string& fileName)
       auto it = provenance.find(key);
       return it == provenance.end() ? std::string() : it->second;
     };
-    Catalog::Scheme scheme{.name = name, .kind = KindOf(fileName, name), .classes = Intervals(fileName, name),
+    const std::vector<double> multEdges = Detail::MultBinning(schemeDir, fileName);
+    Catalog::Scheme scheme{.name = name, .kind = KindOf(fileName, name), .classes = Detail::IntervalsOf(multEdges),
                            .producedAt = fact(RootIO::kProvenanceProducedAt), .gitCommit = fact(RunEnvironment::kGitCommit)};
+    if (scheme.kind == FileKind::Corrections || scheme.kind == FileKind::Purity)
+      scheme.classesUnion = UnionOfClasses(multEdges);
     if (scheme.kind == FileKind::Corrections)
       scheme.particles = CorrectionParticles(fileName, name);
     else if (scheme.kind == FileKind::Purity)

@@ -693,6 +693,8 @@ class CanvasManager
   // colour is generated, spread around the hue circle, so that two classes never share one (the list used to repeat
   // from the eleventh class on).
   static int ClassColor(int index) { return PaletteColor(kClassColors, index); }
+  // The union of the classes, drawn next to them: none of the classes' colours.
+  static int UnionColor() { return kBlack; }
   static int VariantColor(int index) { return PaletteColor(kVariantColors, index); }
 
   // Draws a styled copy of 'h' on the current pad and returns it (for a legend). The style goes on the copy only: the

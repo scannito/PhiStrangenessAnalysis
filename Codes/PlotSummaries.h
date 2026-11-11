@@ -91,6 +91,19 @@ std::vector<PlotSeries::Series> ByClass(const std::string& fileName, const std::
   return Each(PlotSeries::Intervals(fileName, scheme), resolve, CanvasManager::ClassColor, presence);
 }
 
+// One series per multiplicity class, in the colour of the class, then the union of the classes in black, as present as
+// the classes are ('presence'); with a single class, the class alone, which is the union under the same name.
+template <class Resolve>
+std::vector<PlotSeries::Series> ByClassAndUnion(const std::string& fileName, const std::string& scheme, Resolve resolve, Presence presence)
+{
+  const std::vector<double> edges = PlotSeries::MultEdges(fileName, scheme);
+  std::vector<PlotSeries::Interval> mults = PlotSeries::Intervals(edges);
+  const int nClasses = static_cast<int>(mults.size());
+  if (const std::optional<PlotSeries::Interval> u = PlotSeries::UnionOfClasses(edges))
+    mults.push_back(*u);
+  return Each(mults, resolve, [&](int i) { return i < nClasses ? CanvasManager::ClassColor(i) : CanvasManager::UnionColor(); }, presence);
+}
+
 // The series overlaid on a new summary canvas, at its name and path, in the look the summaries have always had: the
 // first one sets the frame, ROOT's default option, the Y range adjusted when the manager writes the canvas.
 inline std::vector<TH1*> DrawSummary(CanvasManager& canvases, const std::string& name, const std::string& title,
@@ -123,25 +136,17 @@ inline void Save(const CanvasManager& canvases, const std::string& fileName, con
   out->Close();
 }
 
-// The maps of one particle at one binning: one series per multiplicity class, then the multiplicity-integrated one in
+// The maps of one particle at one binning: one series per multiplicity class, then the union of the classes in
 // black. Efficiency and signal loss at the analysis binning are required; the source binning is there only with
-// 'rebinning_pt'; the signal loss over event loss may lack a class, or the integrated map.
+// 'rebinning_pt'; the signal loss over event loss may lack a class, or the union.
 inline std::vector<PlotSeries::Series> CorrectionSeries(const std::string& fileName, const std::string& scheme, const std::string& particle,
                                                         OutputNames::CorrectionMap map, OutputNames::SpectrumBinning binning)
 {
   using Detail::Presence;
-  auto resolve = [&](std::optional<PlotSeries::Interval> mult) { return PlotSeries::CorrectionMap(fileName, particle, map, mult, binning, scheme); };
+  auto resolve = [&](const PlotSeries::Interval& mult) { return PlotSeries::CorrectionMap(fileName, particle, map, mult, binning, scheme); };
   const bool overEventLoss = map == OutputNames::CorrectionMap::SignalLossOverEventLoss;
   const Presence presence = overEventLoss ? Presence::EachOptional : binning == OutputNames::SpectrumBinning::Analysis ? Presence::Required : Presence::IfProduced;
-  std::vector<PlotSeries::Series> series = Detail::ByClass(fileName, scheme, resolve, presence);
-  if (series.empty())
-    return series;
-  std::optional<PlotSeries::Series> integrated = overEventLoss ? Detail::TryRead([&] { return resolve(std::nullopt); }) : resolve(std::nullopt);
-  if (integrated) {
-    integrated->look.color = kBlack;
-    series.push_back(std::move(*integrated));
-  }
-  return series;
+  return Detail::ByClassAndUnion(fileName, scheme, resolve, presence);
 }
 
 // MCTask's summaries: for each particle the file records, each map and each binning it has, the classes overlaid on
@@ -160,14 +165,14 @@ inline void Corrections(CanvasManager& canvases, const std::string& fileName, co
       }
 }
 
-// The purity of one key at one binning, one series per multiplicity class: the analysis binning required, the source
-// one there only with 'rebinning_pt'.
+// The purity of one key at one binning: one series per multiplicity class, then the union of the classes in black. The
+// analysis binning required, the source one there only with 'rebinning_pt'.
 inline std::vector<PlotSeries::Series> PuritySeries(const std::string& fileName, const std::string& scheme, const std::string& purityKey,
                                                     OutputNames::SpectrumBinning binning)
 {
-  auto ofClass = [&](const PlotSeries::Interval& mult) { return PlotSeries::Purity(fileName, purityKey, mult, binning, scheme); };
-  return Detail::ByClass(fileName, scheme, ofClass,
-                         binning == OutputNames::SpectrumBinning::Analysis ? Detail::Presence::Required : Detail::Presence::IfProduced);
+  auto resolve = [&](const PlotSeries::Interval& mult) { return PlotSeries::Purity(fileName, purityKey, mult, binning, scheme); };
+  return Detail::ByClassAndUnion(fileName, scheme, resolve,
+                                 binning == OutputNames::SpectrumBinning::Analysis ? Detail::Presence::Required : Detail::Presence::IfProduced);
 }
 
 // PurityTask's summaries: for each purity key the file records and each binning it has, the classes overlaid on one

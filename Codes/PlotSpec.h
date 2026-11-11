@@ -51,6 +51,7 @@ inline constexpr const char* kMarkerSize = "marker_size";
 inline constexpr const char* kSpecies = "species";
 inline constexpr const char* kDy = "dy";
 inline constexpr const char* kMult = "mult";
+inline constexpr const char* kMultUnion = "mult_union";
 inline constexpr const char* kExtended = "extended";
 inline constexpr const char* kTrend = "trend";
 inline constexpr const char* kNumerator = "numerator";
@@ -214,8 +215,8 @@ inline std::vector<KeySchema> SeriesValueKeys()
     {kMarkerSize, R"({"type": "number"})"},
     {kDy, std::format(R"({{"oneOf": [{{"type": "number"}}, {{"type": "array", "items": {{"type": "number"}}, "minItems": 1}}, {{"enum": ["{}"]}}], "description": "The |Delta y| limit, one the file holds (two decimals); a list of them, or \"{}\" for every one, makes one series each."}})",
                       kAll, kAll)},
-    {kMult, std::format(R"({{"oneOf": [{0}, {{"type": "array", "items": {0}, "minItems": 1}}, {{"enum": ["{1}"]}}], "description": "A multiplicity class, low and high edge in percent, as the file's binning has it; a list of them, or \"{1}\" for every class, makes one series each."}})",
-                        kRangeSchema, kAll)},
+    {kMult, std::format(R"({{"oneOf": [{0}, {{"type": "array", "items": {0}, "minItems": 1}}, {{"enum": ["{1}"]}}], "description": "A multiplicity class, low and high edge in percent, as the file's binning has it, or, for a purity or a correction map, the union of the classes (its interval, the catalog's {2}); a list of them, or \"{1}\" for every class, makes one series each."}})",
+                        kRangeSchema, kAll, kMultUnion)},
     {kBinning, std::format(R"({{"enum": [{}], "description": "The pT binning; {} when absent."}})", EnumList(kBinnings | std::views::keys), kDefaultBinning)},
   };
 }
@@ -322,18 +323,19 @@ inline const std::vector<SeriesForm>& SeriesForms()
        return SpeciesRatio(file, RequireString(s, kNumerator, kCtx), RequireString(s, kDenominator, kCtx), *dy,
                            Resolve(kTrendKinds, RequireString(s, kTrend, kCtx), kTrend), where);
      }},
-    {"purity", FileKind::Purity, "The purity S/(S+B) of a purity key against pT, in one multiplicity class.",
+    {"purity", FileKind::Purity,
+     "The purity S/(S+B) of a purity key against pT, in one multiplicity class or in the union of the classes.",
      {{kPurityKey, kStringSchema}, Ref(kMult), Ref(kBinning)},
      {kPurityKey, kMult},
      [](const rapidjson::Value& s, const std::string& file, const Where& where, std::optional<double>, std::optional<Interval> mult) {
        return Purity(file, RequireString(s, kPurityKey, kCtx), *mult, ReadBinning(s), where.scheme);
      }},
     {"correction_map", FileKind::Corrections,
-     "A correction map of a particle against pT, in one multiplicity class or integrated over multiplicity (no mult).",
+     "A correction map of a particle against pT, in one multiplicity class or in the union of the classes.",
      {{kParticle, kStringSchema}, {kMap, std::format(R"({{"enum": [{}]}})", EnumList(kMaps | std::views::keys))}, Ref(kMult), Ref(kBinning)},
-     {kParticle, kMap},
+     {kParticle, kMap, kMult},
      [](const rapidjson::Value& s, const std::string& file, const Where& where, std::optional<double>, std::optional<Interval> mult) {
-       return CorrectionMap(file, RequireString(s, kParticle, kCtx), Resolve(kMaps, RequireString(s, kMap, kCtx), kMap), mult,
+       return CorrectionMap(file, RequireString(s, kParticle, kCtx), Resolve(kMaps, RequireString(s, kMap, kCtx), kMap), *mult,
                             ReadBinning(s), where.scheme);
      }},
   };
@@ -869,16 +871,20 @@ inline std::string CatalogJson(const std::vector<PlotSeries::Catalog>& catalogs)
         if (f.reads == scheme.kind)
           forms.PushBack(str(f.of), a);
       sc.AddMember(rapidjson::StringRef(kSeriesForms), forms, a);
+      auto interval = [&](const PlotSeries::Interval& i) {
+        rapidjson::Value v(rapidjson::kArrayType);
+        v.PushBack(i.low, a).PushBack(i.high, a);
+        return v;
+      };
       auto intervals = [&](const std::vector<PlotSeries::Interval>& list) {
         rapidjson::Value v(rapidjson::kArrayType);
-        for (const PlotSeries::Interval& i : list) {
-          rapidjson::Value interval(rapidjson::kArrayType);
-          interval.PushBack(i.low, a).PushBack(i.high, a);
-          v.PushBack(interval, a);
-        }
+        for (const PlotSeries::Interval& i : list)
+          v.PushBack(interval(i), a);
         return v;
       };
       sc.AddMember(rapidjson::StringRef(kMult), intervals(scheme.classes), a);
+      if (scheme.classesUnion)
+        sc.AddMember(rapidjson::StringRef(kMultUnion), interval(*scheme.classesUnion), a);
       switch (scheme.kind) {
         case PlotSeries::FileKind::Corrections:
           sc.AddMember(rapidjson::StringRef(kParticle), strings(scheme.particles), a);
