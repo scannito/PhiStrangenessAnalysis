@@ -186,7 +186,8 @@
             "purity_task_2026_lowIRaf_updated",
             "purity_task_2026_lowIRag_updated",
             "purity_task_2026_lowIRai_updated",
-            "purity_task_2023_updated"
+            "purity_task_2023_updated",
+            "purity_task_2026_lowIR_updated"
         ],
         "inactive_tasks": [
             "purity_task_2024",
@@ -234,6 +235,12 @@
         "fit_config_file": "../JSONConfigs/fitConfig_2023.json",
         "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2023_PtMod_22ottobre.root",
         "output_prefix": "Data_2023_updated_"
+    },
+    "purity_task_2026_lowIR_updated": {
+        "inherits": "purity_base_settings_updated",
+        "fit_config_file": "../JSONConfigs/fitConfig_2026_LowIR.json",
+        "input_data_file": "../DataFile/pp/DeltaY/Data/AnalysisResults_136_2026_LowIRall_PtMod_22ottobre.root",
+        "output_prefix": "Data_2026_LowIR_updated_"
     },
     "inactive_task_blocks": {
         "purity_task_2024": {
