@@ -85,9 +85,12 @@ struct Look {
   std::optional<int> color, marker;
   std::optional<double> markerSize;
 };
-// The filled marker shapes, in the order a look by shape gives them, and the outline of each (TAttMarker): the first
-// is the marker of a series that is given none.
-inline constexpr std::pair<int, int> kShapes[] = {{20, 24}, {21, 25}, {33, 27}, {34, 28}, {29, 30}, {22, 26}, {23, 32}};
+// The marker shapes, in the order a look by shape gives them, each filled and open (TAttMarker: ROOT's numbering pairs
+// them by no rule, 20/24 but 33/27); the first filled one is the marker of a series that is given none.
+struct Shape {
+  int filled, open;
+};
+inline constexpr Shape kShapes[] = {{20, 24}, {21, 25}, {33, 27}, {34, 28}, {29, 30}, {22, 26}, {23, 32}};
 inline constexpr std::size_t kDiamond = 2; // kShapes[kDiamond]
 // A diamond looks smaller than a circle or a square of the same size: drawn larger by this much, the 2.0 against 1.4 of
 // the owner's ratio plots (26 October 2026).
@@ -799,7 +802,7 @@ inline std::vector<TH1*> Draw(const std::vector<Series>& series, const std::stri
     const std::string opt = i == 0 ? option : std::format("{} SAME", option);
     const Look& look = series[i].look;
     TH1* d = CanvasManager::DrawStyledCopy(copy.get(), opt.c_str(), look.color.value_or(CanvasManager::ClassColor(static_cast<int>(i))),
-                                           look.marker.value_or(kShapes[0].first));
+                                           look.marker.value_or(kShapes[0].filled));
     if (look.markerSize)
       d->SetMarkerSize(*look.markerSize);
     // No statistics box: a plot never wants one, and ROOT's default would draw it when the file is opened elsewhere.

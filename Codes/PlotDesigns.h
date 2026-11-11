@@ -160,12 +160,16 @@ using PlotSeries::kDiamond;
 using PlotSeries::kDiamondScale;
 using PlotSeries::kShapes;
 
-// The pair of kShapes a marker belongs to, and whether it is the open one; none for a marker outside them.
-inline std::optional<std::pair<std::size_t, bool>> ShapeOf(int marker)
+// The shape of kShapes a marker is, and whether it is the open one; none for a marker outside them.
+struct MarkerShape {
+  std::size_t index;
+  bool open;
+};
+inline std::optional<MarkerShape> ShapeOf(int marker)
 {
   for (std::size_t i = 0; i < std::size(kShapes); ++i)
-    if (kShapes[i].first == marker || kShapes[i].second == marker)
-      return std::pair{i, kShapes[i].second == marker};
+    if (kShapes[i].filled == marker || kShapes[i].open == marker)
+      return MarkerShape{i, kShapes[i].open == marker};
   return std::nullopt;
 }
 
@@ -192,7 +196,7 @@ inline void ShapeBy(const std::vector<PlotSeries::Series*>& series, PlotSeries::
       throw std::runtime_error(std::format("[FATAL] PlotDesigns::ShapeBy: '{}' has a marker of its own, not one of the shapes (open or filled) "
                                            "a shape by fact gives: leave one of the two out.",
                                            series[i]->origins.front().path));
-    look.marker = shape && shape->second ? kShapes[indices[i]].second : kShapes[indices[i]].first;
+    look.marker = shape && shape->open ? kShapes[indices[i]].open : kShapes[indices[i]].filled;
     if (indices[i] == kDiamond)
       look.markerSize = look.markerSize.value_or(CanvasManager::kMarkerSize) * kDiamondScale;
   }
@@ -203,11 +207,11 @@ inline void FillBy(const std::vector<PlotSeries::Series*>& series, PlotSeries::F
   const std::vector<std::size_t> indices = ValueIndices(series, fact, "FillBy", 2);
   for (std::size_t i = 0; i < series.size(); ++i) {
     PlotSeries::Look& look = series[i]->look;
-    const auto shape = ShapeOf(look.marker.value_or(kShapes[0].first));
+    const auto shape = ShapeOf(look.marker.value_or(kShapes[0].filled));
     if (!shape)
       throw std::runtime_error(std::format("[FATAL] PlotDesigns::FillBy: '{}' has a marker of its own, with no filled and open pair.",
                                            series[i]->origins.front().path));
-    look.marker = indices[i] == 0 ? kShapes[shape->first].first : kShapes[shape->first].second;
+    look.marker = indices[i] == 0 ? kShapes[shape->index].filled : kShapes[shape->index].open;
   }
 }
 } // namespace Detail
@@ -284,7 +288,7 @@ inline bool IsOpenMarker(int style)
   const auto shape = ShapeOf(style);
   if (!shape)
     throw std::runtime_error(std::format("[FATAL] PlotDesigns: marker {} has no filled and open pair; a key of the filling cannot use it.", style));
-  return shape->second;
+  return shape->open;
 }
 
 // Key's entries: the values of its fact, each with the colour or the filling of its series, checked one to one. A
