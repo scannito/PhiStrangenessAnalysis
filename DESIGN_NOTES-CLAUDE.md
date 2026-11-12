@@ -56,7 +56,8 @@ One place that declares the histogram paths read from `AnalysisResults`, and the
 because they were set by hand (the task defaults differ) — would become clear errors. Details and the two
 possible routes in `DESIGN_NOTES.md` section 12. Note that the association between an `AnalysisResults` file
 and its train already exists: `HYConfigs/Trains/*.yaml` maps each `train_id` to its `output_name`. If the
-download step can fetch the train's configuration as well (not checked), the association problem is solved.
+download step can fetch the train's configuration as well (checked since: it can, see `DESIGN_NOTES.md`
+section 12), the association problem is solved.
 
 ### 2.4 The fit as a function that returns a record
 

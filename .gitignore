@@ -6,6 +6,10 @@
 *.pdf
 *.png
 
+# The configuration of each Hyperloop train, saved by Macros/downloadHYOutput.py in a tree that mirrors DataFile/
+# (one JSON per data file, with its name). Out of git as the data files are.
+TrainConfigs/
+
 # Graphify's output: 16 MB of generated graph, rebuilt on demand from the sources.
 # The .graphifyignore that shapes it IS tracked - that one is configuration.
 graphify-out/

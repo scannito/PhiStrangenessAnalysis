@@ -1400,8 +1400,15 @@ data and MC inputs. A mismatch throws, as the binning checks do. No change to O2
 merging. The open point is how a file is associated with its train configuration (a naming rule, or a key in
 the global configuration next to each input file).
 Part of it exists already: `HYConfigs/Trains/*.yaml` maps each `train_id` to the `output_name` of its
-`AnalysisResults`, so the download step could fetch the train's configuration too (whether Hyperloop allows
-it from there was not checked).
+`AnalysisResults`, so the download step can fetch the train's configuration too. *Checked on 12 November 2026*:
+`analysis/wagon/download-configuration.jsp` with `referenceTime` set to the train's `wagons_timestamp` gives
+each wagon's configuration as it was when the train was composed, producers included. On train 786854 it
+matched, value for value, the `dpl-config.json` of the train's test workdir (which Hyperloop deletes after a
+few weeks), while the wagons' current configuration differed in one option changed since. Without
+`referenceTime` the endpoint returns the wagon as it is today, which is not the train. `Macros/downloadHYOutput.py`
+saves it in `TrainConfigs/`, a tree that mirrors `DataFile/` (`DataFile/pp/DeltaY/Data/X.root` gives
+`TrainConfigs/pp/DeltaY/Data/X.json`), with the train, the data file and its runs; how the framework reads that
+record, and what it checks, is still open (design review first).
 
 **Idea 2: an `OutputObj` in the O2Physics task.** `OutputObj<T>` (`Framework/AnalysisHelpers.h`) writes any
 TObject into `AnalysisResults.root`; a `TNamed`/`TObjString` holding the relevant configurables as JSON would
