@@ -16,6 +16,7 @@
 #include <optional>
 #include <ranges>
 #include <set>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -91,12 +92,18 @@ inline double ToNumber(const rapidjson::Value& value, std::string_view what, std
     return value.GetDouble();
 
   if (value.IsString()) {
+    // The whole string, not a prefix of it: stod reads "1.05abc" as 1.05 and stops there, and a malformed value would
+    // pass for a number. Found on 12 November 2026 for the Hyperloop records (TrainConfig.h), whose numbers are all
+    // strings; no configuration had a number followed by anything else.
+    const std::string text = value.GetString();
     try {
-      return std::stod(value.GetString());
+      std::size_t parsed = 0;
+      const double number = std::stod(text, &parsed);
+      if (parsed == text.size())
+        return number;
     } catch (const std::exception&) {
-      throw std::runtime_error(std::format("[FATAL] {}: '{}' is the string \"{}\", which is not a number.",
-                                           errCtx, what, value.GetString()));
     }
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' is the string \"{}\", which is not a number.", errCtx, what, text));
   }
 
   throw std::runtime_error(std::format("[FATAL] {}: '{}' is neither a number nor a string.", errCtx, what));
@@ -450,5 +457,57 @@ inline void RequireKnownKeys(const rapidjson::Value& node, const std::set<std::s
                                            errCtx, name, known.size(), known.empty() ? std::string{} : *known.begin()));
   }
 }
+
+// ---------------------------------------------------------------------------
+// Values as DPL writes the options of a task, which is how they come in the train records of TrainConfig.h: a boolean
+// as "0" or "1", a std::array as key._M_elems[i]. In a namespace of their own because they accept what the readers above
+// refuse: a key of the framework's configuration, where a boolean is true or false, must never be read with them.
+// ---------------------------------------------------------------------------
+namespace Dpl
+{
+// "0" or "1"; a JSON boolean is the same fact. Anything else ("1.0", 2, "yes") stops the run: a form never seen is
+// either an O2Physics change or a broken record, and taken as a boolean it would be a guess.
+inline bool ToBool(const rapidjson::Value& value, std::string_view what, std::string_view errCtx)
+{
+  if (value.IsBool())
+    return value.GetBool();
+  if (value.IsString()) {
+    const std::string_view text(value.GetString(), value.GetStringLength());
+    if (text == "0")
+      return false;
+    if (text == "1")
+      return true;
+  }
+  throw std::runtime_error(std::format("[FATAL] {}: '{}' is not a boolean as DPL writes it (\"0\" or \"1\").", errCtx, what));
+}
+
+inline bool RequireBool(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+{
+  return ToBool(RequireMember(node, key, errCtx), key, errCtx);
+}
+
+// A std::array<bool, N> as DPL writes it, key._M_elems[0] ... [N-1], where element i stands for names[i]: the names
+// whose element is true. Exactly N elements, contiguous: one missing or one more means the array is not the one the
+// names describe.
+inline std::set<std::string> RequireSelected(const rapidjson::Value& node, std::string_view key,
+                                             std::span<const std::string> names, std::string_view errCtx)
+{
+  std::set<std::string> selected;
+  for (std::size_t i = 0; i <= names.size(); ++i) {
+    const std::string element = std::format("{}._M_elems[{}]", key, i);
+    const rapidjson::Value* value = OptionalMember(node, element.c_str());
+    if (i == names.size()) {
+      if (value)
+        throw std::runtime_error(std::format("[FATAL] {}: '{}' has more than the {} elements of {}.", errCtx, key, names.size(), Logger::Join(names)));
+      break;
+    }
+    if (!value)
+      throw std::runtime_error(std::format("[FATAL] {}: '{}' has no element {} ({}), {} expected.", errCtx, key, i, names[i], names.size()));
+    if (ToBool(*value, element, errCtx))
+      selected.insert(names[i]);
+  }
+  return selected;
+}
+} // namespace Dpl
 
 } // namespace JsonConfig

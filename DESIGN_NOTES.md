@@ -1406,9 +1406,23 @@ each wagon's configuration as it was when the train was composed, producers incl
 matched, value for value, the `dpl-config.json` of the train's test workdir (which Hyperloop deletes after a
 few weeks), while the wagons' current configuration differed in one option changed since. Without
 `referenceTime` the endpoint returns the wagon as it is today, which is not the train. `Macros/downloadHYOutput.py`
-saves it in `TrainConfigs/`, a tree that mirrors `DataFile/` (`DataFile/pp/DeltaY/Data/X.root` gives
-`TrainConfigs/pp/DeltaY/Data/X.json`), with the train, the data file and its runs; how the framework reads that
-record, and what it checks, is still open (design review first).
+saves it next to each data file (`X.root` gives `X.train.json`), with the train, the data file and its runs.
+*Read since 12 November 2026* by `Codes/TrainConfig.h` (design reviewed by both agents, the owner's choices: the
+record next to the file, every option read equal across the parts of a summed file, the record's facts and the
+device's options in the provenance). First use, in the correlation tasks (`CheckOnlineCorrections`): an efficiency
+applied online and again in `corrections` stops the run, an associated species corrected in neither place is a
+warning, and the same event and the mixed event must have been corrected online alike. A file without a record
+is a warning. The online windows against the offline ones, and the stamps for what crosses files (the trigger
+file, the MC maps), are the next steps.
+How a device is found in a record (`TrainConfig::Devices`), from what Hyperloop returns (observed on train 786854,
+not enforced by the download): each wagon's configuration comes with its dependencies, so a producer
+(`pion-track-producer`, `v0-reduced-cand-producer`, ...) appears in every wagon that depends on it, with the same
+options, since in the train it is one device (a table cannot be produced twice) and its directory has no suffix.
+The `_id<wagon id>` suffix of a directory of `AnalysisResults.root` is added only to an analysis task that runs in
+several wagons of one train (`phi-strange-correlation_id66810`). A device without the suffix found in several
+wagons with different options is an inconsistent record, and stops the run. Each task checks only the devices it
+reads, from the first component of its paths (`base_path_data`, `hist_name`): no check of every directory of the
+file, so the service wagons the record also holds are never read (the owner, 14 November 2026).
 
 **Idea 2: an `OutputObj` in the O2Physics task.** `OutputObj<T>` (`Framework/AnalysisHelpers.h`) writes any
 TObject into `AnalysisResults.root`; a `TNamed`/`TObjString` holding the relevant configurables as JSON would
@@ -1456,8 +1470,11 @@ rebase on upstream, a full build, a run on data, the PR description (phase 0).
    `applyEfficiency` on, the online task corrects **every** active associated species; only the φ can be left
    out. Valid combinations: everything online and nothing here; associated online and `["Phi"]` here; nothing
    online and everything here. Signal loss and event loss are always applied here, which is what the
-   `*_online_efficiency_no_phi` blocks do. A double correction passes today without an error, because the
-   framework does not know how the train ran (section 12).
+   `*_online_efficiency_no_phi` blocks do. *Checked since 12 November 2026*, when the input has a train
+   configuration (section 12): `CorrelationTaskBase::CheckOnlineCorrections` stops a run that applies the
+   efficiency of a particle online and again here, and warns for an associated species corrected in neither
+   place. Not checked: a map uploaded as efficiency x signal loss (`particle_correction_mode: "combined"`) and
+   `signal_loss` applied here as well; the record says which map was read, not what it holds.
    The split by particle works because the pair weight factorises, 1/(ε_φ · ε_assoc): one factor can come
    from the task, the other from here (`totalCorrection = phiCorrection * assocCorrection` in `CorrelationTaskBase`). For the
    *same* particle the two are not interchangeable even in principle: online, each candidate gets its own

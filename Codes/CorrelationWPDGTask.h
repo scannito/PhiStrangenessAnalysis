@@ -55,6 +55,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
         : "Check that the production this file comes from actually reconstructed phi candidates.");
 
     InitAssocParticles(taskConfig);
+    InitCorrectionsAndCheckOnline(taskConfig);
 
     // The signal only: this task has no sideband to subtract.
     LoadAssocData(taskConfig,
@@ -67,7 +68,7 @@ class CorrelationWPDGTask : public CorrelationTaskBase
     ResolveBinningAndCache();
 
     // 5. Corrections / Extrapolation, rebinned onto the binning just resolved
-    InitCorrectionsAndExtrapolation(taskConfig);
+    LoadCorrectionsAndExtrapolation(taskConfig);
 
     SetupTrendHistograms();
     ClearOwnSection();
@@ -128,6 +129,8 @@ class CorrelationWPDGTask : public CorrelationTaskBase
 
  private:
   bool isPureGen{false};
+
+  bool ReadsOnlineWeightedContainers() const override { return !isPureGen; }
 
   std::unique_ptr<TH3F> h3PhiData;
 };

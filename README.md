@@ -278,7 +278,8 @@ the classes (`mult0-100`), fitted on its own merged distribution; the union is n
 
 **The `corrections` block** says, per particle, which corrections are applied here, in this
 framework (the efficiency can instead be applied online by the O2Physics task, never both for
-one particle: see `DESIGN_NOTES.md` section 13). A particle that is not listed is not corrected.
+one particle: see `DESIGN_NOTES.md` section 13; when the input has its train configuration, `X.train.json` next to
+it, a particle corrected in both places stops the run). A particle that is not listed is not corrected.
 
 ```jsonc
 "corrections_file": "../DataFile/pp/DeltaY/Corrections/2024_Corrections.root",

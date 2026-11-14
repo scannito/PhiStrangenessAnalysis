@@ -62,8 +62,9 @@ class CorrelationTask : public CorrelationTaskBase
                            "It is written by phi_fit_task: check its log for fits that did not "
                            "converge, and that it ran on the production this task is reading.");
 
-    // 3. Associated particles + data loading
+    // 3. Associated particles, the corrections checked against how the train ran, data loading
     InitAssocParticles(taskConfig);
+    InitCorrectionsAndCheckOnline(taskConfig);
 
     LoadAssocData(taskConfig,
                   {.signal = "DataSignal", .sideband = "DataSideband", .meSignal = "DataMESignal", .meSideband = "DataMESideband"});
@@ -75,7 +76,7 @@ class CorrelationTask : public CorrelationTaskBase
 
     // 5. Corrections / Purity / Extrapolation, rebinned onto the binning that
     //    was just resolved from the data
-    InitCorrectionsAndExtrapolation(taskConfig);
+    LoadCorrectionsAndExtrapolation(taskConfig);
     if (applyPurity)
       LoadPurities(taskConfig);
 

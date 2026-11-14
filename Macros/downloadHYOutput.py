@@ -15,11 +15,6 @@ except ImportError:
 # --- CONFIGURATION & SMART GRID AUTHENTICATION ---
 DEFAULT_OUTPUT_DIR = os.path.abspath("./")
 HYPERLOOP_API = "https://alimonitor.cern.ch/alihyperloop-data"
-# The train configurations go to TrainConfigs/, which mirrors DataFile/ (see config_path_for); both are in the
-# repository, one level above this script, and TrainConfigs/ is ignored by git as the data files are
-REPO_ROOT = os.path.dirname(os.path.dirname(os.path.realpath(__file__)))
-DATA_ROOT = os.path.join(REPO_ROOT, "DataFile")
-CONFIG_ROOT = os.path.join(REPO_ROOT, "TrainConfigs")
 
 # Check for a temporary active Grid token/proxy.
 # Respect $TMPDIR (on macOS this is NOT /tmp, e.g. /var/folders/.../T/),
@@ -124,13 +119,10 @@ def fetch_wagon_configurations(train_id, wagons_timestamp):
     return configurations
 
 def config_path_for(data_path):
-    """Where the configuration of a data file goes: TrainConfigs/ at the data file's place under DataFile/, with the
-    data file's name and .json. The same name keeps the two tied, and the directories of DataFile/ (pp/DeltaY/Data,
-    MC, MCClosure, pp_ref/...) sort the records the same way. None for a data file outside DataFile/."""
-    relative = os.path.relpath(os.path.realpath(data_path), os.path.realpath(DATA_ROOT))
-    if relative == os.pardir or relative.startswith(os.pardir + os.sep):
-        return None
-    return os.path.join(CONFIG_ROOT, f"{os.path.splitext(relative)[0]}.json")
+    """Where the configuration of a data file goes: next to it, X.root -> X.train.json. Next to the file so that it
+    goes wherever the file is copied (the sandboxes copy DataFile/), and one rule, the same as TrainConfig::RecordPath
+    in Codes/TrainConfig.h, which reads it."""
+    return f"{os.path.splitext(data_path)[0]}.train.json"
 
 def download_train_configuration(train_id, data_file, overwrite=False):
     """Saves the configuration the train ran with, at config_path_for(data file).
@@ -142,10 +134,6 @@ def download_train_configuration(train_id, data_file, overwrite=False):
     """
     data_path = data_file["path"]
     config_path = config_path_for(data_path)
-    if config_path is None:
-        print(f"Error: '{data_path}' is not under {DATA_ROOT}: its configuration has no place in {CONFIG_ROOT}, "
-              f"not saved.")
-        return False
     if not overwrite and os.path.isfile(config_path):
         try:
             with open(config_path) as f:
@@ -190,7 +178,6 @@ def download_train_configuration(train_id, data_file, overwrite=False):
         "wagons": configurations,
     }
     # Written to a temporary file and renamed, so that an interrupted run never leaves a truncated record
-    os.makedirs(os.path.dirname(config_path), exist_ok=True)
     tmp_path = f"{config_path}.tmp"
     with open(tmp_path, "w") as f:
         json.dump(record, f, indent=1, sort_keys=True)

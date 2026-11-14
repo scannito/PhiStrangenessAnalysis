@@ -206,8 +206,9 @@ strings.
   O2Physics task `phiStrangeCorrelation` can weight the pairs with the efficiency
   (`applyEfficiency`, `applyPhiEfficiency`); the framework applies it per pT cell
   (`acceptance_efficiency`). Different particles can be split between the two, because
-  the pair weight factorises into 1/(ε_φ · ε_assoc), but nothing checks it yet: the
-  framework does not know how the train ran. The two are not equivalent even for one
+  the pair weight factorises into 1/(ε_φ · ε_assoc). Checked when the input has its train
+  configuration (`TrainConfig.h`, `CorrelationTaskBase::CheckOnlineCorrections`): both for one
+  particle stops the run. The two are not equivalent even for one
   particle (online per candidate in multiplicity, pT and y; here an average per pT cell).
 - **A correction that cannot be computed is not a correction of 1.** A zero efficiency
   or a zero event-loss bin replaced by 1, or skipped, gives a number that is wrong and
@@ -258,8 +259,10 @@ strings.
   `ParticleTask::AnalysisBinning`).
 - One namespace per helper header, in `PascalCase` and named after the file, without
   `Helpers` when the file has it: `BinningUtils`, `RootIO` (`RootIOHelpers.h`),
-  `JsonConfig` (`JsonConfigHelpers.h`), `HistogramUtils`, `RunEnvironment`, `Logger`, `OutputNames`, `AnalysisStructures`.
-  What a namespace keeps to itself goes in a nested `Detail`, capitalised like the rest.
+  `JsonConfig` (`JsonConfigHelpers.h`), `HistogramUtils`, `RunEnvironment`, `Logger`, `OutputNames`, `AnalysisStructures`, `TrainConfig`.
+  What a namespace keeps to itself goes in a nested `Detail`, capitalised like the rest. One public nested namespace
+  exists, `JsonConfig::Dpl`: the values as DPL writes a task's options ("0"/"1", `key._M_elems[i]`), kept apart so
+  that a key of the framework's own configuration is never read with them.
   Dedicated managers: `WorkflowManager`,
   `CanvasManager`, `BaseConfigManager`, `FitConfigManager`, `ExtrapConfigManager`.
 - Tasks communicate through ROOT files, never in memory. `WorkflowManager` destroys

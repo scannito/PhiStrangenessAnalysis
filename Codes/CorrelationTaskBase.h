@@ -1,14 +1,14 @@
 #pragma once
 
 #include "AnalysisConstants.h"
-#include "AnalysisStructures.h"
 #include "AnalysisSettings.h"
+#include "AnalysisStructures.h"
 #include "BinningUtils.h"
 #include "CanvasManager.h"
 #include "CorrelationCalculator.h"
-#include "HistogramUtils.h"
 #include "ExtrapConfigManager.h"
 #include "ExtrapolationModelFactory.h"
+#include "HistogramUtils.h"
 #include "IAnalysisTask.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
@@ -16,6 +16,7 @@
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 #include "SpectrumExtrapolator.h"
+#include "TrainConfig.h"
 
 #include "TCanvas.h"
 #include "TDirectory.h"
@@ -33,13 +34,15 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <filesystem>
 #include <format>
 #include <initializer_list>
+#include <iterator>
 #include <map>
 #include <memory>
-#include <stdexcept>
 #include <optional>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -129,7 +132,7 @@ class CorrelationTaskBase : public IAnalysisTask
           std::string title = Form("Extrap/Measured Contribution %s |#Delta y| < %.2f; Multiplicity percentile (%%); Yield_{Extrap} / Yield_{Meas}", pName.c_str(), dyLimit);
 
           std::unique_ptr<TH1> hRatioExtrapMeas = HistogramUtils::MakeRatioHist(h1MultTrendsExtrap[pIdx][yIdx].get(), h1MultTrends[pIdx][yIdx].get(),
-                                                                               ratioName, title, 1.0, 1.0);
+                                                                                ratioName, title, 1.0, 1.0);
 
           trendsDir->cd();
           hRatioExtrapMeas->Write(nullptr, TObject::kOverwrite);
@@ -215,7 +218,7 @@ class CorrelationTaskBase : public IAnalysisTask
           std::string ratioMeasName = OutputNames::ParticleRatioMeasured(num.name, den.name, dyLimit);
           std::string ratioMeasTitle = std::format("Measured Ratio; Multiplicity percentile (%);{}", ratioCfg.label);
           std::unique_ptr<TH1> hRatioMeas = HistogramUtils::MakeRatioHist(h1MultTrends[*idxNum][yIdx].get(), h1MultTrends[*idxDen][yIdx].get(),
-                                                                         ratioMeasName, ratioMeasTitle, numScale, denScale);
+                                                                          ratioMeasName, ratioMeasTitle, numScale, denScale);
 
           ratioDir->cd();
           hRatioMeas->Write(nullptr, TObject::kOverwrite);
@@ -276,7 +279,6 @@ class CorrelationTaskBase : public IAnalysisTask
 
  protected:
   AnalysisSettings globalCfgs;
-
 
   bool applyME{false}, applyExtrapolation{false};
   bool useProjectionCache{false}, use2DEngine{false};
@@ -444,12 +446,41 @@ class CorrelationTaskBase : public IAnalysisTask
   virtual bool CanBuild2DEngine() const { return false; }
   bool Engine2D() const { return use2DEngine && CanBuild2DEngine(); }
 
+  // Whether the containers read are ones the train can weight with the efficiency: not those at generator level (the
+  // WPDG task with is_pure_gen, filled by processMCGenClosure without any weight), which nothing online corrects
+  // whatever the train's options, and which no efficiency must correct here either.
+  virtual bool ReadsOnlineWeightedContainers() const { return true; }
+
+  // The particles of the analysis: the trigger and the associated species.
+  std::vector<std::string> AnalysedParticles() const
+  {
+    std::vector<std::string> particles{"Phi"};
+    for (const auto& p : assocParticles)
+      particles.push_back(p.name);
+    return particles;
+  }
+
+  // The inputs of the associated-particle containers, by role: the same event, and the mixed event when it is applied.
+  // One table for the loading and for the online check, so that a role is read from the same keys in both.
+  struct AssocInput {
+    const char* fileKey;
+    const char* basePathKey;
+    const char* role;
+  };
+
+  std::vector<AssocInput> AssocInputs() const
+  {
+    std::vector<AssocInput> inputs{{"input_data_file", "base_path_data", "data"}};
+    if (applyME)
+      inputs.push_back({"input_me_file", "base_path_me", "mixed_event"});
+    return inputs;
+  }
+
   // The options of CorrelationCalculator, from the task's switches, built once for both run modes: a switch added to
   // Options and set in one place only would stay off in the other. doMoreQA is CorrelationTask's alone.
   CorrelationCalculator::Options CalculatorOptions(bool doMoreQA = false) const
   {
-    return {.applyME = applyME, .useProjectionCache = useProjectionCache, .engine2D = Engine2D(), .doMoreQA = doMoreQA,
-            .meNormalization = meNormalization, .projectionAxis = projectionAxis};
+    return {.applyME = applyME, .useProjectionCache = useProjectionCache, .engine2D = Engine2D(), .doMoreQA = doMoreQA, .meNormalization = meNormalization, .projectionAxis = projectionAxis};
   }
 
   // The settings that need an engine this run will not build. Both used to pass in silence:
@@ -501,9 +532,17 @@ class CorrelationTaskBase : public IAnalysisTask
   // Shared efficiency loading + extrapolation config setup.
   // Requires assocParticles already populated.
   // -------------------------------------------------------------------------
-  void InitCorrectionsAndExtrapolation(const rapidjson::Value& taskConfig)
+  // The corrections block parsed, and compared with how the trains ran: right after the associated particles, which is
+  // all they need, so that a block that cannot be right stops before the containers are loaded, and so that the train
+  // configurations are in the provenance the projection cache writes.
+  void InitCorrectionsAndCheckOnline(const rapidjson::Value& taskConfig)
   {
     InitCorrections(taskConfig);
+    CheckOnlineCorrections(taskConfig);
+  }
+
+  void LoadCorrectionsAndExtrapolation(const rapidjson::Value& taskConfig)
+  {
     if (corrections)
       LoadCorrections();
 
@@ -610,18 +649,91 @@ class CorrelationTaskBase : public IAnalysisTask
         what += what.empty() ? "signal loss" : " + signal loss";
       Logger::Info("{}: {} corrected for {}.", GetName(), particle, what);
     }
-    // Every particle of the analysis gets a line, the uncorrected ones too: a particle left
-    // out by mistake would otherwise show only as a line that is missing. Info and not Warn,
-    // since not listing a particle is how the configuration asks for it (the no_phi blocks).
-    std::vector<std::string> analysed{"Phi"};
-    for (const auto& p : assocParticles)
-      analysed.push_back(p.name);
-    for (const auto& name : analysed)
-      if (!cfg.perParticle.contains(name))
-        Logger::Info("{}: {} not corrected here (not listed in \"corrections\").", GetName(), name);
     Logger::Info("{}: Event loss {}.", GetName(), cfg.eventLoss ? "applied" : "not applied");
 
     corrections = std::move(cfg);
+  }
+
+  // -------------------------------------------------------------------------
+  // How the trains of the inputs ran, against what this block corrects (DESIGN_NOTES.md sections 12 and 13), from
+  // their configurations (TrainConfig.h). Every device read (the same event's and the mixed event's, in every part of
+  // a sum) must have weighted the analysed particles alike online. Then, per particle, one line says where its
+  // efficiency is applied: online and here both stops the run; neither is a warning for an associated species, whose
+  // yields are then not corrected for it, and normal for the phi, which the no_phi blocks leave uncorrected on purpose.
+  // Not checked: a signal loss applied online. The record says which map was read (ccdbEfficiencyPath), not whether
+  // it was efficiency alone or efficiency x signal loss, so signal_loss here cannot be compared with it.
+  // Each input's record goes into the provenance, or "none".
+  // -------------------------------------------------------------------------
+  void CheckOnlineCorrections(const rapidjson::Value& taskConfig)
+  {
+    const std::vector<std::string> analysed = AnalysedParticles();
+    const std::set<std::string> analysedSet(analysed.begin(), analysed.end());
+
+    // Kept until the end: the devices point into them. One entry per file, so that the mixed event read from the data
+    // file (the usual case) loads, checks and warns once; the key is the path made lexically normal, so that the same
+    // file written two ways ("../DataFile/x.root", "../DataFile/./x.root") is still one.
+    std::map<std::string, std::vector<TrainConfig::Record>> recordsByFile;
+    std::optional<std::set<std::string>> online;
+    std::string onlineFrom;
+    for (const auto& input : AssocInputs()) {
+      const std::string file = JsonConfig::RequireString(taskConfig, input.fileKey, GetName());
+      const std::string basePath = JsonConfig::RequireString(taskConfig, input.basePathKey, GetName());
+      const auto [loaded, isNew] = recordsByFile.try_emplace(std::filesystem::path(file).lexically_normal().string());
+      if (isNew)
+        loaded->second = TrainConfig::Load(file, GetName());
+      const std::string provenanceKey = std::format("train_config_{}", input.role);
+      if (loaded->second.empty()) {
+        provenance[provenanceKey] = "none";
+        continue;
+      }
+      const std::vector<TrainConfig::Device> devices = TrainConfig::Devices(loaded->second, basePath, GetName());
+      provenance[provenanceKey] = TrainConfig::Describe(devices);
+      if (!ReadsOnlineWeightedContainers())
+        continue;
+      for (const auto& device : devices) {
+        std::set<std::string> corrected;
+        std::ranges::set_intersection(TrainConfig::ParticlesCorrectedOnline(device), analysedSet,
+                                      std::inserter(corrected, corrected.end()));
+        const std::string from = std::format("{} (wagon {}, '{}')", device.record->path, device.wagonId, device.name);
+        if (online && *online != corrected) {
+          throw std::runtime_error(std::format(
+            "[FATAL] {}: the inputs were weighted online for different particles: {} by {}, {} by {}. The same event "
+            "and the mixed event, and every train of a sum, must be weighted alike.",
+            GetName(), TrainConfig::Names(*online), onlineFrom, TrainConfig::Names(corrected), from));
+        }
+        online = std::move(corrected);
+        onlineFrom = from;
+      }
+    }
+
+    if (!ReadsOnlineWeightedContainers()) {
+      Logger::Info("{}: Generator-level containers: not weighted online, whatever the train's options.", GetName());
+      return;
+    }
+    const std::set<std::string> here = corrections ? corrections->ParticlesWithEfficiency() : std::set<std::string>{};
+    for (const auto& name : analysed) {
+      const bool isHere = here.contains(name);
+      if (!online) {
+        Logger::Info("{}: Efficiency of {}: {}; online: not known (no train configuration).", GetName(), name,
+                     isHere ? "applied here" : "not applied here");
+        continue;
+      }
+      const bool isOnline = online->contains(name);
+      if (isHere && isOnline) {
+        throw std::runtime_error(std::format(
+          "[FATAL] {}: the efficiency of {} is applied online by the train ({}) and again here "
+          "(corrections.particles.{}.acceptance_efficiency): keep one of the two (DESIGN_NOTES.md section 13).",
+          GetName(), name, onlineFrom, name));
+      }
+      if (isHere || isOnline) {
+        Logger::Info("{}: Efficiency of {}: applied {}.", GetName(), name, isHere ? "here" : std::format("online, {}", onlineFrom));
+      } else if (name == "Phi") {
+        Logger::Info("{}: Efficiency of {}: applied neither online nor here.", GetName(), name);
+      } else {
+        Logger::Warn("{}: the efficiency of {} is applied neither online ({}) nor here: its yields are not corrected for it.",
+                     GetName(), name, onlineFrom);
+      }
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -641,7 +753,9 @@ class CorrelationTaskBase : public IAnalysisTask
       RootIO::kStampMult, multBinning, std::format("corrections file '{}'", correctionsPath));
 
     // What a map corrects: its axis, and what an invalid bin of it does under on_invalid_correction_bin 'warn'.
-    enum class MapOf { EventLoss, Phi, Associated };
+    enum class MapOf { EventLoss,
+                       Phi,
+                       Associated };
 
     // LAMBDA HELPER 1: one map of the corrections file, 'name' in the directory 'path' (OutputNames, where MCTask
     // writes it). It returns the map with the analysis binning, or throws; a bin that is not positive is
@@ -725,7 +839,6 @@ class CorrelationTaskBase : public IAnalysisTask
       const std::vector<double>& targetBinning = PtBinningOf(particle, GetName());
       const MapOf of = particle == "Phi" ? MapOf::Phi : MapOf::Associated;
 
-
       const bool applyEfficiencyBinned = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Binned;
       const bool applyEfficiencyIntegrated = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Integrated;
 
@@ -735,11 +848,11 @@ class CorrelationTaskBase : public IAnalysisTask
         const std::string multTag = OutputNames::MultTag(multBinning, multBin);
         std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::Efficiency), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::Efficiency, multTag), applyEfficiencyBinned, targetBinning);
         std::unique_ptr<TH1> hSignalLossBinned = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::SignalLoss), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::SignalLoss, multTag),
-                                                                     pc.signalLoss.has_value(), // always per multiplicity class
-                                                                     targetBinning);
+                                                           pc.signalLoss.has_value(), // always per multiplicity class
+                                                           targetBinning);
 
         corr.h1Corrections[multBin] = combineHists(hEfficiencyIntegrated ? hEfficiencyIntegrated.get() : hEfficiencyBinned.get(), hSignalLossBinned.get(),
-                                             std::format("h1Corrected_{}_{}", particle, multTag));
+                                                   std::format("h1Corrected_{}_{}", particle, multTag));
       }
 
       correctionCollection[particle] = std::move(corr);
@@ -880,9 +993,10 @@ class CorrelationTaskBase : public IAnalysisTask
       } else {
         TDirectory* schemeDir = RootIO::FindPath(cacheFile, {globalCfgs.binningName});
         if (!schemeDir) {
-          throw std::runtime_error(std::format("[FATAL] {}: cache requested but scheme '{}' does not exist in {}. "
-                                               "Run once with 'use_projection_cache': false.",
-                                               GetName(), globalCfgs.binningName, cacheFile->GetName()));
+          throw std::runtime_error(std::format(
+            "[FATAL] {}: cache requested but scheme '{}' does not exist in {}. "
+            "Run once with 'use_projection_cache': false.",
+            GetName(), globalCfgs.binningName, cacheFile->GetName()));
         }
 
         particle.binning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtAssoc, ctx);
@@ -890,9 +1004,10 @@ class CorrelationTaskBase : public IAnalysisTask
         mult = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult, ctx);
 
         if (particle.binning.empty() || ptPhi.empty() || mult.empty()) {
-          throw std::runtime_error(std::format("[FATAL] {}: {} carries no binning stamps, so the binning its projections "
-                                               "were built with is unknown. Rebuild it with 'use_projection_cache': false.",
-                                               GetName(), ctx));
+          throw std::runtime_error(std::format(
+            "[FATAL] {}: {} carries no binning stamps, so the binning its projections "
+            "were built with is unknown. Rebuild it with 'use_projection_cache': false.",
+            GetName(), ctx));
         }
 
         // The cache is the source of truth here, but it still has to be the
@@ -1029,7 +1144,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // and the alternative - handing it the two indices so it can look the canvas up - is
   // giving it a way to reach objects that are none of its business.
   AnalysisStructures::ExtrapolationResult ExtrapolateSpectrum(TH1* hSpec, const AnalysisStructures::AssocParticleConfig& config, int multBin,
-                                          TDirectory* targetDir, TCanvas* overlay)
+                                                              TDirectory* targetDir, TCanvas* overlay)
   {
     // 1. Fetch configuration for THIS particle and THIS multBin from JSON
     AnalysisStructures::ExtrapConfig eCfg = extrapConfigManager->GetConfig(config.name, OutputNames::MultTag(multBinning, multBin));
@@ -1233,9 +1348,10 @@ class CorrelationTaskBase : public IAnalysisTask
     // The two being equal is not a coincidence worth leaving to the eye: it means
     // nothing was added, i.e. the extrapolation silently dropped out.
     if (res.yield == rawIntegral)
-      Logger::Warn("{}: the extrapolated yield equals the raw integral exactly - nothing was extrapolated. Check "
-                   "the fit above.",
-                   hSpec->GetName());
+      Logger::Warn(
+        "{}: the extrapolated yield equals the raw integral exactly - nothing was extrapolated. Check "
+        "the fit above.",
+        hSpec->GetName());
   }
 
   // -------------------------------------------------------------------------
@@ -1454,7 +1570,6 @@ class CorrelationTaskBase : public IAnalysisTask
     const std::string finalDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     outputFile = RootIO::OpenOrThrow(std::format("{}{}{}", finalDir, outputPrefix, OutputNames::kSpectraFile), "UPDATE", GetName());
 
-
     // UPDATE and not RECREATE here too, and for a different reason: the cache is
     // expensive to rebuild, so a scheme directory that already holds projections of
     // another binning must be REFUSED rather than silently replaced. That guard lives
@@ -1560,17 +1675,21 @@ class CorrelationTaskBase : public IAnalysisTask
     std::unique_ptr<TFile> inputFile, inputMEFile;
     std::string basePath, basePathME;
     if (readContainers) {
-      inputFile = RootIO::OpenOrThrow(JsonConfig::RequireString(taskConfig, "input_data_file", GetName()), "READ", GetName());
-      basePath = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
-    }
-    if (readContainers && applyME) {
-      inputMEFile = RootIO::OpenOrThrow(JsonConfig::RequireString(taskConfig, "input_me_file", GetName()), "READ", GetName());
-      basePathME = JsonConfig::RequireString(taskConfig, "base_path_me", GetName());
+      // AssocInputs: the same event first, then the mixed event when it is applied
+      const std::vector<AssocInput> inputs = AssocInputs();
+      auto open = [&](const AssocInput& input, std::unique_ptr<TFile>& file, std::string& path) {
+        file = RootIO::OpenOrThrow(JsonConfig::RequireString(taskConfig, input.fileKey, GetName()), "READ", GetName());
+        path = JsonConfig::RequireString(taskConfig, input.basePathKey, GetName());
+      };
+      open(inputs.front(), inputFile, basePath);
+      if (applyME)
+        open(inputs.back(), inputMEFile, basePathME);
     }
 
     auto read = [&](TFile* file, std::string_view path, const AnalysisStructures::AssocParticleConfig& config, std::string_view kind) {
       return RootIO::GetUniqueOrThrow<THnSparseF>(file, AssocContainerPath(path, config, kind), GetName());
     };
+
     for (const auto& config : assocParticles) {
       AnalysisStructures::LoadedAssocData data;
       data.name = config.name;

@@ -13,6 +13,7 @@
 #include <array>
 #include <format>
 #include <map>
+#include <set>
 #include <memory>
 #include <optional>
 #include <string>
@@ -94,6 +95,17 @@ struct CorrectionsConfig {
   std::map<std::string, ParticleCorrections> perParticle; // "Phi" or an associated species; absent = not corrected here
   bool eventLoss{false};                                  // Per event, not per particle
   InvalidBinPolicy onInvalidBin;                          // Set by InitCorrections from the required key
+
+  // The particles whose efficiency is applied here, compared with those of the train (CheckOnlineCorrections).
+  std::set<std::string> ParticlesWithEfficiency() const
+  {
+    std::set<std::string> particles;
+    for (const auto& [particle, corrections] : perParticle) {
+      if (corrections.efficiency)
+        particles.insert(particle);
+    }
+    return particles;
+  }
 };
 
 struct LoadedPurity {
