@@ -252,6 +252,18 @@ inline std::set<std::string> ParticlesWeightedOnline(const Device& device)
   return weighted;
 }
 
+// TEMPORARY, until every production read comes from the O2Physics task that no longer adds it (propagateEffError
+// removed, O2Physics commit 15646e3d1 on the owner's branch phistrange-ccdb-ownership): whether this device added the
+// uncertainty of the efficiency maps to the bin errors, entry by entry. Only where the option exists, and only with
+// applyEfficiency on, since without the maps there is nothing added.
+inline bool MapErrorAddedPerEntry(const Device& device)
+{
+  const std::string where = Source(device);
+  const rapidjson::Value* option = JsonConfig::OptionalMember(*device.options, "propagateEffError");
+  return option && JsonConfig::Dpl::RequireBool(*device.options, "applyEfficiency", where) &&
+         JsonConfig::Dpl::ToBool(*option, "propagateEffError", where);
+}
+
 // The particles, among 'of', that the devices weighted online, and the first device as their source. The same for all
 // the devices (the same event and the mixed event, the trains of a sum, are read together and must have been weighted
 // alike), or the run stops naming two that differ. Only 'of' is compared, so devices that differ in a particle nobody

@@ -701,6 +701,20 @@ class CorrelationTaskBase : public IAnalysisTask
       return;
     }
 
+    // TEMPORARY (TrainConfig::MapErrorAddedPerEntry): said, since a reader of these errors would take them for the
+    // statistical ones with the map's uncertainty in, which they are not. Once per device: the same event and the mixed
+    // event usually read the same one.
+    std::set<std::string> said;
+    for (const auto& device : devices) {
+      if (TrainConfig::MapErrorAddedPerEntry(device) && said.insert(TrainConfig::Source(device)).second) {
+        Logger::Warn("{}: the bin errors of {} include the uncertainty of the efficiency maps summed entry by entry "
+                     "(propagateEffError): that adds only about sqrt(1 + r^2) to the statistical error, and is not the maps' "
+                     "uncertainty, which adds linearly within a map bin (DESIGN_NOTES.md section 13). Until the "
+                     "productions are made again without it.",
+                     GetName(), TrainConfig::Source(device));
+      }
+    }
+
     // Per particle, how the pairs were weighted online; a particle is absent when that is not known (no train record)
     std::map<std::string, OnlineWeighting> weightedOnline;
     if (const auto pairs = TrainConfig::WeightedOnline(devices, analysedSet, GetName())) {
