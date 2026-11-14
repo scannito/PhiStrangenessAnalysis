@@ -451,6 +451,12 @@ class CorrelationTaskBase : public IAnalysisTask
   // whatever the train's options, and which no efficiency must correct here either.
   virtual bool ReadsOnlineWeightedContainers() const { return true; }
 
+  // Whether a particle was weighted online, and by which train or file that is known.
+  struct OnlineWeighting {
+    bool weighted;
+    std::string source;
+  };
+
   // The particles of the analysis: the trigger and the associated species.
   std::vector<std::string> AnalysedParticles() const
   {
@@ -534,11 +540,13 @@ class CorrelationTaskBase : public IAnalysisTask
   // -------------------------------------------------------------------------
   // The corrections block parsed, and compared with how the trains ran: right after the associated particles, which is
   // all they need, so that a block that cannot be right stops before the containers are loaded, and so that the train
-  // configurations are in the provenance the projection cache writes.
-  void InitCorrectionsAndCheckOnline(const rapidjson::Value& taskConfig)
+  // configurations are in the provenance the projection cache writes. triggerPhi: how the triggers' phi was weighted
+  // online, when the triggers come from a file of their own (CorrelationTask: phi_fit_task's); the WPDG task's come
+  // from its own input, so from the device of its pairs, and it passes nothing.
+  void InitCorrectionsAndCheckOnline(const rapidjson::Value& taskConfig, const std::optional<OnlineWeighting>& triggerPhi = std::nullopt)
   {
     InitCorrections(taskConfig);
-    CheckOnlineCorrections(taskConfig);
+    CheckOnlineCorrections(taskConfig, triggerPhi);
   }
 
   void LoadCorrectionsAndExtrapolation(const rapidjson::Value& taskConfig)
@@ -655,16 +663,18 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
-  // How the trains of the inputs ran, against what this block corrects (DESIGN_NOTES.md sections 12 and 13), from
-  // their configurations (TrainConfig.h). Every device read (the same event's and the mixed event's, in every part of
-  // a sum) must have weighted the analysed particles alike online. Then, per particle, one line says where its
-  // efficiency is applied: online and here both stops the run; neither is a warning for an associated species, whose
+  // How the trains of the inputs weighted the particles online, against what this block corrects offline (DESIGN_NOTES.md
+  // sections 12 and 13), from their configurations (TrainConfig.h). Every device read (the same event's and the mixed
+  // event's, in every part of a sum) must have weighted the analysed particles alike. The triggers, when they come from a
+  // file of their own (triggerPhi), are one more source of phi entries: weighted otherwise than the pairs, the
+  // per-trigger yield is off by the phi efficiency, and the run stops. Then, per particle, one line says where its
+  // efficiency is applied: online and offline both stops the run; neither is a warning for an associated species, whose
   // yields are then not corrected for it, and normal for the phi, which the no_phi blocks leave uncorrected on purpose.
   // Not checked: a signal loss applied online. The record says which map was read (ccdbEfficiencyPath), not whether
   // it was efficiency alone or efficiency x signal loss, so signal_loss here cannot be compared with it.
   // Each input's record goes into the provenance, or "none".
   // -------------------------------------------------------------------------
-  void CheckOnlineCorrections(const rapidjson::Value& taskConfig)
+  void CheckOnlineCorrections(const rapidjson::Value& taskConfig, const std::optional<OnlineWeighting>& triggerPhi)
   {
     const std::vector<std::string> analysed = AnalysedParticles();
     const std::set<std::string> analysedSet(analysed.begin(), analysed.end());
@@ -673,65 +683,81 @@ class CorrelationTaskBase : public IAnalysisTask
     // file (the usual case) loads, checks and warns once; the key is the path made lexically normal, so that the same
     // file written two ways ("../DataFile/x.root", "../DataFile/./x.root") is still one.
     std::map<std::string, std::vector<TrainConfig::Record>> recordsByFile;
-    std::optional<std::set<std::string>> online;
-    std::string onlineFrom;
+    std::vector<TrainConfig::Device> devices;
     for (const auto& input : AssocInputs()) {
       const std::string file = JsonConfig::RequireString(taskConfig, input.fileKey, GetName());
       const std::string basePath = JsonConfig::RequireString(taskConfig, input.basePathKey, GetName());
       const auto [loaded, isNew] = recordsByFile.try_emplace(std::filesystem::path(file).lexically_normal().string());
-      if (isNew)
+      if (isNew) {
         loaded->second = TrainConfig::Load(file, GetName());
-      const std::string provenanceKey = std::format("train_config_{}", input.role);
-      if (loaded->second.empty()) {
-        provenance[provenanceKey] = "none";
-        continue;
       }
-      const std::vector<TrainConfig::Device> devices = TrainConfig::Devices(loaded->second, basePath, GetName());
-      provenance[provenanceKey] = TrainConfig::Describe(devices);
-      if (!ReadsOnlineWeightedContainers())
-        continue;
-      for (const auto& device : devices) {
-        std::set<std::string> corrected;
-        std::ranges::set_intersection(TrainConfig::ParticlesCorrectedOnline(device), analysedSet,
-                                      std::inserter(corrected, corrected.end()));
-        const std::string from = std::format("{} (wagon {}, '{}')", device.record->path, device.wagonId, device.name);
-        if (online && *online != corrected) {
-          throw std::runtime_error(std::format(
-            "[FATAL] {}: the inputs were weighted online for different particles: {} by {}, {} by {}. The same event "
-            "and the mixed event, and every train of a sum, must be weighted alike.",
-            GetName(), TrainConfig::Names(*online), onlineFrom, TrainConfig::Names(corrected), from));
-        }
-        online = std::move(corrected);
-        onlineFrom = from;
-      }
+      const std::vector<TrainConfig::Device> inputDevices = TrainConfig::Devices(loaded->second, basePath, GetName());
+      provenance[TrainConfig::ProvenanceKey(input.role)] = TrainConfig::Describe(inputDevices);
+      devices.insert(devices.end(), inputDevices.begin(), inputDevices.end());
     }
 
     if (!ReadsOnlineWeightedContainers()) {
       Logger::Info("{}: Generator-level containers: not weighted online, whatever the train's options.", GetName());
       return;
     }
-    const std::set<std::string> here = corrections ? corrections->ParticlesWithEfficiency() : std::set<std::string>{};
+
+    // Per particle, how the pairs were weighted online; a particle is absent when that is not known (no train record)
+    std::map<std::string, OnlineWeighting> weightedOnline;
+    if (const auto pairs = TrainConfig::WeightedOnline(devices, analysedSet, GetName())) {
+      for (const auto& name : analysed) {
+        weightedOnline.emplace(name, OnlineWeighting{pairs->particles.contains(name), pairs->source});
+      }
+    }
+    const std::set<std::string> correctedOffline = corrections ? corrections->ParticlesWithEfficiency() : std::set<std::string>{};
+
+    if (triggerPhi) {
+      if (const auto pairsPhi = weightedOnline.find("Phi"); pairsPhi != weightedOnline.end()) {
+        if (pairsPhi->second.weighted != triggerPhi->weighted) {
+          throw std::runtime_error(std::format(
+            "[FATAL] {}: the phi is {}weighted online in the pairs ({}) and {}in the triggers ({}): the per-trigger "
+            "yield would be off by the phi efficiency. Point trigger_prefix at a phi_fit_task run on a subwagon weighted alike.",
+            GetName(), pairsPhi->second.weighted ? "" : "not ", pairsPhi->second.source, triggerPhi->weighted ? "" : "not ",
+            triggerPhi->source));
+        }
+      } else {
+        // The pairs' weighting is not known, so it cannot be compared; the triggers' alone still says whether the phi
+        // efficiency would be applied to them twice, since CountTriggers divides them by it.
+        if (triggerPhi->weighted && correctedOffline.contains("Phi")) {
+          throw std::runtime_error(std::format(
+            "[FATAL] {}: the efficiency of Phi is applied online to the triggers ({}) and again offline here "
+            "(corrections.particles.Phi.acceptance_efficiency): keep one of the two (DESIGN_NOTES.md section 13).",
+            GetName(), triggerPhi->source));
+        }
+        Logger::Warn("{}: the phi of the triggers is {}weighted online ({}), that of the pairs is not known (no train "
+                     "configuration): the pairs and the triggers are not compared.",
+                     GetName(), triggerPhi->weighted ? "" : "not ", triggerPhi->source);
+      }
+    }
+
     for (const auto& name : analysed) {
-      const bool isHere = here.contains(name);
-      if (!online) {
-        Logger::Info("{}: Efficiency of {}: {}; online: not known (no train configuration).", GetName(), name,
-                     isHere ? "applied here" : "not applied here");
+      const bool offline = correctedOffline.contains(name);
+      const auto known = weightedOnline.find(name);
+      if (known == weightedOnline.end()) {
+        Logger::Info("{}: Efficiency of {}: {} offline; online: not known (no train configuration).", GetName(), name,
+                     offline ? "applied" : "not applied");
         continue;
       }
-      const bool isOnline = online->contains(name);
-      if (isHere && isOnline) {
+      const auto& [online, source] = known->second;
+      if (offline && online) {
         throw std::runtime_error(std::format(
-          "[FATAL] {}: the efficiency of {} is applied online by the train ({}) and again here "
+          "[FATAL] {}: the efficiency of {} is applied online ({}) and again offline here "
           "(corrections.particles.{}.acceptance_efficiency): keep one of the two (DESIGN_NOTES.md section 13).",
-          GetName(), name, onlineFrom, name));
+          GetName(), name, source, name));
       }
-      if (isHere || isOnline) {
-        Logger::Info("{}: Efficiency of {}: applied {}.", GetName(), name, isHere ? "here" : std::format("online, {}", onlineFrom));
+      if (offline) {
+        Logger::Info("{}: Efficiency of {}: applied offline (here).", GetName(), name);
+      } else if (online) {
+        Logger::Info("{}: Efficiency of {}: applied online ({}).", GetName(), name, source);
       } else if (name == "Phi") {
-        Logger::Info("{}: Efficiency of {}: applied neither online nor here.", GetName(), name);
+        Logger::Info("{}: Efficiency of {}: applied neither online nor offline.", GetName(), name);
       } else {
-        Logger::Warn("{}: the efficiency of {} is applied neither online ({}) nor here: its yields are not corrected for it.",
-                     GetName(), name, onlineFrom);
+        Logger::Warn("{}: the efficiency of {} is applied neither online ({}) nor offline: its yields are not corrected for it.",
+                     GetName(), name, source);
       }
     }
   }

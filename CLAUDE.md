@@ -250,9 +250,10 @@ strings.
 - **A record kept next to the results takes the shape of its data.** A set of named facts is one `TNamed` per fact
   (the provenance); a table of rows with the same typed fields is a `TTree`, detached (`SetDirectory(0)`),
   filled in memory and written like a histogram (`FitQualityRecorder`, at `{binning_name}/FitQuality`); a number per
-  cell that another task reads is a histogram with real edges, which `RequireSameAxis` can check. A table stores
+  cell that another task reads is a histogram with real edges, which `RequireSameAxis` can check; a yes/no fact that
+  another task reads is a `TParameter<bool>`, a typed value and not a spelled one (`PhiWeightedOnline`, 14 November 2026). A table stores
   raw facts, never verdicts: the rule that judges them is one function. Decided on 21 October 2026, with both review
-  agents, against moving every record to one form. `Macros/CompareRootFiles.cpp` compares all three, and says
+  agents, against moving every record to one form. `Macros/CompareRootFiles.cpp` compares all of them, and says
   NOT COMPARED for anything else instead of passing it.
 - Prefer deriving over storing: if a member follows from other members, a
   constructor or an accessor should produce it (`AssocParticleConfig::mass`,

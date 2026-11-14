@@ -26,9 +26,11 @@
 
 #include "rapidjson/document.h"
 
+#include <algorithm>
 #include <array>
 #include <filesystem>
 #include <format>
+#include <iterator>
 #include <map>
 #include <memory>
 #include <optional>
@@ -68,6 +70,12 @@ struct Device {
 // framework's names.
 inline const std::array<std::string, 6> kAssocSpecies{"K0S", "Lambda", "AntiLambda", "Xi", "Omega", "Pi"};
 
+// "<record>: wagon <id>, device '<name>'", for the messages.
+inline std::string Source(const Device& device)
+{
+  return std::format("{}: wagon {}, device '{}'", device.record->path, device.wagonId, device.name);
+}
+
 // "Phi, Pi", or "none", for the messages.
 inline std::string Names(const std::set<std::string>& names) { return names.empty() ? "none" : Logger::Join(names); }
 
@@ -90,11 +98,6 @@ inline const rapidjson::Value* FindWagon(const Record& record, const std::string
 {
   const rapidjson::Value* wagonBlock = JsonConfig::OptionalMember(Wagons(record), wagonId.c_str());
   return wagonBlock && wagonBlock->IsObject() ? wagonBlock : nullptr;
-}
-
-inline std::string Where(const Device& device)
-{
-  return std::format("{}: wagon {}, device '{}'", device.record->path, device.wagonId, device.name);
 }
 
 // Every directory of the data file named after a wagon (_id<wagon id>) must be a wagon of every record. For one train,
@@ -141,9 +144,10 @@ inline std::vector<Record> Load(const std::string& dataFile, std::string_view er
 {
   const std::string path = RecordPath(dataFile);
   if (!std::filesystem::exists(path)) {
-    Logger::Warn("{}: no train configuration for '{}' (expected '{}'): how its train ran is not checked. "
-                 "Macros/downloadHYOutput.py saves it.",
-                 errCtx, dataFile, path);
+    Logger::Warn(
+      "{}: no train configuration for '{}' (expected '{}'): how its train ran is not checked. "
+      "Macros/downloadHYOutput.py saves it.",
+      errCtx, dataFile, path);
     return {};
   }
 
@@ -231,27 +235,66 @@ inline std::vector<Device> Devices(const std::vector<Record>& records, std::stri
   return devices;
 }
 
-// The particles whose efficiency phiStrangeCorrelation applied to the entries this device filled. The phi, the trigger,
-// with applyPhiEfficiency; the associated species switched on in activeCorrelationTypes. Both only with
-// applyEfficiency, without which the maps are not even loaded (phiStrangeCorrelation.cxx, init).
-inline std::set<std::string> ParticlesCorrectedOnline(const Device& device)
+// The particles whose efficiency phiStrangeCorrelation applied online, as a weight on the entries this device filled:
+// the phi, the trigger, with applyPhiEfficiency; the associated species switched on in activeCorrelationTypes. Both
+// only with applyEfficiency, without which the maps are not even loaded (phiStrangeCorrelation.cxx, init).
+inline std::set<std::string> ParticlesWeightedOnline(const Device& device)
 {
   const rapidjson::Value& options = *device.options;
-  const std::string where = Detail::Where(device);
-  std::set<std::string> corrected;
+  const std::string where = Source(device);
+  std::set<std::string> weighted;
   if (!JsonConfig::Dpl::RequireBool(options, "applyEfficiency", where))
-    return corrected;
+    return weighted;
   if (JsonConfig::Dpl::RequireBool(options, "applyPhiEfficiency", where)) {
-    corrected.insert("Phi");
+    weighted.insert("Phi");
   }
-  corrected.merge(JsonConfig::Dpl::RequireSelected(options, "activeCorrelationTypes", kAssocSpecies, where));
-  return corrected;
+  weighted.merge(JsonConfig::Dpl::RequireSelected(options, "activeCorrelationTypes", kAssocSpecies, where));
+  return weighted;
 }
 
+// The particles, among 'of', that the devices weighted online, and the first device as their source. The same for all
+// the devices (the same event and the mixed event, the trains of a sum, are read together and must have been weighted
+// alike), or the run stops naming two that differ. Only 'of' is compared, so devices that differ in a particle nobody
+// reads pass. Empty when there are no devices, which is "not known", never "nothing weighted".
+struct WeightedParticles {
+  std::set<std::string> particles;
+  std::string source;
+};
+
+inline std::optional<WeightedParticles> WeightedOnline(const std::vector<Device>& devices, const std::set<std::string>& of,
+                                                       std::string_view errCtx)
+{
+  if (devices.empty()) {
+    return std::nullopt;
+  }
+  const auto weightedOf = [&](const Device& device) {
+    std::set<std::string> weighted;
+    std::ranges::set_intersection(ParticlesWeightedOnline(device), of, std::inserter(weighted, weighted.end()));
+    return weighted;
+  };
+  const std::set<std::string> common = weightedOf(devices.front());
+  for (const auto& device : devices) {
+    if (const std::set<std::string> weighted = weightedOf(device); weighted != common) {
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: the inputs were weighted online for different particles: {} by {}, {} by {}. The same event and "
+        "the mixed event, and every train of a sum, must be weighted alike.",
+        errCtx, Names(common), Source(devices.front()), Names(weighted), Source(device)));
+    }
+  }
+  return WeightedParticles{common, Source(devices.front())};
+}
+
+// The provenance key of an input's train configuration, for its role ("data", "mixed_event").
+inline std::string ProvenanceKey(std::string_view role) { return std::format("train_config_{}", role); }
+
 // For the provenance: per record, its train and data file as recorded, and the wagon, name and options of the device
-// read, as one JSON text. The record file is the archive of the rest. Documentation, so it never throws.
+// read, as one JSON text; "none" when the input has no train configuration. The record file is the archive of the rest.
+// Documentation, so it never throws.
 inline std::string Describe(const std::vector<Device>& devices)
 {
+  if (devices.empty()) {
+    return "none";
+  }
   rapidjson::Document out(rapidjson::kArrayType);
   auto& allocator = out.GetAllocator();
   for (const auto& device : devices) {

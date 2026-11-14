@@ -3,10 +3,17 @@
 #include "CorrelationTaskBase.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
+#include "OutputNames.h"
 #include "RootIOHelpers.h"
+
+#include "TParameter.h"
 
 #include <algorithm>
 #include <format>
+#include <memory>
+#include <optional>
+#include <string>
+#include <vector>
 
 class CorrelationTask : public CorrelationTaskBase
 {
@@ -52,6 +59,8 @@ class CorrelationTask : public CorrelationTaskBase
 
     h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(triggerFile.get(), triggerSignalPath, GetName());
     h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(triggerFile.get(), RootIO::ObjectPath(summaryPath, OutputNames::kTriggerBkgRatio), GetName());
+    // How phi_fit_task's input weighted the phi online, compared with the pairs by CheckOnlineCorrections
+    const std::optional<OnlineWeighting> triggerPhi = ReadTriggerPhiWeighting(triggerFile.get(), triggerPath, summaryPath);
 
     // The same exposure the WPDG task has, by a different route: this matrix is written
     // cell by cell by PhiFitTask, so a run where every fit failed leaves it present,
@@ -64,7 +73,7 @@ class CorrelationTask : public CorrelationTaskBase
 
     // 3. Associated particles, the corrections checked against how the train ran, data loading
     InitAssocParticles(taskConfig);
-    InitCorrectionsAndCheckOnline(taskConfig);
+    InitCorrectionsAndCheckOnline(taskConfig, triggerPhi);
 
     LoadAssocData(taskConfig,
                   {.signal = "DataSignal", .sideband = "DataSideband", .meSignal = "DataMESignal", .meSideband = "DataMESideband"});
@@ -135,6 +144,27 @@ class CorrelationTask : public CorrelationTaskBase
 
   std::unique_ptr<TH2D> h2TriggerSignal;
   std::unique_ptr<TH2D> h2TriggerBkgRatio;
+
+  // The fact PhiFitTask writes in its summary (OutputNames::kPhiWeightedOnline). Absent from every file written before
+  // 14 November 2026, and when phi_fit_task's input had no train configuration: a warning, the comparison skipped.
+  std::optional<OnlineWeighting> ReadTriggerPhiWeighting(TFile* triggerFile, const std::string& triggerPath,
+                                                         const std::vector<std::string>& summaryPath) const
+  {
+    std::unique_ptr<TObject> object(triggerFile->Get(RootIO::ObjectPath(summaryPath, OutputNames::kPhiWeightedOnline).c_str()));
+    if (!object) {
+      Logger::Warn("{}: the trigger file '{}' does not say whether its phi was weighted online, so the triggers are not "
+                   "compared with the pairs. Re-run phi_fit_task on it (after Macros/downloadHYOutput.py if its input "
+                   "has no train configuration).",
+                   GetName(), triggerPath);
+      return std::nullopt;
+    }
+    const auto* fact = dynamic_cast<const TParameter<bool>*>(object.get());
+    if (!fact) {
+      throw std::runtime_error(std::format("[FATAL] {}: '{}' in '{}' is a {}, not the TParameter<bool> phi_fit_task writes.",
+                                           GetName(), OutputNames::kPhiWeightedOnline, triggerPath, object->ClassName()));
+    }
+    return OnlineWeighting{fact->GetVal(), std::format("trigger file '{}'", triggerPath)};
+  }
 
   std::map<std::string, AnalysisStructures::LoadedPurity> purityCollection;
 

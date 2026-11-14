@@ -48,6 +48,10 @@ inline const std::string kNormalisationRelError{"h1NormalisationRelError"};
 inline const std::string kPhiDataFile{"PhiDataHistograms.root"}; // PhiFitTask -> CorrelationTask
 inline const std::string kPurityFile{"Purity.root"};             // PurityTask -> CorrelationTask, every particle
 // The directory of each that holds what the other task reads is SummaryPath, below.
+// Whether the input of PhiFitTask weighted the phi online: a TParameter<bool> in its SummaryPath, absent when its input
+// had no train configuration. CorrelationTask compares it with the weight of its own pairs, which must be the same for
+// the per-trigger yield to be right (CorrelationTaskBase::CheckOnlineCorrections).
+inline const std::string kPhiWeightedOnline{"PhiWeightedOnline"};
 // Written by both correlation tasks, CorrelationTask and CorrelationWPDGTask: the results, and the
 // projections of one associated particle, which a later run reads back (use_projection_cache).
 inline const std::string kSpectraFile{"PhiAssocSpectra.root"};

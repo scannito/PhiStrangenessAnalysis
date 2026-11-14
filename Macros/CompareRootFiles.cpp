@@ -4,8 +4,8 @@
 //
 // Exact equality on purpose, contents, errors and bin edges: a refactoring that changes a
 // number in the last bit has changed something. Histograms (any dimension), THnSparse,
-// TGraph, TTree (entries, branches, values), TObjString and the titles of plain TNamed are
-// compared; canvases are skipped (they hold drawn copies of the rest), and so is every
+// TGraph, TTree (entries, branches, values), TObjString, TParameter<bool> and the titles of plain
+// TNamed are compared; canvases are skipped (they hold drawn copies of the rest), and so is every
 // directory whose name starts with "Provenance" (timestamp, commit; ComparisonTask copies its
 // inputs' into Provenance_numerator and Provenance_denominator).
 //
@@ -29,6 +29,7 @@
 #include "THnSparse.h"
 #include "TKey.h"
 #include "TNamed.h"
+#include "TParameter.h"
 #include "TLeaf.h"
 #include "TObjString.h"
 #include "TTree.h"
@@ -255,6 +256,11 @@ static void walk(TDirectory* da, TDirectory* db, const std::string& prefix)
     } else if (dynamic_cast<TCanvas*>(oa)) {
       --nCompared;
       ++nSkipped; // drawn copies of what is compared above
+    } else if (auto* pa = dynamic_cast<TParameter<bool>*>(oa)) {
+      // A yes/no fact one task writes for another to compare (OutputNames::kPhiWeightedOnline)
+      auto* pb = dynamic_cast<TParameter<bool>*>(ob);
+      if (!pb || pa->GetVal() != pb->GetVal())
+        report(path, "value differs");
     } else if (oa->IsA() == TNamed::Class()) {
       if (std::string(oa->GetTitle()) != ob->GetTitle())
         report(path, "title differs");

@@ -1412,8 +1412,14 @@ record next to the file, every option read equal across the parts of a summed fi
 device's options in the provenance). First use, in the correlation tasks (`CheckOnlineCorrections`): an efficiency
 applied online and again in `corrections` stops the run, an associated species corrected in neither place is a
 warning, and the same event and the mixed event must have been corrected online alike. A file without a record
-is a warning. The online windows against the offline ones, and the stamps for what crosses files (the trigger
-file, the MC maps), are the next steps.
+is a warning. *Since 14 November 2026* the triggers too: `phi_fit_task` writes whether its input weighted the
+phi online (`PhiWeightedOnline`, a `TParameter<bool>` in its summary, absent when its input has no record), and
+the correlation task compares it with its pairs: weighted otherwise stops the run (the per-trigger yield would be
+off by the phi efficiency); with no record for the pairs, the triggers alone still stop a phi efficiency applied
+to them online and again here, and the rest is a warning. Next steps: the online windows against the offline
+ones (`purity_task` reading the devices of its producers), a warning for the productions made with
+`propagateEffError`, which map version a train read (the record has only `ccdbEfficiencyPath`), and a stamp
+for the MC maps.
 How a device is found in a record (`TrainConfig::Devices`), from what Hyperloop returns (observed on train 786854,
 not enforced by the download): each wagon's configuration comes with its dependencies, so a producer
 (`pion-track-producer`, `v0-reduced-cand-producer`, ...) appears in every wagon that depends on it, with the same

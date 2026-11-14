@@ -12,6 +12,7 @@
 #include "OutputNames.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
+#include "TrainConfig.h"
 
 #include "TDirectory.h"
 #include "TFile.h"
@@ -19,11 +20,13 @@
 #include "TH1D.h"
 #include "TH2D.h"
 #include "TH3F.h"
+#include "TParameter.h"
 
 #include <cmath>
 #include <format>
 #include <map>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -47,6 +50,17 @@ class PhiFitTask : public IAnalysisTask
 
     basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
     h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(inputFile.get(), std::format("{}phi/h3PhiData", basePathData), GetName());
+
+    // Whether the input weighted the phi online, for CorrelationTask to compare with its pairs (OutputNames::
+    // kPhiWeightedOnline). Unknown, so not written, when the input has no train configuration; the parts of a sum must
+    // agree, or h3PhiData would mix weighted and unweighted entries.
+    const std::vector<TrainConfig::Record> records = TrainConfig::Load(inputPath, GetName());
+    const std::vector<TrainConfig::Device> devices = TrainConfig::Devices(records, basePathData, GetName());
+    provenance[TrainConfig::ProvenanceKey("data")] = TrainConfig::Describe(devices);
+    if (const auto weighted = TrainConfig::WeightedOnline(devices, {"Phi"}, GetName())) {
+      phiWeightedOnline = weighted->particles.contains("Phi");
+      Logger::Info("{}: The phi of '{}' is {}weighted online.", GetName(), basePathData, *phiWeightedOnline ? "" : "not ");
+    }
 
     // The binning comes from the file, never from the configuration: the loops
     // below address these very bins. h3PhiData axes: (mult, pT, invariant mass).
@@ -150,6 +164,9 @@ class PhiFitTask : public IAnalysisTask
     h2TriggerBkgSigRegion->Write(nullptr, TObject::kOverwrite);
     h2TriggerBkgSideRegion->Write(nullptr, TObject::kOverwrite);
     h2TriggerBkgRatio->Write(nullptr, TObject::kOverwrite);
+    if (phiWeightedOnline) {
+      TParameter<bool>(OutputNames::kPhiWeightedOnline.c_str(), *phiWeightedOnline).Write(nullptr, TObject::kOverwrite);
+    }
 
     // The trigger matrices cross into CorrelationTask, so this file is a link in
     // the chain and not a by-product: it has to say what produced it. No binning
@@ -169,6 +186,7 @@ class PhiFitTask : public IAnalysisTask
   CanvasManager canvasManager;
 
   std::string basePathData;
+  std::optional<bool> phiWeightedOnline; // from the input's train configuration; empty when it has none
 
   // Read from the input file in Init(), never from the configuration
   std::vector<double> multBinning;
