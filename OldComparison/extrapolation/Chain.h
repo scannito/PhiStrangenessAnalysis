@@ -1,5 +1,5 @@
 // What the programs of this folder take from the chain, in one place. Most of it they read from the file they
-// study (Source): its spectra by the names of OutputNames, its multiplicity classes from its binning stamp, the
+// study (Source): its spectra by the names of IONames, its multiplicity classes from its binning stamp, the
 // extrapolation configuration it was made with from its provenance. What they cannot read is copied here once:
 // the options of CorrelationTaskBase::ExtrapolateSpectrum, which checks/asTheChain.cpp verifies by remaking the
 // file's own extrapolated yields, and the pi starting points before and after 20 October 2026, for the study's
@@ -10,7 +10,7 @@
 #include "BinningUtils.h"
 #include "ExtrapConfigManager.h"
 #include "ExtrapolationModelFactory.h"
-#include "OutputNames.h"
+#include "IONames.h"
 #include "RootIOHelpers.h"
 #include "SpectrumExtrapolator.h"
 
@@ -79,11 +79,11 @@ class Source
     std::filesystem::remove(copy);
     // The manager reads a section only once its classes are declared. Declared as the chain did for this file: the
     // species it extrapolated, those of its spectra that have a section (CorrelationTaskBase, at Init).
-    TDirectory* section = base->GetDirectory(OutputNames::kExtract1D.c_str());
+    TDirectory* section = base->GetDirectory(IONames::kExtract1D.c_str());
     if (!section)
-      Fail(std::format("no {} under {} in {}", OutputNames::kExtract1D, fBinning, path));
+      Fail(std::format("no {} under {} in {}", IONames::kExtract1D, fBinning, path));
     for (TObject* key : *section->GetListOfKeys())
-      if (TDirectory* dir = section->GetDirectory(key->GetName()); OutputNames::IsSpeciesDir(dir) && fConfigs->HasConfig(dir->GetName()))
+      if (TDirectory* dir = section->GetDirectory(key->GetName()); IONames::IsSpeciesDir(dir) && fConfigs->HasConfig(dir->GetName()))
         fConfigs->DeclareCells(dir->GetName(), fEdges);
   }
 
@@ -101,9 +101,9 @@ class Source
   // Where the chain writes the measured spectrum of 'species' in class 'multBin', |Delta y| < 1.
   std::string SpectrumPath(const std::string& species, int multBin, bool extended = false) const
   {
-    const std::string name = OutputNames::Spectrum(species, 1.0, fEdges, multBin);
-    return std::format("{}/{}/{}/{}/{}", fBinning, OutputNames::kExtract1D, species, OutputNames::kSpectraDir,
-                       extended ? OutputNames::SpectrumExtended(name) : name);
+    const std::string name = IONames::Spectrum(species, 1.0, fEdges, multBin);
+    return std::format("{}/{}/{}/{}/{}", fBinning, IONames::kExtract1D, species, IONames::kSpectraDir,
+                       extended ? IONames::SpectrumExtended(name) : name);
   }
 
   // That spectrum, detached, under 'name'.
@@ -120,7 +120,7 @@ class Source
   // The configuration the chain used for 'species' in class 'multBin', with the mass it injects.
   AnalysisStructures::ExtrapConfig Configured(const std::string& species, int multBin) const
   {
-    AnalysisStructures::ExtrapConfig cfg = fConfigs->GetConfig(species, OutputNames::MultTag(fEdges, multBin));
+    AnalysisStructures::ExtrapConfig cfg = fConfigs->GetConfig(species, IONames::MultTag(fEdges, multBin));
     cfg.mass = AnalysisConstants::GetMass(species);
     return cfg;
   }

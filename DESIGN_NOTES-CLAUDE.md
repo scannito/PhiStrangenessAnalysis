@@ -203,7 +203,7 @@ that disagree. The path I would take:
 **What else moved:**
 
 - **2.1 (by interval, not by index).** The names are still indices, but they are built in one place now
-  (`OutputNames`, on main), so the day they become intervals one file changes; and `phiplot` already reads
+  (`IONames`, on main), so the day they become intervals one file changes; and `phiplot` already reads
   by interval, through the stamp, never through the index.
 - **2.7 (configuration by schema).** The plot specification is a working prototype of the pattern: one table
   of keys (type, required, allowed values, the kinds a key belongs to) from which both the checks and the

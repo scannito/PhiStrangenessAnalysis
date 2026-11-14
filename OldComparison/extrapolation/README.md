@@ -21,7 +21,7 @@ tables, the figures, the logs, the ROOT files the figures are drawn from. `refer
 on 21 October 2026, on the output of commit `25fe5fb`, with the date in each name as in `../reference/`.
 
 **What the study takes from the chain** is in `Chain.h`. Most of it is read from the input file itself: its spectra
-by the names of `OutputNames`, its multiplicity classes from its binning stamp, and the extrapolation configuration
+by the names of `IONames`, its multiplicity classes from its binning stamp, and the extrapolation configuration
 it was made with from its provenance (the whole `extrapConfig.json`), with the masses of `AnalysisConstants`. What
 cannot be read is copied there once: the three options of `CorrelationTaskBase::ExtrapolateSpectrum` (local
 constants in the chain), which `checks/asTheChain` verifies by remaking the file's extrapolated yields, and the π

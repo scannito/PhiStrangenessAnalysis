@@ -50,7 +50,7 @@ This exists because objects are looked up by name across task boundaries, and a
 name that carries a bin index means whatever the producer's binning said:
 `..._multBin3`, as every name was until 23 October 2026, is found by a consumer
 with a different binning, which then reads the wrong interval. Names now carry the
-interval (`OutputNames::MultTag`, `CellTag`), so such an object is missing instead;
+interval (`IONames::MultTag`, `CellTag`), so such an object is missing instead;
 what is still addressed by index is the bins of the containers themselves (the
 projections of the `THnSparse` and `TH3`, the trigger matrices). Every check in the
 codebase is a version of closing that hole:
@@ -239,7 +239,7 @@ strings.
   on bin edges), `IntegralAndErrorFractional` (a range that does not come from the binning, the cut bins by their
   fraction) or `IntegralAndErrorInBins` (a TH3 region already in ROOT bins). `TH1::IntegralAndError`, with its error by reference, stays inside them, never in the code of a task or of
   another helper (the owner's choice, 30 October 2026).
-- **The names and layout of `PhiAssocSpectra` come from `OutputNames`**, in the task that writes
+- **The names and layout of `PhiAssocSpectra` come from `IONames`**, in the task that writes
   them and in every reader (`comparison_task`): object names, the `Spectra`/`Trends`/`Ratios`
   directories, the section names. So do the other names one task writes and another looks up (the
   correction maps, the purity spectra) and the cell tags (`MultTag`, `CellTag`), which are also the
@@ -260,7 +260,7 @@ strings.
   `ParticleTask::AnalysisBinning`).
 - One namespace per helper header, in `PascalCase` and named after the file, without
   `Helpers` when the file has it: `BinningUtils`, `RootIO` (`RootIOHelpers.h`),
-  `JsonConfig` (`JsonConfigHelpers.h`), `HistogramUtils`, `RunEnvironment`, `Logger`, `OutputNames`, `AnalysisStructures`, `TrainConfig`.
+  `JsonConfig` (`JsonConfigHelpers.h`), `HistogramUtils`, `RunEnvironment`, `Logger`, `IONames`, `AnalysisStructures`, `TrainConfig`.
   What a namespace keeps to itself goes in a nested `Detail`, capitalised like the rest. One public nested namespace
   exists, `JsonConfig::Dpl`: the values as DPL writes a task's options ("0"/"1", `key._M_elems[i]`), kept apart so
   that a key of the framework's own configuration is never read with them.

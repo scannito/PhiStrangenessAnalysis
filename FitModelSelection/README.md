@@ -52,7 +52,7 @@ If the selection is to be kept: copy `output/<period>/fitConfig_selected.json` t
 |---|---|
 | `run.sh` | the steps above, for one period |
 | `selection.py` | everything that is not a run of the framework: the generated configurations, the candidates, the selection, the reports |
-| `dump.cpp` | built against `Codes/` by `run.sh`: one output file's fit quality and values as two tables, the names from `OutputNames` |
+| `dump.cpp` | built against `Codes/` by `run.sh`: one output file's fit quality and values as two tables, the names from `IONames` |
 
 ## What it does not do
 

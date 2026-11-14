@@ -2,7 +2,7 @@
 
 #include "BaseConfigManager.h"
 #include "BinningUtils.h"
-#include "OutputNames.h"
+#include "IONames.h"
 
 #include <format>
 #include <set>
@@ -13,7 +13,7 @@ class FitConfigManager : public BaseConfigManager
   // Calls the Base constructor to handle file I/O
   FitConfigManager(const std::string& jsonPath = "fitConfig.json") : BaseConfigManager(jsonPath, "FitConfigManager") {}
 
-  // The cells a task fits in a section, each by OutputNames::CellTag: every multiplicity binning in 'multBinnings'
+  // The cells a task fits in a section, each by IONames::CellTag: every multiplicity binning in 'multBinnings'
   // (PurityTask fits the classes and their union, BinningUtils::ClassesAndUnion) crossed with every pT binning in 'ptBinnings' (PurityTask fits the
   // source and the analysis one). Declared once per section, before the fits, every binning in the same call: the
   // overrides are checked against the cells of that call, and a call per binning would refuse a key valid for
@@ -26,7 +26,7 @@ class FitConfigManager : public BaseConfigManager
       for (const std::vector<double>& ptBinning : ptBinnings)
         for (int multBin : BinningUtils::BinIndices(multBinning))
           for (int ptBin : BinningUtils::BinIndices(ptBinning))
-            cells.insert(OutputNames::CellTag(multBinning, multBin, ptBinning, ptBin));
+            cells.insert(IONames::CellTag(multBinning, multBin, ptBinning, ptBin));
     const std::string fitCtx = std::format("{}.fit_setup", SectionCtx(section));
     DeclareTags(section, cells, JsonConfig::TryObject(Section(section), "fit_setup", SectionCtx(section)), fitCtx,
                 "the cells this task fits");
@@ -34,7 +34,7 @@ class FitConfigManager : public BaseConfigManager
       (void)GetConfig(section, cell); // every cell read once, at Init (BaseConfigManager::DeclareTags)
   }
 
-  // The configuration of one cell, 'cell' as OutputNames::CellTag gives it: the section's default, then the
+  // The configuration of one cell, 'cell' as IONames::CellTag gives it: the section's default, then the
   // override of that cell if there is one.
   AnalysisStructures::FitConfig GetConfig(const std::string& section, const std::string& cell) const
   {

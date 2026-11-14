@@ -61,7 +61,7 @@ about particle masses and spectral models.
 `PhiAssocSpectra.root` had to carry two things before task B could read it, and now does: the **multiplicity binning
 stamp** (written with the ptPhi one at the scheme level, `CorrelationTaskBase::Terminate`), because task B would loop
 over the multiplicity classes of spectra produced elsewhere; and the **relative normalisation uncertainty per
-multiplicity class**, `h1NormalisationRelError` (`OutputNames::kNormalisationRelError`), kept out of the bin errors
+multiplicity class**, `h1NormalisationRelError` (`IONames::kNormalisationRelError`), kept out of the bin errors
 because it is 100% correlated across the bins of a spectrum, and needed by whoever builds the trends.
 
 ### The canvases the tasks draw (inventory of 2 November 2026, on main 639e75b)
@@ -103,7 +103,7 @@ The need, as the owner put it: plots that change from one request to the next, a
 code. Until now each request was a new macro written by Claude (45 in `~/alice/claude-sandbox/plots`, outside the
 repository): about six recurring designs (purity overlays per class in a particle x file grid, grids of fit canvases,
 comparisons across files with a ratio pad, joined pads with a shared axis, an external reference with a systematic
-band, tables of numbers), each written again in 100-150 lines. None of them read a stamp, used `OutputNames` or
+band, tables of numbers), each written again in 100-150 lines. None of them read a stamp, used `IONames` or
 checked an axis before dividing; missing objects were skipped and non-finite bins drawn as 0. They drove decisions
 (the fitConfig choice, the comparison with the preliminary) without a review. A check of 3 November found their
 numbers right where it looked (the sideband windows of `k0ssideband.C` and `xisideband.C` fall on bin edges), but
@@ -117,7 +117,7 @@ that computes a new quantity (sideband purities, the propagation of the map erro
 code in the repository, writing a file with provenance, and the plot draws that file.
 
 **The components** (both review agents, two rounds):
-- the names a plot looks up, all from `OutputNames`: those of the fit canvases (`cFit_Phi_`, `cFit_<key>_` and their
+- the names a plot looks up, all from `IONames`: those of the fit canvases (`cFit_Phi_`, `cFit_<key>_` and their
   `Fits/<key>` directory), of the purity and efficiency summaries, of the trend and ratio canvases, of `Summary`;
 - a series found by meaning: (file, scheme, section, kind, species, |Δy|, interval) to the histogram and its stamps,
   names built forward with the builders, never parsed back;

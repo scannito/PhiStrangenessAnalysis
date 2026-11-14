@@ -3,7 +3,7 @@
 #include "AnalysisConstants.h"
 #include "AnalysisStructures.h"
 #include "BinningUtils.h"
-#include "OutputNames.h"
+#include "IONames.h"
 #include "HistogramUtils.h"
 
 #include "TH1.h"
@@ -43,7 +43,7 @@ class EfficiencyCalculator
       return nullptr;
     }
 
-    std::unique_ptr<TH1> hEventLoss(static_cast<TH1*>(hEventMultGenAssocReco->Clone(OutputNames::kEventLoss.c_str())));
+    std::unique_ptr<TH1> hEventLoss(static_cast<TH1*>(hEventMultGenAssocReco->Clone(IONames::kEventLoss.c_str())));
     hEventLoss->SetTitle("Event Selection Efficiency;Multiplicity Percentile (%);Efficiency");
     hEventLoss->SetDirectory(0);
 
@@ -252,10 +252,10 @@ class EfficiencyCalculator
   // independence is still an approximation: both come from the same sample. 'eventLoss' must be positive.
   static void DivideByEventLoss(Maps1D& maps, std::pair<double, double> eventLoss, const std::string& particle, const std::string& multTag)
   {
-    auto divide = [&](const TH1* signalLoss, OutputNames::SpectrumBinning binning) -> std::unique_ptr<TH1> {
+    auto divide = [&](const TH1* signalLoss, IONames::SpectrumBinning binning) -> std::unique_ptr<TH1> {
       if (!signalLoss)
         return nullptr;
-      const std::string name = OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::SignalLossOverEventLoss, multTag, binning);
+      const std::string name = IONames::CorrectionMapName(particle, IONames::CorrectionMap::SignalLossOverEventLoss, multTag, binning);
 
       std::unique_ptr<TH1> hEventLossConst{static_cast<TH1*>(signalLoss->Clone(std::format("{}_evLossConst", name).c_str()))};
       hEventLossConst->SetDirectory(0);
@@ -271,24 +271,24 @@ class EfficiencyCalculator
       ratio->Divide(hEventLossConst.get());
       return ratio;
     };
-    maps.signalLossOverEventLoss = divide(maps.signalLoss.get(), OutputNames::SpectrumBinning::Analysis);
-    maps.signalLossOverEventLossSourceBinning = divide(maps.signalLossSourceBinning.get(), OutputNames::SpectrumBinning::Source);
+    maps.signalLossOverEventLoss = divide(maps.signalLoss.get(), IONames::SpectrumBinning::Analysis);
+    maps.signalLossOverEventLossSourceBinning = divide(maps.signalLossSourceBinning.get(), IONames::SpectrumBinning::Source);
   }
 
   // The two divisions, shared by the per-multiplicity and the integrated case.
   // Raw pointers: it reads the counts, neither owning nor keeping them.
   static std::pair<std::unique_ptr<TH1>, std::unique_ptr<TH1>>
     DivideCounts(const TH1* h1MCGen, const TH1* h1MCGenAssocReco, const TH1* h1MCReco,
-                 const std::string& particle, const std::string& multTag, OutputNames::SpectrumBinning binning)
+                 const std::string& particle, const std::string& multTag, IONames::SpectrumBinning binning)
   {
     // "B" on both: the reconstructed are a subset of the generated-associated,
     // which are a subset of the generated, so the two ratios are binomial.
     std::unique_ptr<TH1> efficiency = HistogramUtils::MakeRatioHist(
-      h1MCReco, h1MCGenAssocReco, OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::Efficiency, multTag, binning),
+      h1MCReco, h1MCGenAssocReco, IONames::CorrectionMapName(particle, IONames::CorrectionMap::Efficiency, multTag, binning),
       ";p_{T} (GeV/#it{c});Acc #times #epsilon", 1.0, 1.0, "B");
 
     std::unique_ptr<TH1> signalLoss = HistogramUtils::MakeRatioHist(
-      h1MCGenAssocReco, h1MCGen, OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::SignalLoss, multTag, binning),
+      h1MCGenAssocReco, h1MCGen, IONames::CorrectionMapName(particle, IONames::CorrectionMap::SignalLoss, multTag, binning),
       ";p_{T} (GeV/#it{c});Signal loss", 1.0, 1.0, "B");
 
     return {std::move(efficiency), std::move(signalLoss)};
@@ -305,7 +305,7 @@ class EfficiencyCalculator
 
     if (data.rebinningPt) {
       auto [effFine, lossFine] = DivideCounts(h1MCGen.get(), h1MCGenAssocReco.get(), h1MCReco.get(),
-                                              data.name, multTag, OutputNames::SpectrumBinning::Source);
+                                              data.name, multTag, IONames::SpectrumBinning::Source);
       maps.efficiencySourceBinning = std::move(effFine);
       maps.signalLossSourceBinning = std::move(lossFine);
     }
@@ -313,7 +313,7 @@ class EfficiencyCalculator
     RebinCountsIfRequested(data, h1MCGen, h1MCGenAssocReco, h1MCReco);
 
     auto [efficiency, signalLoss] = DivideCounts(h1MCGen.get(), h1MCGenAssocReco.get(), h1MCReco.get(),
-                                                 data.name, multTag, OutputNames::SpectrumBinning::Analysis);
+                                                 data.name, multTag, IONames::SpectrumBinning::Analysis);
     maps.efficiency = std::move(efficiency);
     maps.signalLoss = std::move(signalLoss);
 
@@ -329,7 +329,7 @@ class EfficiencyCalculator
                                                          HistogramUtils::AxisToCut::Whole(3)};
 
     // Project Generator level 1D
-    const std::string multTag = OutputNames::MultTag(multBinning, multBin);
+    const std::string multTag = IONames::MultTag(multBinning, multBin);
     std::string h1GenName = std::format("h1{}MCGen_{}_temp", data.name, multTag);
     const auto mult = BinningUtils::BinRange::Single(multBin);
     std::unique_ptr<TH1> h1MCGen(data.h3MCGen->ProjectionY(h1GenName.c_str(), mult.first, mult.last, 1, data.h3MCGen->GetZaxis()->GetNbins()));
@@ -359,6 +359,6 @@ class EfficiencyCalculator
     std::unique_ptr<TH1> h1MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCGenAssocReco.get(), cuts, {2}, "h1AssocTemp_Int");
     std::unique_ptr<TH1> h1MCReco = HistogramUtils::ProjectTHnSparse<TH1>(data.h4MCReco.get(), cuts, {2}, "h1RecoTemp_Int");
 
-    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, OutputNames::MultUnionTag(multBinning));
+    return BuildMaps1D(data, h1MCGen, h1MCGenAssocReco, h1MCReco, IONames::MultUnionTag(multBinning));
   }
 };

@@ -2,7 +2,7 @@
 
 #include "BaseConfigManager.h"
 #include "BinningUtils.h"
-#include "OutputNames.h"
+#include "IONames.h"
 
 #include <format>
 #include <set>
@@ -19,20 +19,20 @@ class ExtrapConfigManager : public BaseConfigManager
     return JsonConfig::TryObject(document, particle.c_str(), managerName) != nullptr;
   }
 
-  // The multiplicity classes a task extrapolates for a particle that HasConfig, each by OutputNames::MultTag.
+  // The multiplicity classes a task extrapolates for a particle that HasConfig, each by IONames::MultTag.
   // Declared once, before the extrapolations; the overrides are the section's 'bins', checked and read as
   // BaseConfigManager::DeclareTags says.
   void DeclareCells(const std::string& particle, std::span<const double> multBinning)
   {
     std::set<std::string> classes;
     for (int multBin : BinningUtils::BinIndices(multBinning))
-      classes.insert(OutputNames::MultTag(multBinning, multBin));
+      classes.insert(IONames::MultTag(multBinning, multBin));
     DeclareTags(particle, classes, &Section(particle), SectionCtx(particle), "the multiplicity classes");
     for (const std::string& multTag : classes)
       (void)GetConfig(particle, multTag); // every class read once, at Init (BaseConfigManager::DeclareTags)
   }
 
-  // The configuration of one class, 'multTag' as OutputNames::MultTag gives it.
+  // The configuration of one class, 'multTag' as IONames::MultTag gives it.
   AnalysisStructures::ExtrapConfig GetConfig(const std::string& particle, const std::string& multTag) const
   {
     AnalysisStructures::ExtrapConfig config;

@@ -10,9 +10,9 @@
 #include "ExtrapolationModelFactory.h"
 #include "HistogramUtils.h"
 #include "IAnalysisTask.h"
+#include "IONames.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
-#include "OutputNames.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 #include "SpectrumExtrapolator.h"
@@ -78,7 +78,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // per-particle folder, so a reader had to know the naming convention to tell
       // which spectrum belonged to which species. This makes the layout say it.
       const std::vector<std::string> particlePath = SectionPath({pName});
-      const std::vector<std::string> trendsPath = SectionPath({pName, OutputNames::kTrendsDir});
+      const std::vector<std::string> trendsPath = SectionPath({pName, IONames::kTrendsDir});
 
       TDirectory* trendsDir = RootIO::MakePath(outputFile.get(), trendsPath);
 
@@ -91,7 +91,7 @@ class CorrelationTaskBase : public IAnalysisTask
       trendsDir->cd();
 
       // --- Save measured trends ---
-      std::string cNameMeas = OutputNames::TrendCanvas(pName);
+      std::string cNameMeas = IONames::TrendCanvas(pName);
       TCanvas* cTrendMeas = canvasManager.CreateCanvas(cNameMeas, "Measured Yield Trend", trendsPath, 800, 600);
       canvasManager.SetAutoYRange(cTrendMeas);
 
@@ -106,7 +106,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // --- Save extrapolated trends ---
       bool hasExtrapTrend = !h1MultTrendsExtrap.empty() && !h1MultTrendsExtrap[pIdx].empty();
       if (hasExtrapTrend) {
-        std::string cNameExtrap = OutputNames::TrendExtrapCanvas(pName);
+        std::string cNameExtrap = IONames::TrendExtrapCanvas(pName);
         TCanvas* cTrendExtrap = canvasManager.CreateCanvas(cNameExtrap, "Extrapolated Yield Trend", trendsPath, 800, 600);
         canvasManager.SetAutoYRange(cTrendExtrap);
 
@@ -121,14 +121,14 @@ class CorrelationTaskBase : public IAnalysisTask
 
       // --- Save Extrapolated/Measured ratios for this species ---
       if (hasExtrapTrend) {
-        std::string canvasName = OutputNames::TrendExtrapOverMeasCanvas(pName);
+        std::string canvasName = IONames::TrendExtrapOverMeasCanvas(pName);
         TCanvas* cRatioExtrapMeas = canvasManager.CreateCanvas(canvasName, "Extrap / Measured Ratio", trendsPath, 800, 600);
         canvasManager.SetAutoYRange(cRatioExtrapMeas);
 
         for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
           double dyLimit = deltaYLimits[yIdx];
 
-          std::string ratioName = OutputNames::TrendExtrapOverMeas(pName, dyLimit);
+          std::string ratioName = IONames::TrendExtrapOverMeas(pName, dyLimit);
           std::string title = Form("Extrap/Measured Contribution %s |#Delta y| < %.2f; Multiplicity percentile (%%); Yield_{Extrap} / Yield_{Meas}", pName.c_str(), dyLimit);
 
           std::unique_ptr<TH1> hRatioExtrapMeas = HistogramUtils::MakeRatioHist(h1MultTrendsExtrap[pIdx][yIdx].get(), h1MultTrends[pIdx][yIdx].get(),
@@ -181,7 +181,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // =========================================================================
     if (!requestedRatios.empty()) {
       // Create or access the "Ratios" directory inside Extract1D/2D
-      const std::vector<std::string> ratioPath = SectionPath({OutputNames::kRatiosDir});
+      const std::vector<std::string> ratioPath = SectionPath({IONames::kRatiosDir});
       TDirectory* ratioDir = RootIO::MakePath(outputFile.get(), ratioPath);
 
       ratioDir->cd();
@@ -205,7 +205,7 @@ class CorrelationTaskBase : public IAnalysisTask
         const bool denHasExtrap = extrapolatedParticles.contains(den.name);
         const bool doExtrapRatio = numHasExtrap || denHasExtrap;
 
-        std::string canvasName = OutputNames::ParticleRatioCanvas(num.name, den.name);
+        std::string canvasName = IONames::ParticleRatioCanvas(num.name, den.name);
         TCanvas* canvasRatio = canvasManager.CreateCanvas(canvasName, std::format("Ratio Mult Trend {}", ratioCfg.label), ratioPath, 800, 600);
         canvasRatio->cd();
 
@@ -215,7 +215,7 @@ class CorrelationTaskBase : public IAnalysisTask
           double dyLimit = deltaYLimits[yIdx];
           const std::string dyTitleStr = BinningUtils::FormatDeltaY(dyLimit);
 
-          std::string ratioMeasName = OutputNames::ParticleRatioMeasured(num.name, den.name, dyLimit);
+          std::string ratioMeasName = IONames::ParticleRatioMeasured(num.name, den.name, dyLimit);
           std::string ratioMeasTitle = std::format("Measured Ratio; Multiplicity percentile (%);{}", ratioCfg.label);
           std::unique_ptr<TH1> hRatioMeas = HistogramUtils::MakeRatioHist(h1MultTrends[*idxNum][yIdx].get(), h1MultTrends[*idxDen][yIdx].get(),
                                                                           ratioMeasName, ratioMeasTitle, numScale, denScale);
@@ -228,7 +228,7 @@ class CorrelationTaskBase : public IAnalysisTask
             TH1* hNumTrend = numHasExtrap ? h1MultTrendsExtrap[*idxNum][yIdx].get() : h1MultTrends[*idxNum][yIdx].get();
             TH1* hDenTrend = denHasExtrap ? h1MultTrendsExtrap[*idxDen][yIdx].get() : h1MultTrends[*idxDen][yIdx].get();
 
-            std::string ratioExtrapName = OutputNames::ParticleRatioExtrapolated(num.name, den.name, dyLimit);
+            std::string ratioExtrapName = IONames::ParticleRatioExtrapolated(num.name, den.name, dyLimit);
             std::string ratioExtrapTitle = std::format("Extrapolated Ratio; Multiplicity percentile (%);{}", ratioCfg.label);
             hRatioExtrap = HistogramUtils::MakeRatioHist(hNumTrend, hDenTrend, ratioExtrapName, ratioExtrapTitle, numScale, denScale);
 
@@ -783,7 +783,7 @@ class CorrelationTaskBase : public IAnalysisTask
                        Phi,
                        Associated };
 
-    // LAMBDA HELPER 1: one map of the corrections file, 'name' in the directory 'path' (OutputNames, where MCTask
+    // LAMBDA HELPER 1: one map of the corrections file, 'name' in the directory 'path' (IONames, where MCTask
     // writes it). It returns the map with the analysis binning, or throws; a bin that is not positive is
     // on_invalid_correction_bin's.
     auto fetchHist = [&](MapOf of, const std::vector<std::string>& path, const std::string& name, bool apply,
@@ -840,7 +840,7 @@ class CorrelationTaskBase : public IAnalysisTask
       return h;
     };
 
-    hEventLoss = fetchHist(MapOf::EventLoss, OutputNames::EventLossPath(globalCfgs.binningName), OutputNames::kEventLoss, cfg.eventLoss, multBinning);
+    hEventLoss = fetchHist(MapOf::EventLoss, IONames::EventLossPath(globalCfgs.binningName), IONames::kEventLoss, cfg.eventLoss, multBinning);
 
     // LAMBDA HELPER 2: Clone and multiply (if both are needed) safely
     auto combineHists = [](const TH1* hEfficiency, const TH1* hSignalLoss, const std::string& name) -> std::unique_ptr<TH1> {
@@ -868,12 +868,12 @@ class CorrelationTaskBase : public IAnalysisTask
       const bool applyEfficiencyBinned = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Binned;
       const bool applyEfficiencyIntegrated = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Integrated;
 
-      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::Efficiency), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::Efficiency, OutputNames::MultUnionTag(multBinning)), applyEfficiencyIntegrated, targetBinning);
+      std::unique_ptr<TH1> hEfficiencyIntegrated = fetchHist(of, IONames::CorrectionMapPath(globalCfgs.binningName, IONames::CorrectionMap::Efficiency), IONames::CorrectionMapName(particle, IONames::CorrectionMap::Efficiency, IONames::MultUnionTag(multBinning)), applyEfficiencyIntegrated, targetBinning);
 
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
-        const std::string multTag = OutputNames::MultTag(multBinning, multBin);
-        std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::Efficiency), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::Efficiency, multTag), applyEfficiencyBinned, targetBinning);
-        std::unique_ptr<TH1> hSignalLossBinned = fetchHist(of, OutputNames::CorrectionMapPath(globalCfgs.binningName, OutputNames::CorrectionMap::SignalLoss), OutputNames::CorrectionMapName(particle, OutputNames::CorrectionMap::SignalLoss, multTag),
+        const std::string multTag = IONames::MultTag(multBinning, multBin);
+        std::unique_ptr<TH1> hEfficiencyBinned = fetchHist(of, IONames::CorrectionMapPath(globalCfgs.binningName, IONames::CorrectionMap::Efficiency), IONames::CorrectionMapName(particle, IONames::CorrectionMap::Efficiency, multTag), applyEfficiencyBinned, targetBinning);
+        std::unique_ptr<TH1> hSignalLossBinned = fetchHist(of, IONames::CorrectionMapPath(globalCfgs.binningName, IONames::CorrectionMap::SignalLoss), IONames::CorrectionMapName(particle, IONames::CorrectionMap::SignalLoss, multTag),
                                                            pc.signalLoss.has_value(), // always per multiplicity class
                                                            targetBinning);
 
@@ -911,15 +911,15 @@ class CorrelationTaskBase : public IAnalysisTask
   std::string CellSuffix(const AnalysisStructures::AssocParticleConfig& config, int multBin, int ptPhiBin, int ptAssocBin) const
   {
     return std::format("_{}_ptPhi{}_{}",
-                       OutputNames::MultTag(multBinning, multBin),
+                       IONames::MultTag(multBinning, multBin),
                        BinningUtils::BinLabel(ptPhiBinning, ptPhiBin),
-                       OutputNames::PtTag(config.binning, ptAssocBin));
+                       IONames::PtTag(config.binning, ptAssocBin));
   }
 
   // For the objects accumulated over the trigger pT bins.
   std::string CellSuffix(const AnalysisStructures::AssocParticleConfig& config, int multBin, int ptAssocBin) const
   {
-    return std::format("_{}", OutputNames::CellTag(multBinning, multBin, config.binning, ptAssocBin));
+    return std::format("_{}", IONames::CellTag(multBinning, multBin, config.binning, ptAssocBin));
   }
 
   // -------------------------------------------------------------------------
@@ -1102,7 +1102,7 @@ class CorrelationTaskBase : public IAnalysisTask
     }
 
     // 2. Initialize matrix for Mult Trends: [ParticleIndex][DeltaYIndex]
-    hNormalisationRelError = std::make_unique<TH1D>(OutputNames::kNormalisationRelError.c_str(),
+    hNormalisationRelError = std::make_unique<TH1D>(IONames::kNormalisationRelError.c_str(),
                                                     "Relative uncertainty of the per-trigger normalisation;Multiplicity Percentile (%);#sigma_{N}/N",
                                                     BinningUtils::NBins(multBinning), multBinning.data());
     hNormalisationRelError->SetDirectory(0);
@@ -1116,13 +1116,13 @@ class CorrelationTaskBase : public IAnalysisTask
       const auto& p = assocParticles[pIdx];
       const bool doExtrapForThis = extrapolatedParticles.contains(p.name);
 
-      const std::vector<std::string> spectraPath = SectionPath({p.name, OutputNames::kSpectraDir});
+      const std::vector<std::string> spectraPath = SectionPath({p.name, IONames::kSpectraDir});
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
         const std::string dyTitleStr = BinningUtils::FormatDeltaY(dyLimit);
 
-        std::string hName = OutputNames::Trend(p.name, dyLimit);
+        std::string hName = IONames::Trend(p.name, dyLimit);
         std::string hTitle = std::format("Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
         std::unique_ptr<TH1F> hTrend = std::make_unique<TH1F>(hName.c_str(), hTitle.c_str(), BinningUtils::NBins(multBinning), multBinning.data());
@@ -1130,7 +1130,7 @@ class CorrelationTaskBase : public IAnalysisTask
         h1MultTrends[pIdx].push_back(std::move(hTrend));
 
         if (doExtrapForThis) {
-          std::string hExtrapName = OutputNames::TrendExtrapolated(p.name, dyLimit);
+          std::string hExtrapName = IONames::TrendExtrapolated(p.name, dyLimit);
           std::string hExtrapTitle = std::format("Extrapolated Yield Trend {} |#Delta y| < {};Multiplicity Percentile (%);dN_{{{}}}/dy", p.name, dyTitleStr, p.name);
 
           std::unique_ptr<TH1F> hTrendExtrap = std::make_unique<TH1F>(hExtrapName.c_str(), hExtrapTitle.c_str(), BinningUtils::NBins(multBinning), multBinning.data());
@@ -1138,7 +1138,7 @@ class CorrelationTaskBase : public IAnalysisTask
           h1MultTrendsExtrap[pIdx].push_back(std::move(hTrendExtrap));
         }
 
-        std::string cSpecName = OutputNames::SpectraCanvas(p.name, dyLimit);
+        std::string cSpecName = IONames::SpectraCanvas(p.name, dyLimit);
         std::string cSpecTitle = std::format("Spectra {} |#Delta y| < {}", p.name, dyTitleStr);
 
         TCanvas* cSpec = canvasManager.CreateCanvas(cSpecName, cSpecTitle, spectraPath, 800, 600);
@@ -1150,7 +1150,7 @@ class CorrelationTaskBase : public IAnalysisTask
         // the region the extrapolation is about - which is where a third of the yield
         // comes from - is precisely the part it cannot show.
         if (doExtrapForThis) {
-          std::string cExtName = OutputNames::SpectraExtrapCanvas(p.name, dyLimit);
+          std::string cExtName = IONames::SpectraExtrapCanvas(p.name, dyLimit);
           std::string cExtTitle = std::format("Spectra with extrapolation {} |#Delta y| < {}", p.name, dyTitleStr);
 
           TCanvas* cExt = canvasManager.CreateCanvas(cExtName, cExtTitle, spectraPath, 800, 600);
@@ -1173,7 +1173,7 @@ class CorrelationTaskBase : public IAnalysisTask
                                                               TDirectory* targetDir, TCanvas* overlay)
   {
     // 1. Fetch configuration for THIS particle and THIS multBin from JSON
-    AnalysisStructures::ExtrapConfig eCfg = extrapConfigManager->GetConfig(config.name, OutputNames::MultTag(multBinning, multBin));
+    AnalysisStructures::ExtrapConfig eCfg = extrapConfigManager->GetConfig(config.name, IONames::MultTag(multBinning, multBin));
     eCfg.mass = config.mass; // Inject physical mass
 
     // 2. Generate configured TF1 model
@@ -1188,7 +1188,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
     /*{
       // std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}", hSpec->GetName(), extrapFunction);
-      std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}_{}", hSpec->GetName(), eCfg.model, OutputNames::MultTag(multBinning, multBin));
+      std::string debugCanvasName = std::format("cDebug_InitialGuess_{}_{}_{}", hSpec->GetName(), eCfg.model, IONames::MultTag(multBinning, multBin));
       std::unique_ptr<TCanvas> cDebug = std::make_unique<TCanvas>(debugCanvasName.c_str(), "Debug Guesses", 800, 600);
       // cDebug->SetLogy();
 
@@ -1253,7 +1253,7 @@ class CorrelationTaskBase : public IAnalysisTask
       extBinning.push_back(edge);
     }
 
-    std::string extName = OutputNames::SpectrumExtended(hSpec->GetName());
+    std::string extName = IONames::SpectrumExtended(hSpec->GetName());
     std::unique_ptr<TH1> hSpecExt = std::make_unique<TH1D>(extName.c_str(), extName.c_str(), BinningUtils::NBins(extBinning), extBinning.data());
     hSpecExt->SetDirectory(0);
 
@@ -1424,13 +1424,13 @@ class CorrelationTaskBase : public IAnalysisTask
       // Per particle, alongside the Trends written in Terminate(). Resolved inside
       // the loop and not once outside it, because the directory now depends on which
       // species this iteration is producing.
-      TDirectory* targetSpectraDir = RootIO::MakePath(outputFile.get(), SectionPath({config.name, OutputNames::kSpectraDir}));
+      TDirectory* targetSpectraDir = RootIO::MakePath(outputFile.get(), SectionPath({config.name, IONames::kSpectraDir}));
       const bool doExtrapForThis = extrapolatedParticles.contains(config.name);
 
       for (size_t yIdx = 0; yIdx < deltaYLimits.size(); ++yIdx) {
         double dyLimit = deltaYLimits[yIdx];
 
-        std::string spectraName = OutputNames::Spectrum(config.name, dyLimit, multBinning, multBin);
+        std::string spectraName = IONames::Spectrum(config.name, dyLimit, multBinning, multBin);
 
         std::vector<const TH1*> views;
         views.reserve(h1PhiAssocNoPtPhi[pIdx][multBin].size());
@@ -1472,7 +1472,7 @@ class CorrelationTaskBase : public IAnalysisTask
         }
 
         // Draw and Write
-        std::string cSpecName = OutputNames::SpectraCanvas(config.name, dyLimit);
+        std::string cSpecName = IONames::SpectraCanvas(config.name, dyLimit);
         canvasManager.RequireCanvas(cSpecName)->cd();
         CanvasManager::DrawStyledCopy(h1Spectrum.get(), multBin == 0 ? "" : "SAME", globalCfgs.GetSpectraColor(multBin));
 
@@ -1483,7 +1483,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
         // Extrapolate and Fill Trend
         if (doExtrapForThis) {
-          std::string cExtName = OutputNames::SpectraExtrapCanvas(config.name, dyLimit);
+          std::string cExtName = IONames::SpectraExtrapCanvas(config.name, dyLimit);
           TCanvas* overlay = canvasManager.GetCanvas(cExtName);
           AnalysisStructures::ExtrapolationResult res = ExtrapolateSpectrum(h1Spectrum.get(), config, multBin, targetSpectraDir, overlay);
           HistogramUtils::FillTrendFromExtrapolation(h1MultTrendsExtrap[pIdx][yIdx].get(), res, multBin);
@@ -1582,7 +1582,7 @@ class CorrelationTaskBase : public IAnalysisTask
   // than stored: it follows Engine2D(), the engine that runs and not the key, so the
   // directory says how the results were made. The same ternary used to be spelled out in
   // four places - four chances for one of them to be edited alone.
-  std::string SectionDirName() const { return Engine2D() ? OutputNames::kExtract2D : OutputNames::kExtract1D; }
+  std::string SectionDirName() const { return Engine2D() ? IONames::kExtract2D : IONames::kExtract1D; }
 
   // The files both correlation tasks write, opened in one way: PhiAssocSpectra.root, and per associated particle
   // the projection file (the cache) and, when asked, a QA file.
@@ -1594,7 +1594,7 @@ class CorrelationTaskBase : public IAnalysisTask
 
     const std::string projectionsDir = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
     const std::string finalDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
-    outputFile = RootIO::OpenOrThrow(std::format("{}{}{}", finalDir, outputPrefix, OutputNames::kSpectraFile), "UPDATE", GetName());
+    outputFile = RootIO::OpenOrThrow(std::format("{}{}{}", finalDir, outputPrefix, IONames::kSpectraFile), "UPDATE", GetName());
 
     // UPDATE and not RECREATE here too, and for a different reason: the cache is
     // expensive to rebuild, so a scheme directory that already holds projections of
@@ -1603,7 +1603,7 @@ class CorrelationTaskBase : public IAnalysisTask
     const char* projMode = ProjectionFilesReadOnly() ? "READ" : "UPDATE";
     for (const auto& p : assocParticles) {
       projectionFiles.push_back(
-        RootIO::OpenOrThrow(std::format("{}{}{}", projectionsDir, outputPrefix, OutputNames::ProjectionFile(p.name)), projMode, GetName()));
+        RootIO::OpenOrThrow(std::format("{}{}{}", projectionsDir, outputPrefix, IONames::ProjectionFile(p.name)), projMode, GetName()));
       if (withQA)
         qaFiles.push_back(
           RootIO::OpenOrThrow(std::format("{}{}Phi{}QAHistograms.root", projectionsDir, outputPrefix, p.name), "RECREATE", GetName()));

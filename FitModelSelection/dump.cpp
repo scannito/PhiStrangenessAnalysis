@@ -2,15 +2,15 @@
 // quality ({binning_name}/FitQuality, read by FitQualityRecorder::Read), one row per fit with the models it used,
 // and the verdict FitQualityRecorder::Reasons gives (the one rule; the tables carry it, nobody downstream recomputes
 // it); and the values the fits give, one row per cell (the
-// purities, or the phi's raw signal and r = B(signal region)/B(sideband)). Cells are named by OutputNames::CellTag,
-// which is also the key of a fitConfig.json override, and the object names come from OutputNames.
+// purities, or the phi's raw signal and r = B(signal region)/B(sideband)). Cells are named by IONames::CellTag,
+// which is also the key of a fitConfig.json override, and the object names come from IONames.
 //
 // Usage: dump purity|phi <directory> <run> <binning_name> <quality.tsv> <values.tsv>
-// The file is the one the task writes there with output_prefix "<run>_" (OutputNames::kPurityFile, kPhiDataFile).
+// The file is the one the task writes there with output_prefix "<run>_" (IONames::kPurityFile, kPhiDataFile).
 // The purity keys, and whether each has a purity at the source binning too (rebinning_pt), are those of the fits in
 // the table: what the file holds, not what a configuration says it should.
 #include "FitQualityRecorder.h"
-#include "OutputNames.h"
+#include "IONames.h"
 #include "RootIOHelpers.h"
 
 #include "TH2.h"
@@ -47,7 +47,7 @@ std::map<std::string, bool> DumpQuality(TFile& file, const std::string& binningN
     for (const std::string& reason : FitQualityRecorder::Reasons(row.fit))
       reasons += (reasons.empty() ? "" : "; ") + reason;
     const std::vector<double> mult{row.multLow, row.multHigh}, pt{row.ptLow, row.ptHigh};
-    out << row.section << '\t' << row.binning << '\t' << OutputNames::CellTag(mult, 0, pt, 0) << '\t' << row.sigModel << '\t'
+    out << row.section << '\t' << row.binning << '\t' << IONames::CellTag(mult, 0, pt, 0) << '\t' << row.sigModel << '\t'
         << row.bkgModel << '\t' << row.fit.counts << '\t' << row.fit.numFloating << '\t' << row.fit.minNll << '\t' << row.fit.start
         << '\t' << row.fit.nllConfig - row.fit.minNll << '\t' << (row.binOverride.empty() ? "-" : row.binOverride) << '\t'
         << (reasons.empty() ? "-" : reasons) << '\n';
@@ -62,7 +62,7 @@ void WriteValues(std::ofstream& out, const std::string& quantity, const std::str
 
 void DumpPurities(TFile& file, const std::string& binningName, const std::map<std::string, bool>& sections, const std::string& path)
 {
-  const std::vector<std::string> summaryPath = OutputNames::SummaryPath(binningName);
+  const std::vector<std::string> summaryPath = IONames::SummaryPath(binningName);
   const std::vector<double> multBinning = RootIO::ReadBinningStamp(RootIO::FindPath(&file, {binningName}), RootIO::kStampMult, kWho);
   if (multBinning.empty())
     throw std::runtime_error(std::format("[FATAL] {}: no '{}' stamp in '{}'.", kWho, RootIO::kStampMult, file.GetName()));
@@ -72,17 +72,17 @@ void DumpPurities(TFile& file, const std::string& binningName, const std::map<st
   for (const auto& [key, withSource] : sections) {
     for (const std::vector<double>& classes : classBinnings) {
       for (int multBin : BinningUtils::BinIndices(classes)) {
-        const std::string name = OutputNames::Purity(key, OutputNames::MultTag(classes, multBin));
-        auto dump = [&](const std::vector<std::string>& dirPath, OutputNames::SpectrumBinning which, const std::string& label) {
-          auto h = RootIO::GetUniqueOrThrow<TH1>(RootIO::FindPath(&file, dirPath), name + std::string(OutputNames::BinningSuffix(which)), kWho);
+        const std::string name = IONames::Purity(key, IONames::MultTag(classes, multBin));
+        auto dump = [&](const std::vector<std::string>& dirPath, IONames::SpectrumBinning which, const std::string& label) {
+          auto h = RootIO::GetUniqueOrThrow<TH1>(RootIO::FindPath(&file, dirPath), name + std::string(IONames::BinningSuffix(which)), kWho);
           const std::vector<double> pt = BinningUtils::AxisEdges(h->GetXaxis());
           for (int ptBin : BinningUtils::BinIndices(pt))
-            WriteValues(out, key, label, OutputNames::CellTag(classes, multBin, pt, ptBin), h->GetBinContent(BinningUtils::RootBin(ptBin)),
+            WriteValues(out, key, label, IONames::CellTag(classes, multBin, pt, ptBin), h->GetBinContent(BinningUtils::RootBin(ptBin)),
                         h->GetBinError(BinningUtils::RootBin(ptBin)));
         };
-        dump(summaryPath, OutputNames::SpectrumBinning::Analysis, FitQualityRecorder::kAnalysisBinning);
+        dump(summaryPath, IONames::SpectrumBinning::Analysis, FitQualityRecorder::kAnalysisBinning);
         if (withSource)
-          dump(OutputNames::SourceBinningPath(summaryPath), OutputNames::SpectrumBinning::Source, FitQualityRecorder::kSourceBinning);
+          dump(IONames::SourceBinningPath(summaryPath), IONames::SpectrumBinning::Source, FitQualityRecorder::kSourceBinning);
       }
     }
   }
@@ -90,15 +90,15 @@ void DumpPurities(TFile& file, const std::string& binningName, const std::map<st
 
 void DumpPhi(TFile& file, const std::string& binningName, const std::string& path)
 {
-  TDirectory* summary = RootIO::FindPath(&file, OutputNames::SummaryPath(binningName));
+  TDirectory* summary = RootIO::FindPath(&file, IONames::SummaryPath(binningName));
   std::ofstream out = OpenTable(path, "quantity\tbinning\tcell\tvalue\terror");
-  for (const auto& [quantity, name] : {std::pair{"signal", OutputNames::kTriggerSignal}, std::pair{"r", OutputNames::kTriggerBkgRatio}}) {
+  for (const auto& [quantity, name] : {std::pair{"signal", IONames::kTriggerSignal}, std::pair{"r", IONames::kTriggerBkgRatio}}) {
     auto h = RootIO::GetUniqueOrThrow<TH2>(summary, name, kWho);
     const std::vector<double> mult = BinningUtils::AxisEdges(h->GetXaxis()), pt = BinningUtils::AxisEdges(h->GetYaxis());
     for (int multBin : BinningUtils::BinIndices(mult))
       for (int ptBin : BinningUtils::BinIndices(pt)) {
         const int binX = BinningUtils::RootBin(multBin), binY = BinningUtils::RootBin(ptBin);
-        WriteValues(out, quantity, FitQualityRecorder::kAnalysisBinning, OutputNames::CellTag(mult, multBin, pt, ptBin),
+        WriteValues(out, quantity, FitQualityRecorder::kAnalysisBinning, IONames::CellTag(mult, multBin, pt, ptBin),
                     h->GetBinContent(binX, binY), h->GetBinError(binX, binY));
       }
   }
@@ -116,7 +116,7 @@ int main(int argc, char** argv)
   try {
     const std::string& binningName = args[3];
     std::unique_ptr<TFile> file = RootIO::OpenOrThrow(
-      std::format("{}/{}_{}", args[1], args[2], purity ? OutputNames::kPurityFile : OutputNames::kPhiDataFile), "READ", kWho);
+      std::format("{}/{}_{}", args[1], args[2], purity ? IONames::kPurityFile : IONames::kPhiDataFile), "READ", kWho);
     const std::map<std::string, bool> sections = DumpQuality(*file, binningName, args[4]);
     if (purity)
       DumpPurities(*file, binningName, sections, args[5]);

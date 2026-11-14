@@ -5,7 +5,7 @@
 //
 // Usage: configHigh <scratch directory>
 #include "ExtrapConfigManager.h"
-#include "OutputNames.h"
+#include "IONames.h"
 
 #include <cstdio>
 #include <format>
@@ -42,7 +42,7 @@ std::string Summary(const ExtrapConfigManager& manager)
 {
   std::string out;
   for (int multBin : {0, 3, 4}) {
-    const std::string multTag = OutputNames::MultTag(kEdges, multBin);
+    const std::string multTag = IONames::MultTag(kEdges, multBin);
     const AnalysisStructures::ExtrapConfig c = manager.GetConfig("Pi", multTag);
     out += std::format("[{}] {}", multTag, Describe(c));
     if (c.high)

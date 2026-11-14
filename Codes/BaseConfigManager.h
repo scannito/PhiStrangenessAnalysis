@@ -29,7 +29,7 @@ class BaseConfigManager
     Logger::Info("{}: JSON successfully loaded into RAM.", managerName);
   }
 
-  // The overrides of a section are keyed by tag: a cell named by its interval (OutputNames). They sit under "bins"
+  // The overrides of a section are keyed by tag: a cell named by its interval (IONames). They sit under "bins"
   // in the node that also holds the section's "default" ('layered': fit_setup for the fits, the section itself for
   // the extrapolation). Every manager declares, in its DeclareCells, the tags its task reads in a section, before
   // reading any:

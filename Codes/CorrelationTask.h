@@ -1,9 +1,9 @@
 #pragma once
 
 #include "CorrelationTaskBase.h"
+#include "IONames.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
-#include "OutputNames.h"
 #include "RootIOHelpers.h"
 
 #include "TParameter.h"
@@ -47,18 +47,18 @@ class CorrelationTask : public CorrelationTaskBase
 
     // 2. Load Trigger information from PhiFitTask
     std::string basePathProj = JsonConfig::RequireString(taskConfig, "projections_dir", GetName());
-    std::string triggerPath = std::format("{}{}{}", basePathProj, triggerPrefix, OutputNames::kPhiDataFile);
+    std::string triggerPath = std::format("{}{}{}", basePathProj, triggerPrefix, IONames::kPhiDataFile);
 
     std::unique_ptr<TFile> triggerFile = RootIO::OpenOrThrow(triggerPath, "READ", GetName());
 
     RootIO::PrintProvenance(triggerFile.get(), globalCfgs.binningName,
                             std::format("trigger file '{}'", triggerPath));
 
-    const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
-    const std::string triggerSignalPath = RootIO::ObjectPath(summaryPath, OutputNames::kTriggerSignal);
+    const std::vector<std::string> summaryPath = IONames::SummaryPath(globalCfgs.binningName);
+    const std::string triggerSignalPath = RootIO::ObjectPath(summaryPath, IONames::kTriggerSignal);
 
     h2TriggerSignal = RootIO::GetUniqueOrThrow<TH2D>(triggerFile.get(), triggerSignalPath, GetName());
-    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(triggerFile.get(), RootIO::ObjectPath(summaryPath, OutputNames::kTriggerBkgRatio), GetName());
+    h2TriggerBkgRatio = RootIO::GetUniqueOrThrow<TH2D>(triggerFile.get(), RootIO::ObjectPath(summaryPath, IONames::kTriggerBkgRatio), GetName());
     // How phi_fit_task's input weighted the phi online, compared with the pairs by CheckOnlineCorrections
     const std::optional<OnlineWeighting> triggerPhi = ReadTriggerPhiWeighting(triggerFile.get(), triggerPath, summaryPath);
 
@@ -145,12 +145,12 @@ class CorrelationTask : public CorrelationTaskBase
   std::unique_ptr<TH2D> h2TriggerSignal;
   std::unique_ptr<TH2D> h2TriggerBkgRatio;
 
-  // The fact PhiFitTask writes in its summary (OutputNames::kPhiWeightedOnline). Absent from every file written before
+  // The fact PhiFitTask writes in its summary (IONames::kPhiWeightedOnline). Absent from every file written before
   // 14 November 2026, and when phi_fit_task's input had no train configuration: a warning, the comparison skipped.
   std::optional<OnlineWeighting> ReadTriggerPhiWeighting(TFile* triggerFile, const std::string& triggerPath,
                                                          const std::vector<std::string>& summaryPath) const
   {
-    std::unique_ptr<TObject> object(triggerFile->Get(RootIO::ObjectPath(summaryPath, OutputNames::kPhiWeightedOnline).c_str()));
+    std::unique_ptr<TObject> object(triggerFile->Get(RootIO::ObjectPath(summaryPath, IONames::kPhiWeightedOnline).c_str()));
     if (!object) {
       Logger::Warn("{}: the trigger file '{}' does not say whether its phi was weighted online, so the triggers are not "
                    "compared with the pairs. Re-run phi_fit_task on it (after Macros/downloadHYOutput.py if its input "
@@ -161,7 +161,7 @@ class CorrelationTask : public CorrelationTaskBase
     const auto* fact = dynamic_cast<const TParameter<bool>*>(object.get());
     if (!fact) {
       throw std::runtime_error(std::format("[FATAL] {}: '{}' in '{}' is a {}, not the TParameter<bool> phi_fit_task writes.",
-                                           GetName(), OutputNames::kPhiWeightedOnline, triggerPath, object->ClassName()));
+                                           GetName(), IONames::kPhiWeightedOnline, triggerPath, object->ClassName()));
     }
     return OnlineWeighting{fact->GetVal(), std::format("trigger file '{}'", triggerPath)};
   }
@@ -174,12 +174,12 @@ class CorrelationTask : public CorrelationTaskBase
     std::string purityDir = JsonConfig::RequireString(taskConfig, "input_dir_purity", GetName());
     auto puritySources = JsonConfig::RequireArray(taskConfig, "purity_sources", GetName());
 
-    const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
+    const std::vector<std::string> summaryPath = IONames::SummaryPath(globalCfgs.binningName);
 
     purityCollection.clear();
 
-    // One file for every particle of a purity production, named by OutputNames: opened, recorded and checked once.
-    const std::string purityPath = std::format("{}{}{}", purityDir, purityPrefix, OutputNames::kPurityFile);
+    // One file for every particle of a purity production, named by IONames: opened, recorded and checked once.
+    const std::string purityPath = std::format("{}{}{}", purityDir, purityPrefix, IONames::kPurityFile);
     std::unique_ptr<TFile> purityFile = RootIO::OpenOrThrow(purityPath, "READ", GetName());
     RootIO::PrintProvenance(purityFile.get(), globalCfgs.binningName, std::format("purity file '{}'", purityPath));
 
@@ -200,7 +200,7 @@ class CorrelationTask : public CorrelationTaskBase
 
 
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
-        std::string hName = RootIO::ObjectPath(summaryPath, OutputNames::Purity(purityKey, OutputNames::MultTag(multBinning, multBin)));
+        std::string hName = RootIO::ObjectPath(summaryPath, IONames::Purity(purityKey, IONames::MultTag(multBinning, multBin)));
         std::unique_ptr<TH1F> h1Pur = RootIO::GetUniqueOrThrow<TH1F>(purityFile.get(), hName, GetName());
 
         // Verified, NOT rebinned: a purity is a ratio, and merging its bins would

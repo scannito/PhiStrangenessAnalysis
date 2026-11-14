@@ -239,7 +239,7 @@ the classes (`mult0-100`), fitted on its own merged distribution; the union is n
 | Key | | Notes |
 |---|---|---|
 | `input_data_file`, `fit_config_file`, `output_dir` | required | |
-| `purity_particles` | required | Array of `{name, purity_key, hist_name}`. All of them go into one file, `{output_prefix}Purity.root` (`OutputNames::kPurityFile`), the fits of each under `{binning_name}/Fits/{purity_key}`. |
+| `purity_particles` | required | Array of `{name, purity_key, hist_name}`. All of them go into one file, `{output_prefix}Purity.root` (`IONames::kPurityFile`), the fits of each under `{binning_name}/Fits/{purity_key}`. |
 | `output_prefix` | optional | |
 | ↳ `rebinning_pt` | optional | Per particle. Fits the merged sample, not merged fits. |
 
@@ -483,7 +483,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | `HistogramUtils.h` | `namespace HistogramUtils` — integrals with errors, `THnSparse` projections, spectrum and trend construction, ratios, rebinning with compatibility checks. |
 | `Logger.h` | `namespace Logger`: levels, one line format, and a summary of the run's warnings printed at the end. No dependencies. Every task and helper logs through it; the banners of `WorkflowManager` and `RunAnalysisChain` are the only direct output left. |
 | `CanvasManager.h` | Canvas ownership and unique naming, ratio and grid layouts, ALICE styling, path-aware writing into the output files. Owned by tasks, never by data structures. |
-| `OutputNames.h` | `namespace OutputNames` — the names and layout of what the correlation tasks write into `PhiAssocSpectra`: object names, directories, section names, and the rule that recognises a species directory. Used by `CorrelationTaskBase` to write them and by `ComparisonTask` to read them. |
+| `IONames.h` | `namespace IONames` — the names and layout of what the correlation tasks write into `PhiAssocSpectra`: object names, directories, section names, and the rule that recognises a species directory. Used by `CorrelationTaskBase` to write them and by `ComparisonTask` to read them. |
 
 ### Fitting and extrapolation
 

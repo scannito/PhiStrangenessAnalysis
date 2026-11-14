@@ -7,9 +7,9 @@
 #include "FitConfigManager.h"
 #include "FitQualityRecorder.h"
 #include "IAnalysisTask.h"
+#include "IONames.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
-#include "OutputNames.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 #include "TrainConfig.h"
@@ -51,7 +51,7 @@ class PhiFitTask : public IAnalysisTask
     basePathData = JsonConfig::RequireString(taskConfig, "base_path_data", GetName());
     h3PhiData = RootIO::GetUniqueOrThrow<TH3F>(inputFile.get(), std::format("{}phi/h3PhiData", basePathData), GetName());
 
-    // Whether the input weighted the phi online, for CorrelationTask to compare with its pairs (OutputNames::
+    // Whether the input weighted the phi online, for CorrelationTask to compare with its pairs (IONames::
     // kPhiWeightedOnline). Unknown, so not written, when the input has no train configuration; the parts of a sum must
     // agree, or h3PhiData would mix weighted and unweighted entries.
     const std::vector<TrainConfig::Record> records = TrainConfig::Load(inputPath, GetName());
@@ -84,7 +84,7 @@ class PhiFitTask : public IAnalysisTask
     // UPDATE and this binning's subtree cleared, not RECREATE: the file holds one subtree per
     // binning_name, and another scheme's must survive this one's run (CLAUDE.md, How a task
     // opens the file it writes).
-    std::string outputPath = std::format("{}{}{}", basePathProj, outputPrefix, OutputNames::kPhiDataFile);
+    std::string outputPath = std::format("{}{}{}", basePathProj, outputPrefix, IONames::kPhiDataFile);
     outputFile = RootIO::OpenOrThrow(outputPath, "UPDATE", GetName());
     RootIO::ClearPath(outputFile.get(), {globalCfgs.binningName});
 
@@ -101,21 +101,21 @@ class PhiFitTask : public IAnalysisTask
       return h;
     };
 
-    h2TriggerSignal = makeTriggerMatrix(OutputNames::kTriggerSignal, "Raw Signal Yield");
+    h2TriggerSignal = makeTriggerMatrix(IONames::kTriggerSignal, "Raw Signal Yield");
     h2TriggerBkgSigRegion = makeTriggerMatrix("h2TriggerBkgSigRegion", "Bkg in Signal Region");
     h2TriggerBkgSideRegion = makeTriggerMatrix("h2TriggerBkgSideRegion", "Bkg in Sideband Region");
-    h2TriggerBkgRatio = makeTriggerMatrix(OutputNames::kTriggerBkgRatio, "Bkg(SigRegion)/Bkg(Sideband)");
+    h2TriggerBkgRatio = makeTriggerMatrix(IONames::kTriggerBkgRatio, "Bkg(SigRegion)/Bkg(Sideband)");
   }
 
   void Run() override
   {
     Logger::Info("{}: RUNNING TRIGGER SIGNAL EXTRACTION...", GetName());
 
-    TDirectory* fitDir = RootIO::MakePath(outputFile.get(), OutputNames::PhiFitsPath(globalCfgs.binningName));
+    TDirectory* fitDir = RootIO::MakePath(outputFile.get(), IONames::PhiFitsPath(globalCfgs.binningName));
 
     for (int multBin : BinningUtils::BinIndices(multBinning)) {
       for (int ptPhiBin : BinningUtils::BinIndices(ptPhiBinning)) {
-        const std::string cell = OutputNames::CellTag(multBinning, multBin, ptPhiBinning, ptPhiBin);
+        const std::string cell = IONames::CellTag(multBinning, multBin, ptPhiBinning, ptPhiBin);
         std::string phiHistName = std::format("h1PhiData_{}", cell);
         const auto mult = BinningUtils::BinRange::Single(multBin), ptPhi = BinningUtils::BinRange::Single(ptPhiBin);
         std::unique_ptr<TH1> h1PhiData(static_cast<TH1D*>(h3PhiData->ProjectionZ(phiHistName.c_str(), mult.first, mult.last, ptPhi.first, ptPhi.last)));
@@ -136,8 +136,8 @@ class PhiFitTask : public IAnalysisTask
         // task's. Written and destroyed here, per cell, and not left to a WriteAll in
         // Terminate: nothing in the run reads a fit canvas back, and holding all of them until
         // the end would only cost memory.
-        const std::string canvasName = OutputNames::PhiFitCanvas(cell);
-        const std::string title = OutputNames::CellTitle("#phi", multBinning, multBin, ptPhiBinning, ptPhiBin);
+        const std::string canvasName = IONames::PhiFitCanvas(cell);
+        const std::string title = IONames::CellTitle("#phi", multBinning, multBin, ptPhiBinning, ptPhiBin);
         TCanvas* cFit = canvasManager.CreateCanvas(canvasName, title, 800, 800);
         fitter.DrawFit(cFit, title, /*logY=*/false); // a peak on a smooth background, which log scale flattens
         CanvasManager::DrawAliceLabel(cFit, 0.18, 0.84, "Work in progress", "", 0.045);
@@ -156,7 +156,7 @@ class PhiFitTask : public IAnalysisTask
   {
     Logger::Info("{}: TERMINATING...", GetName());
 
-    const std::vector<std::string> summaryPath = OutputNames::SummaryPath(globalCfgs.binningName);
+    const std::vector<std::string> summaryPath = IONames::SummaryPath(globalCfgs.binningName);
     TDirectory* summaryDir = RootIO::MakePath(outputFile.get(), summaryPath);
     summaryDir->cd();
 
@@ -165,7 +165,7 @@ class PhiFitTask : public IAnalysisTask
     h2TriggerBkgSideRegion->Write(nullptr, TObject::kOverwrite);
     h2TriggerBkgRatio->Write(nullptr, TObject::kOverwrite);
     if (phiWeightedOnline) {
-      TParameter<bool>(OutputNames::kPhiWeightedOnline.c_str(), *phiWeightedOnline).Write(nullptr, TObject::kOverwrite);
+      TParameter<bool>(IONames::kPhiWeightedOnline.c_str(), *phiWeightedOnline).Write(nullptr, TObject::kOverwrite);
     }
 
     // The trigger matrices cross into CorrelationTask, so this file is a link in

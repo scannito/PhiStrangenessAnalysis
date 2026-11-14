@@ -257,7 +257,7 @@ static void walk(TDirectory* da, TDirectory* db, const std::string& prefix)
       --nCompared;
       ++nSkipped; // drawn copies of what is compared above
     } else if (auto* pa = dynamic_cast<TParameter<bool>*>(oa)) {
-      // A yes/no fact one task writes for another to compare (OutputNames::kPhiWeightedOnline)
+      // A yes/no fact one task writes for another to compare (IONames::kPhiWeightedOnline)
       auto* pb = dynamic_cast<TParameter<bool>*>(ob);
       if (!pb || pa->GetVal() != pb->GetVal())
         report(path, "value differs");

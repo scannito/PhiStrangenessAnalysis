@@ -66,9 +66,9 @@ object names are those of that state.
   `ExtractYieldsAndPurity()`; `purityAndError` is the spectrum, and the status, covQual, EDM, NLL, counts and the
   parameters at a limit of every fit are in the `FitQuality` tree (`FitQualityRecorder`, README *Fit quality*).
 - **Outputs** (`output_dir ../DataFile/pp/DeltaY/Purities/`):
-  - `<prefix>Purity.root`, one file for every particle of the block (`OutputNames::kPurityFile`), containing:
+  - `<prefix>Purity.root`, one file for every particle of the block (`IONames::kPurityFile`), containing:
     - `<binning>/Summary/h1<key>Purity_mult<lo>-<hi>`: analysis binning, from fits of the MERGED source bins
-      (`OutputNames::Purity`).
+      (`IONames::Purity`).
     - `.../Summary/SourceBinning/..._sourceBinning`.
     - `<binning>/Fits/<key>/` the fit canvases (`SourceBinning/` below for the source fits), the summary canvases,
       `<binning>/FitQuality`, the binning stamp, Provenance.

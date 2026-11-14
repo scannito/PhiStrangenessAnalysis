@@ -98,8 +98,8 @@ class MCTask : public IAnalysisTask
     // One summary canvas of a particle: a correction map, one curve per class, at one binning; name and path from
     // the same (map, binning).
     auto addSummary = [&](const std::string& particle, CorrectionMap map, SpectrumBinning binning, const std::string& title) {
-      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(OutputNames::CorrectionSummaryCanvas(particle, map, binning), title,
-                                                             OutputNames::CorrectionSummaryPath(globalCfgs.binningName, map, binning)));
+      canvasManager.SetAutoYRange(canvasManager.CreateCanvas(IONames::CorrectionSummaryCanvas(particle, map, binning), title,
+                                                             IONames::CorrectionSummaryPath(globalCfgs.binningName, map, binning)));
     };
 
     for (const auto& p : particles) {
@@ -254,7 +254,7 @@ class MCTask : public IAnalysisTask
       // Delegate the math to the static calculator
       hEventLoss = EfficiencyCalculator::ComputeEventLoss(hEventMultGenAssocReco.get(), hEventMultGen.get());
 
-      writeInto(OutputNames::EventLossPath(globalCfgs.binningName), hEventLoss.get());
+      writeInto(IONames::EventLossPath(globalCfgs.binningName), hEventLoss.get());
     }
 
 
@@ -303,7 +303,7 @@ class MCTask : public IAnalysisTask
       // A source-binning map exists only with 'rebinning_pt', and so does its canvas.
       auto drawOn = [&](CorrectionMap map, SpectrumBinning binning, const TH1* h, const char* option, int color) {
         if (h)
-          if (auto* c = canvasManager.GetCanvas(OutputNames::CorrectionSummaryCanvas(data.name, map, binning))) {
+          if (auto* c = canvasManager.GetCanvas(IONames::CorrectionSummaryCanvas(data.name, map, binning))) {
             c->cd();
             CanvasManager::DrawStyledCopy(h, option, color);
           }
@@ -313,7 +313,7 @@ class MCTask : public IAnalysisTask
       // loss of the class, drawn on the summary canvases and written. The tag, the colour and the draw option all
       // follow from the class.
       auto summarise = [&](EfficiencyCalculator::Maps1D maps, std::optional<int> multBin) {
-        const std::string multTag = multBin ? OutputNames::MultTag(multBinning, *multBin) : OutputNames::MultUnionTag(multBinning);
+        const std::string multTag = multBin ? IONames::MultTag(multBinning, *multBin) : IONames::MultUnionTag(multBinning);
         const int color = globalCfgs.GetSpectraColor(multBin);
         const char* option = multBin == 0 ? "" : "SAME";
 
@@ -340,7 +340,7 @@ class MCTask : public IAnalysisTask
         // once an object leaves the file its directory is no longer part of its
         // identity.
         auto write = [&](CorrectionMap map, SpectrumBinning binning, TH1* h) {
-          writeInto(OutputNames::CorrectionMapPath(globalCfgs.binningName, map, binning), h);
+          writeInto(IONames::CorrectionMapPath(globalCfgs.binningName, map, binning), h);
         };
         write(CorrectionMap::Efficiency, SpectrumBinning::Analysis, maps.efficiency.get());
         write(CorrectionMap::SignalLoss, SpectrumBinning::Analysis, maps.signalLoss.get());
@@ -383,8 +383,8 @@ class MCTask : public IAnalysisTask
   }
 
  private:
-  using CorrectionMap = OutputNames::CorrectionMap;
-  using SpectrumBinning = OutputNames::SpectrumBinning;
+  using CorrectionMap = IONames::CorrectionMap;
+  using SpectrumBinning = IONames::SpectrumBinning;
 
   AnalysisSettings globalCfgs;
 

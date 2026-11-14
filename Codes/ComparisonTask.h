@@ -4,9 +4,9 @@
 #include "BinningUtils.h"
 #include "HistogramUtils.h"
 #include "IAnalysisTask.h"
+#include "IONames.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
-#include "OutputNames.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
 
@@ -77,7 +77,7 @@ class ComparisonTask : public IAnalysisTask
     // both are fixed by whoever wrote the spectra, and a caller who has not changed
     // them should not have to repeat them.
     inputScheme = JsonConfig::OptionalString(taskConfig, "input_binning_name", globalCfgs.binningName, GetName());
-    inputDirName = JsonConfig::OptionalString(taskConfig, "input_dir_name", OutputNames::kExtract1D, GetName());
+    inputDirName = JsonConfig::OptionalString(taskConfig, "input_dir_name", IONames::kExtract1D, GetName());
 
     outputDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     outputPrefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
@@ -386,7 +386,7 @@ class ComparisonTask : public IAnalysisTask
     ForEachComparison("spectra", [&](const OpenPair& pair, const Comparison& comp) {
       int done = 0;
       for (const auto& particle : ListParticles(pair.numDir))
-        done += DivideDirectory(pair, comp, {particle, OutputNames::kSpectraDir});
+        done += DivideDirectory(pair, comp, {particle, IONames::kSpectraDir});
       return done;
     });
   }
@@ -397,7 +397,7 @@ class ComparisonTask : public IAnalysisTask
       int done = 0;
       for (const auto& particle : ListParticles(pair.numDir)) {
         RequireSamePtAssoc(pair, comp, particle);
-        done += DivideDirectory(pair, comp, {particle, OutputNames::kTrendsDir});
+        done += DivideDirectory(pair, comp, {particle, IONames::kTrendsDir});
       }
       return done;
     });
@@ -414,7 +414,7 @@ class ComparisonTask : public IAnalysisTask
       // agree, not just one - and they are trends, integrated over pT.
       for (const auto& particle : ListParticles(pair.numDir))
         RequireSamePtAssoc(pair, comp, particle);
-      return DivideDirectory(pair, comp, {OutputNames::kRatiosDir});
+      return DivideDirectory(pair, comp, {IONames::kRatiosDir});
     });
   }
 
@@ -582,7 +582,7 @@ class ComparisonTask : public IAnalysisTask
   // the JSON that goes stale the first time a particle or a delta-y cut is added.
   // ---------------------------------------------------------------------------
   // A particle is a subdirectory that HOLDS per-particle results; the rule is
-  // OutputNames::IsSpeciesDir, next to the layout it describes.
+  // IONames::IsSpeciesDir, next to the layout it describes.
   static std::vector<std::string> ListParticles(TDirectory* dir)
   {
     std::vector<std::string> names;
@@ -594,7 +594,7 @@ class ComparisonTask : public IAnalysisTask
       if (std::string(key->GetClassName()) != "TDirectoryFile")
         continue;
 
-      if (OutputNames::IsSpeciesDir(dir->GetDirectory(key->GetName())))
+      if (IONames::IsSpeciesDir(dir->GetDirectory(key->GetName())))
         names.emplace_back(key->GetName());
     }
     return names;

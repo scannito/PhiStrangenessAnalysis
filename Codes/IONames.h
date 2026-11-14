@@ -13,6 +13,11 @@
 #include <string_view>
 #include <vector>
 
+// The names one task writes and another reads: the contract between writer and reader, hence I/O and
+// not "output" (OutputNames until 14 November 2026). The names of the O2Physics files the framework
+// reads (AnalysisResults.root: hist_name, base_path_data) are not here: they come from the
+// configuration, and change with O2Physics.
+//
 // The names and the layout of what the correlation tasks write into PhiAssocSpectra.root, the
 // names of the files that more than one place in the code spells (the trigger matrices, the
 // purities, the projections, the results), and of the directories and objects in them that another
@@ -27,7 +32,7 @@
 // A multiplicity class is named by its interval ("mult10-15", BinningUtils::BinLabel), never by
 // its index: two productions with different binnings then miss each other's objects instead of
 // matching on an index that means two intervals (CLAUDE.md, the rule the framework is built on).
-namespace OutputNames
+namespace IONames
 {
 
 // The directories. A scheme (the binning_name) holds one section per engine, each section
@@ -160,7 +165,7 @@ inline CorrectionMapNames NamesOf(CorrectionMap map)
     case CorrectionMap::SignalLossOverEventLoss:
       return {"SigLoss", "OverEvLoss", "SigLossOverEvLoss", "SignalLossOverEventLoss"};
   }
-  throw std::runtime_error(std::format("[FATAL] OutputNames: CorrectionMap {} has no names.", static_cast<int>(map)));
+  throw std::runtime_error(std::format("[FATAL] IONames: CorrectionMap {} has no names.", static_cast<int>(map)));
 }
 } // namespace Detail
 
@@ -250,4 +255,4 @@ inline std::string PurityFitCanvas(std::string_view purityKey, std::string_view 
   return std::format("cFit_{}_{}{}", purityKey, cell, BinningSuffix(binning));
 }
 
-} // namespace OutputNames
+} // namespace IONames

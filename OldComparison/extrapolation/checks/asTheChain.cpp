@@ -27,8 +27,8 @@ int main(int argc, char** argv)
   int compared = 0;
   printf("%-4s %-7s %14s %14s %10s   %12s %12s %10s\n", "", "class", "yield", "chain", "rel. diff", "stat. error", "chain", "rel. diff");
   for (const char* species : {"K0S", "Xi", "Pi"}) {
-    const std::string trendPath = std::format("{}/{}/{}/{}/{}", argv[2], OutputNames::kExtract1D, species, OutputNames::kTrendsDir,
-                                              OutputNames::TrendExtrapolated(species, 1.0));
+    const std::string trendPath = std::format("{}/{}/{}/{}/{}", argv[2], IONames::kExtract1D, species, IONames::kTrendsDir,
+                                              IONames::TrendExtrapolated(species, 1.0));
     auto* trend = dynamic_cast<TH1*>(source.File().Get(trendPath.c_str()));
     if (!trend) {
       printf("%-4s no extrapolated trend in the file (%s): skipped\n", species, trendPath.c_str());

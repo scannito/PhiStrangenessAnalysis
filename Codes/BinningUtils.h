@@ -72,7 +72,7 @@ inline std::string BinLabel(std::span<const double> edges, int index)
 }
 
 // A delta-y limit as written in titles and messages, to two decimals ("0.80"). The form used
-// in object names is OutputNames::DyTag.
+// in object names is IONames::DyTag.
 inline std::string FormatDeltaY(double dyLimit)
 {
   char buffer[32];
