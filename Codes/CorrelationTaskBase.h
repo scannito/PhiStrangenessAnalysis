@@ -300,6 +300,10 @@ class CorrelationTaskBase : public IAnalysisTask
   // at(name).source says where it was read (record, wagon, device), for the messages; the same on every device read,
   // or CheckOnlineMassWindows has stopped the run (TrainConfig::SameOnAllDevices).
   std::optional<std::map<std::string, TrainConfig::Sourced<std::optional<AnalysisStructures::Range>>>> onlineMassWindows;
+  // The phi mass windows the pairs were split into signal and sideband with (CheckOnlineMassWindows), the same on every
+  // device read; empty when not known (no train configuration) or for generator-level containers, which have none.
+  // Compared by CorrelationTask with the windows of its triggers.
+  std::optional<TrainConfig::Sourced<TrainConfig::PhiMassWindows>> onlinePhiMassWindows;
   std::vector<AnalysisStructures::LoadedAssocData> loadedDataCollection;
 
   // Read from the input files in Init(), never from the configuration
@@ -807,14 +811,22 @@ class CorrelationTaskBase : public IAnalysisTask
   // The mass window each associated species was kept in online (TrainConfig::OnlineMassWindow), the same for every device
   // read, said in the log; compared with the purity windows by CorrelationTask (DESIGN_NOTES.md section 12). Generator-
   // level containers are filled without isAssocValid, so no window applies to them. The pion has none: its online cut
-  // is in n sigma.
+  // is in n sigma. The phi windows too, signal and sideband (TrainConfig::OnlinePhiMassWindows): the same on every
+  // device, or the pairs mix two selections, whichever task reads them; compared with the triggers by CorrelationTask.
   void CheckOnlineMassWindows(const std::vector<TrainConfig::Device>& devices)
   {
     onlineMassWindows.reset();
+    onlinePhiMassWindows.reset();
     if (!ReadsOnlineWeightedContainers() || devices.empty()) {
       return;
     }
     onlineMassWindows.emplace();
+    onlinePhiMassWindows = TrainConfig::SameOnAllDevices(devices, TrainConfig::OnlinePhiMassWindows,
+                                                         TrainConfig::DescribePhiMassWindows, "the phi mass windows", GetName());
+    if (onlinePhiMassWindows) {
+      Logger::Info("{}: Online phi mass windows: {} ({}).", GetName(), TrainConfig::DescribePhiMassWindows(onlinePhiMassWindows->value),
+                   onlinePhiMassWindows->source);
+    }
     for (const auto& p : assocParticles) {
       const TrainConfig::MassWindowOptions* options = TrainConfig::FindMassWindowOptions(p.name);
       if (!options) {

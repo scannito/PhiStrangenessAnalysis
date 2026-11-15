@@ -1419,7 +1419,7 @@ off by the phi efficiency); with no record for the pairs, the triggers alone sti
 to them online and again here, and the rest is a warning. A device made with `propagateEffError` on is a
 warning too (`TrainConfig::MapErrorAddedPerEntry`), **temporary**: it goes once every production read comes from
 the O2Physics task without the per-entry map error (its commit 15646e3d1, not merged upstream yet). Next steps:
-the online windows against the offline ones (the associated species done, below; the phi of `phi_fit_task` next),
+the online windows against the offline ones (done, below, for the associated species and the phi),
 which map version a train read (the record has only `ccdbEfficiencyPath`), and a stamp for the MC maps.
 
 The windows to compare (the owner, 14 November 2026): the mass window of the **correlation** device
@@ -1433,7 +1433,27 @@ on the purity's axis, error 0; `FitResults::signalWindow`), and the correlation 
 the online window of the species (`CheckPurityWindow`), equal within the edge tolerance or the run stops naming
 every cell that differs (`AnalysisStructures::SameWindow`). Before the containers are loaded, `PurityWindowsToCompare`
 sorts each purity source by what is known online: no window at all stops the run, no train record or the pion are a
-warning, not compared. A purity file made before the stamp is a warning, not compared. Two points open:
+warning, not compared. A purity file made before the stamp is a warning, not compared. The phi's windows too (*15 November 2026*):
+`rangeMPhiSignal` and `rangeMPhiSideband` of the correlation device put each pair into the signal or the sideband
+containers, always (no switch). `phi_fit_task` stamps the windows each cell was integrated in next to the trigger
+matrices (four TH2D, `IONames::PhiMassWindow`; a cell without a sideband has [0, 0]), and `CorrelationTask` compares
+them with the windows of the devices of its own pairs, before the containers are loaded (`CheckPhiMassWindows`); that
+these are the same on every device read is checked for both correlation tasks (`CheckOnlineMassWindows`). The
+pairs' devices and not the one `phi_fit_task` read, because a block may take its triggers from the fit of another
+device or wagon when that fit is the same (the owner, 15 November 2026: the `no_phi` blocks read the pairs from
+`OnlineEfficiencyNoPhi` and the triggers from the offline fit, the `strange_injected` blocks the pairs from another
+wagon; the triggers are filled without online weights in both, so a second identical fit would add nothing). A window
+of n σ follows the fitted peak and differs in general; a cell without a sideband (R = 0, the sideband pairs not
+subtracted) differs from any online sideband that is not empty. A trigger file made before the stamps is a warning,
+not compared. The windows are compared within the edge tolerance, which holds because the record is the wagon
+configuration, where they are written as typed ("1.05"); the runtime `dpl-config_<train>.json` has the float
+("1.04999995"), and records taken from it would stop every run, for the phi and the purity windows alike.
+`CorrelationWPDGTask`, reconstructed, counts its triggers over the whole mass axis of `h3PhiData` while its pairs are
+in `rangeMPhiSignal`: right because the candidates are matched to a true phi by PDG code and sit around the peak,
+99.99% of them in [0.999, 1.05] in every pT bin (2026 closure, measured 15 November 2026). The producer does not cut
+there (`maxMPhi` 1.5) and a Breit-Wigner of the phi width would leave a few percent outside, so presumably the
+generator truncates the mass range (not checked); if that changes, the triggers would have to be counted in the
+online signal window (`onlinePhiMassWindows`, already read for this task). Two points open:
 - `n_sigma_integration` (a window of n σ around the fitted peak, per cell) cannot match a fixed online window. It
   was suggested to the owner; why, and how it could be done online (a window per pT bin, or n σ around a
   parametrised mass and width), is still to be understood.

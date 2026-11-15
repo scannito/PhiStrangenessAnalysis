@@ -159,7 +159,10 @@ class DynamicRooFitter
 
   // Structure to hold the results of the yield and purity calculations
   struct FitResults {
-    AnalysisStructures::Range signalWindow{0.0, 0.0}; // where S and B were integrated, for the window stamp of PurityTask
+    // Where S and B were integrated, and the sideband window, [0, 0] when there is none: for the window stamps of
+    // PurityTask and PhiFitTask (IONames::PurityWindow, IONames::PhiMassWindow)
+    AnalysisStructures::Range signalWindow{0.0, 0.0};
+    AnalysisStructures::Range sidebandWindow{0.0, 0.0};
     std::pair<double, double> signalAndError{0.0, 0.0};
     std::pair<double, double> bkgInSignalRegionAndError{0.0, 0.0};
     std::pair<double, double> purityAndError{0.0, 0.0};
@@ -200,7 +203,8 @@ class DynamicRooFitter
 
     // --- 4. OPTIONAL BACKGROUND IN SIDEBAND YIELD & ERROR ---
     if (config.integration.sideband) {
-      const auto [sbMin, sbMax] = config.integration.sideband->range;
+      results.sidebandWindow = config.integration.sideband->range;
+      const auto [sbMin, sbMax] = results.sidebandWindow;
       obs->setRange("sidebandRegion", sbMin, sbMax);
 
       if (config.integration.sideband->fromFit) {

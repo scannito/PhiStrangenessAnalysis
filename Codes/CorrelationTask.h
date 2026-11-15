@@ -8,6 +8,7 @@
 #include "TrainConfig.h"
 
 #include "TH1D.h"
+#include "TH2D.h"
 #include "TParameter.h"
 
 #include <algorithm>
@@ -77,6 +78,7 @@ class CorrelationTask : public CorrelationTaskBase
     // 3. Associated particles, the corrections checked against how the train ran, data loading
     InitAssocParticles(taskConfig);
     InitCorrectionsAndCheckOnline(taskConfig, triggerPhi);
+    CheckPhiMassWindows(triggerFile.get(), triggerPath, summaryPath);
     // Here, before the containers are loaded: it needs only the configuration and the train record, and a block that
     // cannot be right stops before the expensive part. The comparison itself waits for the binnings, in LoadPurities.
     const PurityWindows purityWindows = applyPurity ? PurityWindowsToCompare(taskConfig) : PurityWindows{};
@@ -170,6 +172,71 @@ class CorrelationTask : public CorrelationTaskBase
                                            GetName(), IONames::kPhiWeightedOnline, triggerPath, object->ClassName()));
     }
     return OnlineWeighting{fact->GetVal(), std::format("trigger file '{}'", triggerPath)};
+  }
+
+  // The phi mass windows phi_fit_task integrated each cell of the triggers in (IONames::PhiMassWindow), against those the
+  // correlation device split the pairs with (onlinePhiMassWindows): the trigger yield and the background ratio R
+  // describe the signal and sideband pairs only if the windows are the same (DESIGN_NOTES.md section 12). The devices
+  // compared are the pairs', not the one phi_fit_task read: a block may take its triggers from the fit of another
+  // device, or of another wagon, when that fit is the same (the no_phi and strange_injected blocks). Before the
+  // containers are loaded; the run stops once, naming every cell that differs. A window of n sigma follows the fitted
+  // peak, so its edges differ in general; a cell without a sideband ([0, 0]) differs from any online sideband that is
+  // not empty, its sideband pairs not being subtracted at all. Not compared, with a warning, without a train configuration or with a trigger file written
+  // before the stamps (15 November 2026).
+  void CheckPhiMassWindows(TFile* triggerFile, const std::string& triggerPath, const std::vector<std::string>& summaryPath) const
+  {
+    if (!onlinePhiMassWindows) {
+      Logger::Warn("{}: the phi mass windows of the triggers are not compared with those of the pairs: not known (no train "
+                   "configuration).",
+                   GetName());
+      return;
+    }
+    const auto& [online, source] = *onlinePhiMassWindows;
+    using IONames::PhiWindow, IONames::WindowEdge;
+    // Looked for once: phi_fit_task writes the four with the trigger matrices, after clearing its subtree
+    if (!RootIO::FindPath(triggerFile, summaryPath)->GetKey(IONames::PhiMassWindow(PhiWindow::Signal, WindowEdge::Low).c_str())) {
+      Logger::Warn("{}: the trigger file '{}' has no record of the phi mass windows it was integrated in: they are not "
+                   "compared with those of the pairs. Re-run phi_fit_task to have it.",
+                   GetName(), triggerPath);
+      return;
+    }
+    auto readEdge = [&](PhiWindow window, WindowEdge edge) {
+      return RootIO::GetUniqueOrThrow<TH2D>(triggerFile, RootIO::ObjectPath(summaryPath, IONames::PhiMassWindow(window, edge)), GetName());
+    };
+    const std::unique_ptr<TH2D> signalLow = readEdge(PhiWindow::Signal, WindowEdge::Low);
+    const std::unique_ptr<TH2D> signalHigh = readEdge(PhiWindow::Signal, WindowEdge::High);
+    const std::unique_ptr<TH2D> sidebandLow = readEdge(PhiWindow::Sideband, WindowEdge::Low);
+    const std::unique_ptr<TH2D> sidebandHigh = readEdge(PhiWindow::Sideband, WindowEdge::High);
+    auto windowAt = [](const TH2D* low, const TH2D* high, int multBin, int ptPhiBin) {
+      return AnalysisStructures::Range{HistogramUtils::BinValueAndError(low, multBin, ptPhiBin).first,
+                                       HistogramUtils::BinValueAndError(high, multBin, ptPhiBin).first};
+    };
+
+    // The cells by the stamps' own axes, the real binnings phi_fit_task fitted on
+    const std::vector<double> mult = BinningUtils::AxisEdges(signalLow->GetXaxis());
+    const std::vector<double> ptPhi = BinningUtils::AxisEdges(signalLow->GetYaxis());
+    std::string differing;
+    for (int multBin : BinningUtils::BinIndices(mult)) {
+      for (int ptPhiBin : BinningUtils::BinIndices(ptPhi)) {
+        const AnalysisStructures::Range signal = windowAt(signalLow.get(), signalHigh.get(), multBin, ptPhiBin);
+        const AnalysisStructures::Range sideband = windowAt(sidebandLow.get(), sidebandHigh.get(), multBin, ptPhiBin);
+        if (AnalysisStructures::SameWindow(signal, online.signal) && AnalysisStructures::SameWindow(sideband, online.sideband)) {
+          continue;
+        }
+        differing += std::format("  {}: signal {}, sideband {}\n", IONames::CellTag(mult, multBin, ptPhi, ptPhiBin),
+                                 TrainConfig::DescribeMassWindow(signal),
+                                 sideband == AnalysisStructures::Range{} ? "none (the sideband pairs are not subtracted)"
+                                                                         : TrainConfig::DescribeMassWindow(sideband));
+      }
+    }
+    if (!differing.empty()) {
+      throw std::runtime_error(std::format("[FATAL] {}: the phi of the triggers ('{}') was integrated in windows other than "
+                                           "those the correlation device split the pairs with, {} ({}):\n{}"
+                                           "Re-run phi_fit_task with 'integration_range' and 'sideband.range' of 'phi' set "
+                                           "to these windows, or point trigger_prefix at a run of it that integrated in them.",
+                                           GetName(), triggerPath, TrainConfig::DescribePhiMassWindows(online), source, differing));
+    }
+    Logger::Info("{}: Phi mass windows of the triggers: the same as those of the pairs.", GetName());
   }
 
   std::map<std::string, AnalysisStructures::LoadedPurity> purityCollection;

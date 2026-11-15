@@ -2,10 +2,12 @@
 
 #include "AnalysisConstants.h"
 #include "AnalysisSettings.h"
+#include "AnalysisStructures.h"
 #include "CanvasManager.h"
 #include "DynamicRooFitter.h"
 #include "FitConfigManager.h"
 #include "FitQualityRecorder.h"
+#include "HistogramUtils.h"
 #include "IAnalysisTask.h"
 #include "IONames.h"
 #include "JsonConfigHelpers.h"
@@ -30,6 +32,7 @@
 #include <stdexcept>
 #include <string>
 #include <utility>
+#include <vector>
 
 class PhiFitTask : public IAnalysisTask
 {
@@ -105,6 +108,13 @@ class PhiFitTask : public IAnalysisTask
     h2TriggerBkgSigRegion = makeTriggerMatrix("h2TriggerBkgSigRegion", "Bkg in Signal Region");
     h2TriggerBkgSideRegion = makeTriggerMatrix("h2TriggerBkgSideRegion", "Bkg in Sideband Region");
     h2TriggerBkgRatio = makeTriggerMatrix(IONames::kTriggerBkgRatio, "Bkg(SigRegion)/Bkg(Sideband)");
+
+    // In double, as the matrices: the edges are compared with the online ones, which a float would round
+    using IONames::PhiWindow, IONames::WindowEdge;
+    h2SignalWindowLow = makeTriggerMatrix(IONames::PhiMassWindow(PhiWindow::Signal, WindowEdge::Low), "Signal window, low edge");
+    h2SignalWindowHigh = makeTriggerMatrix(IONames::PhiMassWindow(PhiWindow::Signal, WindowEdge::High), "Signal window, high edge");
+    h2SidebandWindowLow = makeTriggerMatrix(IONames::PhiMassWindow(PhiWindow::Sideband, WindowEdge::Low), "Sideband window, low edge");
+    h2SidebandWindowHigh = makeTriggerMatrix(IONames::PhiMassWindow(PhiWindow::Sideband, WindowEdge::High), "Sideband window, high edge");
   }
 
   void Run() override
@@ -148,6 +158,10 @@ class PhiFitTask : public IAnalysisTask
         HistogramUtils::SetBinValueAndError(h2TriggerBkgSigRegion.get(), multBin, ptPhiBin, res.bkgInSignalRegionAndError);
         HistogramUtils::SetBinValueAndError(h2TriggerBkgSideRegion.get(), multBin, ptPhiBin, res.bkgInSidebandAndError);
         HistogramUtils::SetBinValueAndError(h2TriggerBkgRatio.get(), multBin, ptPhiBin, res.bkgRatioAndError);
+        HistogramUtils::SetBinValueAndError(h2SignalWindowLow.get(), multBin, ptPhiBin, {res.signalWindow.min, 0.0});
+        HistogramUtils::SetBinValueAndError(h2SignalWindowHigh.get(), multBin, ptPhiBin, {res.signalWindow.max, 0.0});
+        HistogramUtils::SetBinValueAndError(h2SidebandWindowLow.get(), multBin, ptPhiBin, {res.sidebandWindow.min, 0.0});
+        HistogramUtils::SetBinValueAndError(h2SidebandWindowHigh.get(), multBin, ptPhiBin, {res.sidebandWindow.max, 0.0});
       }
     }
   }
@@ -164,6 +178,10 @@ class PhiFitTask : public IAnalysisTask
     h2TriggerBkgSigRegion->Write(nullptr, TObject::kOverwrite);
     h2TriggerBkgSideRegion->Write(nullptr, TObject::kOverwrite);
     h2TriggerBkgRatio->Write(nullptr, TObject::kOverwrite);
+    h2SignalWindowLow->Write(nullptr, TObject::kOverwrite);
+    h2SignalWindowHigh->Write(nullptr, TObject::kOverwrite);
+    h2SidebandWindowLow->Write(nullptr, TObject::kOverwrite);
+    h2SidebandWindowHigh->Write(nullptr, TObject::kOverwrite);
     if (phiWeightedOnline) {
       TParameter<bool>(IONames::kPhiWeightedOnline.c_str(), *phiWeightedOnline).Write(nullptr, TObject::kOverwrite);
     }
@@ -203,6 +221,10 @@ class PhiFitTask : public IAnalysisTask
   std::unique_ptr<TH2D> h2TriggerBkgSigRegion;
   std::unique_ptr<TH2D> h2TriggerBkgSideRegion;
   std::unique_ptr<TH2D> h2TriggerBkgRatio;
+
+  // The phi mass windows each cell was integrated in, for CorrelationTask (IONames::PhiMassWindow)
+  std::unique_ptr<TH2D> h2SignalWindowLow, h2SignalWindowHigh;
+  std::unique_ptr<TH2D> h2SidebandWindowLow, h2SidebandWindowHigh;
 
   // The section of the fit configuration this task fits with. A name fixed by what the
   // task is, unlike PurityTask's, which comes from each particle's 'purity_key'.

@@ -200,6 +200,18 @@ inline std::string PurityWindow(std::string_view purityKey, std::string_view mul
   return std::format("h1{}PurityWindow{}_{}{}", purityKey, edge == WindowEdge::Low ? "Low" : "High", multTag, BinningSuffix(binning));
 }
 
+// PhiFitTask -> CorrelationTask, next to the trigger matrices: the edges of the phi mass windows each cell was integrated
+// in, one matrix per window and edge, on the same axes. CorrelationTask compares them with the windows its correlation
+// device split the pairs with. A cell without a sideband has the window [0, 0] (AnalysisStructures::Range{}), which no
+// mass window can be; every cell is written, so it is never a bin left unfilled.
+enum class PhiWindow { Signal,
+                       Sideband };
+
+inline std::string PhiMassWindow(PhiWindow window, WindowEdge edge)
+{
+  return std::format("h2Phi{}Window{}", window == PhiWindow::Signal ? "Signal" : "Sideband", edge == WindowEdge::Low ? "Low" : "High");
+}
+
 inline std::string Spectrum(std::string_view particle, double dy, std::span<const double> multBinning, int multBin)
 {
   return std::format("h1SpectrumPhi{}_dy{}_{}", particle, DyTag(dy), MultTag(multBinning, multBin));

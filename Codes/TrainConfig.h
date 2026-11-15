@@ -356,22 +356,44 @@ inline const MassWindowOptions* FindMassWindowOptions(std::string_view species)
   return options == kMassWindowOptions.end() ? nullptr : &*options;
 }
 
+// A mass window option of the device, "key.first" and "key.second" in DPL's spelling
+inline AnalysisStructures::Range RequireWindow(const Device& device, std::string_view key)
+{
+  const auto [low, high] = JsonConfig::Dpl::RequirePair(*device.options, key, Source(device));
+  return {low, high};
+}
+
 // The mass window this device kept a species in, in the DeltaY vs DeltaPhi mode (RequireDeltaYvsDeltaPhi): empty when
 // its select switch is off, and every mass the producer passed was then counted.
 inline std::optional<AnalysisStructures::Range> OnlineMassWindow(const Device& device, const MassWindowOptions& options)
 {
-  const std::string where = Source(device);
-  if (!JsonConfig::Dpl::RequireBool(*device.options, options.select, where)) {
+  if (!JsonConfig::Dpl::RequireBool(*device.options, options.select, Source(device))) {
     return std::nullopt;
   }
-  const auto [low, high] = JsonConfig::Dpl::RequirePair(*device.options, options.range, where);
-  return AnalysisStructures::Range{low, high};
+  return RequireWindow(device, options.range);
 }
 
 // "[0.475, 0.515]", or that no window was applied, for the messages.
 inline std::string DescribeMassWindow(const std::optional<AnalysisStructures::Range>& window)
 {
   return window ? std::format("[{}, {}]", window->min, window->max) : "none (every mass counted)";
+}
+
+// The phi mass windows of the correlation device: rangeMPhiSignal puts a pair into the signal containers, rangeMPhiSideband
+// into the sideband ones (phiStrangeCorrelation, fillPhiAssocCorrelation). Always applied, with no switch: unlike the
+// windows of the associated species, they cannot be off. Together, so that the devices are compared once.
+struct PhiMassWindows {
+  AnalysisStructures::Range signal;
+  AnalysisStructures::Range sideband;
+  bool operator==(const PhiMassWindows&) const = default; // exact, as Range's, for SameOnAllDevices
+};
+inline PhiMassWindows OnlinePhiMassWindows(const Device& device)
+{
+  return {RequireWindow(device, "rangeMPhiSignal"), RequireWindow(device, "rangeMPhiSideband")};
+}
+inline std::string DescribePhiMassWindows(const PhiMassWindows& windows)
+{
+  return std::format("signal {}, sideband {}", DescribeMassWindow(windows.signal), DescribeMassWindow(windows.sideband));
 }
 
 // The provenance key of an input's train configuration, for its role ("data", "mixed_event").

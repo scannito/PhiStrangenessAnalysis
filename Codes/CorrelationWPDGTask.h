@@ -84,14 +84,21 @@ class CorrelationWPDGTask : public CorrelationTaskBase
   // One expression for both modes, which needs saying carefully: the two containers do
   // NOT hold the same thing on their third axis.
   //
-  //   h3PhiData    (mult, pT, M_inv)  200 bins over [0.95, 1.2]
+  //   h3PhiData    (mult, pT, M_inv)  200 bins over [0.9, 1.2]
   //   h3PhiMCGen   (mult, pT, y)       20 bins over [-0.5, 0.5]
   //
   // So this is not one quantity computed twice. It is a count over the whole third
-  // axis, which happens to be the right count in both cases for INDEPENDENT reasons:
-  // [0.9, 1.2] is the mass window the candidates were filled in, and |y| < 0.5 is the
-  // acceptance of the analysis. Both are the trigger count under the selection that
-  // container already carries. That coincidence is written down because relying on it
+  // axis, which happens to be the right count in both cases for INDEPENDENT reasons.
+  // Reconstructed, the candidates are matched to a true phi by PDG code, so they sit
+  // around the peak: the pairs are counted only in rangeMPhiSignal ([1, 1.05]), but
+  // 99.99% of h3PhiData is in [0.999, 1.05], in every pT bin (2026 closure,
+  // AnalysisResultsMCclosure_wpdg_136_2026_PtMod_5agosto.root, 15 November 2026).
+  // Measured, not derived: the producer does not cut there (maxMPhi 1.5), and a
+  // Breit-Wigner with the phi width would leave a few percent outside; presumably the
+  // generator draws the mass in a truncated range (not checked). Unmatched candidates
+  // would not do this (DESIGN_NOTES.md section 12). Generated, |y| < 0.5 is the acceptance of
+  // the analysis. Both are the trigger count under the selection that container
+  // already carries. That coincidence is written down because relying on it
   // silently is how the two paths came to be maintained as if they were the same.
   //
   // What this replaces: the pure-gen branch read its trigger from a cached
@@ -115,8 +122,9 @@ class CorrelationWPDGTask : public CorrelationTaskBase
   std::pair<double, double> GetTriggerSignal(int multBin, int ptPhiBin) override
   {
     // Bins 1..N of the third axis, so its under/overflow is excluded. Deliberate on
-    // both paths: outside [0.9, 1.2] is not a phi candidate, and outside |y| < 0.5 is
-    // outside the acceptance the spectra are normalised to.
+    // both paths: outside [0.9, 1.2] is not a phi candidate (and the matched ones are
+    // inside the signal window, above), and outside |y| < 0.5 is outside the
+    // acceptance the spectra are normalised to.
     const auto mult = BinningUtils::BinRange::Single(multBin), ptPhi = BinningUtils::BinRange::Single(ptPhiBin);
     return HistogramUtils::IntegralAndErrorInBins(h3PhiData.get(), mult, ptPhi, {1, h3PhiData->GetNbinsZ()});
   }
