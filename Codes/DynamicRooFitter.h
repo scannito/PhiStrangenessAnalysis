@@ -36,11 +36,11 @@
 #include "TPad.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <format>
 #include <initializer_list>
 #include <limits>
-#include <array>
 #include <memory>
 #include <regex>
 #include <sstream>
@@ -159,6 +159,7 @@ class DynamicRooFitter
 
   // Structure to hold the results of the yield and purity calculations
   struct FitResults {
+    AnalysisStructures::Range signalWindow{0.0, 0.0}; // where S and B were integrated, for the window stamp of PurityTask
     std::pair<double, double> signalAndError{0.0, 0.0};
     std::pair<double, double> bkgInSignalRegionAndError{0.0, 0.0};
     std::pair<double, double> purityAndError{0.0, 0.0};
@@ -173,7 +174,8 @@ class DynamicRooFitter
     FitResults results;
 
     // Retrieve integration limits dynamically based on the configuration logic
-    auto [minRange, maxRange] = CalculateIntegrationLimits();
+    results.signalWindow = CalculateIntegrationLimits();
+    const auto [minRange, maxRange] = results.signalWindow;
 
     std::string modeLog = std::holds_alternative<AnalysisStructures::Range>(config.integration.signalWindow) ? "FIXED" : "N-SIGMA";
     Logger::Debug("Integrating in {} range: [{:g} , {:g}]", modeLog, minRange, maxRange);
@@ -227,9 +229,10 @@ class DynamicRooFitter
           results.bkgRatioAndError = {ratio, ratio * std::sqrt(relNum * relNum + relDen * relDen)};
         } else {
           // R left at 0 means no sideband subtraction at all for this cell: not a correction of 1 either.
-          Logger::Warn("{}: no entries in the sideband [{}, {}]: R is 0 and the sideband pairs of "
-                       "this cell are not subtracted.",
-                       Who(), sbMin, sbMax);
+          Logger::Warn(
+            "{}: no entries in the sideband [{}, {}]: R is 0 and the sideband pairs of "
+            "this cell are not subtracted.",
+            Who(), sbMin, sbMax);
         }
       }
     }
@@ -591,14 +594,16 @@ class DynamicRooFitter
   RooAbsPdf* BuildRelBWKK(const std::string& name, RooRealVar& m, RooRealVar& w, RooRealVar& s, RooRealVar& r)
   {
     if (Lowest(m) <= TwoKaonThreshold()) {
-      throw std::runtime_error(std::format("[FATAL] {}: RelBWKK needs the lower limit of '{}' above the KK "
-                                           "threshold {} GeV/c^2 (it is {}): below it the pole momentum is imaginary.",
-                                           Who(), m.GetName(), TwoKaonThreshold(), Lowest(m)));
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: RelBWKK needs the lower limit of '{}' above the KK "
+        "threshold {} GeV/c^2 (it is {}): below it the pole momentum is imaginary.",
+        Who(), m.GetName(), TwoKaonThreshold(), Lowest(m)));
     }
     if (Lowest(s) <= 0.0) {
-      throw std::runtime_error(std::format("[FATAL] {}: RelBWKK needs a positive lower limit for the "
-                                           "resolution '{}' (it is {}): the FFT grid is derived from it.",
-                                           Who(), s.GetName(), Lowest(s)));
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: RelBWKK needs a positive lower limit for the "
+        "resolution '{}' (it is {}): the FFT grid is derived from it.",
+        Who(), s.GetName(), Lowest(s)));
     }
     const double kaonMass2 = std::pow(AnalysisConstants::GetMass("K"), 2);
     const std::string q2 = std::format("TMath::Max(@0*@0/4-{},0.)", kaonMass2);
@@ -708,16 +713,18 @@ class DynamicRooFitter
       for (int i = 0; i <= degree; ++i)
         coefficients.add(*b.emplace_back(CreateVar(std::format("b{}{}", i, suffix))));
       if (std::ranges::none_of(b, [](const RooRealVar* v) { return v->isConstant() && v->getVal() > 0.0; })) {
-        throw std::runtime_error(std::format("[FATAL] {}: {} needs one of b0{}..b{}{} fixed above zero "
-                                             "(a positive number instead of [value, min, max]): one coefficient is "
-                                             "redundant with the yield.",
-                                             Who(), modelType, suffix, degree, suffix));
+        throw std::runtime_error(std::format(
+          "[FATAL] {}: {} needs one of b0{}..b{}{} fixed above zero "
+          "(a positive number instead of [value, min, max]): one coefficient is "
+          "redundant with the yield.",
+          Who(), modelType, suffix, degree, suffix));
       }
       for (const RooRealVar* v : b) {
         if (Lowest(*v) < 0.0) {
-          throw std::runtime_error(std::format("[FATAL] {}: {} needs '{}' non-negative (lowest value {}): "
-                                               "a negative coefficient lets the background go below zero.",
-                                               Who(), modelType, v->GetName(), Lowest(*v)));
+          throw std::runtime_error(std::format(
+            "[FATAL] {}: {} needs '{}' non-negative (lowest value {}): "
+            "a negative coefficient lets the background go below zero.",
+            Who(), modelType, v->GetName(), Lowest(*v)));
         }
       }
       pdf = Own<RooBernstein>(name.c_str(), modelType.c_str(), *obs, coefficients);

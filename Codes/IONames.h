@@ -62,7 +62,6 @@ inline const std::string kPhiWeightedOnline{"PhiWeightedOnline"};
 inline const std::string kSpectraFile{"PhiAssocSpectra.root"};
 inline std::string ProjectionFile(std::string_view particle) { return std::format("Phi{}DataHistograms.root", particle); }
 
-
 // A result kept also at the binning of its source, when 'rebinning_pt' merged the analysis one (MCTask,
 // PurityTask): in a subdirectory of its own, and its canvas named with a suffix.
 enum class SpectrumBinning { Analysis,
@@ -189,6 +188,16 @@ inline const std::string kTriggerBkgRatio{"h2TriggerBkgRatio"};
 inline std::string Purity(std::string_view purityKey, std::string_view multTag, SpectrumBinning binning = SpectrumBinning::Analysis)
 {
   return std::format("h1{}Purity_{}{}", purityKey, multTag, BinningSuffix(binning));
+}
+// Next to each purity, the edges of the mass window its bins were integrated in, one histogram per edge on the same
+// axis: CorrelationTask compares them with the window the correlation device kept the species in online.
+enum class WindowEdge { Low,
+                        High };
+
+inline std::string PurityWindow(std::string_view purityKey, std::string_view multTag, WindowEdge edge,
+                                SpectrumBinning binning = SpectrumBinning::Analysis)
+{
+  return std::format("h1{}PurityWindow{}_{}{}", purityKey, edge == WindowEdge::Low ? "Low" : "High", multTag, BinningSuffix(binning));
 }
 
 inline std::string Spectrum(std::string_view particle, double dy, std::span<const double> multBinning, int multBin)

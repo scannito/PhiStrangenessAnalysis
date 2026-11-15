@@ -5,11 +5,14 @@
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
 #include "RootIOHelpers.h"
+#include "TrainConfig.h"
 
+#include "TH1D.h"
 #include "TParameter.h"
 
 #include <algorithm>
 #include <format>
+#include <map>
 #include <memory>
 #include <optional>
 #include <string>
@@ -74,6 +77,9 @@ class CorrelationTask : public CorrelationTaskBase
     // 3. Associated particles, the corrections checked against how the train ran, data loading
     InitAssocParticles(taskConfig);
     InitCorrectionsAndCheckOnline(taskConfig, triggerPhi);
+    // Here, before the containers are loaded: it needs only the configuration and the train record, and a block that
+    // cannot be right stops before the expensive part. The comparison itself waits for the binnings, in LoadPurities.
+    const PurityWindows purityWindows = applyPurity ? PurityWindowsToCompare(taskConfig) : PurityWindows{};
 
     LoadAssocData(taskConfig,
                   {.signal = "DataSignal", .sideband = "DataSideband", .meSignal = "DataMESignal", .meSideband = "DataMESideband"});
@@ -87,7 +93,7 @@ class CorrelationTask : public CorrelationTaskBase
     //    was just resolved from the data
     LoadCorrectionsAndExtrapolation(taskConfig);
     if (applyPurity)
-      LoadPurities(taskConfig);
+      LoadPurities(taskConfig, purityWindows);
 
     SetupTrendHistograms();
     ClearOwnSection();
@@ -168,7 +174,10 @@ class CorrelationTask : public CorrelationTaskBase
 
   std::map<std::string, AnalysisStructures::LoadedPurity> purityCollection;
 
-  void LoadPurities(const rapidjson::Value& taskConfig)
+  // The purity sources to compare with the online selection, by species, with the window it was kept in online.
+  using PurityWindows = std::map<std::string, TrainConfig::Sourced<AnalysisStructures::Range>>;
+
+  void LoadPurities(const rapidjson::Value& taskConfig, const PurityWindows& windowsToCompare)
   {
 
     std::string purityDir = JsonConfig::RequireString(taskConfig, "input_dir_purity", GetName());
@@ -219,9 +228,100 @@ class CorrelationTask : public CorrelationTaskBase
         purity.h1Purity[multBin] = std::move(h1Pur);
       }
 
+      if (const auto window = windowsToCompare.find(particle); window != windowsToCompare.end()) {
+        CheckPurityWindow(purityFile.get(), purityPath, summaryPath, purityKey, targetBinning, particle, window->second);
+      }
+
       purityCollection[particle] = std::move(purity);
     }
     Logger::Info("{}: Purities loaded successfully.", GetName());
+  }
+
+  // A purity describes the candidates in the mass window it was integrated in: applied to pairs kept in another
+  // window, or in none, it corrects the wrong ones (DESIGN_NOTES.md section 12). What each purity source becomes, by
+  // what is known of its species online (onlineMassWindows says what each case means):
+  //  - not a particle of this block: the run stops;
+  //  - no mass window to have (the pion): a warning, not compared;
+  //  - not known (no train configuration): a warning, not compared;
+  //  - known, no window: the run stops;
+  //  - known, a window: returned, for CheckPurityWindow.
+  PurityWindows PurityWindowsToCompare(const rapidjson::Value& taskConfig) const
+  {
+    PurityWindows windows;
+    int srcIdx = 0;
+    for (const auto& src : JsonConfig::RequireArray(taskConfig, "purity_sources", GetName())) {
+      const std::string ctx = std::format("{} purity_sources[{}]", GetName(), srcIdx++);
+      const std::string particle = JsonConfig::RequireString(src, "name", ctx);
+      RequireKnownParticle(particle, ctx);
+      if (!TrainConfig::FindMassWindowOptions(particle)) {
+        Logger::Warn("{}: the purity of {} is not compared with its online selection (not a mass window): "
+                     "not implemented yet.",
+                     GetName(), particle);
+        continue;
+      }
+      if (!onlineMassWindows) {
+        Logger::Warn("{}: the purity of {} is not compared with its online mass window: not known (no train "
+                     "configuration).",
+                     GetName(), particle);
+        continue;
+      }
+      const auto& online = onlineMassWindows->at(particle);
+      if (!online.value) {
+        throw std::runtime_error(std::format("[FATAL] {}: the purity of {} is applied, but the correlation device counted "
+                                             "every mass of it ({}): a purity integrated in a window describes none of "
+                                             "the pairs outside it. Switch 'apply_purity' off, or use an input whose "
+                                             "device kept {} in its signal region.",
+                                             ctx, particle, online.source, particle));
+      }
+      windows.emplace(particle, TrainConfig::Sourced<AnalysisStructures::Range>{*online.value, online.source});
+    }
+    return windows;
+  }
+
+  // The mass window each bin of a purity was integrated in, stamped by PurityTask next to it (two histograms per class,
+  // one per edge), against the window the species was kept in online. Every cell of every class is compared, and the run stops once, naming all those
+  // that differ. A purity file without the stamp, produced before it existed, is warned about and not compared.
+  void CheckPurityWindow(TFile* purityFile, const std::string& purityPath, const std::vector<std::string>& summaryPath,
+                         const std::string& purityKey, const std::vector<double>& ptBinning, const std::string& particle,
+                         const TrainConfig::Sourced<AnalysisStructures::Range>& online) const
+  {
+    auto edgeName = [&](int multBin, IONames::WindowEdge edge) {
+      return IONames::PurityWindow(purityKey, IONames::MultTag(multBinning, multBin), edge);
+    };
+    auto readEdge = [&](int multBin, IONames::WindowEdge edge) {
+      return RootIO::GetUniqueOrThrow<TH1D>(purityFile, RootIO::ObjectPath(summaryPath, edgeName(multBin, edge)), GetName());
+    };
+
+    // Looked for once: PurityTask writes the stamps with the purities, after clearing its subtree, so a file has them
+    // for every class or for none.
+    if (!RootIO::FindPath(purityFile, summaryPath)->GetKey(edgeName(0, IONames::WindowEdge::Low).c_str())) {
+      Logger::Warn("{}: '{}' has no record of the mass window the purity of {} was integrated in: it is not compared "
+                   "with the online one. Re-run purity_task to have it.",
+                   GetName(), purityPath, particle);
+      return;
+    }
+
+    std::string differing;
+    for (int multBin : BinningUtils::BinIndices(multBinning)) {
+      const std::unique_ptr<TH1D> low = readEdge(multBin, IONames::WindowEdge::Low);
+      const std::unique_ptr<TH1D> high = readEdge(multBin, IONames::WindowEdge::High);
+      for (int ptBin : BinningUtils::BinIndices(ptBinning)) {
+        const AnalysisStructures::Range integrated{HistogramUtils::BinValueAndError(low.get(), ptBin).first,
+                                                   HistogramUtils::BinValueAndError(high.get(), ptBin).first};
+        if (!AnalysisStructures::SameWindow(integrated, online.value)) {
+          differing += std::format("  {}: {}\n", IONames::CellTag(multBinning, multBin, ptBinning, ptBin),
+                                   TrainConfig::DescribeMassWindow(integrated));
+        }
+      }
+    }
+    if (!differing.empty()) {
+      throw std::runtime_error(std::format("[FATAL] {}: the purity of {} ('{}') was integrated in mass windows other than "
+                                           "the one {} was kept in online, {} ({}):\n{}"
+                                           "Set the signal window of '{}' in the fit configuration of the purity production "
+                                           "to the online one and re-run it, or use an input selected in the window of the purity.",
+                                           GetName(), particle, purityPath, particle, TrainConfig::DescribeMassWindow(online.value),
+                                           online.source, differing, purityKey));
+    }
   }
 
   void RunOptimized()

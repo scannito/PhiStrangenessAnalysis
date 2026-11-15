@@ -217,14 +217,16 @@ class PurityTask : public IAnalysisTask
 
     // Once per binning: fit, draw on the summary canvas, write.
     auto fitAt = [&](SpectrumBinning which) {
-      std::unique_ptr<TH1> h1Purity = FitPuritySpectrum(task, classes, classBin, which);
+      PuritySpectrum spectrum = FitPuritySpectrum(task, classes, classBin, which);
       canvasManager.RequireCanvas(IONames::PuritySummaryCanvas(task.purityKey, which))->cd();
-      CanvasManager::DrawStyledCopy(h1Purity.get(), option, globalCfgs.GetSpectraColor(multBin));
+      CanvasManager::DrawStyledCopy(spectrum.purity.get(), option, globalCfgs.GetSpectraColor(multBin));
       // The source-binning spectrum in a subdirectory of its own rather than next to the analysis one, created by the
       // write itself: it exists if and only if something was written into it.
       RootIO::MakePath(outputFile.get(), IONames::SummaryPath(globalCfgs.binningName, which))->cd();
-      h1Purity->Write(nullptr, TObject::kOverwrite);
-      return h1Purity;
+      for (const auto& h : {spectrum.purity.get(), spectrum.windowLow.get(), spectrum.windowHigh.get()}) {
+        h->Write(nullptr, TObject::kOverwrite);
+      }
+      return std::move(spectrum.purity);
     };
     std::unique_ptr<TH1> h1PurityAnalysis = fitAt(SpectrumBinning::Analysis);
 
@@ -236,13 +238,20 @@ class PurityTask : public IAnalysisTask
     return task.rebinningPt ? fitAt(SpectrumBinning::Source) : std::move(h1PurityAnalysis);
   }
 
+  // A purity spectrum and, on its axis, the edges of the mass window each of its bins was integrated in.
+  struct PuritySpectrum {
+    std::unique_ptr<TH1> purity;
+    std::unique_ptr<TH1> windowLow;
+    std::unique_ptr<TH1> windowHigh;
+  };
+
   // Builds one purity spectrum: for every bin, fits the mass distribution obtained
   // by merging the source bins it covers and reads S/(S+B) off the fit. At the
   // source binning each bin covers exactly itself. The same holds on the
   // multiplicity axis: class 'classBin' of 'classes' (multBinning itself, or its union: an index of
   // 'classes', not of multBinning) covers the bins of multBinning between its edges.
-  std::unique_ptr<TH1> FitPuritySpectrum(AnalysisStructures::ParticleTask& task, std::span<const double> classes, int classBin,
-                                         SpectrumBinning which)
+  PuritySpectrum FitPuritySpectrum(AnalysisStructures::ParticleTask& task, std::span<const double> classes, int classBin,
+                                   SpectrumBinning which)
   {
     // Every particle's fits in a directory of its own, per binning: they share the file.
     TDirectory* fitDir = RootIO::MakePath(outputFile.get(), IONames::PurityFitsPath(globalCfgs.binningName, task.purityKey, which));
@@ -254,10 +263,20 @@ class PurityTask : public IAnalysisTask
     std::string label = task.purityKey;
     std::ranges::replace(label, '_', ' ');
 
-    std::string hName = IONames::Purity(task.purityKey, IONames::MultTag(classes, classBin), which);
-    std::unique_ptr<TH1> h1PuritySpectrum = std::make_unique<TH1F>(hName.c_str(), "; p_{T} (GeV/#it{c}); S/(S+B)",
-                                                                   BinningUtils::NBins(binning), binning.data());
-    h1PuritySpectrum->SetDirectory(0);
+    const std::string multTag = IONames::MultTag(classes, classBin);
+    PuritySpectrum spectrum;
+    spectrum.purity = std::make_unique<TH1F>(IONames::Purity(task.purityKey, multTag, which).c_str(),
+                                             "; p_{T} (GeV/#it{c}); S/(S+B)", BinningUtils::NBins(binning), binning.data());
+    spectrum.purity->SetDirectory(0);
+    // In double: the edges are compared with the online ones, which a float would round.
+    auto makeWindowEdge = [&](IONames::WindowEdge edge, const char* title) -> std::unique_ptr<TH1> {
+      auto h = std::make_unique<TH1D>(IONames::PurityWindow(task.purityKey, multTag, edge, which).c_str(), title,
+                                      BinningUtils::NBins(binning), binning.data());
+      h->SetDirectory(0);
+      return h;
+    };
+    spectrum.windowLow = makeWindowEdge(IONames::WindowEdge::Low, "; p_{T} (GeV/#it{c}); lower edge of the integrated mass window");
+    spectrum.windowHigh = makeWindowEdge(IONames::WindowEdge::High, "; p_{T} (GeV/#it{c}); upper edge of the integrated mass window");
 
     const BinningUtils::BinRange mult = BinningUtils::MapToSourceBins(multBinning, classes)[classBin];
     for (int ptBin : BinningUtils::BinIndices(binning)) {
@@ -277,7 +296,9 @@ class PurityTask : public IAnalysisTask
                      classBin, binning, ptBin, cfg, fitter.Diagnostics());
 
       auto res = fitter.ExtractYieldsAndPurity();
-      HistogramUtils::SetBinValueAndError(h1PuritySpectrum.get(), ptBin, res.purityAndError);
+      HistogramUtils::SetBinValueAndError(spectrum.purity.get(), ptBin, res.purityAndError);
+      HistogramUtils::SetBinValueAndError(spectrum.windowLow.get(), ptBin, {res.signalWindow.min, 0.0});
+      HistogramUtils::SetBinValueAndError(spectrum.windowHigh.get(), ptBin, {res.signalWindow.max, 0.0});
 
       // The fit's diagnostic canvas, written into the particle's directory and destroyed
       // per fit, as in PhiFitTask: holding them all for the WriteAll in Terminate would
@@ -291,7 +312,7 @@ class PurityTask : public IAnalysisTask
       canvasManager.WriteAndDestroy(cName, fitDir);
     }
 
-    return h1PuritySpectrum;
+    return spectrum;
   }
 
   // Copies one multiplicity column into the CCDB map. The map must stay at the

@@ -290,6 +290,16 @@ class CorrelationTaskBase : public IAnalysisTask
 
   // Filled in Init, written into the spectra file in Terminate
   std::map<std::string, std::string> provenance;
+  // Per associated species, the mass window it was kept in online (CheckOnlineMassWindows):
+  //  - no map (nullopt): not known, no train configuration (no device read); nothing can be compared.
+  //  - a map without the species: the species has no mass window to have (the pion, cut online in n sigma).
+  //  - at(name).value empty: known, no window. The device had select...InSigRegion off and counted the pairs at every
+  //    mass of the species; a purity, integrated in a window, describes none of those outside it.
+  //  - at(name).value = {min, max}: known, the window of select...InSigRegion and rangeM...Signal; a purity applied
+  //    to these pairs must have been integrated in it (CorrelationTask::CheckPurityWindow).
+  // at(name).source says where it was read (record, wagon, device), for the messages; the same on every device read,
+  // or CheckOnlineMassWindows has stopped the run (TrainConfig::SameOnAllDevices).
+  std::optional<std::map<std::string, TrainConfig::Sourced<std::optional<AnalysisStructures::Range>>>> onlineMassWindows;
   std::vector<AnalysisStructures::LoadedAssocData> loadedDataCollection;
 
   // Read from the input files in Init(), never from the configuration
@@ -798,11 +808,13 @@ class CorrelationTaskBase : public IAnalysisTask
   // read, said in the log; compared with the purity windows by CorrelationTask (DESIGN_NOTES.md section 12). Generator-
   // level containers are filled without isAssocValid, so no window applies to them. The pion has none: its online cut
   // is in n sigma.
-  void CheckOnlineMassWindows(const std::vector<TrainConfig::Device>& devices) const
+  void CheckOnlineMassWindows(const std::vector<TrainConfig::Device>& devices)
   {
-    if (!ReadsOnlineWeightedContainers()) {
+    onlineMassWindows.reset();
+    if (!ReadsOnlineWeightedContainers() || devices.empty()) {
       return;
     }
+    onlineMassWindows.emplace();
     for (const auto& p : assocParticles) {
       const TrainConfig::MassWindowOptions* options = TrainConfig::FindMassWindowOptions(p.name);
       if (!options) {
@@ -813,6 +825,7 @@ class CorrelationTaskBase : public IAnalysisTask
         TrainConfig::DescribeMassWindow, std::format("the mass window of {}", p.name), GetName());
       if (window) {
         Logger::Info("{}: Online mass window of {}: {} ({}).", GetName(), p.name, TrainConfig::DescribeMassWindow(window->value), window->source);
+        (*onlineMassWindows)[p.name] = *window;
       }
     }
   }

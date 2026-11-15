@@ -1419,15 +1419,21 @@ off by the phi efficiency); with no record for the pairs, the triggers alone sti
 to them online and again here, and the rest is a warning. A device made with `propagateEffError` on is a
 warning too (`TrainConfig::MapErrorAddedPerEntry`), **temporary**: it goes once every production read comes from
 the O2Physics task without the per-entry map error (its commit 15646e3d1, not merged upstream yet). Next steps:
-the online windows against the offline ones, which map version a train read (the record has only
-`ccdbEfficiencyPath`), and a stamp for the MC maps.
+the online windows against the offline ones (the associated species done, below; the phi of `phi_fit_task` next),
+which map version a train read (the record has only `ccdbEfficiencyPath`), and a stamp for the MC maps.
 
 The windows to compare (the owner, 14 November 2026): the mass window of the **correlation** device
 (`rangeMK0sSignal`, `rangeMXiSignal`, `rangeMOmegaSignal` in `phiStrangeCorrelation`, applied by `isAssocValid` when
 `select{K0S,Xi,Omega}InSigRegion` is on, in the ΔY-vs-Δφ mode) against the integration window of the purity fit of
 `purity_task` for the same species. The purity divides the counted sample only if the two are the same. The
 producers' own `rangeMK0sSignal` and `rangeMLambdaSignal` (`phiStrangeCorrelator.cxx`) are declared and never
-used: not the window to compare. Two points open:
+used: not the window to compare. *Since 15 November 2026* this is checked: `purity_task` writes, next to each
+purity, the window each of its bins was integrated in (`h1<key>PurityWindow{Low,High}_<class>`, one `TH1D` per edge
+on the purity's axis, error 0; `FitResults::signalWindow`), and the correlation task compares it, cell by cell, with
+the online window of the species (`CheckPurityWindow`), equal within the edge tolerance or the run stops naming
+every cell that differs (`AnalysisStructures::SameWindow`). Before the containers are loaded, `PurityWindowsToCompare`
+sorts each purity source by what is known online: no window at all stops the run, no train record or the pion are a
+warning, not compared. A purity file made before the stamp is a warning, not compared. Two points open:
 - `n_sigma_integration` (a window of n σ around the fitted peak, per cell) cannot match a fixed online window. It
   was suggested to the owner; why, and how it could be done online (a window per pT bin, or n σ around a
   parametrised mass and width), is still to be understood.

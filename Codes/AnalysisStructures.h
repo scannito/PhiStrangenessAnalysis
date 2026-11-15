@@ -11,6 +11,7 @@
 #include "THnSparse.h"
 
 #include <array>
+#include <cmath>
 #include <format>
 #include <map>
 #include <set>
@@ -211,7 +212,20 @@ struct ModelConfig {
 struct Range {
   double min{0.0};
   double max{0.0};
+  // Exact, for TrainConfig::SameOnAllDevices: the windows of the devices are read from the same kind of text by the same
+  // function, so two that are one window are equal bit for bit. Windows from different sources go through SameWindow.
+  bool operator==(const Range&) const = default;
 };
+
+// Two windows from different sources (the purity fit's, from a fit configuration parsed by rapidjson with its default
+// flags; the online one, from the DPL text of a train record through std::stod), the same within the edge tolerance.
+// Not ==: rapidjson's default parsing is not guaranteed to round to the nearest double. For short decimals it does
+// (measured, 15 November 2026: every value of three decimals in [0, 2] parses to the same double as std::stod), so the
+// tolerance is there for the longer ones, as for every other edge (BinningUtils::kEdgeTolerance).
+inline bool SameWindow(const Range& a, const Range& b)
+{
+  return std::abs(a.min - b.min) <= BinningUtils::kEdgeTolerance && std::abs(a.max - b.max) <= BinningUtils::kEdgeTolerance;
+}
 
 struct NSigma {
   double n{3.0};

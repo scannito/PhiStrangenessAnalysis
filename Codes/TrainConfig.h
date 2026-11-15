@@ -17,6 +17,7 @@
 // The options are written as DPL writes them, and read with JsonConfig::Dpl. An option missing from a record that
 // exists means O2Physics renamed it: it stops the run, since a guess would be the silent failure this file is for.
 
+#include "AnalysisStructures.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
 #include "RootIOHelpers.h"
@@ -357,19 +358,20 @@ inline const MassWindowOptions* FindMassWindowOptions(std::string_view species)
 
 // The mass window this device kept a species in, in the DeltaY vs DeltaPhi mode (RequireDeltaYvsDeltaPhi): empty when
 // its select switch is off, and every mass the producer passed was then counted.
-inline std::optional<std::pair<double, double>> OnlineMassWindow(const Device& device, const MassWindowOptions& options)
+inline std::optional<AnalysisStructures::Range> OnlineMassWindow(const Device& device, const MassWindowOptions& options)
 {
   const std::string where = Source(device);
   if (!JsonConfig::Dpl::RequireBool(*device.options, options.select, where)) {
     return std::nullopt;
   }
-  return JsonConfig::Dpl::RequirePair(*device.options, options.range, where);
+  const auto [low, high] = JsonConfig::Dpl::RequirePair(*device.options, options.range, where);
+  return AnalysisStructures::Range{low, high};
 }
 
 // "[0.475, 0.515]", or that no window was applied, for the messages.
-inline std::string DescribeMassWindow(const std::optional<std::pair<double, double>>& window)
+inline std::string DescribeMassWindow(const std::optional<AnalysisStructures::Range>& window)
 {
-  return window ? std::format("[{}, {}]", window->first, window->second) : "none (every mass counted)";
+  return window ? std::format("[{}, {}]", window->min, window->max) : "none (every mass counted)";
 }
 
 // The provenance key of an input's train configuration, for its role ("data", "mixed_event").
