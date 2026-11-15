@@ -58,7 +58,7 @@ class PhiFitTask : public IAnalysisTask
     const std::vector<TrainConfig::Device> devices = TrainConfig::Devices(records, basePathData, GetName());
     provenance[TrainConfig::ProvenanceKey("data")] = TrainConfig::Describe(devices);
     if (const auto weighted = TrainConfig::WeightedOnline(devices, {"Phi"}, GetName())) {
-      phiWeightedOnline = weighted->particles.contains("Phi");
+      phiWeightedOnline = weighted->value.contains("Phi");
       Logger::Info("{}: The phi of '{}' is {}weighted online.", GetName(), basePathData, *phiWeightedOnline ? "" : "not ");
     }
 

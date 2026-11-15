@@ -1419,8 +1419,23 @@ off by the phi efficiency); with no record for the pairs, the triggers alone sti
 to them online and again here, and the rest is a warning. A device made with `propagateEffError` on is a
 warning too (`TrainConfig::MapErrorAddedPerEntry`), **temporary**: it goes once every production read comes from
 the O2Physics task without the per-entry map error (its commit 15646e3d1, not merged upstream yet). Next steps:
-the online windows against the offline ones (`purity_task` reading the devices of its producers), which map
-version a train read (the record has only `ccdbEfficiencyPath`), and a stamp for the MC maps.
+the online windows against the offline ones, which map version a train read (the record has only
+`ccdbEfficiencyPath`), and a stamp for the MC maps.
+
+The windows to compare (the owner, 14 November 2026): the mass window of the **correlation** device
+(`rangeMK0sSignal`, `rangeMXiSignal`, `rangeMOmegaSignal` in `phiStrangeCorrelation`, applied by `isAssocValid` when
+`select{K0S,Xi,Omega}InSigRegion` is on, in the ΔY-vs-Δφ mode) against the integration window of the purity fit of
+`purity_task` for the same species. The purity divides the counted sample only if the two are the same. The
+producers' own `rangeMK0sSignal` and `rangeMLambdaSignal` (`phiStrangeCorrelator.cxx`) are declared and never
+used: not the window to compare. Two points open:
+- `n_sigma_integration` (a window of n σ around the fitted peak, per cell) cannot match a fixed online window. It
+  was suggested to the owner; why, and how it could be done online (a window per pT bin, or n σ around a
+  parametrised mass and width), is still to be understood.
+- The pions (`pidTPCMax`, `pidTOFMax`) are left aside until the online choices behind them are understood.
+- No mass window online (`select{K0S,Xi,Omega}InSigRegion` off, or a mode other than ΔY-vs-Δφ) with `apply_purity`
+  on stops the run (the owner, 14 November 2026): every mass was counted, and the purity of a window does not
+  describe that sample. In a correlation analysis the alternative to the window is to subtract the background of
+  the associated particle from its sidebands too, as is done for the phi.
 How a device is found in a record (`TrainConfig::Devices`), from what Hyperloop returns (observed on train 786854,
 not enforced by the download): each wagon's configuration comes with its dependencies, so a producer
 (`pion-track-producer`, `v0-reduced-cand-producer`, ...) appears in every wagon that depends on it, with the same

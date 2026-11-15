@@ -481,9 +481,10 @@ inline bool ToBool(const rapidjson::Value& value, std::string_view what, std::st
   throw std::runtime_error(std::format("[FATAL] {}: '{}' is not a boolean as DPL writes it (\"0\" or \"1\").", errCtx, what));
 }
 
-inline bool RequireBool(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+inline bool RequireBool(const rapidjson::Value& node, std::string_view key, std::string_view errCtx)
 {
-  return ToBool(RequireMember(node, key, errCtx), key, errCtx);
+  const std::string name(key);
+  return ToBool(RequireMember(node, name.c_str(), errCtx), key, errCtx);
 }
 
 // A std::array<bool, N> as DPL writes it, key._M_elems[0] ... [N-1], where element i stands for names[i]: the names
@@ -507,6 +508,14 @@ inline std::set<std::string> RequireSelected(const rapidjson::Value& node, std::
       selected.insert(names[i]);
   }
   return selected;
+}
+// A std::pair of numbers as DPL writes it: key.first and key.second, each a number or a string holding one.
+inline std::pair<double, double> RequirePair(const rapidjson::Value& node, std::string_view key, std::string_view errCtx)
+{
+  const std::string first = std::format("{}.first", key);
+  const std::string second = std::format("{}.second", key);
+  return {ToNumber(RequireMember(node, first.c_str(), errCtx), first, errCtx),
+          ToNumber(RequireMember(node, second.c_str(), errCtx), second, errCtx)};
 }
 } // namespace Dpl
 

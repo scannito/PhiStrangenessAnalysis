@@ -546,7 +546,9 @@ class CorrelationTaskBase : public IAnalysisTask
   void InitCorrectionsAndCheckOnline(const rapidjson::Value& taskConfig, const std::optional<OnlineWeighting>& triggerPhi = std::nullopt)
   {
     InitCorrections(taskConfig);
-    CheckOnlineCorrections(taskConfig, triggerPhi);
+    const TrainInputs inputs = LoadTrainInputs(taskConfig);
+    CheckOnlineCorrections(inputs.devices, triggerPhi);
+    CheckOnlineMassWindows(inputs.devices);
   }
 
   void LoadCorrectionsAndExtrapolation(const rapidjson::Value& taskConfig)
@@ -663,43 +665,57 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
-  // How the trains of the inputs weighted the particles online, against what this block corrects offline (DESIGN_NOTES.md
-  // sections 12 and 13), from their configurations (TrainConfig.h). Every device read (the same event's and the mixed
-  // event's, in every part of a sum) must have weighted the analysed particles alike. The triggers, when they come from a
-  // file of their own (triggerPhi), are one more source of phi entries: weighted otherwise than the pairs, the
-  // per-trigger yield is off by the phi efficiency, and the run stops. Then, per particle, one line says where its
-  // efficiency is applied: online and offline both stops the run; neither is a warning for an associated species, whose
-  // yields are then not corrected for it, and normal for the phi, which the no_phi blocks leave uncorrected on purpose.
-  // Not checked: a signal loss applied online. The record says which map was read (ccdbEfficiencyPath), not whether
-  // it was efficiency alone or efficiency x signal loss, so signal_loss here cannot be compared with it.
-  // Each input's record goes into the provenance, or "none".
+  // The train configurations of the inputs (TrainConfig.h) and the devices this block reads in them, one per input and
+  // per part of a sum. The devices point into the records, so the two travel together. One record per file, so that the
+  // mixed event read from the data file (the usual case) loads, checks and warns once; the key is the path made
+  // lexically normal, so that the same file written two ways is still one. Each input's record goes into the
+  // provenance, or "none".
   // -------------------------------------------------------------------------
-  void CheckOnlineCorrections(const rapidjson::Value& taskConfig, const std::optional<OnlineWeighting>& triggerPhi)
-  {
-    const std::vector<std::string> analysed = AnalysedParticles();
-    const std::set<std::string> analysedSet(analysed.begin(), analysed.end());
-
-    // Kept until the end: the devices point into them. One entry per file, so that the mixed event read from the data
-    // file (the usual case) loads, checks and warns once; the key is the path made lexically normal, so that the same
-    // file written two ways ("../DataFile/x.root", "../DataFile/./x.root") is still one.
+  struct TrainInputs {
     std::map<std::string, std::vector<TrainConfig::Record>> recordsByFile;
     std::vector<TrainConfig::Device> devices;
+  };
+
+  TrainInputs LoadTrainInputs(const rapidjson::Value& taskConfig)
+  {
+    TrainInputs inputs;
     for (const auto& input : AssocInputs()) {
       const std::string file = JsonConfig::RequireString(taskConfig, input.fileKey, GetName());
       const std::string basePath = JsonConfig::RequireString(taskConfig, input.basePathKey, GetName());
-      const auto [loaded, isNew] = recordsByFile.try_emplace(std::filesystem::path(file).lexically_normal().string());
+      const auto [loaded, isNew] = inputs.recordsByFile.try_emplace(std::filesystem::path(file).lexically_normal().string());
       if (isNew) {
         loaded->second = TrainConfig::Load(file, GetName());
       }
       const std::vector<TrainConfig::Device> inputDevices = TrainConfig::Devices(loaded->second, basePath, GetName());
       provenance[TrainConfig::ProvenanceKey(input.role)] = TrainConfig::Describe(inputDevices);
-      devices.insert(devices.end(), inputDevices.begin(), inputDevices.end());
+      inputs.devices.insert(inputs.devices.end(), inputDevices.begin(), inputDevices.end());
     }
+    return inputs;
+  }
 
+  // -------------------------------------------------------------------------
+  // How the trains of the inputs weighted the particles online, against what this block corrects offline (DESIGN_NOTES.md
+  // sections 12 and 13). Every device read (the same event's and the mixed event's, in every part of a sum) must have run
+  // in the DeltaY vs DeltaPhi mode, whose containers these are, and weighted the analysed particles alike. The triggers,
+  // when they come from a file of their own (triggerPhi), are one more source of phi entries: weighted otherwise than
+  // the pairs, the per-trigger yield is off by the phi efficiency, and the run stops. Then, per particle, one line says
+  // where its efficiency is applied: online and offline both stops the run; neither is a warning for an associated
+  // species, whose yields are then not corrected for it, and normal for the phi, which the no_phi blocks leave
+  // uncorrected on purpose. Generator-level containers are not weighted online whatever the options, so nothing is
+  // compared for them. Not checked: a signal loss applied online. The record says which map was read
+  // (ccdbEfficiencyPath), not whether it was efficiency alone or efficiency x signal loss.
+  // -------------------------------------------------------------------------
+  void CheckOnlineCorrections(const std::vector<TrainConfig::Device>& devices, const std::optional<OnlineWeighting>& triggerPhi)
+  {
     if (!ReadsOnlineWeightedContainers()) {
       Logger::Info("{}: Generator-level containers: not weighted online, whatever the train's options.", GetName());
       return;
     }
+    for (const auto& device : devices) {
+      TrainConfig::RequireDeltaYvsDeltaPhi(device);
+    }
+    const std::vector<std::string> analysed = AnalysedParticles();
+    const std::set<std::string> analysedSet(analysed.begin(), analysed.end());
 
     // TEMPORARY (TrainConfig::MapErrorAddedPerEntry): said, since a reader of these errors would take them for the
     // statistical ones with the map's uncertainty in, which they are not. Once per device: the same event and the mixed
@@ -707,11 +723,12 @@ class CorrelationTaskBase : public IAnalysisTask
     std::set<std::string> said;
     for (const auto& device : devices) {
       if (TrainConfig::MapErrorAddedPerEntry(device) && said.insert(TrainConfig::Source(device)).second) {
-        Logger::Warn("{}: the bin errors of {} include the uncertainty of the efficiency maps summed entry by entry "
-                     "(propagateEffError): that adds only about sqrt(1 + r^2) to the statistical error, and is not the maps' "
-                     "uncertainty, which adds linearly within a map bin (DESIGN_NOTES.md section 13). Until the "
-                     "productions are made again without it.",
-                     GetName(), TrainConfig::Source(device));
+        Logger::Warn(
+          "{}: the bin errors of {} include the uncertainty of the efficiency maps summed entry by entry "
+          "(propagateEffError): that adds only about sqrt(1 + r^2) to the statistical error, and is not the maps' "
+          "uncertainty, which adds linearly within a map bin (DESIGN_NOTES.md section 13). Until the "
+          "productions are made again without it.",
+          GetName(), TrainConfig::Source(device));
       }
     }
 
@@ -719,7 +736,7 @@ class CorrelationTaskBase : public IAnalysisTask
     std::map<std::string, OnlineWeighting> weightedOnline;
     if (const auto pairs = TrainConfig::WeightedOnline(devices, analysedSet, GetName())) {
       for (const auto& name : analysed) {
-        weightedOnline.emplace(name, OnlineWeighting{pairs->particles.contains(name), pairs->source});
+        weightedOnline.emplace(name, OnlineWeighting{pairs->value.contains(name), pairs->source});
       }
     }
     const std::set<std::string> correctedOffline = corrections ? corrections->ParticlesWithEfficiency() : std::set<std::string>{};
@@ -742,9 +759,10 @@ class CorrelationTaskBase : public IAnalysisTask
             "(corrections.particles.Phi.acceptance_efficiency): keep one of the two (DESIGN_NOTES.md section 13).",
             GetName(), triggerPhi->source));
         }
-        Logger::Warn("{}: the phi of the triggers is {}weighted online ({}), that of the pairs is not known (no train "
-                     "configuration): the pairs and the triggers are not compared.",
-                     GetName(), triggerPhi->weighted ? "" : "not ", triggerPhi->source);
+        Logger::Warn(
+          "{}: the phi of the triggers is {}weighted online ({}), that of the pairs is not known (no train "
+          "configuration): the pairs and the triggers are not compared.",
+          GetName(), triggerPhi->weighted ? "" : "not ", triggerPhi->source);
       }
     }
 
@@ -772,6 +790,29 @@ class CorrelationTaskBase : public IAnalysisTask
       } else {
         Logger::Warn("{}: the efficiency of {} is applied neither online ({}) nor offline: its yields are not corrected for it.",
                      GetName(), name, source);
+      }
+    }
+  }
+
+  // The mass window each associated species was kept in online (TrainConfig::OnlineMassWindow), the same for every device
+  // read, said in the log; compared with the purity windows by CorrelationTask (DESIGN_NOTES.md section 12). Generator-
+  // level containers are filled without isAssocValid, so no window applies to them. The pion has none: its online cut
+  // is in n sigma.
+  void CheckOnlineMassWindows(const std::vector<TrainConfig::Device>& devices) const
+  {
+    if (!ReadsOnlineWeightedContainers()) {
+      return;
+    }
+    for (const auto& p : assocParticles) {
+      const TrainConfig::MassWindowOptions* options = TrainConfig::FindMassWindowOptions(p.name);
+      if (!options) {
+        continue;
+      }
+      const auto window = TrainConfig::SameOnAllDevices(
+        devices, [&](const TrainConfig::Device& device) { return TrainConfig::OnlineMassWindow(device, *options); },
+        TrainConfig::DescribeMassWindow, std::format("the mass window of {}", p.name), GetName());
+      if (window) {
+        Logger::Info("{}: Online mass window of {}: {} ({}).", GetName(), p.name, TrainConfig::DescribeMassWindow(window->value), window->source);
       }
     }
   }

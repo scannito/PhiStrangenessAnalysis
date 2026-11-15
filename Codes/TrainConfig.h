@@ -39,6 +39,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -264,36 +265,111 @@ inline bool MapErrorAddedPerEntry(const Device& device)
          JsonConfig::Dpl::ToBool(*option, "propagateEffError", where);
 }
 
-// The particles, among 'of', that the devices weighted online, and the first device as their source. The same for all
-// the devices (the same event and the mixed event, the trains of a sum, are read together and must have been weighted
-// alike), or the run stops naming two that differ. Only 'of' is compared, so devices that differ in a particle nobody
-// reads pass. Empty when there are no devices, which is "not known", never "nothing weighted".
-struct WeightedParticles {
-  std::set<std::string> particles;
+// A value read from every device, the same for all of them, with the first device as its source.
+template <class T>
+struct Sourced {
+  T value;
   std::string source;
 };
 
-inline std::optional<WeightedParticles> WeightedOnline(const std::vector<Device>& devices, const std::set<std::string>& of,
-                                                       std::string_view errCtx)
+// The value 'valueOf' reads from every device, required the same for all of them: the same event and the mixed event,
+// and the trains of a sum, are read as one sample only if they agree. The run stops naming two that differ, with 'what'
+// and 'describe' saying what. Empty when there are no devices: not known, never a default.
+// The value's type T is not written anywhere. The caller passes only the callable; the compiler deduces ValueOf from it
+// and takes T as what calling it with a Device gives, T = decltype(valueOf(device)), which is what
+// std::invoke_result_t<ValueOf, const Device&> says; the result is std::optional<Sourced<T>>. So one function serves a
+// set of particles (WeightedOnline), a mass window (CheckOnlineMassWindows) or any later fact, a double for a PID
+// threshold included, without a line changed here. T must support != and copying, and describe(T) must give something
+// std::format can write; a T that does not fails to compile, not at run time. A template and not a std::function for
+// the same reason: a std::function would fix the return type in advance and hide the callable behind type erasure.
+template <class ValueOf, class Describe>
+auto SameOnAllDevices(const std::vector<Device>& devices, ValueOf valueOf, Describe describe, std::string_view what,
+                      std::string_view errCtx) -> std::optional<Sourced<std::invoke_result_t<ValueOf, const Device&>>>
 {
   if (devices.empty()) {
     return std::nullopt;
   }
+  const auto common = valueOf(devices.front());
+  for (const auto& device : devices) {
+    if (const auto value = valueOf(device); value != common) {
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: the inputs differ in {}: {} by {}, {} by {}. The same event and the mixed event, and every train "
+        "of a sum, must agree.",
+        errCtx, what, describe(common), Source(devices.front()), describe(value), Source(device)));
+    }
+  }
+  return Sourced<std::invoke_result_t<ValueOf, const Device&>>{common, Source(devices.front())};
+}
+
+// The particles, among 'of', that the devices weighted online, the same for all of them. Only 'of' is compared, so
+// devices that differ in a particle nobody reads pass.
+inline std::optional<Sourced<std::set<std::string>>> WeightedOnline(const std::vector<Device>& devices,
+                                                                    const std::set<std::string>& of, std::string_view errCtx)
+{
   const auto weightedOf = [&](const Device& device) {
     std::set<std::string> weighted;
     std::ranges::set_intersection(ParticlesWeightedOnline(device), of, std::inserter(weighted, weighted.end()));
     return weighted;
   };
-  const std::set<std::string> common = weightedOf(devices.front());
-  for (const auto& device : devices) {
-    if (const std::set<std::string> weighted = weightedOf(device); weighted != common) {
-      throw std::runtime_error(std::format(
-        "[FATAL] {}: the inputs were weighted online for different particles: {} by {}, {} by {}. The same event and "
-        "the mixed event, and every train of a sum, must be weighted alike.",
-        errCtx, Names(common), Source(devices.front()), Names(weighted), Source(device)));
-    }
+  return SameOnAllDevices(devices, weightedOf, Names, "the particles weighted online", errCtx);
+}
+
+// phiStrangeCorrelation's AnalysisMode kDeltaYvsDeltaPhi: the only mode that fills the DeltaY-DeltaPhi containers the
+// correlation tasks read, and the only one that applies the mass windows below.
+inline constexpr int kDeltaYvsDeltaPhiMode = 2;
+
+// The device ran in the DeltaY vs DeltaPhi mode, or the run stops: in the other modes phiStrangeCorrelation books the
+// containers the correlation tasks read but leaves them empty.
+inline void RequireDeltaYvsDeltaPhi(const Device& device)
+{
+  const std::string where = Source(device);
+  const double mode = JsonConfig::ToNumber(JsonConfig::RequireMember(*device.options, "analysisMode", where), "analysisMode", where);
+  if (mode != kDeltaYvsDeltaPhiMode) {
+    throw std::runtime_error(std::format(
+      "[FATAL] {}: analysisMode is {}, not {} (DeltaY vs DeltaPhi): the containers read are filled only in that mode.",
+      where, mode, kDeltaYvsDeltaPhiMode));
   }
-  return WeightedParticles{common, Source(devices.front())};
+}
+
+// phiStrangeCorrelation's isAssocValid, per associated species in the framework's names: the switch that turns its mass
+// window on, and the window. Lambda and AntiLambda share theirs. The pion is cut in n sigma (pidTPCMax, pidTOFMax), not
+// in mass, so it is not here.
+struct MassWindowOptions {
+  std::string species;
+  std::string select;
+  std::string range;
+};
+
+inline const std::array<MassWindowOptions, 5> kMassWindowOptions{{
+  {"K0S", "selectK0sInSigRegion", "rangeMK0sSignal"},
+  {"Lambda", "selectLambdaInSigRegion", "rangeMLambdaSignal"},
+  {"AntiLambda", "selectLambdaInSigRegion", "rangeMLambdaSignal"},
+  {"Xi", "selectXiInSigRegion", "rangeMXiSignal"},
+  {"Omega", "selectOmegaInSigRegion", "rangeMOmegaSignal"},
+}};
+
+// The mass-window options of a species, or nullptr when it is not cut in mass online (the pion).
+inline const MassWindowOptions* FindMassWindowOptions(std::string_view species)
+{
+  const auto options = std::ranges::find(kMassWindowOptions, species, &MassWindowOptions::species);
+  return options == kMassWindowOptions.end() ? nullptr : &*options;
+}
+
+// The mass window this device kept a species in, in the DeltaY vs DeltaPhi mode (RequireDeltaYvsDeltaPhi): empty when
+// its select switch is off, and every mass the producer passed was then counted.
+inline std::optional<std::pair<double, double>> OnlineMassWindow(const Device& device, const MassWindowOptions& options)
+{
+  const std::string where = Source(device);
+  if (!JsonConfig::Dpl::RequireBool(*device.options, options.select, where)) {
+    return std::nullopt;
+  }
+  return JsonConfig::Dpl::RequirePair(*device.options, options.range, where);
+}
+
+// "[0.475, 0.515]", or that no window was applied, for the messages.
+inline std::string DescribeMassWindow(const std::optional<std::pair<double, double>>& window)
+{
+  return window ? std::format("[{}, {}]", window->first, window->second) : "none (every mass counted)";
 }
 
 // The provenance key of an input's train configuration, for its role ("data", "mixed_event").
