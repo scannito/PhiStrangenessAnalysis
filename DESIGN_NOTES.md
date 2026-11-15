@@ -1453,11 +1453,37 @@ in `rangeMPhiSignal`: right because the candidates are matched to a true phi by 
 99.99% of them in [0.999, 1.05] in every pT bin (2026 closure, measured 15 November 2026). The producer does not cut
 there (`maxMPhi` 1.5) and a Breit-Wigner of the phi width would leave a few percent outside, so presumably the
 generator truncates the mass range (not checked); if that changes, the triggers would have to be counted in the
-online signal window (`onlinePhiMassWindows`, already read for this task). Two points open:
+online signal window (`onlinePhiMassWindows`, already read for this task). Points open:
 - `n_sigma_integration` (a window of n σ around the fitted peak, per cell) cannot match a fixed online window. It
   was suggested to the owner; why, and how it could be done online (a window per pT bin, or n σ around a
   parametrised mass and width), is still to be understood.
 - The pions (`pidTPCMax`, `pidTOFMax`) are left aside until the online choices behind them are understood.
+- **The efficiency and the mass window** (open, the owner, 15 November 2026: to be thought through, nothing
+  decided). The pairs are counted in the online mass window of the associated species, and the purity describes
+  that window; the efficiency maps of `mc_task` come from the default wagon (`mc_base_path`
+  `phi-strange-correlation/`), with no window. What was found:
+  - In O2Physics `processParticleEfficiency` passes the reconstructed K0S, Λ, Ξ, Ω through `isAssocValid`, the
+    function of the pairs: with ΔY-vs-Δφ and `select...InSigRegion` on, `h4...MCReco` is filled only in the window
+    (the pions with `selectPionInSigRegion`, in n σ). The generated `h4...MCGen` are never cut.
+  - **There is no such option for the trigger.** `h4PhiMCReco` is filled for every reconstructed phi candidate,
+    with no mass window (`rangeMPhiSignal` is not applied), so O2Physics cannot give a phi efficiency in the
+    window the pairs and the trigger count are made in. An option would have to be added there first.
+  - The `...McReco` tables are matched (`phiStrangeCorrelator.cxx`, read 15 November 2026, the code of today and not
+    necessarily that of the train): V0s with the PDG of the hypothesis and physical primary (with the Λ from Ξ apart),
+    cascades the same, the phi from a K⁺K⁻ pair of primaries with a common phi mother. The mass is the reconstructed
+    one, pT and y the generated ones. So what a window removes from them is true signal outside it.
+  - The MC productions have a second wagon, `phi-strange-correlation_TightAssoc`, with the window. In
+    `AnalysisResultsMC_136_2026_LowIRaf_PtMod_20ottobre.root` its reconstructed counts over the default wagon's are
+    K0S 0.9889, Λ 0.9942, Ξ 0.9929, Ω 0.9966, π 1.0000, the generated identical: about 1% of true signal is outside
+    the window, and an efficiency without the window counts it while the pairs do not, so the yields would be about
+    1% low. Inferred from the counts: these files have no train record, so neither the options of TightAssoc nor
+    whether its window is the data's ([0.475, 0.515] for the K0S on train 786854) are known; the record would come
+    from `Macros/downloadHYOutput.py`.
+  - The usual practice (the owner) is the opposite of a window: the efficiency on the whole sample, with selections
+    that keep all of it in, except for the pions, which are tracks.
+  Options: (a) the efficiency in the window of the pairs, from the TightAssoc wagon (not possible for the phi, above);
+  (b) the efficiency without the window and a separate correction for the fraction of signal outside it; (c) no
+  window on the pairs and the background of the associated particle subtracted from its sidebands, as for the phi.
 - No mass window online (`select{K0S,Xi,Omega}InSigRegion` off, or a mode other than ΔY-vs-Δφ) with `apply_purity`
   on stops the run (the owner, 14 November 2026): every mass was counted, and the purity of a window does not
   describe that sample. In a correlation analysis the alternative to the window is to subtract the background of
