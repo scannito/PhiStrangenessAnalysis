@@ -1420,7 +1420,16 @@ to them online and again here, and the rest is a warning. A device made with `pr
 warning too (`TrainConfig::MapErrorAddedPerEntry`), **temporary**: it goes once every production read comes from
 the O2Physics task without the per-entry map error (its commit 15646e3d1, not merged upstream yet). Next steps:
 the online windows against the offline ones (done, below, for the associated species and the phi),
-which map version a train read (the record has only `ccdbEfficiencyPath`), and a stamp for the MC maps.
+which map version a train read (the record has only `ccdbEfficiencyPath`), and a stamp for the MC maps. *Since 16
+November 2026* `mc_task` records the production of its MC input (`train_config_mc_<particle>`, `train_config_mc_event_loss`
+in the provenance of `Corrections.root`, or "none"); nothing in it is compared yet. The per-particle files uploaded to
+CCDB (`h2EffMap*.root`) carry nothing: that is for the upload, together with the map version a train read. Summed
+inputs (the `LowIRall` files) get their `merged_from` record from a `sum` entry of the batch file
+(`downloadHYOutput.py`, which makes the sum with hadd, or, for a sum already on disk, writes the record with
+`summed_with_this_record` false). `TrainConfig::Load` requires each part's record to name its part, and the parts not
+to share runs: compared by the runs the records list, so a part downloaded before its record (runs null) is a warning.
+The existing MC sum `LowIRall_PtMod_20ottobre` was rebuilt from its five parts on 16 November 2026: identical, 218
+objects.
 
 The windows to compare (the owner, 14 November 2026): the mass window of the **correlation** device
 (`rangeMK0sSignal`, `rangeMXiSignal`, `rangeMOmegaSignal` in `phiStrangeCorrelation`, applied by `isAssocValid` when

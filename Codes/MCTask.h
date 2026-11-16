@@ -11,6 +11,7 @@
 #include "Logger.h"
 #include "RootIOHelpers.h"
 #include "RunEnvironment.h"
+#include "TrainConfig.h"
 
 #include "TCanvas.h"
 #include "TDirectory.h"
@@ -21,6 +22,7 @@
 
 #include <algorithm>
 #include <cctype>
+#include <filesystem>
 #include <format>
 #include <map>
 #include <memory>
@@ -74,16 +76,31 @@ class MCTask : public IAnalysisTask
                                                                       GetName());
 
     // Input files may be shared across particles (default) or overridden per
-    // particle via "input_mc_file". Open each distinct file only once.
-    std::map<std::string, std::shared_ptr<TFile>> openInputFiles;
+    // particle via "input_mc_file". Open each distinct file only once, with the production it comes from: its train
+    // record (TrainConfig.h) and the device that wrote mc_base_path in it, the same for every particle, as
+    // TrainConfig::Describe writes them for the provenance, or "none". Keyed on the path made lexically normal, as
+    // CorrelationTaskBase::LoadTrainInputs does, so that one file written two ways is opened once.
+    struct InputFile {
+      std::unique_ptr<TFile> file;
+      std::string production;
+    };
+    std::map<std::string, InputFile> openInputFiles;
 
-    auto getOrOpenFile = [&](const std::string& path) -> TFile* {
-      auto it = openInputFiles.find(path);
-      if (it != openInputFiles.end())
-        return it->second.get();
-      std::unique_ptr<TFile> f = RootIO::OpenOrThrow(path, "READ", GetName());
-      openInputFiles[path] = std::move(f);
-      return openInputFiles[path].get();
+    auto getOrOpenFile = [&](const std::string& path) -> const InputFile& {
+      const auto [input, isNew] = openInputFiles.try_emplace(std::filesystem::path(path).lexically_normal().string());
+      if (isNew) {
+        input->second.file = RootIO::OpenOrThrow(path, "READ", GetName());
+        // Nothing in the record is compared with these maps yet (the selections, the mass windows: DESIGN_NOTES.md
+        // section 12), but a record that is not of this file stops the run, as in every reader of the records:
+        // recording it would record a false production.
+        const std::vector<TrainConfig::Record> records = TrainConfig::Load(path, GetName());
+        const std::vector<TrainConfig::Device> devices = TrainConfig::Devices(records, mcBasePath, GetName());
+        input->second.production = TrainConfig::Describe(devices);
+        for (const auto& device : devices) {
+          Logger::Info("{}: '{}' was produced by {}.", GetName(), path, TrainConfig::Source(device));
+        }
+      }
+      return input->second;
     };
 
     dataCollection.reserve(particles.Size());
@@ -122,6 +139,10 @@ class MCTask : public IAnalysisTask
         throw std::runtime_error(std::format("[FATAL] {}: empty 'input_mc_file' for particle '{}'!", ctx, name));
       }
 
+      // The production the maps of this particle come from, one key per particle: each map is uploaded alone
+      const InputFile& input = getOrOpenFile(particleInputFile);
+      provenance[TrainConfig::ProvenanceKey(std::format("mc_{}", name))] = input.production;
+
       AnalysisStructures::LoadedMC data;
       data.name = name;
 
@@ -129,9 +150,9 @@ class MCTask : public IAnalysisTask
       std::string h4MCGenAssocRecoName = std::format("{}{}/h4{}MCGenAssocReco", mcBasePath, dirName, name);
       std::string h4MCRecoName = std::format("{}{}/h4{}MCReco", mcBasePath, dirName, name);
 
-      data.h3MCGen = RootIO::GetUniqueOrThrow<TH3F>(getOrOpenFile(particleInputFile), h3MCGenName, GetName());
-      data.h4MCGenAssocReco = RootIO::GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCGenAssocRecoName, GetName());
-      data.h4MCReco = RootIO::GetUniqueOrThrow<THnSparseF>(getOrOpenFile(particleInputFile), h4MCRecoName, GetName());
+      data.h3MCGen = RootIO::GetUniqueOrThrow<TH3F>(input.file.get(), h3MCGenName, GetName());
+      data.h4MCGenAssocReco = RootIO::GetUniqueOrThrow<THnSparseF>(input.file.get(), h4MCGenAssocRecoName, GetName());
+      data.h4MCReco = RootIO::GetUniqueOrThrow<THnSparseF>(input.file.get(), h4MCRecoName, GetName());
 
       // These three are divided by each other to build efficiency and signal
       // loss, so they must share their axes whatever the configuration says.
@@ -180,41 +201,35 @@ class MCTask : public IAnalysisTask
     }
 
     // 5. Load Event-Level Histograms for Global Event Loss.
-    // O2 always produces these for every MC file regardless of which particle(s)
-    // it contains, so they're identical duplicates across all opened files —
-    // simply read them from whichever file happens to be open already.
-    if (!openInputFiles.empty()) {
-      std::string genAssocRecoEventPath = std::format("{}event/hGenMCAssocRecoMultiplicityPercent", mcBasePath);
-      std::string genEventPath = std::format("{}event/hGenMCMultiplicityPercent", mcBasePath);
+    // From the task-level "input_mc_file", whichever files the particles read: one file, named in the configuration.
+    // O2 writes them into every MC file, but files of different productions count different events.
+    const InputFile& eventInput = getOrOpenFile(defaultInputFile);
+    provenance[TrainConfig::ProvenanceKey("mc_event_loss")] = eventInput.production;
+    std::string genAssocRecoEventPath = std::format("{}event/hGenMCAssocRecoMultiplicityPercent", mcBasePath);
+    std::string genEventPath = std::format("{}event/hGenMCMultiplicityPercent", mcBasePath);
 
-      hEventMultGenAssocReco = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genAssocRecoEventPath, GetName());
-      hEventMultGen = RootIO::GetUniqueOrThrow<TH1F>(openInputFiles.begin()->second.get(), genEventPath, GetName());
+    hEventMultGenAssocReco = RootIO::GetUniqueOrThrow<TH1F>(eventInput.file.get(), genAssocRecoEventPath, GetName());
+    hEventMultGen = RootIO::GetUniqueOrThrow<TH1F>(eventInput.file.get(), genEventPath, GetName());
 
-      // The event loss is addressed below with the multiplicity bin index of the
-      // particle maps, so the two must share their axis.
-      if (!dataCollection.empty()) {
-        BinningUtils::RequireSameAxis(hEventMultGen->GetXaxis(), dataCollection.front().h3MCGen->GetXaxis(),
-                                      std::format("{} multiplicity", genEventPath), "h3MCGen multiplicity");
-        BinningUtils::RequireSameAxis(hEventMultGenAssocReco->GetXaxis(), hEventMultGen->GetXaxis(),
-                                      std::format("{} multiplicity", genAssocRecoEventPath), std::format("{} multiplicity", genEventPath));
-      }
-
-      // OverEventLoss canvases are registered only when event histograms exist
-      for (const auto& data : dataCollection) {
-        addSummary(data.name, CorrectionMap::SignalLossOverEventLoss, SpectrumBinning::Analysis,
-                   std::format("{} Signal Loss / Event Loss", data.name));
-        if (data.rebinningPt)
-          addSummary(data.name, CorrectionMap::SignalLossOverEventLoss, SpectrumBinning::Source,
-                     std::format("{} Signal Loss / Event Loss (Source Binning)", data.name));
-      }
-    } else {
-      Logger::Warn("{}: No input files were opened. Event Loss will not be computed!", GetName());
+    // The event loss is addressed below with the multiplicity bin index of the
+    // particle maps, so the two must share their axis.
+    if (!dataCollection.empty()) {
+      BinningUtils::RequireSameAxis(hEventMultGen->GetXaxis(), dataCollection.front().h3MCGen->GetXaxis(),
+                                    std::format("{} multiplicity", genEventPath), "h3MCGen multiplicity");
+      BinningUtils::RequireSameAxis(hEventMultGenAssocReco->GetXaxis(), hEventMultGen->GetXaxis(),
+                                    std::format("{} multiplicity", genAssocRecoEventPath), std::format("{} multiplicity", genEventPath));
     }
 
-    for (auto& [name, file] : openInputFiles) {
-      if (file) {
-        file->Close();
-      }
+    for (const auto& data : dataCollection) {
+      addSummary(data.name, CorrectionMap::SignalLossOverEventLoss, SpectrumBinning::Analysis,
+                 std::format("{} Signal Loss / Event Loss", data.name));
+      if (data.rebinningPt)
+        addSummary(data.name, CorrectionMap::SignalLossOverEventLoss, SpectrumBinning::Source,
+                   std::format("{} Signal Loss / Event Loss (Source Binning)", data.name));
+    }
+
+    for (auto& [path, input] : openInputFiles) {
+      input.file->Close();
     }
 
     // 6. Open the master output file for corrections

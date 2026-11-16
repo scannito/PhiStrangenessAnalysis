@@ -9,10 +9,13 @@
 //   {"hyperloop": {train_id, wagons_timestamp, dataset, package_tag, source},
 //    "data_file": {name, downloaded_with_this_record, runs},
 //    "wagons": {"<wagon id>": {"<DPL device>": {"<option>": value}}}}
-// A file summed from several trains (hadd) has a record that names it and lists the records of its parts instead,
-// written by whoever makes the sum:
-//   {"data_file": {"name": "<the summed file>"}, "merged_from": ["<part>.train.json", ...]}   (paths relative to it)
-// The options read must then be the same in all the parts: a sum of trains that ran differently is not one sample.
+// A file summed from several downloads (hadd) has a record that names it and lists the records of its parts instead,
+// written by downloadHYOutput.py from a 'sum' entry of a batch file:
+//   {"data_file": {"name": "<the summed file>", "summed_with_this_record": <bool>},
+//    "merged_from": ["<part>.train.json", ...]}   (paths relative to it)
+// summed_with_this_record is false for a sum made before its record, by hand: nothing then shows that it holds these
+// parts. The options read must be the same in all the parts: a sum of trains that ran differently is not one sample.
+// And the parts must not share events, which hadd would add twice (Detail::RequireDisjointParts).
 //
 // The options are written as DPL writes them, and read with JsonConfig::Dpl. An option missing from a record that
 // exists means O2Physics renamed it: it stops the run, since a guess would be the silent failure this file is for.
@@ -81,6 +84,13 @@ inline std::string Source(const Device& device)
 // "Phi, Pi", or "none", for the messages.
 inline std::string Names(const std::set<std::string>& names) { return names.empty() ? "none" : Logger::Join(names); }
 
+// Where the record of a data file is: next to it, its extension replaced. The same rule as config_path_for in
+// Macros/downloadHYOutput.py.
+inline std::string RecordPath(const std::string& dataFile)
+{
+  return std::filesystem::path(dataFile).replace_extension(".train.json").string();
+}
+
 namespace Detail
 {
 // A directory of AnalysisResults.root, or the first component of a base path, split into the device and the wagon id
@@ -129,19 +139,100 @@ inline void RequireWagonsKnown(const std::string& dataFile, const std::vector<Re
     }
   }
 }
-} // namespace Detail
 
-// Where the record of a data file is: next to it, its extension replaced. The same rule as config_path_for in
-// Macros/downloadHYOutput.py.
-inline std::string RecordPath(const std::string& dataFile)
+// What a record says of its data file ({name, ...}), which every record has
+inline const rapidjson::Value& DataFileBlock(const Record& record)
 {
-  return std::filesystem::path(dataFile).replace_extension(".train.json").string();
+  return JsonConfig::RequireObject(record.doc, "data_file", record.path);
 }
+
+// A record names the data file it belongs to, a sum's and each part's alike: one copied or renamed next to another file
+// would stand for a file it does not describe.
+inline void RequireNamesItsFile(const Record& record, std::string_view errCtx)
+{
+  const std::string name = JsonConfig::RequireString(DataFileBlock(record), "name", record.path);
+  if (RecordPath(name) != std::filesystem::path(record.path).filename().string()) {
+    throw std::runtime_error(std::format(
+      "[FATAL] {}: '{}' is the train configuration of '{}', not of the file next to it. Download that file's again "
+      "(Macros/downloadHYOutput.py, overwrite), or for a sum make it again from its batch entry.",
+      errCtx, record.path, name));
+  }
+}
+
+// The runs a record's data file holds, or nothing when they are not known: a record made for a file already on disk
+// has runs null (downloadHYOutput.py).
+inline std::optional<std::set<int>> RecordedRuns(const Record& record)
+{
+  const rapidjson::Value& runs = JsonConfig::RequireMember(DataFileBlock(record), "runs", record.path);
+  if (runs.IsNull())
+    return std::nullopt;
+  std::set<int> recorded;
+  int index = 0;
+  for (const auto& run : JsonConfig::ToArray(runs, "data_file.runs", record.path))
+    recorded.insert(static_cast<int>(JsonConfig::ToNumber(run, std::format("data_file.runs[{}]", index++), record.path)));
+  return recorded;
+}
+
+// The dataset a record's train ran on, or nothing when Hyperloop did not give it (recorded as null)
+inline std::optional<std::string> RecordedDataset(const Record& record)
+{
+  const rapidjson::Value& dataset =
+    JsonConfig::RequireMember(JsonConfig::RequireObject(record.doc, "hyperloop", record.path), "dataset", record.path);
+  if (dataset.IsNull())
+    return std::nullopt;
+  return JsonConfig::ToString(dataset, "hyperloop.dataset", record.path);
+}
+
+// The parts of a sum must not hold the same events: hadd adds them, and a run in two parts is counted twice with no
+// sign of it. Compared by the runs the records list. A run in two parts of one dataset is the same events: it stops
+// the run. A run in two parts of different datasets (or of a dataset not recorded) may or may not be: two passes of
+// one period of data share their events, two MC productions anchored to the same runs do not, and the record does not
+// say which is which; that is a warning. So is a part whose record does not list its runs (downloaded before its
+// record): it is not compared at all.
+inline void RequireDisjointParts(const std::vector<Record>& parts, const std::string& sumRecord, std::string_view errCtx)
+{
+  std::vector<std::string> notListed;
+  std::set<int> acrossDatasets;
+  std::map<int, std::vector<const Record*>> partsOfRun;
+  for (const auto& part : parts) {
+    const std::optional<std::set<int>> runs = RecordedRuns(part);
+    if (!runs) {
+      notListed.push_back(part.path);
+      continue;
+    }
+    const std::optional<std::string> dataset = RecordedDataset(part);
+    for (int run : *runs) {
+      for (const Record* other : partsOfRun[run]) {
+        const std::optional<std::string> otherDataset = RecordedDataset(*other);
+        if (dataset && otherDataset && *dataset == *otherDataset) {
+          throw std::runtime_error(std::format(
+            "[FATAL] {}: run {} of {} is in two parts of the sum '{}', '{}' and '{}': hadd counted its events twice. "
+            "Make the sum again from parts that do not share runs.",
+            errCtx, run, *dataset, sumRecord, other->path, part.path));
+        }
+        acrossDatasets.insert(run);
+      }
+      partsOfRun[run].push_back(&part);
+    }
+  }
+  if (!acrossDatasets.empty()) {
+    Logger::Warn("{}: parts of different datasets of the sum '{}' share runs ({}): counted twice if they are two passes "
+                 "of the same data, not if they are MC productions anchored to the same runs.",
+                 errCtx, sumRecord, Logger::Join(acrossDatasets));
+  }
+  if (!notListed.empty()) {
+    Logger::Warn("{}: that the parts of the sum '{}' do not share runs is not checked, as these do not list their "
+                 "runs: {}. Downloading a part again with overwrite records them.",
+                 errCtx, sumRecord, Logger::Join(notListed));
+  }
+}
+} // namespace Detail
 
 // The records of the train(s) a data file comes from: one, or one per part of a summed file. Empty when the file has
 // no record, with a warning: the productions made before 12 November 2026 have none until downloadHYOutput.py is run on
 // their batch again. A record that is unreadable, names another data file, or does not list a wagon the file has stops
-// the run.
+// the run; for a sum, so does a part's record that names another file, a part that is itself a sum, or parts of one
+// dataset sharing a run (Detail::RequireDisjointParts). A sum made before its record is a warning.
 inline std::vector<Record> Load(const std::string& dataFile, std::string_view errCtx)
 {
   const std::string path = RecordPath(dataFile);
@@ -158,15 +249,14 @@ inline std::vector<Record> Load(const std::string& dataFile, std::string_view er
   rapidjson::Document& own = records.front().doc;
   JsonConfig::LoadDocument(path, own, errCtx);
 
-  // The record names the file it belongs to, a sum's too: a record copied or renamed next to another file fails here
-  const std::string recorded = JsonConfig::RequireString(JsonConfig::RequireObject(own, "data_file", path), "name", path);
-  const std::string actual = std::filesystem::path(dataFile).filename().string();
-  if (recorded != actual) {
-    throw std::runtime_error(std::format("[FATAL] {}: '{}' is the train configuration of '{}', not of '{}'.",
-                                         errCtx, path, recorded, actual));
-  }
+  Detail::RequireNamesItsFile(records.front(), errCtx);
 
   if (const rapidjson::Value* merged = JsonConfig::OptionalMember(own, "merged_from")) {
+    if (!JsonConfig::RequireBool(Detail::DataFileBlock(records.front()), "summed_with_this_record", path)) {
+      Logger::Warn("{}: '{}' was summed before its record was written: that it holds the parts the record lists is not "
+                   "shown. Making it again from its batch entry with overwrite (Macros/downloadHYOutput.py) shows it.",
+                   errCtx, dataFile);
+    }
     const std::filesystem::path directory = std::filesystem::path(path).parent_path();
     std::vector<Record> parts;
     int index = 0;
@@ -178,9 +268,11 @@ inline std::vector<Record> Load(const std::string& dataFile, std::string_view er
         throw std::runtime_error(std::format("[FATAL] {}: '{}' is itself a sum: list its parts in '{}' directly.",
                                              errCtx, part.path, path));
       }
+      Detail::RequireNamesItsFile(part, errCtx);
     }
     if (parts.empty())
       throw std::runtime_error(std::format("[FATAL] {}: '{}' has an empty 'merged_from'.", errCtx, path));
+    Detail::RequireDisjointParts(parts, path, errCtx);
     records = std::move(parts);
   }
 
@@ -396,7 +488,7 @@ inline std::string DescribePhiMassWindows(const PhiMassWindows& windows)
   return std::format("signal {}, sideband {}", DescribeMassWindow(windows.signal), DescribeMassWindow(windows.sideband));
 }
 
-// The provenance key of an input's train configuration, for its role ("data", "mixed_event").
+// The provenance key of an input's train configuration, for the role of the input it describes.
 inline std::string ProvenanceKey(std::string_view role) { return std::format("train_config_{}", role); }
 
 // For the provenance: per record, its train and data file as recorded, and the wagon, name and options of the device

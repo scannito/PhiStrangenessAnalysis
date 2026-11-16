@@ -94,10 +94,12 @@
   output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
   output_name: "AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root"
 
-
-
-
-
-
-
-
+# The five LowIR periods of 2026: the sum of the downloads above (downloadHYOutput.py; made by hand before, checked 11 Nov 2026: identical)
+- sum: "AnalysisResults_136_2026_LowIRall_PtMod_22ottobre.root"
+  output_dir: "/Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Data"
+  parts:
+    - "AnalysisResults_136_2026_LowIRad_PtMod_22ottobre.root"
+    - "AnalysisResults_136_2026_LowIRae_PtMod_22ottobre.root"
+    - "AnalysisResults_136_2026_LowIRaf_PtMod_22ottobre.root"
+    - "AnalysisResults_136_2026_LowIRag_PtMod_22ottobre.root"
+    - "AnalysisResults_136_2026_LowIRai_PtMod_22ottobre.root"
