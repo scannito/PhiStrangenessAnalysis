@@ -1527,9 +1527,9 @@ O2Physics side have a counterpart here, and the order matters; this section is t
 still needs marked as such.
 
 **What is already done.** On the O2Physics branch `phistrange-ccdb-ownership` (fork `scannito/O2Physics`,
-pushed, no PR yet), three commits:
+pushed, no PR yet), four commits, rebased on upstream `master` `8a6e896b6` on 17 November 2026:
 
-- `4d3da8d48` — the efficiency maps are non-owning. With caching on, which is the default
+- `7bbc55e22` — the efficiency maps are non-owning. With caching on, which is the default
   (`mCachingEnabled = true` in `BasicCCDBManager.h`; `setCaching(true)` only states it), the manager owns
   every object it returns and hands out a raw pointer: the task's `shared_ptr` deleted each map twice, and at
   a run change with `perPeriodEfficiency` the reassignment deleted a map the cache was still serving
@@ -1537,13 +1537,16 @@ pushed, no PR yet), three commits:
   `dynamic_cast`: the cache is keyed by path only and returns `reinterpret_cast<T*>` of what it holds, so
   asking a path as `TH3D` and then as `TH2D` returned a `TH2` as a non-null `TH3` on a cache hit. `TH1` works
   for both because the CCDB API reads with `TFile::GetObjectChecked`, which accepts the class or a derived one.
-- `61d1ea081` — the code commented out in #18061 is removed (the user's rule: commented code goes at the next
+- `fe762a2f0` — the code commented out in #18061 is removed (the user's rule: commented code goes at the next
   PR), with seven unused axes and the "TO BE REMOVED" tags on `cutZVertex`/`vertexZAxis`, which stay.
-- `1cef879bf` — `propagateEffError` is replaced by `effErrorOffline` (point 3 below).
+- `28be7d7be` — the weighted histograms are filled with the weight alone and `Sumw2`; the per-entry map
+  uncertainty goes, with `propagateEffError` and `customFillHist`/`customFillTHn` (point 3 below).
+- `ac7d93fde` — a candidate whose efficiency cannot be computed is dropped and counted, per particle (point 5).
 
-Checked: the file compiles (`-fsyntax-only` with the compile command of the local build; a planted error is
-caught), clang-format and the O2 linter pass, each commit applies alone on upstream `master`. Not yet done:
-rebase on upstream, a full build, a run on data, the PR description (phase 0).
+The only conflict of the rebase was upstream #18390 (`std::vector<double>(x)` for `(std::vector<double>)x` in the
+axes), kept in the lines the clean-up leaves. Checked: both files compile (`-fsyntax-only`; a planted error is
+caught), clang-format and the O2 linter pass, and the partial aliBuild build (`Common`, the two Strangeness
+directories) installs both executables. Not yet done: a run on data, the PR description (phase 0).
 
 ### Where the two sides touch
 
@@ -1575,13 +1578,13 @@ rebase on upstream, a full build, a run on data, the PR description (phase 0).
    (Δy, Δφ) bin, all from the same map bin; content 200. Per entry: statistical √(100·4) = 20, map
    √(100·0.04) = 2, i.e. 1%. Correct: the map term is 100·0.2 = 20, i.e. the 10% of the map. The per-entry
    sum makes a systematic shrink with statistics, which a systematic does not do.
-   - Online, the task adds `wErr²` per entry by default. This was `propagateEffError: true`, which the user
-     always set, so the default reproduces the productions; `propagateEffError: false` (the old default) gave
-     only `w²` because the map error was ignored, not by design. The default is the wrong version on purpose
-     and temporarily: there must be no case where the efficiency is applied online and its uncertainty goes
-     nowhere. `effErrorOffline: true` adds only `w²` and leaves the map uncertainty to be propagated
-     afterwards. `customFillHist`/`customFillTHn` are unchanged: they add whatever `wErr` they are given, and
-     with `effErrorOffline` it is 0.
+   - Online, the productions so far add `wErr²` per entry (`propagateEffError: true`, which the user always
+     set). On the branch (`28be7d7be`, 12 November) the task fills only the weight, with `Sumw2`: the error of a
+     bin is the statistical √Σw². The per-entry term was dropped rather than kept as a default, as first planned
+     with an `effErrorOffline` switch, because it is not a partial propagation: it gives the statistical error
+     times √(1 + r²), numerically the same as leaving the map out, and it cannot be separated afterwards. Bin
+     contents do not change; errors shrink by √(1 + r²) where the efficiency is applied. The map uncertainty
+     is left to be propagated afterwards.
    - "Propagated afterwards" cannot mean here, from the output alone: the map is read at the y of each
      particle, and the output keeps only Δy, so the map bins behind an output bin are unknown. It means runs
      of the task with the map shifted by ±1σ, compared here as a systematic (phase 4).
@@ -1663,13 +1666,18 @@ rebase on upstream, a full build, a run on data, the PR description (phase 0).
    (an acceptance cut that closure tests see); the fallback is efficiency 1 for that particle alone, as
    `hStrangeCorrelation` does, plus the counter. `hStrangeCorrelation` also adds the efficiency error per
    entry (`fillCorrelationHistogram`), so it is no reference for point 3 either.
+   Done on the branch (`ac7d93fde`, 12 November; the user chose discard and count): the check is per particle;
+   a φ that fails is dropped before the trigger count and its pairs, an associate per pair, and each is counted
+   in `zeroEfficiency/{SE,ME}/h3<particle>` over multiplicity, pT and y. Reading the counter here is still to do.
 
 ### Phases
 
 **Phase 0 — close the current O2Physics branch.** No dependency on this side. A run on data with
 `perPeriodEfficiency` and more than one run, compared with an earlier output produced with
-`propagateEffError: true`: the numbers must agree. Then the PR to `AliceO2Group/O2Physics`, and
-`propagateEffError` removed from the wagon configurations.
+`propagateEffError: true`: bin contents must agree, errors must be smaller by √(1 + r²) where the efficiency is
+applied, and the entries that had weight 1 for a zero efficiency must be missing and counted in
+`zeroEfficiency/`. Then the PR to `AliceO2Group/O2Physics`, and `propagateEffError` removed from the wagon
+configurations.
 
 **Phase 1 — replace the correction keys here with a per-particle structure. Done on 16 October 2026** (see
 *The correction configuration: done* below). Independent of O2Physics. The
@@ -1683,12 +1691,14 @@ since `corrections` is required and an unmigrated configuration stops at it (`CL
 
 **Phase 2 — small O2Physics changes, with a reader here.** Defaults aligned with the train: not only the mass
 windows, several configurables have defaults that differ from what the trains use (deferred by the user, 16 October).
-Zero-efficiency candidates checked per particle, not on the product, and counted in a histogram per species;
-this side reads the counter and issues a `Logger::Warn` when it is not empty.
+Zero-efficiency candidates checked per particle, not on the product, and counted in a histogram per species:
+done on the current branch (point 5). This side reads the counter and issues a `Logger::Warn` when it is not
+empty: still to do.
 
 **Phase 3 — let the framework know how the train ran.** Section 12, ideas 1 and 2. What is needed for the
-corrections: `applyEfficiency`, `applyPhiEfficiency`, `effErrorOffline`, the CCDB path of the maps, the mass
-windows. With that, the framework throws when `acceptance_efficiency` is applied to a particle already
+corrections: `applyEfficiency`, `applyPhiEfficiency`, the CCDB path of the maps, the mass windows. Done with
+idea 1, the train records of section 12 (12–16 November), with no O2Physics change; which CCDB object a train
+read is the part still open there. With that, the framework throws when `acceptance_efficiency` is applied to a particle already
 corrected online, compares the windows with `integration_range`, and records the online settings in the
 provenance. A file without the information (every production made so far) gets a `Warn`, not an error, or the
 existing productions become unusable.
@@ -1696,11 +1706,11 @@ existing productions become unusable.
 **Phase 4 — propagate the map uncertainty properly.** O2Physics: a way to shift the map by nσ, either a
 configurable used in separate wagons or extra histograms filled in the same pass with the shifted weights.
 Here: a systematic from those outputs, and, for the corrections applied here, the uncertainty of `totalCorrection`
-propagated at trend level. Only then `effErrorOffline` becomes the default online and the per-entry version
-goes, together with `customFillHist`/`customFillTHn`, which a plain `Fill` with `Sumw2` replaces.
+propagated at trend level. The online side of it, the plain fill with `Sumw2` in place of the per-entry
+version, is already on the branch (point 3).
 
 Order: phase 3 before phase 4, because without knowing how the train ran the framework cannot choose which
-propagation applies; and the default of `effErrorOffline` changes only when phase 4 is in place on both sides.
+propagation applies.
 
 ### The correction configuration: done
 
@@ -1718,13 +1728,13 @@ corrections block was checked*); the keys are in `README.md`. What is left of it
 
 ### How the O2Physics side is delivered
 
-- **The current branch.** Its three commits are independent (each applies alone on upstream `master`, checked
-  with `git merge-tree`), so they can go as one PR or as three. As three: the ownership fix (a crash, small,
-  to go in fast), the clean-up (pure removal, 320 lines that would hide the fix), `effErrorOffline` (the only
-  one that changes numbers, for whoever did not set `propagateEffError`).
-- **The later phases form a stack.** A is the current branch; B (zero efficiency, phase 2) and C (`OutputObj`,
-  phase 3) both build on A and not on each other; D (shifted maps, phase 4) builds on A and C. The defaults
-  are independent and go straight to `master`.
+- **The current branch.** Four commits, one PR or several: the ownership fix (a crash, small, to go in fast),
+  the clean-up (pure removal, 320 lines that would hide the fix), `Sumw2` (changes the errors), zero efficiency
+  (changes the contents). The ownership fix and the clean-up apply alone on upstream `master` (checked with
+  `git merge-tree` on 17 November); `Sumw2` and zero efficiency do not, they build on the commits below them.
+- **What is left forms a stack on it.** Zero efficiency (phase 2) went into the branch, and phase 3 needed
+  no O2Physics change. The shifted maps (phase 4) build on the branch. The defaults are independent and go
+  straight to `master`.
 - **Stacking from a fork.** GitHub's native stacked PRs and ghstack need every branch in the target
   repository, and the user has no push on `AliceO2Group/O2Physics`. Sapling (`sl pr submit`) works from a
   fork: it pushes `prNNNNN` branches to the fork and opens overlapping PRs upstream, each containing the
