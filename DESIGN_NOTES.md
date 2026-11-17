@@ -487,28 +487,29 @@ so far are harmless (the extrapolation study of `OldComparison/extrapolation/` c
 but a ROOT message that matters would pass the same way. A `SetErrorHandler` that hands `kWarning` and above to
 `Logger::Warn` would put them in the count; what to do with the hundreds that are expected is the open part.
 
-**`Macros/uploadToCCDB.C` needs a rework before the next upload** (noted on 21 October 2026, to be discussed).
-The macro now selects the dataset by a unique name and reads the `..._updated_` maps; what is left:
+**The efficiency maps go to the CCDB through `Macros/uploadToCCDB.py`** (since 16 November 2026), driven by
+`HYConfigs/CCDB/h2EffMapsUpload.yaml`; why it is built as it is, in `DESIGN_HISTORY.md`, *The CCDB uploader*. It
+replaces `Macros/uploadToCCDB.C`, whose defects (two datasets on one path, nothing checked, everything hard-coded) were
+listed here on 21 October. Each object carries metadata saying where it comes from (MC train and wagon, framework
+commit, when it was made, correction mode, a hash of its content), read from the provenance `mc_task` now writes into
+every file for the CCDB next to `ccdb_object` (`RootIO::WriteCcdbFile`). Open:
 
-- **Two uploads can land on the same CCDB path.** The 2026 strangeness-injected datasets have `dir = "pp26"`, as
-  the inclusive ones (2023 has its own `pp23strinj`), so an upload of one replaces the other for every reader. And
-  `per_period` and `per_IR` both write to `.../perIR_Updated/...` with overlapping validity windows: for a given run,
-  `getForRun` in O2Physics returns whichever was uploaded last.
-- **Nothing is checked before uploading.** A missing file or a missing `ccdb_object` gives a null pointer that is
-  passed to `storeAsTFileAny` (CCDB refuses it, the macro goes on and ends with "Done!"); the cast is a C cast to
-  `TH2D`; a failed upload is caught and its message dropped. Every input should be checked before anything is sent,
-  and a dry run (file, object, path, validity as dates) should be the default: an upload cannot be taken back.
-- **Hard-coded:** the input directory and binning (`../DataFile/pp/DeltaY/Corrections/MoreFullDifferential/`, relative
-  to where ROOT is started), the variant `_updated_` in both the file name and the path, the particle list, the CCDB
-  root, the validity of a full upload (1 to 2524604400000 ms, twice), and the choice of the run-range branch by
-  comparing the dataset name with four names instead of the `category` the struct now carries.
-- **The margin around SOR/EOR is 300 ms**, not 300 s: RCT gives them in milliseconds. To confirm which was meant.
-- **What is in CCDB today** (the run of 21 October): `Users/s/scannito/Efficiencies/pp26_highIR/fullvalidityh2EffMap*`
-  and `pp26_lowIR/...` hold the maps of the production of 18 September (`2026_HighIR_` / `2026_LowIR_`, no Omega), not
-  the `updated` ones of 20-21 October. A reader of those paths gets the old efficiencies.
-
-Open: whether the variant goes into the path; ms or s; whether the 3D maps (`h3EffMap`, the default of
-`ccdbEfficiencyPath` in O2Physics) are uploaded too.
+- **The first real upload has not been made.** Only dry runs, on the sandbox maps (17 cases). The macro is deleted after
+  it, as agreed with the owner, together with its ACLiC products. The maps in `DataFile/` were written before the
+  provenance went into the map files: every `mc_task` block has to run again before they can be uploaded.
+- **Not carried over from the macro:** the 2026 full-validity target (`pp26_updated`, whose `2026_updated_` maps do not
+  exist), the 2026 strangeness-injected maps, which the macro sent to the same paths as the inclusive ones, and the
+  per-period maps by run range, which it sent to `pp26/perIR_Updated` next to the per-IR ones (the `LowIR` window
+  covers every LowIR period). Their paths are to be chosen.
+- **Not uploaded:** the 3D maps (`h3EffMap`) and the purity maps (`h2PurityMap*`), which `purity_task` also writes as
+  files for the CCDB, with their provenance since the same day.
+- **The other half of the trace:** from a data train to the object it read. The train record has the path
+  (`ccdbEfficiencyPath`), not the object; `ccdb->get` returns the newest object valid when the job ran. A lookup of
+  the path as it was when the train ran, written into the train record by `downloadHYOutput.py`, would close it;
+  it needs the time the train ran, which the record does not hold yet.
+- **What is in the CCDB today.** The dry run lists every object at a path (`/browse`). On 16 November
+  `pp26_lowIR_updated/h2EffMapPhi` held one object, full validity, created 21 October 2026 20:42 UTC, without
+  metadata; `pp26_lowIRaf_updated/` held nothing.
 
 **Background-ratio uncertainty is computed but not propagated.** `bkgRatioAndError`
 now reaches `h2TriggerBkgRatio`, but `CorrelationCalculator` still scales the
@@ -1423,7 +1424,8 @@ the online windows against the offline ones (done, below, for the associated spe
 which map version a train read (the record has only `ccdbEfficiencyPath`), and a stamp for the MC maps. *Since 16
 November 2026* `mc_task` records the production of its MC input (`train_config_mc_<particle>`, `train_config_mc_event_loss`
 in the provenance of `Corrections.root`, or "none"); nothing in it is compared yet. The per-particle files uploaded to
-CCDB (`h2EffMap*.root`) carry nothing: that is for the upload, together with the map version a train read. Summed
+CCDB (`h2EffMap*.root`) carry the same provenance since 16 November, and the uploader puts the facts that identify
+them into each object's CCDB metadata (`Macros/uploadToCCDB.py`); which object a train read is still open. Summed
 inputs (the `LowIRall` files) get their `merged_from` record from a `sum` entry of the batch file
 (`downloadHYOutput.py`, which makes the sum with hadd, or, for a sum already on disk, writes the record with
 `summed_with_this_record` false). `TrainConfig::Load` requires each part's record to name its part, and the parts not

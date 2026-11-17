@@ -547,7 +547,8 @@ chain and no task depends on them.
 | `convertGraphHist.C` | `TGraphErrors` ↔ `TH1`, in either direction. Feeds a pre-framework result into `comparison_task`. |
 | `copyTFileContent.C` | Recursive copy of a ROOT file, excluding chosen directories. |
 | `TestProjections.C`, `esporta_fit.C` | Ad-hoc checks. |
-| `uploadToCCDB.{C,py}`, `downloadHYOutput.py` | Moving maps in and out of CCDB / HEPData. |
+| `uploadToCCDB.py` | Uploads the efficiency maps to the CCDB as `HYConfigs/CCDB/h2EffMapsUpload.yaml` declares, each with metadata saying where it comes from. Dry run unless `--upload`. Needs PyROOT (on macOS: `export DYLD_LIBRARY_PATH=$ROOTSYS/lib`, then `python3 Macros/uploadToCCDB.py ...`). `uploadToCCDB.C`, the macro it replaces, stays until the script's first real upload. |
+| `downloadHYOutput.py` | Downloads train outputs from Hyperloop with their train records (`.train.json`), and makes the summed files declared in a batch (`sum` entries) with theirs. |
 | `run_systematics.py` | Skeleton of the systematics driver — generates varied configurations and runs them. **Not usable as it stands**; see the Systematics note in `DESIGN_NOTES.md`. |
 
 `convertGraphHist.C` deserves a note, because the assumption it carries is not

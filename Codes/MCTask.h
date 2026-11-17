@@ -63,17 +63,19 @@ class MCTask : public IAnalysisTask
     outputDir = JsonConfig::RequireString(taskConfig, "output_dir", GetName());
     outputPrefix = JsonConfig::OptionalString(taskConfig, "output_prefix", "", GetName());
 
-    // CCDB-ready per-particle maps live under outputDir/{binningName}/ on disk,
-    // since the ROOT object inside must be named literally "ccdb_object" with no
-    // internal subfolder. Ensure the directory exists — TFile won't create it.
+    // CCDB-ready per-particle maps live under outputDir/{binningName}/ on disk, one file each, since the ROOT object
+    // inside must be named literally "ccdb_object", at the top of the file (RootIO::WriteCcdbFile). Ensure the
+    // directory exists — TFile won't create it.
     ccdbOutputDir = std::format("{}{}/", outputDir, globalCfgs.binningName);
     RootIO::CreateDirectoriesOrThrow(ccdbOutputDir, GetName());
 
-    particleCorrectionMode = JsonConfig::OptionalEnum<CorrectionMode>(taskConfig, "particle_correction_mode", "efficiency_only",
-                                                                      {{"efficiency_only", CorrectionMode::EfficiencyOnly},
-                                                                       {"signal_loss_only", CorrectionMode::SignalLossOnly},
-                                                                       {"combined", CorrectionMode::Combined}},
-                                                                      GetName());
+    // Required: it changes every number of the maps, so it is declared, not left to a default the provenance would
+    // not show (CLAUDE.md, Configuration); the uploader puts it in the maps' CCDB metadata.
+    particleCorrectionMode = JsonConfig::RequireEnum<CorrectionMode>(taskConfig, "particle_correction_mode",
+                                                                     {{"efficiency_only", CorrectionMode::EfficiencyOnly},
+                                                                      {"signal_loss_only", CorrectionMode::SignalLossOnly},
+                                                                      {"combined", CorrectionMode::Combined}},
+                                                                     GetName());
 
     // Input files may be shared across particles (default) or overridden per
     // particle via "input_mc_file". Open each distinct file only once, with the production it comes from: its train
@@ -287,12 +289,12 @@ class MCTask : public IAnalysisTask
       std::unique_ptr<TH3> h3CorrectionMap = EfficiencyCalculator::Compute3DCorrectionMap(data, particleCorrectionMode);
 
       std::string ccdbPath3D = std::format("{}{}h3EffMap{}.root", ccdbOutputDir, outputPrefix, data.name);
-      RootIO::WriteCcdbFile(ccdbPath3D, h3CorrectionMap.get(), GetName());
+      RootIO::WriteCcdbFile(ccdbPath3D, h3CorrectionMap.get(), provenance, GetName());
 
       std::unique_ptr<TH2> h2CorrectionMap = EfficiencyCalculator::Compute2DCorrectionMapMultIntegrated(data, particleCorrectionMode);
 
       std::string ccdbPath2D = std::format("{}{}h2EffMap{}.root", ccdbOutputDir, outputPrefix, data.name);
-      RootIO::WriteCcdbFile(ccdbPath2D, h2CorrectionMap.get(), GetName());
+      RootIO::WriteCcdbFile(ccdbPath2D, h2CorrectionMap.get(), provenance, GetName());
 
       // QA: error/relative-error maps alongside the CCDB map
       std::unique_ptr<TH2> h2CorrectionMapError = EfficiencyCalculator::BuildErrorMap(h2CorrectionMap.get(), std::format("h2EffMapError{}", data.name));

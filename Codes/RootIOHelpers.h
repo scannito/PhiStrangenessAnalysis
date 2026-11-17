@@ -220,20 +220,6 @@ inline void ClearPath(TDirectory* baseDir, const std::vector<std::string>& pathN
 }
 
 // -----------------------------------------------------------------------------
-// Files for the CCDB
-// -----------------------------------------------------------------------------
-
-// A file for the CCDB holds one object, at its top, named "ccdb_object": the name Macros/uploadToCCDB.C and the
-// O2Physics task read, so not ours to change. Given here, where the file is written, so no writer spells it.
-inline void WriteCcdbFile(const std::string& path, TNamed* object, std::string_view errCtx)
-{
-  std::unique_ptr<TFile> file = OpenOrThrow(path, "RECREATE", errCtx);
-  object->SetName("ccdb_object");
-  file->WriteTObject(object, nullptr, "Overwrite");
-  file->Close();
-}
-
-// -----------------------------------------------------------------------------
 // Binning stamps: provenance for cached projections
 // -----------------------------------------------------------------------------
 
@@ -410,6 +396,26 @@ inline void PrintProvenance(TDirectory* base, const std::string& owner, std::str
     else
       Logger::Info("         {} = {}", key, value);
   }
+}
+
+// -----------------------------------------------------------------------------
+// Files for the CCDB
+// -----------------------------------------------------------------------------
+
+// A file for the CCDB holds its object at the top, named "ccdb_object": the name the uploader passes to o2-ccdb-upload
+// (-k) and the one CCDB itself gives every object (CcdbApi::CCDBOBJECT_ENTRY), which the O2Physics task reads. Given
+// here, where the file is written, so no writer spells it. Next to it, in Provenance/, the provenance of the task
+// that made it: the uploader takes the object's CCDB metadata from there, so they describe this very object, written
+// at the same moment, and not whatever the task's main file holds by then. o2-ccdb-upload sends only the key it is
+// given, so the provenance stays on disk.
+inline void WriteCcdbFile(const std::string& path, TNamed* object, const std::map<std::string, std::string>& provenance,
+                          std::string_view errCtx)
+{
+  std::unique_ptr<TFile> file = OpenOrThrow(path, "RECREATE", errCtx);
+  object->SetName("ccdb_object");
+  file->WriteTObject(object, nullptr, "Overwrite");
+  WriteProvenance(file.get(), "", provenance);
+  file->Close();
 }
 
 } // namespace RootIO

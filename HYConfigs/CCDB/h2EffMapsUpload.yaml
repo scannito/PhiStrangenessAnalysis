@@ -1,8 +1,53 @@
-# This is a YAML configuration file for uploading efficiency maps to the CCDB.
-# Each entry in the list corresponds to a specific efficiency map and its associated parameters.
+# The efficiency maps uploaded to the CCDB (Macros/uploadToCCDB.py, which describes the format).
+# The targets are those Macros/uploadToCCDB.C used: the paths already in the CCDB and in the wagons' ccdbEfficiencyPath.
+# Not carried over from it: the 2026 full-validity target (pp26_updated, from 2026_updated_ maps, which do not exist),
+# the 2026 strangeness-injected maps, which it uploaded to the same paths as the 2026 ones (both dir "pp26"), and the
+# per-period maps by run range, which it uploaded to pp26/perIR_Updated next to the per-IR ones (LowIR overlaps them).
 
-# Efficiency map for LHC26b1 (strangeness-injected pp reference) MC
-- map_name: "efficiency_map_LHC26b1"
-  input_file: "/Users/scannito/alice/Analysis/DataFile/pp_ref/DeltaY/MC/AnalysisResultsMC_536_StrInj_PtMod_20luglio.root"
-  ccdb_path: "/alice/cern.ch/user/s/scannito/efficiency_maps/LHC26b1"
-  description: "Efficiency map for LHC26b1 (strangeness-injected pp reference) MC"
+ccdb_host: https://alice-ccdb.cern.ch
+maps_dir: /Users/scannito/alice/Analysis/DataFile/pp/DeltaY/Corrections/MoreFullDifferential
+particles: [Phi, K0S, Xi, Omega, Pi]
+
+run_ranges:
+  HighIR: [569945, 570608]
+  LowIR: [570609, 571787]
+
+targets:
+  # 2023, full validity
+  - ccdb_efficiency_path: Users/s/scannito/Efficiencies/pp23_updated/h2EffMap
+    maps:
+      - {source: 2023_updated_, validity: full}
+  - ccdb_efficiency_path: Users/s/scannito/Efficiencies/pp23strinj_updated/h2EffMap
+    maps:
+      - {source: 2023_StrInj_updated_, validity: full}
+
+  # 2026 per interaction rate, full validity: one path each
+  - ccdb_efficiency_path: Users/s/scannito/Efficiencies/pp26_highIR_updated/h2EffMap
+    maps:
+      - {source: 2026_HighIR_updated_, validity: full}
+  - ccdb_efficiency_path: Users/s/scannito/Efficiencies/pp26_lowIR_updated/h2EffMap
+    maps:
+      - {source: 2026_LowIR_updated_, validity: full}
+
+  # 2026 per period, full validity: one path each
+  - ccdb_efficiency_path: Users/s/scannito/Efficiencies/pp26_lowIRad_updated/h2EffMap
+    maps:
+      - {source: 2026_LowIRad_updated_, validity: full}
+  - ccdb_efficiency_path: Users/s/scannito/Efficiencies/pp26_lowIRae_updated/h2EffMap
+    maps:
+      - {source: 2026_LowIRae_updated_, validity: full}
+  - ccdb_efficiency_path: Users/s/scannito/Efficiencies/pp26_lowIRaf_updated/h2EffMap
+    maps:
+      - {source: 2026_LowIRaf_updated_, validity: full}
+  - ccdb_efficiency_path: Users/s/scannito/Efficiencies/pp26_lowIRag_updated/h2EffMap
+    maps:
+      - {source: 2026_LowIRag_updated_, validity: full}
+  - ccdb_efficiency_path: Users/s/scannito/Efficiencies/pp26_lowIRai_updated/h2EffMap
+    maps:
+      - {source: 2026_LowIRai_updated_, validity: full}
+
+  # 2026 per interaction rate in one path, by run range: read with perPeriodEfficiency on
+  - ccdb_efficiency_path: Users/s/scannito/Efficiencies/pp26/perIR_Updated/h2EffMap
+    maps:
+      - {source: 2026_HighIR_updated_, validity: HighIR}
+      - {source: 2026_LowIR_updated_, validity: LowIR}

@@ -1717,3 +1717,90 @@ macro (`#pragma cling add_include_path`). The real-data run projects each source
 (`ProjectionZ` on one multiplicity and one pT bin) with the configuration indexed by that
 source bin: it is not the fits `PurityTask` does, which merges source pT bins into the
 analysis bins before fitting. Not repeated on other machines or other ROOT builds.
+
+## The CCDB uploader
+
+*16 November 2026.* `Macros/uploadToCCDB.C` was replaced by `Macros/uploadToCCDB.py`, driven by a YAML file
+(`HYConfigs/CCDB/h2EffMapsUpload.yaml`). The purpose was traceability: a map that a Hyperloop train reads must lead back
+to the `Corrections.root` and the MC production it was made from. The design was put to both review agents before any
+code; the owner chose among their answers. What was decided, and why:
+
+**Python and YAML** (the owner's choice), like `downloadHYOutput.py` and its batch files. `Macros/uploadToCCDB.py` was
+until then only the argument parser of O2Physics' `PWGCF/FemtoUniverse/Macros/femto_universe_efficiency_phi_calculator.py`,
+which also gave the way to upload: `o2-ccdb-upload` as a subprocess, with `--meta`.
+
+**`o2-ccdb-upload`, and success read back.** It is O2's tool and handles the token. Its source (`CCDB/src/UploadTool.cxx`)
+showed what it does not do: it exits with 0 whatever happens (a missing key only prints, the return value of the store
+is dropped, an HTTP error from the server is not a curl error), and in `--meta` a value with a second `=` is dropped
+and a `;` splits it, without a word. The FemtoUniverse script looks for "html" in the output, which is a guess. So
+the script reads every object back from the CCDB after uploading it, by its path, the middle of its validity and a
+per-run `uploadId`, and compares every metadata value it sent. Uploads are not atomic: the first failure stops the
+run and lists what was already sent.
+
+**Short metadata, the records in the file.** Metadata travel URL-encoded in the upload URL and come back as headers on
+every lookup by every job, so the JSON records (`config_block`, the train records of about 4 kB) stay in the file
+and the object carries the short facts that lead to them: particle, map kind, a hash of the content (the one link
+back to a local file that depends on neither names nor times), production time, commit, sources fingerprint,
+correction mode, output prefix and binning (from the path of the file uploaded), MC dataset, train and wagon ids,
+the validity and, for a run range, its first and last run. A value that is missing, empty, too long or contains `=`
+or `;` refuses the map.
+
+**The provenance in the map file** (option (b) of the review, against reading `Corrections.root`).
+`RootIO::WriteCcdbFile` writes the task's provenance in `Provenance/` next to `ccdb_object`, for `mc_task` and
+`purity_task` alike. Reading `Corrections.root` instead would have needed the naming rule from a map to its
+`Corrections.root` copied into Python, and would have trusted that the two were written by the same run: the maps are
+written in `Run`, the provenance of `Corrections.root` in `Terminate`, so a run stopped in between leaves new maps
+next to an old provenance. `o2-ccdb-upload` sends only the key it is given (`-k ccdb_object`, put into a new file
+named by `CcdbApi::CCDBOBJECT_ENTRY`), so the provenance stays on disk. The one way it would travel is the web form
+of alimonitor, which uploads a file as it is; the owner no longer uses it (several files at a time). The O2Physics
+task reads only `ccdb_object`.
+
+**A map without its MC train record is refused.** "Provenance never throws" protects a run from failing over its
+documentation; here the documentation is the purpose, and an untraceable map is what the script exists to prevent.
+To make the record reachable, `particle_correction_mode` became required in `mc_task` (it changes every number of
+the maps; all 40 mc blocks already declared it).
+
+**The YAML is organised by target**, one `ccdb_efficiency_path` each (the string set in the wagon; the task appends the
+particle name), with its maps and their validity: `full`, or the name of a run range from a table at the top. The
+entries name produced files (`maps_dir` + the output prefix), not `mc_task` blocks, so that the script does not
+resolve `inherits` a second time. The particles are listed once at the top, a target lists its own only when they
+differ. The whole configuration is checked before any file or the network is touched; then every map and every run
+range; nothing is uploaded while any check fails, and nothing at all without `--upload`. The dry run prints, per
+object, the file, the validity in ms and in UTC, the metadata, the command, and every object the CCDB already holds
+at that path (`/browse`).
+
+**Validity and what reads it.** With `perPeriodEfficiency` off the task calls `ccdb->get`, which asks for the object
+valid now (`BasicCCDBManager`'s timestamp defaults to the current time); with it on, `getForRun`, which asks at the
+middle of each run. Hence:
+
+| uploaded validity | `perPeriodEfficiency` | what the task reads |
+|---|---|---|
+| full | off or on | the same map for every run |
+| run ranges | on | the map of each run's range |
+| run ranges | off | nothing valid now: `LOG(fatal)`, the train stops |
+| full and run ranges, one path | on | whichever was created last, silently |
+
+The last row is the dangerous one, so two maps of one target must not be valid at the same time: checked on the
+validity windows themselves, with `full` a window that covers everything, so that a full map next to run ranges, a
+run range listed twice and two ranges sharing runs are one check. Gaps between ranges are not checked: every run a
+data train reads belongs to a range, and a run that did not would stop the train with `LOG(fatal)`, not pass
+silently (the owner).
+
+**Run times from RCT, over plain HTTP.** `RCT/Info/RunInformation/<run>` answers an anonymous request with the run's
+times as headers (`SOR`/`EOR`, `SOX`/`EOX`, `STF`/`ETF`); always read from production, even when uploading to a test
+server. The window is SOR of the first run to EOR of the last, with 300 ms on each side (the owner: milliseconds), as
+in the macro: the widest of the three pairs. `getRunDuration` prefers STF/ETF, but it looks a run up at its middle,
+which every choice covers. Reads go to the upload host over `http`, keeping its port: `https` asks for a certificate.
+
+**PyROOT on macOS.** The script opens the map files with PyROOT, which in the ALICE stack's ROOT 6.36 on macOS imports
+only with `DYLD_LIBRARY_PATH=$ROOTSYS/lib` set in the shell and the script started as `python3 script`: the Python
+libraries of ROOT carry no rpath (fixed in ROOT 6.38; alidist pull request #6332 would bring it), and macOS strips
+`DYLD_*` through `/bin/bash` and `/usr/bin/env`. The owner's choice for now; the analysis is in
+`~/Downloads/pyroot_macos_rpath.pdf`, to be discussed with experts.
+
+*Method, to repeat it.* `~/alice/claude-sandbox/mc-records/upload_tests.py` runs the script in dry run on the sandbox
+maps of `sb-trainconfig`, after its `mc_task_2026_lowIRaf_updated` block was run with the provenance in the map files:
+the real YAML (refused, maps without provenance), a full-validity and a run-range target (planned, with the RCT
+window), the configuration errors, overlapping validities, a map whose train record is "none" and a map file with a
+stray object. 17 cases, nothing uploaded. Before and after `WriteCcdbFile` changed, the `ccdb_object` of every map of
+that block and of `purity_task_2026_lowIRaf_updated` compared equal with `CompareRootFiles`.

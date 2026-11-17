@@ -36,7 +36,7 @@ al suo posto c'è un numero che non viene dai dati: nella purezza del 2026 (`Dat
 22 ottobre) le tre celle `pi_tof` vuote del binning di analisi (pT 0.2-0.3 GeV/c, molteplicità 0-1, 40-50, 50-70) valgono tutte
 0.967232 ± 0, e lo stesso valore con errore zero è in 14 celle del binning sorgente. Il fit è segnalato (`empty` nel `FitQuality`
 e nel sommario), il valore no. Oggi non entra in nessun risultato: le correlazioni usano `pi_tpc` (`purity_sources`) e
-`uploadToCCDB.C` non carica purezze. Da fare: scrivere per una cella vuota un valore che non si possa scambiare per una purezza,
+né `uploadToCCDB.C` né `uploadToCCDB.py` caricano purezze. Da fare: scrivere per una cella vuota un valore che non si possa scambiare per una purezza,
 e che chi la legge rifiuti, non quello che il minimizzatore lascia senza dati.
 
 **A4. Controllo di finitezza a valle** (era 0.6). Un errore di purezza NaN finiva come errore di bin NaN negli spettri dei pioni

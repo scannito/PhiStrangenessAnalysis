@@ -130,7 +130,8 @@ struct ParticleTask {
                                                         // diagnostic that belongs to construction, before
                                                         // any fit has run
   std::unique_ptr<TH2F> h2PurityCCDB;                   // (multiplicity, pT) purity at the source binning,
-                                                        // written on its own as "ccdb_object" so O2 can
+                                                        // written as the "ccdb_object" of its own file
+                                                        // (RootIO::WriteCcdbFile) so O2 can
                                                         // apply it candidate by candidate
 
   // mappedSourceBins is NOT a parameter: it follows from the binnings and from the
