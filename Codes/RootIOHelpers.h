@@ -7,6 +7,7 @@
 #include "TDirectory.h"
 #include "TKey.h"
 #include "TNamed.h"
+#include "TString.h"
 #include "TFile.h"
 #include "TH1.h"
 #include "TH1D.h"
@@ -40,7 +41,9 @@ inline void CreateDirectoriesOrThrow(const std::filesystem::path& dir, std::stri
     throw std::runtime_error(std::format("[FATAL] {}: cannot create the directory '{}': {}", errCtx, dir.string(), ec.message()));
 }
 
-inline std::unique_ptr<TFile> OpenOrThrow(const std::string& path, const char* mode, std::string_view errCtx)
+namespace Detail
+{
+inline std::unique_ptr<TFile> OpenChecked(const std::string& path, const char* mode, std::string_view errCtx)
 {
   std::unique_ptr<TFile> f(TFile::Open(path.c_str(), mode));
   if (!f || f->IsZombie())
@@ -55,6 +58,19 @@ inline std::unique_ptr<TFile> OpenOrThrow(const std::string& path, const char* m
                                          "task that writes it, or restore it from a copy.",
                                          errCtx, path));
   return f;
+}
+} // namespace Detail
+
+inline std::unique_ptr<TFile> OpenOrThrow(const std::string& path, const char* mode, std::string_view errCtx)
+{
+  // A file to be updated is checked on a read-only handle first. The UPDATE handle, closed by the throw above, would
+  // write back what ROOT recovered, and the next run would find a file that looks sound. Measured on 19 November 2026
+  // (ROOT 6.36.10), on a file created and never closed: kRecovered 1 on every READ open, also repeated; one UPDATE
+  // open and close, and the next READ has kRecovered 0. A purity file killed mid-write stopped one run and went
+  // through the next.
+  if (TString(mode).EqualTo("UPDATE", TString::kIgnoreCase) && std::filesystem::exists(path))
+    Detail::OpenChecked(path, "READ", errCtx);
+  return Detail::OpenChecked(path, mode, errCtx);
 }
 
 // Which file a directory belongs to. Without it a "missing object" message names
