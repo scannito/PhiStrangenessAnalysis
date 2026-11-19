@@ -8,6 +8,7 @@
 #include "MCTask.h"
 #include "PhiFitTask.h"
 #include "PurityTask.h"
+#include "RootIOHelpers.h"
 
 #include "rapidjson/document.h"
 
@@ -99,7 +100,11 @@ class WorkflowManager
     std::cout << "WorkflowManager: Running analysis workflow..." << std::endl;
     std::cout << "------------------------------------------------" << std::endl;
 
+    RootIO::ClearOpenRecord();
     for (auto& [configBlockName, task] : activeTasks) {
+      // Names the block in the record of the files it opens (RootIO::BlockScope): a block that would write a file
+      // another block of this run has opened stops the run.
+      RootIO::BlockScope scope(configBlockName);
       std::cout << "\n>>> [STARTING TASK] " << configBlockName << " <<<" << std::endl;
 
       // Generate the final merged JSON configuration (resolving N-levels of inheritance)

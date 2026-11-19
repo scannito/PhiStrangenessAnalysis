@@ -308,6 +308,11 @@ question, and which one is right depends on what it costs to lose the contents.
 
 A new task that writes into a file somebody else also writes into belongs in row two.
 
+"Somebody else" is another run, never another block of the same run. Within one run a file has one writing block,
+listed before every block that reads it, and `OpenOrThrow` stops the run otherwise (`RootIO::BlockScope`, the record
+of the files each block opens). The check is per file, so two engines (`Extract1D`, `Extract2D`) sharing one
+`PhiAssocSpectra.root` have to be two runs.
+
 ## Cling constraints
 
 - `std::format` with any non-empty format spec fails: `{:g}`, `{:.2f}`, `{:%F}`.
