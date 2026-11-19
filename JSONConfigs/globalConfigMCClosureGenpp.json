@@ -68,12 +68,14 @@
                 ]
             }
         },
-        "active_tasks": [
-            "correlation_wpdg_task_gen_2024",
-            "correlation_wpdg_task_gen_bypass_ptcut_2024",
-            "correlation_wpdg_task_gen_2026",
-            "correlation_wpdg_task_gen_bypass_ptcut_2026"
-        ],
+        "active_tasks": {
+            "all": [
+                "correlation_wpdg_task_gen_2024",
+                "correlation_wpdg_task_gen_bypass_ptcut_2024",
+                "correlation_wpdg_task_gen_2026",
+                "correlation_wpdg_task_gen_bypass_ptcut_2026"
+            ]
+        },
         "inactive_tasks": []
     },
     "correlation_wpdg_task_gen_2024": {

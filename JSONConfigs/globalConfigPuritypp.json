@@ -179,16 +179,32 @@
                 ]
             }
         },
-        "active_tasks": [
-            "purity_task_2026_highIR_updated",
-            "purity_task_2026_lowIRad_updated",
-            "purity_task_2026_lowIRae_updated",
-            "purity_task_2026_lowIRaf_updated",
-            "purity_task_2026_lowIRag_updated",
-            "purity_task_2026_lowIRai_updated",
-            "purity_task_2023_updated",
-            "purity_task_2026_lowIR_updated"
-        ],
+        "active_tasks": {
+            "2026_highIR": [
+                "purity_task_2026_highIR_updated"
+            ],
+            "2026_lowIRad": [
+                "purity_task_2026_lowIRad_updated"
+            ],
+            "2026_lowIRae": [
+                "purity_task_2026_lowIRae_updated"
+            ],
+            "2026_lowIRaf": [
+                "purity_task_2026_lowIRaf_updated"
+            ],
+            "2026_lowIRag": [
+                "purity_task_2026_lowIRag_updated"
+            ],
+            "2026_lowIRai": [
+                "purity_task_2026_lowIRai_updated"
+            ],
+            "2023": [
+                "purity_task_2023_updated"
+            ],
+            "2026_lowIR": [
+                "purity_task_2026_lowIR_updated"
+            ]
+        },
         "inactive_tasks": [
             "purity_task_2024",
             "purity_task_2026"

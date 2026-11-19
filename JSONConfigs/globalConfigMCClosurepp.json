@@ -64,18 +64,20 @@
                 ]
             }
         },
-        "active_tasks": [
-            "phi_fit_task_offline_efficiency_2024",
-            "phi_fit_task_online_efficiency_2024",
-            "correlation_task_offline_efficiency_2024",
-            "correlation_task_online_efficiency_2024",
-            "correlation_task_online_efficiency_no_phi_2024",
-            "phi_fit_task_offline_efficiency_2026",
-            "phi_fit_task_online_efficiency_2026",
-            "correlation_task_offline_efficiency_2026",
-            "correlation_task_online_efficiency_2026",
-            "correlation_task_online_efficiency_no_phi_2026"
-        ],
+        "active_tasks": {
+            "all": [
+                "phi_fit_task_offline_efficiency_2024",
+                "phi_fit_task_online_efficiency_2024",
+                "correlation_task_offline_efficiency_2024",
+                "correlation_task_online_efficiency_2024",
+                "correlation_task_online_efficiency_no_phi_2024",
+                "phi_fit_task_offline_efficiency_2026",
+                "phi_fit_task_online_efficiency_2026",
+                "correlation_task_offline_efficiency_2026",
+                "correlation_task_online_efficiency_2026",
+                "correlation_task_online_efficiency_no_phi_2026"
+            ]
+        },
         "inactive_tasks": []
     },
     "phi_fit_task_offline_efficiency_2024": {},

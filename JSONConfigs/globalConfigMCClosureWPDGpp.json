@@ -64,14 +64,16 @@
                 ]
             }
         },
-        "active_tasks": [
-            "correlation_wpdg_task_offline_efficiency_2024",
-            "correlation_wpdg_task_online_efficiency_2024",
-            "correlation_wpdg_task_online_efficiency_no_phi_2024",
-            "correlation_wpdg_task_offline_efficiency_2026",
-            "correlation_wpdg_task_online_efficiency_2026",
-            "correlation_wpdg_task_online_efficiency_no_phi_2026"
-        ],
+        "active_tasks": {
+            "all": [
+                "correlation_wpdg_task_offline_efficiency_2024",
+                "correlation_wpdg_task_online_efficiency_2024",
+                "correlation_wpdg_task_online_efficiency_no_phi_2024",
+                "correlation_wpdg_task_offline_efficiency_2026",
+                "correlation_wpdg_task_online_efficiency_2026",
+                "correlation_wpdg_task_online_efficiency_no_phi_2026"
+            ]
+        },
         "inactive_tasks": []
     },
     "correlation_wpdg_task_offline_efficiency_2024": {

@@ -105,7 +105,7 @@ def runconfig(kind, block, output_dir, out_path, *runs):
     if set(blocks) & set(config):
         fail(f"the study's block names are taken: {sorted(set(blocks) & set(config))}")
     config.update(blocks)
-    config["workflow"]["active_tasks"] = list(blocks)
+    config["workflow"]["active_tasks"] = {"all": list(blocks)}
     json.dump(config, open(out_path, "w"), indent=4)
     print(config["workflow"]["global_binning"]["binning_name"])
 

@@ -9,7 +9,8 @@
 // Runs the whole analysis chain and reports the outcome as a status code.
 // Deliberately free of any ROOT global: this body is shared between the
 // compiled main() executable and the interpreted ROOT macro.
-inline int RunAnalysisChain(const std::string& configFile, const std::string& baseConfigFile)
+// 'group' runs one group of active_tasks; empty runs them all.
+inline int RunAnalysisChain(const std::string& configFile, const std::string& baseConfigFile, const std::string& group)
 {
   std::cout << "======================================================" << std::endl;
   std::cout << "        ALICE Data Analysis - Phi-Strangeness         " << std::endl;
@@ -19,7 +20,7 @@ inline int RunAnalysisChain(const std::string& configFile, const std::string& ba
     // 1. Create the Workflow Manager.
     // Upon creation, it parses the JSON file, reads the paths,
     // and safely stores them in the GlobalSettings struct.
-    WorkflowManager manager(configFile, baseConfigFile);
+    WorkflowManager manager(configFile, baseConfigFile, group);
 
     // 2. Build the task pipeline.
     // Here the manager sets the execution order (e.g., Purity -> MC -> Data).

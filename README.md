@@ -72,6 +72,25 @@ Anything else is passed through as a file name. Output is teed to
 Paths inside the configurations are relative to `Codes/`, and the script `cd`s there
 itself, so it can be invoked from anywhere.
 
+One run at a time per checkout: a second `runAnalysis.sh` started while one is going stops
+and says which one holds the lock (`Logs/.runAnalysis.lock`, a kernel lock released when the
+first run's process ends, however it ends).
+
+**Groups and parallel runs.** `active_tasks` is divided into named groups (below).
+`--group <name>` runs one group, with the log `Logs/log_output_<config>_<group>.log`.
+`--jobs N` (`-j N`, compiled) runs every group, N processes at a time, from one binary built
+once and copied into `Logs/run_<config>_<time>/`, which also holds each group's log, the files it
+opened and its warnings. The run ends with one table (group, exit code, first `[FATAL]`), the
+warnings of all groups with their counts, and one verdict, also in `summary.txt` there. It
+fails if a file written by one group was opened by another: that file's content depends on
+which process got there first, and it has to be regenerated. Ctrl-C stops every group. Modes
+still run one at a time, `mc` and `purity` before `data`. The run directories are not removed.
+
+```bash
+./runAnalysis.sh data pp -j 4                         # the eight periods, four at a time
+./runAnalysis.sh data pp --compile --group 2026_lowIRad   # one period
+```
+
 ---
 
 ## Anatomy of a configuration
@@ -83,7 +102,7 @@ tasks to run — and one block per task.
 {
   "workflow": {
     "global_binning": { ... },      // pT and multiplicity intervals
-    "active_tasks": [ ... ]
+    "active_tasks": { "<group>": [ ... ] }
   },
   "mc_base_settings": { ... },      // a block others inherit from
   "mc_task_2024": { "inherits": "mc_base_settings", ... }
@@ -128,13 +147,22 @@ and a warning says so. Values may be written as numbers or as strings (`6.4` or
 
 ### `workflow.active_tasks`
 
-An ordered list of block names to execute. Order matters, because tasks communicate
-through files: `phi_fit_task` writes the trigger-yield matrices that `correlation_task`
-reads.
+Named groups, each an ordered list of block names to execute. Order matters, because tasks
+communicate through files: `phi_fit_task` writes the trigger-yield matrices that
+`correlation_task` reads. Without `--group`, every group runs, in the order written.
 
 ```jsonc
-"active_tasks": ["phi_fit_task_2024", "correlation_task_2024"]
+"active_tasks": {
+  "2024": ["phi_fit_task_2024", "correlation_task_2024"]
+}
 ```
+
+Within one run a file has one writing block, listed before every block that reads it: a
+block that writes a file another block of the run has already opened stops the run
+(`RootIO::BlockScope`). A group is what runs in a process of its own with `--jobs`, so the
+blocks that share a file belong to one group; `data` and `purity` have one group per period,
+the other modes a single group `all`. A block listed twice, in one group or in two, stops the
+run.
 
 A block name is matched against the task registry **by prefix**, so
 `correlation_task_online_efficiency_2026` is served by `correlation_task`. This is what
@@ -530,7 +558,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 | `RunAnalysisChain.h` | Builds and runs the workflow and returns a status. Shared by both entry points; free of ROOT globals. |
 | `PhiStrangenessCorrelation.C` | Entry point for the ROOT interpreter. Translates the status into an exit code. |
 | `main.cpp` | Entry point of the compiled binary (`../CMakeLists.txt`). Sets ROOT to batch mode. |
-| `runAnalysis.sh` | Maps a keyword to a configuration, runs ROOT or the binary (`--compile`, rebuilding it if stale), logs, propagates the exit code. |
+| `runAnalysis.sh` | Maps a keyword to a configuration, runs ROOT or the binary (`--compile`, rebuilding it if stale), one group (`--group`) or all of them in parallel (`--jobs`), logs, propagates the exit code. One run per checkout at a time. |
 
 ---
 

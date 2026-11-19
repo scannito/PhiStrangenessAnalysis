@@ -64,23 +64,25 @@
                 ]
             }
         },
-        "active_tasks": [
-            "phi_fit_task_offline_efficiency_Bneg",
-            "phi_fit_task_online_efficiency_Bneg",
-            "correlation_task_offline_efficiency_Bneg",
-            "correlation_task_online_efficiency_Bneg",
-            "correlation_task_online_efficiency_no_phi_Bneg",
-            "phi_fit_task_offline_efficiency_Bpos",
-            "phi_fit_task_online_efficiency_Bpos",
-            "correlation_task_offline_efficiency_Bpos",
-            "correlation_task_online_efficiency_Bpos",
-            "correlation_task_online_efficiency_no_phi_Bpos",
-            "phi_fit_task_offline_efficiency_strinj",
-            "phi_fit_task_online_efficiency_strinj",
-            "correlation_task_offline_efficiency_strinj",
-            "correlation_task_online_efficiency_strinj",
-            "correlation_task_online_efficiency_no_phi_strinj"
-        ],
+        "active_tasks": {
+            "all": [
+                "phi_fit_task_offline_efficiency_Bneg",
+                "phi_fit_task_online_efficiency_Bneg",
+                "correlation_task_offline_efficiency_Bneg",
+                "correlation_task_online_efficiency_Bneg",
+                "correlation_task_online_efficiency_no_phi_Bneg",
+                "phi_fit_task_offline_efficiency_Bpos",
+                "phi_fit_task_online_efficiency_Bpos",
+                "correlation_task_offline_efficiency_Bpos",
+                "correlation_task_online_efficiency_Bpos",
+                "correlation_task_online_efficiency_no_phi_Bpos",
+                "phi_fit_task_offline_efficiency_strinj",
+                "phi_fit_task_online_efficiency_strinj",
+                "correlation_task_offline_efficiency_strinj",
+                "correlation_task_online_efficiency_strinj",
+                "correlation_task_online_efficiency_no_phi_strinj"
+            ]
+        },
         "inactive_tasks": []
     },
     "phi_fit_task_offline_efficiency_Bneg": {},

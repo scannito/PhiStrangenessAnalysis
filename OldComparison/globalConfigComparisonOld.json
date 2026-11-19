@@ -3,9 +3,11 @@
         "global_binning": {
             "binning_name": "MoreFullDifferential"
         },
-        "active_tasks": [
-            "comparison_task_old_k0spi"
-        ]
+        "active_tasks": {
+            "all": [
+                "comparison_task_old_k0spi"
+            ]
+        }
     },
     "comparison_task_old_k0spi": {
         "output_dir_final": "../OldComparison/output/",

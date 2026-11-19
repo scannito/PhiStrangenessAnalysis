@@ -12,6 +12,8 @@
 
 #include "rapidjson/document.h"
 
+#include <algorithm>
+#include <cctype>
 #include <format>
 #include <functional>
 #include <iostream>
@@ -28,8 +30,10 @@ class WorkflowManager
 {
  public:
   // Constructor supporting both single-file and dual-file (Base + Master) configurations.
+  // 'group' selects one group of 'active_tasks'; empty runs them all, in the order written.
   WorkflowManager(const std::string& masterConfigFile = "globalConfig.json",
-                  const std::string& baseConfigFile = "")
+                  const std::string& baseConfigFile = "",
+                  const std::string& group = "")
   {
     // 1. Load the Master File (Always required)
     JsonConfig::LoadDocument(masterConfigFile, document, "MasterConfig");
@@ -47,8 +51,11 @@ class WorkflowManager
     // Resolved once and handed to both: they read the same node.
     const auto& workflowNode = JsonConfig::RequireMember(document, "workflow", "Master JSON");
     ParseGlobalSettings(workflowNode);
-    ParseWorkflowTasks(workflowNode);
+    ParseWorkflowTasks(workflowNode, group);
   }
+
+  // The names of the groups of 'active_tasks', in the order written: what runAnalysis.sh -j launches.
+  const std::vector<std::string>& GroupNames() const { return groupNames; }
 
   void BuildWorkflow()
   {
@@ -157,8 +164,9 @@ class WorkflowManager
     std::unique_ptr<IAnalysisTask> task;
   };
 
-  // Contains the raw strings from the JSON (e.g., "correlation_task_test")
+  // Contains the raw strings from the JSON (e.g., "correlation_task_test"), of the selected group or of all of them
   std::vector<std::string> activeTasksList;
+  std::vector<std::string> groupNames;
   // Contains the instantiated tasks, each carrying its own config block name
   std::vector<ScheduledTask> activeTasks;
 
@@ -204,13 +212,37 @@ class WorkflowManager
     }
   }
 
-  void ParseWorkflowTasks(const rapidjson::Value& workflowNode)
+  // 'active_tasks' is an object of named groups, each a list of blocks run in that order. A group is the unit that can
+  // run in a process of its own (runAnalysis.sh -j): it must not open a file another group writes, which the driver
+  // checks after the run from the files each process opened (RootIO::WriteOpenRecordTo). One shape for every
+  // configuration, a single group where nothing runs in parallel: a configuration still written as a list stops here.
+  void ParseWorkflowTasks(const rapidjson::Value& workflowNode, const std::string& group)
   {
-    // Missing and present-but-not-an-array used to give the same message; now the
-    // two are told apart, which matters when the mistake is a typo in the type.
-    int index = 0;
-    for (auto& taskValue : JsonConfig::RequireArray(workflowNode, "active_tasks", "workflow"))
-      activeTasksList.push_back(JsonConfig::ToString(taskValue, std::format("active_tasks[{}]", index++), "workflow"));
+    // A block in two groups would run twice, in two processes when the groups run in parallel.
+    std::map<std::string, std::string> groupOfBlock;
+    for (const auto& member : JsonConfig::RequireObject(workflowNode, "active_tasks", "workflow").GetObject()) {
+      const std::string name = member.name.GetString();
+      const std::string ctx = std::format("workflow.active_tasks.{}", name);
+      // The name is a word of the shell script that launches the groups and part of file names: nothing else.
+      if (name.empty() || !std::ranges::all_of(name, [](unsigned char c) { return std::isalnum(c) || c == '_' || c == '-' || c == '.'; }))
+        throw std::runtime_error(std::format("[FATAL] WorkflowManager: the group name '{}' in active_tasks may only hold "
+                                             "letters, digits, '_', '-' and '.'.", name));
+      groupNames.push_back(name);
+      int index = 0;
+      for (const auto& taskValue : JsonConfig::ToArray(member.value, name, "workflow.active_tasks")) {
+        const std::string block = JsonConfig::ToString(taskValue, std::format("[{}]", index++), ctx);
+        const auto [it, inserted] = groupOfBlock.try_emplace(block, name);
+        if (!inserted)
+          throw std::runtime_error(std::format("[FATAL] WorkflowManager: block '{}' is listed twice in active_tasks "
+                                               "(groups '{}' and '{}'): it would run twice.",
+                                               block, it->second, name));
+        if (group.empty() || group == name)
+          activeTasksList.push_back(block);
+      }
+    }
+    if (!group.empty() && std::ranges::find(groupNames, group) == groupNames.end())
+      throw std::runtime_error(std::format("[FATAL] WorkflowManager: no group '{}' in active_tasks. Available: {}",
+                                           group, Logger::Join(groupNames)));
   }
 
   // =========================================================================

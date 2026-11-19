@@ -150,13 +150,15 @@
                 ]
             }
         },
-        "active_tasks": [
-            "purity_task_Bneg",
-            "purity_task_Bpos",
-            "purity_task_Bneg_strinj",
-            "purity_task_Bpos_strinj",
-            "purity_task_strinj"
-        ],
+        "active_tasks": {
+            "all": [
+                "purity_task_Bneg",
+                "purity_task_Bpos",
+                "purity_task_Bneg_strinj",
+                "purity_task_Bpos_strinj",
+                "purity_task_strinj"
+            ]
+        },
         "inactive_tasks": []
     },
     "purity_task_Bneg": {

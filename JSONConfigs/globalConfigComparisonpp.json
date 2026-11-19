@@ -3,9 +3,11 @@
         "global_binning": {
             "binning_name": "MoreFullDifferential"
         },
-        "active_tasks": [
-            "comparison_task_closure"
-        ],
+        "active_tasks": {
+            "all": [
+                "comparison_task_closure"
+            ]
+        },
         "inactive_tasks": []
     },
     "comparison_task_closure": {

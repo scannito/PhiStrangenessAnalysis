@@ -3,7 +3,9 @@
 #include <cstddef>
 #include <ctime>
 #include <exception>
+#include <algorithm>
 #include <format>
+#include <fstream>
 #include <iostream>
 #include <map>
 #include <ranges>
@@ -88,18 +90,26 @@ inline std::string Timestamp()
   return buffer;
 }
 
+// Adds 'count' occurrences of one distinct warning: from Emit, and from the summaries of other processes read back
+// (AddSummaryFrom). The total is kept apart, since past kMaxDistinctWarnings a warning is counted but not listed.
+inline void CountDistinctWarning(const std::string& message, std::size_t count)
+{
+  State& state = GetState();
+  if (auto it = state.warningIndex.find(message); it != state.warningIndex.end()) {
+    state.warnings[it->second].second += count;
+  } else if (state.warnings.size() < kMaxDistinctWarnings) {
+    state.warningIndex[message] = state.warnings.size();
+    state.warnings.emplace_back(message, count);
+  }
+}
+
 inline void Emit(Level level, const std::string& message)
 {
   State& state = GetState();
 
   if (level == Level::Warn) {
     state.totalWarnings++;
-    if (auto it = state.warningIndex.find(message); it != state.warningIndex.end()) {
-      state.warnings[it->second].second++;
-    } else if (state.warnings.size() < kMaxDistinctWarnings) {
-      state.warningIndex[message] = state.warnings.size();
-      state.warnings.emplace_back(message, 1);
-    }
+    CountDistinctWarning(message, 1);
   } else if (level == Level::Error) {
     state.totalErrors++;
   }
@@ -201,6 +211,45 @@ inline void PrintSummary()
   if (state.totalWarnings > 0 && state.warnings.size() == Detail::kMaxDistinctWarnings)
     std::cout << "  ... further distinct warnings were counted but not listed." << std::endl;
   std::cout << "------------------------------------------------------" << std::endl;
+}
+
+// The summary as data, for the run of several processes (runAnalysis.sh -j): "errors<TAB>n", "warnings<TAB>n", then
+// "count<TAB>message" per distinct warning, a newline inside a message written as a space. Read back by
+// AddSummaryFrom, so that this format is written and read here only.
+inline void WriteSummaryTo(const std::string& path)
+{
+  const Detail::State& state = Detail::GetState();
+  std::ofstream out(path, std::ios::trunc);
+  out << "errors\t" << state.totalErrors << "\nwarnings\t" << state.totalWarnings << "\n";
+  for (auto [message, count] : state.warnings) {
+    std::ranges::replace(message, '\n', ' ');
+    out << count << '\t' << message << '\n';
+  }
+}
+
+// Adds a summary written by WriteSummaryTo to this process's counts; PrintSummary then prints them together. False
+// when the file cannot be read.
+inline bool AddSummaryFrom(const std::string& path)
+{
+  std::ifstream in(path);
+  if (!in)
+    return false;
+  Detail::State& state = Detail::GetState();
+  std::string line;
+  while (std::getline(in, line)) {
+    const std::size_t tab = line.find('\t');
+    if (tab == std::string::npos)
+      continue;
+    const std::string key = line.substr(0, tab);
+    const std::string rest = line.substr(tab + 1);
+    if (key == "errors")
+      state.totalErrors += std::stoul(rest);
+    else if (key == "warnings")
+      state.totalWarnings += std::stoul(rest);
+    else
+      Detail::CountDistinctWarning(rest, std::stoul(key));
+  }
+  return true;
 }
 
 } // namespace Logger

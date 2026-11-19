@@ -10,30 +10,70 @@ set -o pipefail
 # depending on where it was typed.
 cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 
+# One run at a time in this checkout: two runs share DataFile (mc writes Corrections/, which data reads) and the build
+# directory. On 9 November 2026 several `--compile` runs started together, each rebuilding ../build, and some crashed
+# at startup; started from one binary built once, 5 processes in the same second never did (19 November, 15 starts).
+# The script runs itself again under lockf(1): the kernel lock goes with the process, so a run that dies leaves none.
+LOCK_FILE="$PWD/../Logs/.runAnalysis.lock"
+if [ -z "$RUNANALYSIS_HOLDS_LOCK" ]; then
+    mkdir -p ../Logs
+    RUNANALYSIS_HOLDS_LOCK=1 lockf -s -k -t 0 "$LOCK_FILE" "$PWD/$(basename "${BASH_SOURCE[0]}")" "$@"
+    STATUS=$?
+    if [ "$STATUS" -eq 75 ]; then
+        echo "Error: another runAnalysis.sh is running in this checkout ($(cat "$LOCK_FILE")). Wait for it to finish."
+    fi
+    exit "$STATUS"
+fi
+echo "$* (pid $$), started $(date '+%F %T')" > "$LOCK_FILE"
+
 # 1. Parse execution flags and positional arguments
 MODE="interpret"
+INTERPRET_ASKED=""
 POSITIONAL_ARGS=()
+GROUP=""
+JOBS=""
 
-for arg in "$@"; do
-    case "$arg" in
+while [ $# -gt 0 ]; do
+    case "$1" in
         --compile|-c)
             MODE="compile"
             ;;
         --interpret|-i)
-            MODE="interpret"
+            MODE="interpret"; INTERPRET_ASKED=1
+            ;;
+        --group|-g|--jobs|-j)
+            # A missing value would leave the option empty, and the run would do something else than asked: every
+            # group, one after the other.
+            if [ -z "$2" ] || [[ "$2" == -* ]]; then
+                echo "Error: $1 needs a value."
+                exit 1
+            fi
+            case "$1" in --group|-g) GROUP="$2" ;; *) JOBS="$2" ;; esac
+            shift
             ;;
         *)
-            POSITIONAL_ARGS+=("$arg")
+            POSITIONAL_ARGS+=("$1")
             ;;
     esac
+    shift
 done
 
 if [ "${#POSITIONAL_ARGS[@]}" -eq 0 ]; then
     echo "Error: No configuration keyword provided."
-    echo "Usage: $0 <keyword> [coll_sys] [--compile | --interpret]"
+    echo "Usage: $0 <keyword> [coll_sys] [--compile | --interpret] [--group <name> | --jobs <N>]"
     echo "Available keywords: data, purity, mc, mcclosure, mcclosurewpdg, mcclosuregen, comparison"
     echo "Execution mode: --interpret / -i (default), --compile / -c"
+    echo "Groups of active_tasks: --group / -g <name> runs one; --jobs / -j <N> runs them all, N processes at a time"
     exit 1
+fi
+
+# --jobs runs the compiled binary: the groups are separate processes of it.
+if [ -n "$JOBS" ]; then
+    if [ -n "$INTERPRET_ASKED" ] || [ -n "$GROUP" ] || ! [ "$JOBS" -ge 1 ] 2> /dev/null; then
+        echo "Error: --jobs takes a number N >= 1, runs the compiled binary and every group: not with --interpret or --group."
+        exit 1
+    fi
+    MODE="compile"
 fi
 
 KEYWORD="${POSITIONAL_ARGS[0]}"
@@ -103,10 +143,12 @@ if [ -n "$JSON_PATH_BASE" ] && [ ! -f "$JSON_PATH_BASE" ]; then
 fi
 
 # 4. Extract a clean name for the log file and set it up
-# This removes the path and the .json extension
+# This removes the path and the .json extension. A group run alone gets a log of its own; the groups of a parallel run
+# write theirs into the run directory (run_groups).
 CONFIG_NAME=$(basename "$JSON_PATH" .json)
-LOG_FILE="../Logs/log_output_${CONFIG_NAME}.log"
+LOG_FILE="../Logs/log_output_${CONFIG_NAME}${GROUP:+_$GROUP}.log"
 mkdir -p "$(dirname "$LOG_FILE")"
+
 
 echo "=========================================================="
 echo "Starting Phi-Strangeness analysis..."
@@ -115,8 +157,74 @@ echo "System         : $COLL_SYS"
 echo "Execution mode : $MODE"
 echo "Configuration  : $JSON_PATH"
 echo "Base config    : ${JSON_PATH_BASE:-<none, single-file mode>}"
-echo "Log file       : $LOG_FILE"
+if [ -n "$JOBS" ]; then
+    echo "Groups         : all, $JOBS at a time, one log each in ../Logs/run_${CONFIG_NAME}_<time>/"
+else
+    echo "Group          : ${GROUP:-<all groups, in order>}"
+    echo "Log file       : $LOG_FILE"
+fi
 echo "=========================================================="
+
+# Every group of active_tasks, JOBS processes at a time, judged as one run (--jobs). A group is a list of blocks that
+# runs in one process, in order. Groups run in parallel must not share files: a group that opens a file another group
+# writes gets a version that depends on which process got there first, with the right stamps and no error. Each
+# process records the files it opens and its warnings, and the binary judges the records together after the run
+# (--check-run), whatever the order the groups ran in; a wrong grouping is found at the end, not prevented.
+# Bash 3.2 (macOS): no `wait -n`. Everything of one run is in RUN_DIR: the binary, copied so that a build started
+# meanwhile does not give the later groups other code, and per group its log, record and summary.
+run_groups() {
+    RUN_DIR="../Logs/run_${CONFIG_NAME}_$(date +%Y%m%d_%H%M%S)"
+    mkdir -p "$RUN_DIR" && cp "$BINARY" "$RUN_DIR/" || return 1
+    local BIN="$RUN_DIR/phistrangeanalysis"
+    local LIST
+    if ! LIST=$("$BIN" "$JSON_PATH" "$JSON_PATH_BASE" --list-groups 2>&1); then
+        echo "$LIST"
+        echo "[ERROR] Cannot read the groups of $JSON_PATH."
+        return 1
+    fi
+    local NAMES g
+    NAMES=$(echo "$LIST" | sed -n 's/^GROUP //p')
+
+    # The binaries themselves are the background jobs: a non-interactive shell starts them with SIGINT ignored, so
+    # an interruption reaches them only through this trap.
+    GROUP_PIDS=""
+    trap 'kill $GROUP_PIDS 2> /dev/null; wait; echo "[ERROR] Interrupted: the running groups were stopped."; exit 130' INT TERM
+    echo "Run directory  : $RUN_DIR"
+    for g in $NAMES; do
+        while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do
+            sleep 2
+        done
+        "$BIN" "$JSON_PATH" "$JSON_PATH_BASE" --group "$g" --open-record "$RUN_DIR/$g.opens" \
+            --summary-to "$RUN_DIR/$g.summary" > "$RUN_DIR/$g.log" 2>&1 &
+        GROUP_PIDS="$GROUP_PIDS $!"
+        echo "  $(date +%H:%M:%S) started $g"
+    done
+
+    local FAILED=0 RC
+    set -- $GROUP_PIDS
+    {
+        echo "=========================================================="
+        echo "Groups of $CONFIG_NAME (logs: $RUN_DIR/<group>.log)"
+        for g in $NAMES; do
+            wait "$1"
+            RC=$?
+            shift
+            printf "  %-14s exit %-3s %s\n" "$g" "$RC" "$(grep -m1 -o '\[FATAL\].*' "$RUN_DIR/$g.log" | cut -c1-150)"
+            [ "$RC" -eq 0 ] || FAILED=1
+        done
+        echo "----------------------------------------------------------"
+        "$BIN" --check-run "$RUN_DIR" || FAILED=1
+        echo "=========================================================="
+        if [ "$FAILED" -eq 0 ]; then
+            echo " [SUCCESS] All groups completed."
+        else
+            echo " [FAILED] See above."
+        fi
+        echo "=========================================================="
+    } > "$RUN_DIR/summary.txt"
+    cat "$RUN_DIR/summary.txt"
+    return "$FAILED"
+}
 
 # 5. Execute analysis (compiled binary or interpreted ROOT macro)
 if [ "$MODE" = "compile" ]; then
@@ -153,14 +261,19 @@ if [ "$MODE" = "compile" ]; then
         echo "Build          : binary up to date"
     fi
 
-    echo "Executing compiled binary: $BINARY \"$JSON_PATH\" \"$JSON_PATH_BASE\""
+    if [ -n "$JOBS" ]; then
+        run_groups
+        exit $?
+    fi
+
+    echo "Executing compiled binary: $BINARY \"$JSON_PATH\" \"$JSON_PATH_BASE\" ${GROUP:+--group $GROUP}"
     echo "=========================================================="
-    "$BINARY" "$JSON_PATH" "$JSON_PATH_BASE" 2>&1 | tee "$LOG_FILE"
+    "$BINARY" "$JSON_PATH" "$JSON_PATH_BASE" ${GROUP:+--group "$GROUP"} 2>&1 | tee "$LOG_FILE"
     STATUS=${PIPESTATUS[0]}
 else
-    echo "Executing interpreted ROOT macro: root -l -b -q 'PhiStrangenessCorrelation.C(\"$JSON_PATH\", \"$JSON_PATH_BASE\")'"
+    echo "Executing interpreted ROOT macro: root -l -b -q 'PhiStrangenessCorrelation.C(\"$JSON_PATH\", \"$JSON_PATH_BASE\", \"$GROUP\")'"
     echo "=========================================================="
-    root -l -b -q "PhiStrangenessCorrelation.C(\"$JSON_PATH\", \"$JSON_PATH_BASE\")" 2>&1 | tee "$LOG_FILE"
+    root -l -b -q "PhiStrangenessCorrelation.C(\"$JSON_PATH\", \"$JSON_PATH_BASE\", \"$GROUP\")" 2>&1 | tee "$LOG_FILE"
     STATUS=${PIPESTATUS[0]}
 fi
 

@@ -64,17 +64,19 @@
                 ]
             }
         },
-        "active_tasks": [
-            "correlation_wpdg_task_offline_efficiency_Bneg",
-            "correlation_wpdg_task_online_efficiency_Bneg",
-            "correlation_wpdg_task_online_efficiency_no_phi_Bneg",
-            "correlation_wpdg_task_offline_efficiency_Bpos",
-            "correlation_wpdg_task_online_efficiency_Bpos",
-            "correlation_wpdg_task_online_efficiency_no_phi_Bpos",
-            "correlation_wpdg_task_offline_efficiency_strinj",
-            "correlation_wpdg_task_online_efficiency_strinj",
-            "correlation_wpdg_task_online_efficiency_no_phi_strinj"
-        ],
+        "active_tasks": {
+            "all": [
+                "correlation_wpdg_task_offline_efficiency_Bneg",
+                "correlation_wpdg_task_online_efficiency_Bneg",
+                "correlation_wpdg_task_online_efficiency_no_phi_Bneg",
+                "correlation_wpdg_task_offline_efficiency_Bpos",
+                "correlation_wpdg_task_online_efficiency_Bpos",
+                "correlation_wpdg_task_online_efficiency_no_phi_Bpos",
+                "correlation_wpdg_task_offline_efficiency_strinj",
+                "correlation_wpdg_task_online_efficiency_strinj",
+                "correlation_wpdg_task_online_efficiency_no_phi_strinj"
+            ]
+        },
         "inactive_tasks": []
     },
     "correlation_wpdg_task_offline_efficiency_Bneg": {
