@@ -35,14 +35,9 @@ class EfficiencyCalculator
   EfficiencyCalculator() = delete;
 
   // Computes the Global Event Selection Efficiency (Event Loss)
-  // Returns a 1D histogram, owned by the caller.
+  // Returns a 1D histogram, owned by the caller. Both inputs must exist: the callers read them with GetUniqueOrThrow.
   static std::unique_ptr<TH1> ComputeEventLoss(const TH1* hEventMultGenAssocReco, const TH1* hEventMultGen)
   {
-    // Safety check
-    if (!hEventMultGenAssocReco || !hEventMultGen) {
-      return nullptr;
-    }
-
     std::unique_ptr<TH1> hEventLoss(static_cast<TH1*>(hEventMultGenAssocReco->Clone(IONames::kEventLoss.c_str())));
     hEventLoss->SetTitle("Event Selection Efficiency;Multiplicity Percentile (%);Efficiency");
     hEventLoss->SetDirectory(0);

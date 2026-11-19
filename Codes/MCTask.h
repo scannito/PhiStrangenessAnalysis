@@ -263,17 +263,10 @@ class MCTask : public IAnalysisTask
       h->Write(nullptr, TObject::kOverwrite);
     };
 
-    std::unique_ptr<TH1> hEventLoss;
-
-    if (hEventMultGenAssocReco && hEventMultGen) {
-      Logger::Info(" ---> Computing Global Event Efficiency (Event Loss)...");
-
-      // Delegate the math to the static calculator
-      hEventLoss = EfficiencyCalculator::ComputeEventLoss(hEventMultGenAssocReco.get(), hEventMultGen.get());
-
-      writeInto(IONames::EventLossPath(globalCfgs.binningName), hEventLoss.get());
-    }
-
+    // Both histograms are read with GetUniqueOrThrow in Init: the event loss always exists here.
+    Logger::Info(" ---> Computing Global Event Efficiency (Event Loss)...");
+    const std::unique_ptr<TH1> hEventLoss = EfficiencyCalculator::ComputeEventLoss(hEventMultGenAssocReco.get(), hEventMultGen.get());
+    writeInto(IONames::EventLossPath(globalCfgs.binningName), hEventLoss.get());
 
     for (auto& data : dataCollection) {
       Logger::Info(" ---> Processing particle: {}", data.name);
@@ -334,14 +327,12 @@ class MCTask : public IAnalysisTask
         const int color = globalCfgs.GetSpectraColor(multBin);
         const char* option = multBin == 0 ? "" : "SAME";
 
-        if (hEventLoss) {
-          const auto eventLoss = EfficiencyCalculator::EventLossOfClass(hEventLoss.get(), hEventMultGenAssocReco.get(), hEventMultGen.get(),
-                                                                        multBinning, multBin);
-          if (eventLoss.first > 0.)
-            EfficiencyCalculator::DivideByEventLoss(maps, eventLoss, data.name, multTag);
-          else
-            Logger::Warn("{}: event loss is zero for {}, {}: its signal loss over event loss is not written.", GetName(), data.name, multTag);
-        }
+        const auto eventLoss = EfficiencyCalculator::EventLossOfClass(hEventLoss.get(), hEventMultGenAssocReco.get(), hEventMultGen.get(),
+                                                                      multBinning, multBin);
+        if (eventLoss.first > 0.)
+          EfficiencyCalculator::DivideByEventLoss(maps, eventLoss, data.name, multTag);
+        else
+          Logger::Warn("{}: event loss is zero for {}, {}: its signal loss over event loss is not written.", GetName(), data.name, multTag);
 
         drawOn(CorrectionMap::Efficiency, SpectrumBinning::Analysis, maps.efficiency.get(), option, color);
         drawOn(CorrectionMap::SignalLoss, SpectrumBinning::Analysis, maps.signalLoss.get(), option, color);
