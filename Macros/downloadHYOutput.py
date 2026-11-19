@@ -1,6 +1,7 @@
 import os
 import json
 import functools
+import glob
 import subprocess
 import argparse
 import collections
@@ -194,18 +195,39 @@ def write_record(path, record):
         json.dump(record, f, indent=1, sort_keys=True)
     os.replace(tmp_path, path)
 
-def hadd(target, sources):
-    """hadd of sources into target, through a temporary file renamed only when hadd succeeded: a failed or
-    interrupted merge never leaves a truncated target. Returns True on success; the error is printed otherwise."""
-    tmp_path = f"{os.path.splitext(target)[0]}.tmp.root"
-    res = subprocess.run(["hadd", "-f", tmp_path, *sources], capture_output=True, text=True)
-    if res.returncode != 0:
-        print(f"-> Error: hadd into '{target}' failed (exit code {res.returncode}):\n{res.stderr}")
+def has_content(path):
+    """A file that is there and not empty: what a later run takes as done. Complete for the files written through
+    run_into; a file left by a download made before it may not be."""
+    return os.path.isfile(path) and os.path.getsize(path) > 0
+
+def run_argv(argv):
+    return subprocess.run(argv, capture_output=True, text=True)
+
+def run_into(target, tmp_path, argv):
+    """Runs argv, which writes tmp_path, and renames tmp_path to target only when argv succeeded and wrote something:
+    a failed or interrupted run never leaves a truncated target, which a later run would take as done (has_content)
+    and hadd might merge in part without a word. Returns True on success; the error is printed otherwise."""
+    if os.path.exists(tmp_path):
+        os.remove(tmp_path)  # left by a run interrupted with the script
+    res = run_argv(argv)
+    if res.returncode != 0 or not has_content(tmp_path):
+        print(f"-> Error: {argv[0]} into '{target}' failed (exit code {res.returncode}):\n"
+              f"{(res.stderr or res.stdout).strip()}")
         if os.path.exists(tmp_path):
             os.remove(tmp_path)
         return False
     os.replace(tmp_path, target)
     return True
+
+def hadd(target, sources):
+    """hadd of sources into target (run_into)."""
+    tmp_path = f"{os.path.splitext(target)[0]}.tmp.root"
+    return run_into(target, tmp_path, ["hadd", "-f", tmp_path, *sources])
+
+def alien_copy(alien_path, local_path):
+    """alien.py cp of a Grid file into local_path (run_into)."""
+    tmp_path = f"{local_path}.part"
+    return run_into(local_path, tmp_path, ["alien.py", "cp", alien_path, f"file:{tmp_path}"])
 
 def download_train_json(train_id, output_dir):
     """The train summary from Hyperloop, and a copy of it in output_dir, kept for debugging when something fails.
@@ -258,7 +280,7 @@ def download_and_merge_per_run_files(train_id, target_file, output_base_dir, cus
 
     merged_file_path = os.path.join(output_base_dir, final_filename)
 
-    if not overwrite and os.path.isfile(merged_file_path) and os.path.getsize(merged_file_path) > 0:
+    if not overwrite and has_content(merged_file_path):
         print(f"-> The merged file '{merged_file_path}' already exists. Skipping download.")
         return {"path": merged_file_path, "downloaded": False, "runs": None}
     
@@ -266,7 +288,7 @@ def download_and_merge_per_run_files(train_id, target_file, output_base_dir, cus
     if data is None:
         return None
 
-    jobs = data.get("jobResults", [])
+    jobs = sorted(data.get("jobResults", []), key=lambda job: job["run"])  # Hyperloop lists them in no particular order
     if not jobs:
         print(f"Error: No runs found. Kept {json_path} for debugging.")
         return None
@@ -280,21 +302,21 @@ def download_and_merge_per_run_files(train_id, target_file, output_base_dir, cus
     # taken as it is (above).
     run_set = set(run_list) if run_list is not None else None
     if run_set is not None:
-        absent = sorted(run_set - {job.get("run") for job in jobs})
+        absent = sorted(run_set - {job["run"] for job in jobs})
         if absent:
             print(f"Error: runs of the run list that train {train_id} does not have: {absent}")
             print(f"Nothing downloaded. Kept {json_path} for debugging.")
             return None
+        skipped = {job["run"] for job in jobs} - run_set
+        if skipped:
+            print(f"-> {len(skipped)} runs of the train are not in the run list: not downloaded")
+        jobs = [job for job in jobs if job["run"] in run_set]
     files_to_merge = []
     merged_runs = set()
     not_merged = []
 
     for job in jobs:
-        run_number = job.get("run")
-        if run_set is not None and run_number not in run_set:
-            print(f"Skipping Run {run_number}: not in the specified run list.")
-            continue
-
+        run_number = job["run"]
         merge_state = job.get("merge_state")
         if merge_state != "done":
             print(f"Skipping Run {run_number}: merge_state is '{merge_state}'")
@@ -312,15 +334,14 @@ def download_and_merge_per_run_files(train_id, target_file, output_base_dir, cus
 
         for i, alien_file_path in enumerate(alien_paths):
             suffix = f"_{i+1}" if len(alien_paths) > 1 else ""
-            unique_filename = f"run_{run_number}{suffix}_{target_file}"
+            # The train in the name: the trains of one batch share runs and an output directory, and a file left by
+            # a failed download of one would be taken as downloaded by the next
+            unique_filename = f"run_{run_number}{suffix}_train{train_id}_{target_file}"
             local_file_path = os.path.join(output_base_dir, unique_filename)
 
-            if not (os.path.isfile(local_file_path) and os.path.getsize(local_file_path) > 0):
+            if not has_content(local_file_path):
                 print(f"  -> Downloading {unique_filename}...")
-                cmd = f"alien.py cp {alien_file_path} file:{local_file_path}"
-                res = run_cmd(cmd)
-            
-                if res.returncode != 0:
+                if not alien_copy(alien_file_path, local_file_path):
                     print(f"  -> Error downloading {unique_filename}")
                     has_errors = True
                     continue
@@ -337,6 +358,9 @@ def download_and_merge_per_run_files(train_id, target_file, output_base_dir, cus
             for f in files_to_merge:
                 if os.path.exists(f):
                     os.remove(f)
+            # A copy interrupted in an earlier run of a run no longer asked for leaves its .part to nobody
+            for f in glob.glob(os.path.join(output_base_dir, f"run_*_train{train_id}_{target_file}.part")):
+                os.remove(f)
         else:
             has_errors = True
     elif not files_to_merge:
@@ -387,16 +411,13 @@ def download_unified_file(train_id, target_file, output_base_dir, custom_name=No
 
     print(f"\nTargeting UNIFIED file at: {alien_file_path}")
 
-    if not overwrite and os.path.isfile(local_file_path) and os.path.getsize(local_file_path) > 0:
+    if not overwrite and has_content(local_file_path):
         print(f"File '{final_filename}' already exists locally, skipping.")
         os.remove(json_path)
         return {"path": local_file_path, "downloaded": False, "runs": None}
 
     print(f"Downloading unified file to {local_file_path} ...")
-    cmd = f"alien.py cp {alien_file_path} file:{local_file_path}"
-    res = run_cmd(cmd)
-    
-    if res.returncode == 0:
+    if alien_copy(alien_file_path, local_file_path):
         print(f"-> Successfully downloaded: {local_file_path}")
         print("-> Cleaning up temporary JSON file...")
         os.remove(json_path)
