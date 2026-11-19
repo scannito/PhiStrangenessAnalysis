@@ -273,9 +273,21 @@ def download_and_merge_per_run_files(train_id, target_file, output_base_dir, cus
 
     has_errors = False
 
-    run_set = {int(run) for run in run_list.split(",")} if run_list else None
+    # A run of the run list that the train does not have is a mistake in the list (a misspelled run, the run list of
+    # another period): it stops the download before anything is fetched. A run the train did not merge is skipped, as
+    # Hyperloop leaves it, and the result says which ones (a batch lists them at its end). A run without its file, or
+    # whose copy fails, is an error further down. Checked on a new download only: a merged file already on disk is
+    # taken as it is (above).
+    run_set = set(run_list) if run_list is not None else None
+    if run_set is not None:
+        absent = sorted(run_set - {job.get("run") for job in jobs})
+        if absent:
+            print(f"Error: runs of the run list that train {train_id} does not have: {absent}")
+            print(f"Nothing downloaded. Kept {json_path} for debugging.")
+            return None
     files_to_merge = []
     merged_runs = set()
+    not_merged = []
 
     for job in jobs:
         run_number = job.get("run")
@@ -286,6 +298,7 @@ def download_and_merge_per_run_files(train_id, target_file, output_base_dir, cus
         merge_state = job.get("merge_state")
         if merge_state != "done":
             print(f"Skipping Run {run_number}: merge_state is '{merge_state}'")
+            not_merged.append(run_number)
             continue
 
         alien_dir = job.get("outputdir")
@@ -339,7 +352,7 @@ def download_and_merge_per_run_files(train_id, target_file, output_base_dir, cus
 
     if has_errors or not files_to_merge:
         return None
-    return {"path": merged_file_path, "downloaded": True, "runs": sorted(merged_runs)}
+    return {"path": merged_file_path, "downloaded": True, "runs": sorted(merged_runs), "not_merged": sorted(not_merged)}
 
 def download_unified_file(train_id, target_file, output_base_dir, custom_name=None, overwrite=False):
     """Reads the JSON 'mergeResults' and downloads the SINGLE UNIFIED global file."""
@@ -396,7 +409,9 @@ def download_unified_file(train_id, target_file, output_base_dir, custom_name=No
 
 def process_single_train(train_id, target_file, output_dir, output_name, per_run=False, run_list=None, overwrite=False):
     """Dispatches the execution to either unified or per-run mode, then saves the train's configuration next to the
-    data file. Returns False when the data file is there but its configuration could not be saved."""
+    data file. Returns (problem, not_merged): what was not done, which fails a batch, or None; and the runs left out
+    because the train did not merge them, or None. run_list is the list of runs from parse_run_list, or None for every
+    run of the train."""
     # An integer whether it comes from the command line or from a batch file: it is compared with the train
     # recorded in an existing configuration
     train_id = int(train_id)
@@ -407,30 +422,26 @@ def process_single_train(train_id, target_file, output_dir, output_name, per_run
         print(f"\n--- MODE: PER-RUN DOWNLOAD [Train ID: {train_id}] ---")
         data_file = download_and_merge_per_run_files(train_id, target_file, output_dir, output_name, run_list, overwrite)
     if data_file is None:
-        return True  # the data download failed and said so; a configuration with no data file next to it is useless
+        # The download said why; a configuration with no data file next to it is useless
+        return "data file not downloaded", None
+    not_merged = data_file.get("not_merged") or None
     # Also for a data file already on disk, so that running a batch again adds the configuration to old downloads
-    return download_train_configuration(train_id, data_file, overwrite)
+    if not download_train_configuration(train_id, data_file, overwrite):
+        return "configuration not saved", not_merged
+    return None, not_merged
 
-def validate_run_list(run_list_input):
-    """
-    Validates and cleans the run_list input.
-    Returns a clean comma-separated string, or None if invalid.
-    """
-    if not run_list_input:
-        return None
-        
-    try:
-        # str() prevents crashes if YAML parses a single run as an int
-        # strip() removes accidental spaces like "123, 456"
-        runs = [run.strip() for run in str(run_list_input).split(",") if run.strip()]
-        
-        # Check if every element is a valid number
-        if not all(run.isdigit() for run in runs):
-            return None
-            
-        return ",".join(runs) # Returns a perfectly formatted string: "123,456"
-    except Exception:
-        return None
+def parse_run_list(value):
+    """The runs of a run list, written "123, 456" or as one number (YAML reads a single run as an int). A run that is
+    not a number, or one listed twice, raises ValueError: a run listed twice changes nothing downloaded, but it is the
+    mark of a list pasted together by hand."""
+    runs = [run.strip() for run in str(value).split(",") if run.strip()]
+    if not runs or not all(run.isdigit() for run in runs):
+        raise ValueError(f"is not a comma-separated list of run numbers: '{value}'")
+    counts = collections.Counter(int(run) for run in runs)
+    repeated = sorted(run for run, count in counts.items() if count > 1)
+    if repeated:
+        raise ValueError(f"lists runs twice: {repeated}")
+    return list(counts)
 
 # The keys of a batch entry: either a download of one train (one file, or several 'extractions' of it) or the sum of
 # files that downloads of the same batch write. Any other key stops the batch before it starts: skipped, a misspelled
@@ -442,20 +453,28 @@ SUM_KEYS = {"sum", "output_dir", "parts", "overwrite"}
 Task = collections.namedtuple("Task", "target_file output_name per_run run_list overwrite")
 
 def batch_tasks(item):
-    """The files a download entry writes, with the entry's values as defaults for its extractions."""
+    """The files a download entry writes, with the entry's values as defaults for its extractions. A run list is
+    parsed (parse_run_list; a bad one raises ValueError naming the file) and makes the download per run, the only
+    one that can select runs. The command line goes through here too, as an entry of its own."""
     for task in item.get("extractions", [item]):
         target_file = task.get("target_file", item.get("target_file", "AnalysisResults.root"))
-        yield Task(target_file,
-                   output_name_for(item["train_id"], target_file, task.get("output_name", item.get("output_name"))),
-                   task.get("per_run", item.get("per_run", False)), task.get("run_list", item.get("run_list")),
-                   task.get("overwrite", item.get("overwrite", False)))
+        output_name = output_name_for(item["train_id"], target_file, task.get("output_name", item.get("output_name")))
+        run_list = task.get("run_list", item.get("run_list"))
+        if run_list is not None:
+            try:
+                run_list = parse_run_list(run_list)
+            except ValueError as error:
+                raise ValueError(f"'{output_name}': the run list {error}") from None
+        yield Task(target_file, output_name, task.get("per_run", item.get("per_run", False)) or run_list is not None,
+                   run_list, task.get("overwrite", item.get("overwrite", False)))
 
 def batch_errors(trains_list):
     """What is wrong with a batch, one line each, found before anything is downloaded: an entry that is not a download
     or a sum, unknown keys, and a sum that cannot be made whatever is on disk. A sum needs two parts or more, each
     once (hadd would add one listed twice), each written by a download of this batch into the sum's directory: the
     batch file is then where every part of a sum comes from, and a misspelled part is found before the downloads. The
-    sum must not be one of those files either: its record would replace the part's own."""
+    sum must not be one of those files either: its record would replace the part's own. Every run list is parsed
+    here, so a bad one stops the batch before anything is downloaded."""
     if not isinstance(trains_list, list):
         return ["the batch is not a list of entries"]
     errors = []
@@ -476,10 +495,16 @@ def batch_errors(trains_list):
         return errors
 
     declared = {}
-    for item in trains_list:
-        if "train_id" in item:
-            directory = os.path.abspath(item.get("output_dir", DEFAULT_OUTPUT_DIR))
-            declared.setdefault(directory, set()).update(task.output_name for task in batch_tasks(item))
+    for index, item in enumerate(trains_list, start=1):
+        if "train_id" not in item:
+            continue
+        try:
+            tasks = list(batch_tasks(item))
+        except ValueError as error:
+            errors.append(f"entry #{index}, {error}")
+            continue
+        directory = os.path.abspath(item.get("output_dir", DEFAULT_OUTPUT_DIR))
+        declared.setdefault(directory, set()).update(task.output_name for task in tasks)
     for index, item in enumerate(trains_list, start=1):
         if "sum" not in item:
             continue
@@ -596,6 +621,7 @@ if __name__ == "__main__":
         sums = [item for item in trains_list if "sum" in item]
 
         failures = []
+        notes = []
         if not args.sums_only:
             for index, item in enumerate(downloads):
                 t_id = item["train_id"]
@@ -604,25 +630,22 @@ if __name__ == "__main__":
                 print(f"\n=== Processing Batch Item {index+1}/{len(downloads)} [Train: {t_id} | {len(extractions)} tasks] ===")
 
                 for task_idx, (t_file, o_name, is_per_run, run_list, overwrite) in enumerate(extractions):
-                    if run_list:
-                        run_list = validate_run_list(run_list)
-                        if not run_list:
-                            print(f"Error: Invalid 'run_list' in batch entry #{index+1}. Must be comma-separated integers. Skipping.")
-                            continue
-
-                        if not is_per_run:
-                            print(f"Warning: 'run_list' found in batch entry #{index+1} but 'per_run' is missing or false.")
-                            print("Auto-enabling 'per_run' mode...")
-                            is_per_run = True
-
                     print(f"\n--- Task {task_idx+1}/{len(extractions)}: Train {t_id} | Target File: {t_file} | Output Name: {o_name} | Per-Run: {is_per_run} | Run List: {run_list} ---")
-                    if not process_single_train(t_id, t_file, o_dir, o_name, is_per_run, run_list, overwrite):
-                        failures.append(f"train {t_id} -> {o_name}: configuration not saved")
+                    problem, not_merged = process_single_train(t_id, t_file, o_dir, o_name, is_per_run, run_list, overwrite)
+                    label = f"train {t_id} -> {o_name}"
+                    if problem:
+                        failures.append(f"{label}: {problem}")
+                    if not_merged:
+                        notes.append(f"{label}: {not_merged}")
         # After every download, so that a sum is made from parts as this run left them
         for item in sums:
             if not make_sum(item):
                 failures.append(f"sum -> {item['sum']}: not made, or its record not written")
         print("\n=== BATCH PROCESSING COMPLETED ===")
+        if notes:
+            print(f"\nMade without the runs the train did not merge ({len(notes)}):")
+            for entry in notes:
+                print(f"  {entry}")
         # Listed again at the end, and the exit code says it: one warning among a whole batch's output scrolls past
         if failures:
             print(f"\nNot done for {len(failures)} entr{'y' if len(failures) == 1 else 'ies'}:")
@@ -639,17 +662,18 @@ if __name__ == "__main__":
             print("Error: --sums-only makes the sums of a batch: it needs --batch-file.")
             exit(1)
 
-        if args.run_list:
-            args.run_list = validate_run_list(args.run_list)
-            if not args.run_list:
-                print("Error: Invalid '--run-list' format. Must be comma-separated integers (e.g. '123,456').")
-                exit(1)
-                
-            if not args.per_run:
-                print("Warning: '--run-list' was provided, but '--per-run' is missing.")
-                print("Auto-enabling '--per-run' mode to process specific runs...")
-                args.per_run = True
+        entry = {"train_id": args.train_id, "target_file": args.target_file, "output_name": args.output_name,
+                 "per_run": args.per_run, "run_list": args.run_list, "overwrite": args.overwrite}
+        try:
+            task = next(batch_tasks(entry))
+        except ValueError as error:
+            print(f"Error: --run-list {error}")
+            exit(1)
 
-        print(f"\n--- Single Task: Train {args.train_id} | Target File: {args.target_file} | Output Name: {args.output_name} | Per-Run: {args.per_run} | Run List: {args.run_list} ---")
-        if not process_single_train(args.train_id, args.target_file, args.output_dir, args.output_name, args.per_run, args.run_list, args.overwrite):
+        print(f"\n--- Single Task: Train {args.train_id} | Target File: {task.target_file} | Output Name: {task.output_name} | Per-Run: {task.per_run} | Run List: {task.run_list} ---")
+        problem, not_merged = process_single_train(args.train_id, task.target_file, args.output_dir, task.output_name,
+                                                   task.per_run, task.run_list, task.overwrite)
+        if not_merged:
+            print(f"\nMade without the runs the train did not merge: {not_merged}")
+        if problem:
             exit(1)
