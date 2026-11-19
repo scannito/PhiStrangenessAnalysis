@@ -48,12 +48,20 @@ inline void CreateDirectoriesOrThrow(const std::filesystem::path& dir, std::stri
 // right stamps and no error; and of two blocks writing one file the second clears or replaces what the first wrote,
 // after a third may already have read it. Process state, like the Logger counters; WorkflowManager clears it when a
 // workflow starts.
+// One open of a file by a block of the workflow, as the record keeps it.
+struct OpenedFile {
+  bool write;
+  std::string block;
+  std::string path;
+};
+
 namespace Detail
 {
 struct OpenRecord {
   std::string currentBlock;                                // empty outside a workflow block: nothing is recorded
   std::map<std::string, std::set<std::string>> openedBy;   // canonical path -> the blocks that opened it
-  std::ofstream sink;                                      // every open, with its mode, for runAnalysis.sh -j, if asked
+  std::vector<OpenedFile> opened;                          // every open of this workflow, in order
+  std::ofstream sink;                                      // the same, written out for runAnalysis.sh -j, if asked
 };
 
 inline OpenRecord& Record()
@@ -95,6 +103,7 @@ inline void RecordOpen(const std::string& path, bool write, std::string_view err
     }
   }
   blocks.insert(block);
+  record.opened.push_back({write, block, key});
   // One line per open, flushed: a process that dies leaves the lines of what it opened before.
   if (record.sink.is_open())
     record.sink << (write ? "W" : "R") << '\t' << block << '\t' << key << std::endl;
@@ -119,24 +128,24 @@ inline std::unique_ptr<TFile> OpenChecked(const std::string& path, const char* m
 } // namespace Detail
 
 // A new workflow in this process: the files the previous one opened are not this run's.
-inline void ClearOpenRecord() { Detail::Record().openedBy.clear(); }
+inline void ClearOpenRecord()
+{
+  Detail::Record().openedBy.clear();
+  Detail::Record().opened.clear();
+}
+
+// What the blocks of this workflow opened, in order.
+inline const std::vector<OpenedFile>& OpenedFiles() { return Detail::Record().opened; }
 
 // Writes the record to 'path' as well, one line per open: W or R, block, canonical path, tab-separated. The groups of
 // a parallel run are separate processes, so the files one group writes and another opens are only seen by putting
-// the records together (runAnalysis.sh -j). The file is created now, empty: no file means the process never started.
+// the records together (runAnalysis.sh -j). Read back by ReadOpenRecord.
 inline void WriteOpenRecordTo(const std::string& path)
 {
   Detail::Record().sink.open(path, std::ios::trunc);
   if (!Detail::Record().sink)
     throw std::runtime_error(std::format("[FATAL] RootIO: cannot write the record of opened files to '{}'", path));
 }
-
-// One line of the record WriteOpenRecordTo writes.
-struct OpenedFile {
-  bool write;
-  std::string block;
-  std::string path;
-};
 
 inline std::vector<OpenedFile> ReadOpenRecord(const std::string& path, std::string_view errCtx)
 {
@@ -148,35 +157,6 @@ inline std::vector<OpenedFile> ReadOpenRecord(const std::string& path, std::stri
   while (std::getline(in, mode, '\t') && std::getline(in, block, '\t') && std::getline(in, file))
     opened.push_back({mode == "W", block, file});
   return opened;
-}
-
-// A file of a parallel run that one group wrote and another opened: its content depends on which process got there
-// first.
-struct SharedFile {
-  std::string path;
-  std::set<std::string> writers;
-  std::set<std::string> openers;
-};
-
-inline std::vector<SharedFile> FilesSharedBetweenGroups(const std::map<std::string, std::vector<OpenedFile>>& recordOfGroup)
-{
-  std::map<std::string, SharedFile> byPath;
-  for (const auto& [group, opened] : recordOfGroup) {
-    for (const OpenedFile& o : opened) {
-      SharedFile& f = byPath[o.path];
-      f.openers.insert(group);
-      if (o.write)
-        f.writers.insert(group);
-    }
-  }
-  std::vector<SharedFile> shared;
-  for (auto& [path, f] : byPath) {
-    if (!f.writers.empty() && f.openers.size() > 1) {
-      f.path = path;
-      shared.push_back(std::move(f));
-    }
-  }
-  return shared;
 }
 
 // Names the workflow block that is running, for the record of the files it opens, until it goes out of scope: a

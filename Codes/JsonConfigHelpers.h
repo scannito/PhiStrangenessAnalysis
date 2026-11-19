@@ -77,6 +77,30 @@ inline void LoadDocument(const std::string& path, rapidjson::Document& doc, std:
                                          errCtx, path, doc.GetErrorOffset()));
   if (!doc.IsObject())
     throw std::runtime_error(std::format("[FATAL] {}: invalid structure in {}. The root must be a JSON object.", errCtx, path));
+
+  // rapidjson keeps a key written twice in one object, and every lookup then finds the first copy and ignores the
+  // other: a block pasted and edited without renaming it, or a group of active_tasks repeated, would run something
+  // else than the file shows. No configuration had one on 19 November 2026.
+  std::vector<std::pair<const rapidjson::Value*, std::string>> pending{{&doc, "the root"}};
+  while (!pending.empty()) {
+    const auto [node, where] = pending.back();
+    pending.pop_back();
+    if (node->IsArray()) {
+      for (const auto& item : node->GetArray())
+        pending.emplace_back(&item, where);
+      continue;
+    }
+    if (!node->IsObject())
+      continue;
+    std::set<std::string_view> keys;
+    for (const auto& member : node->GetObject()) {
+      const std::string_view key(member.name.GetString(), member.name.GetStringLength());
+      if (!keys.insert(key).second)
+        throw std::runtime_error(std::format("[FATAL] {}: the key '{}' is written twice in {} of '{}': only the first "
+                                             "would be read.", errCtx, key, where, path));
+      pending.emplace_back(&member.value, std::format("'{}'", key));
+    }
+  }
 }
 
 // Numbers appear in the configurations both as numbers and as strings - 6.4 and

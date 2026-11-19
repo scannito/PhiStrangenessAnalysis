@@ -1804,3 +1804,69 @@ the real YAML (refused, maps without provenance), a full-validity and a run-rang
 window), the configuration errors, overlapping validities, a map whose train record is "none" and a map file with a
 stray object. 17 cases, nothing uploaded. Before and after `WriteCcdbFile` changed, the `ccdb_object` of every map of
 that block and of `purity_task_2026_lowIRaf_updated` compared equal with `CompareRootFiles`.
+
+## Running the chain in parallel
+
+*19 November 2026.* A full data run (eight periods, each with a purity, three phi fits and six correlations) took
+hours in one process. On 9 November it had been parallelised by hand: a configuration generated per period, one
+process each, launched by a script. The design of doing it inside the framework was put to both review agents before
+any code, with five candidates:
+
+- **A**, the 9 November way: generated configurations and an external script. No check at all, the grouping in a
+  script outside the JSON, and the configurations copies of the blocks.
+- **B**, groups named in the JSON, `--group` on the binary, a driver, and a `flock` on every file taken in
+  `RootIO::OpenOrThrow`.
+- **C**, every task declaring the files it reads and writes, a dependency graph that finds the groups, `OpenOrThrow`
+  refusing an undeclared file.
+- **D**, B with a record of the files each block opens instead of declarations, checked within a process and, across
+  the processes of a parallel run, by the driver after the run.
+- Threads in one process.
+
+**Threads** were rejected by both: `TCanvas` and `TF1` live in ROOT's global lists by name, RooFit and the `Logger`
+counters are process state. Separate processes isolate all of it.
+
+**C was deferred.** The paths are composed inside each task's `Init`, some from choices made at run time (the
+projection cache read or written, `corrections: null`); declaring them beforehand means a second copy of that
+composition or every `Init` rebuilt around a list of files, for groups that are stable and obvious from the
+configuration (one per period). It stays the next step if writing the groups by hand becomes laborious.
+
+**The per-file `flock` of B was dropped**, for two reasons the reviewer measured in ROOT's sources and on this
+machine. On macOS a `flock` belongs to one open file description, so a process holding the lock of a file it wrote
+fails when a later block of its own opens the same file to read it. And a lock only sees processes that overlap in
+time: with `-j 3` and eight groups, a group can read a file before the group that rewrites it starts, and get the
+previous run's version, complete and stamped, without any error (ROOT reports nothing: a `RECREATE` unlinks the file
+and a reader keeps the old inode). The record of the opens is what detects it whatever the order, so D it was.
+
+**Within one run, a file has one writing block** (`RootIO::BlockScope`, `RecordOpen`), listed before every block that
+reads it. A block that writes a file another block of the run has already opened stops the run before the file is
+opened; a block may read and write its own files (the projection caches). The rule is per file while ownership is per
+subtree, so two engines sharing one `PhiAssocSpectra.root` must be two runs (CLAUDE.md, next to the ownership table).
+It also closes a hole of the sequential run: a correlation listed before its phi fit used to read the previous run's
+trigger file, silently.
+
+**Across the groups of a parallel run**, each process writes the files it opened and its warnings
+(`--open-record`, `--summary-to`), and the binary judges them together after the run (`--check-run`): a file written
+by one group and opened by another fails the run and is named. The two formats are read by the code that writes them
+(`RootIO::ReadOpenRecord`, `Logger::AddSummaryFrom`); a first version read them back with `awk` in the driver, which
+the second review rejected as a second copy of the C++ layout. A wrong grouping is found at the end of the run, not
+prevented.
+
+**The startup crash of 9 November was measured, not worked around.** That day every process ran
+`runAnalysis.sh --compile`, so several builds ran at once in one `build/`. From one binary built once, 5 processes
+started in the same second never crashed (19 November: mc three times, purity twice, phi fit twice). So the driver
+builds once, copies the binary into the run directory (a build started meanwhile cannot give the later groups other
+code), and starts the groups without any delay.
+
+**One run per checkout**, with `lockf(1)`: the script runs itself again under the lock, which the kernel releases when
+the process ends, however it ends. A directory used as a lock (the first version) needed a pid file and the handling
+of stale locks; `flock(1)` does not exist on macOS and `shlock(1)` is deprecated in favour of `lockf`.
+
+**Found while measuring:** `OpenOrThrow` refused a file left open by an interrupted run only once. The `UPDATE` handle,
+closed by the throw, wrote back what ROOT had recovered, and the next run found a sound-looking file (measured with ROOT
+6.36.10: `kRecovered` stays 1 on every `READ` open, and is 0 after one `UPDATE` open and close). A file to be updated
+is now checked on a read-only handle first.
+
+**Left out on purpose:** several modes in one command (`mc`, `purity`, `data` stay separate runs, in that order); files
+a run reads but no block of it writes, such as `Corrections` from an older production, which no candidate covered;
+and the fingerprint of the headers in the provenance, read from disk when each process starts, which a header edited
+during a parallel run would make disagree with the binary (to be written into the binary at build time, separately).

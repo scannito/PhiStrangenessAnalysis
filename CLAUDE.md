@@ -13,6 +13,12 @@ cd Codes
 ./runAnalysis.sh mc pp --interpret   # the default, spelled out (-c and -i are the short forms)
 ```
 
+`active_tasks` is divided into named groups (one per period in `data` and `purity`): `--group <name>` runs one,
+`--jobs N` (`-j`, compiled) runs them all, N processes at a time, with everything of the run in
+`Logs/run_<config>_<time>/` and one verdict at the end (README, *Groups and parallel runs*). **One run at a time per
+checkout**: a second `runAnalysis.sh` stops while one is going (`lockf` on `Logs/.runAnalysis.lock`), so a second
+terminal on the same checkout has to wait; use another sandbox.
+
 Both modes run the same chain (`RunAnalysisChain.h`) and differ only in the entry
 point: `PhiStrangenessCorrelation.C` for Cling, `main.cpp` for the binary. Either
 needs ROOT in the environment (`enterO2P`); the compiled one needs it for CMake too.

@@ -16,6 +16,10 @@ cd "$(dirname "${BASH_SOURCE[0]}")" || exit 1
 # The script runs itself again under lockf(1): the kernel lock goes with the process, so a run that dies leaves none.
 LOCK_FILE="$PWD/../Logs/.runAnalysis.lock"
 if [ -z "$RUNANALYSIS_HOLDS_LOCK" ]; then
+    if ! command -v lockf > /dev/null; then
+        echo "Error: lockf(1) not found. It comes with macOS; elsewhere this script cannot take its lock."
+        exit 1
+    fi
     mkdir -p ../Logs
     RUNANALYSIS_HOLDS_LOCK=1 lockf -s -k -t 0 "$LOCK_FILE" "$PWD/$(basename "${BASH_SOURCE[0]}")" "$@"
     STATUS=$?
@@ -27,8 +31,16 @@ fi
 echo "$* (pid $$), started $(date '+%F %T')" > "$LOCK_FILE"
 
 # 1. Parse execution flags and positional arguments
-MODE="interpret"
-INTERPRET_ASKED=""
+# A missing value would leave the option empty, and the run would do something else than asked: every group, one
+# after the other.
+need_value() {
+    if [ -z "$2" ] || [[ "$2" == -* ]]; then
+        echo "Error: $1 needs a value."
+        exit 1
+    fi
+}
+
+MODE=""
 POSITIONAL_ARGS=()
 GROUP=""
 JOBS=""
@@ -39,17 +51,13 @@ while [ $# -gt 0 ]; do
             MODE="compile"
             ;;
         --interpret|-i)
-            MODE="interpret"; INTERPRET_ASKED=1
+            MODE="interpret"
             ;;
-        --group|-g|--jobs|-j)
-            # A missing value would leave the option empty, and the run would do something else than asked: every
-            # group, one after the other.
-            if [ -z "$2" ] || [[ "$2" == -* ]]; then
-                echo "Error: $1 needs a value."
-                exit 1
-            fi
-            case "$1" in --group|-g) GROUP="$2" ;; *) JOBS="$2" ;; esac
-            shift
+        --group|-g)
+            need_value "$1" "$2"; GROUP="$2"; shift
+            ;;
+        --jobs|-j)
+            need_value "$1" "$2"; JOBS="$2"; shift
             ;;
         *)
             POSITIONAL_ARGS+=("$1")
@@ -69,12 +77,13 @@ fi
 
 # --jobs runs the compiled binary: the groups are separate processes of it.
 if [ -n "$JOBS" ]; then
-    if [ -n "$INTERPRET_ASKED" ] || [ -n "$GROUP" ] || ! [ "$JOBS" -ge 1 ] 2> /dev/null; then
+    if [ "$MODE" = "interpret" ] || [ -n "$GROUP" ] || ! [ "$JOBS" -ge 1 ] 2> /dev/null; then
         echo "Error: --jobs takes a number N >= 1, runs the compiled binary and every group: not with --interpret or --group."
         exit 1
     fi
     MODE="compile"
 fi
+MODE="${MODE:-interpret}"
 
 KEYWORD="${POSITIONAL_ARGS[0]}"
 COLL_SYS="${POSITIONAL_ARGS[1]:-}"
@@ -170,8 +179,10 @@ echo "=========================================================="
 # writes gets a version that depends on which process got there first, with the right stamps and no error. Each
 # process records the files it opens and its warnings, and the binary judges the records together after the run
 # (--check-run), whatever the order the groups ran in; a wrong grouping is found at the end, not prevented.
-# Bash 3.2 (macOS): no `wait -n`. Everything of one run is in RUN_DIR: the binary, copied so that a build started
-# meanwhile does not give the later groups other code, and per group its log, record and summary.
+# Bash 3.2 (macOS): no `wait -n`; it keeps the exit status of a finished job for `wait <pid>` (checked 19 November).
+# Everything of one run is in RUN_DIR: the binary, copied so that a build started meanwhile does not give the later
+# groups other code, and per group its log, record and summary. The provenance of each group still fingerprints the
+# headers on disk when it starts: a header edited during the run makes it disagree with the binary.
 run_groups() {
     RUN_DIR="../Logs/run_${CONFIG_NAME}_$(date +%Y%m%d_%H%M%S)"
     mkdir -p "$RUN_DIR" && cp "$BINARY" "$RUN_DIR/" || return 1
@@ -194,8 +205,7 @@ run_groups() {
         while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ]; do
             sleep 2
         done
-        "$BIN" "$JSON_PATH" "$JSON_PATH_BASE" --group "$g" --open-record "$RUN_DIR/$g.opens" \
-            --summary-to "$RUN_DIR/$g.summary" > "$RUN_DIR/$g.log" 2>&1 &
+        "$BIN" "$JSON_PATH" "$JSON_PATH_BASE" --group "$g" --run-dir "$RUN_DIR" > "$RUN_DIR/$g.log" 2>&1 &
         GROUP_PIDS="$GROUP_PIDS $!"
         echo "  $(date +%H:%M:%S) started $g"
     done
@@ -213,7 +223,11 @@ run_groups() {
             [ "$RC" -eq 0 ] || FAILED=1
         done
         echo "----------------------------------------------------------"
-        "$BIN" --check-run "$RUN_DIR" || FAILED=1
+        # Without the lines of reading the configuration again.
+        local CHECK
+        CHECK=$("$BIN" "$JSON_PATH" "$JSON_PATH_BASE" --check-run "$RUN_DIR" 2>&1) || FAILED=1
+        echo "$CHECK" | grep -v '^\[INFO\]'
+
         echo "=========================================================="
         if [ "$FAILED" -eq 0 ]; then
             echo " [SUCCESS] All groups completed."

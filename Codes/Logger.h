@@ -9,6 +9,7 @@
 #include <iostream>
 #include <map>
 #include <ranges>
+#include <stdexcept>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -225,6 +226,9 @@ inline void WriteSummaryTo(const std::string& path)
     std::ranges::replace(message, '\n', ' ');
     out << count << '\t' << message << '\n';
   }
+  out.close();
+  if (!out)
+    throw std::runtime_error(std::format("[FATAL] Logger: cannot write the summary of the warnings to '{}'", path));
 }
 
 // Adds a summary written by WriteSummaryTo to this process's counts; PrintSummary then prints them together. False
@@ -236,18 +240,22 @@ inline bool AddSummaryFrom(const std::string& path)
     return false;
   Detail::State& state = Detail::GetState();
   std::string line;
-  while (std::getline(in, line)) {
+  for (int lineNumber = 1; std::getline(in, line); ++lineNumber) {
     const std::size_t tab = line.find('\t');
-    if (tab == std::string::npos)
-      continue;
     const std::string key = line.substr(0, tab);
-    const std::string rest = line.substr(tab + 1);
+    const std::string rest = tab == std::string::npos ? "" : line.substr(tab + 1);
+    std::size_t number = 0;
+    try {
+      number = std::stoul(key == "errors" || key == "warnings" ? rest : key);
+    } catch (const std::exception&) {
+      throw std::runtime_error(std::format("[FATAL] Logger: '{}' line {} is not a summary line: '{}'", path, lineNumber, line));
+    }
     if (key == "errors")
-      state.totalErrors += std::stoul(rest);
+      state.totalErrors += number;
     else if (key == "warnings")
-      state.totalWarnings += std::stoul(rest);
+      state.totalWarnings += number;
     else
-      Detail::CountDistinctWarning(rest, std::stoul(key));
+      Detail::CountDistinctWarning(rest, number);
   }
   return true;
 }
