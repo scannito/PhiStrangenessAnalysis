@@ -90,9 +90,6 @@ inline void Note(const std::string& path, bool write, std::string_view errCtx)
 // A new workflow in this process: the files the previous one opened are not this run's.
 inline void Clear() { Detail::GetState().opened.clear(); }
 
-// What the blocks of this workflow opened, in order.
-inline const std::vector<OpenedFile>& Opened() { return Detail::GetState().opened; }
-
 // Writes the record to 'path' as well, one line per open: W or R, block, canonical path, tab-separated. The groups of
 // a parallel run are separate processes, so the files one group writes and another opens are only seen by putting
 // the records together (runAnalysis.sh -j). Read back by Read.

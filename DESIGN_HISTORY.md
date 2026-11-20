@@ -1844,12 +1844,13 @@ subtree, so two engines sharing one `PhiAssocSpectra.root` must be two runs (CLA
 It also closes a hole of the sequential run: a correlation listed before its phi fit used to read the previous run's
 trigger file, silently.
 
-**Across the groups of a parallel run**, each process writes the files it opened and its warnings
-(`--open-record`, `--summary-to`), and the binary judges them together after the run (`--check-run`): a file written
-by one group and opened by another fails the run and is named. The two formats are read by the code that writes them
-(`OpenRecord::Read`, `Logger::AddSummaryFrom`); a first version read them back with `awk` in the driver, which
-the second review rejected as a second copy of the C++ layout. A wrong grouping is found at the end of the run, not
-prevented.
+**Across the groups of a parallel run**, each process writes the files it opened and its warnings into the run
+directory (`--run-dir`), and the binary judges them together after the run (`--check-run`): a file written by one
+group and opened by another fails the run and is named. Only there: the same check at the end of a sequential run of
+all groups, as a warning, was removed (the owner, 20 November), since a configuration may go to `--jobs` first. The
+two formats are read by the code that writes them (`OpenRecord::Read`, `Logger::AddSummaryFrom`); a first version
+read them back with `awk` in the driver, which the second review rejected as a second copy of the C++ layout. A wrong
+grouping is found at the end of the run, not prevented.
 
 **The startup crash of 9 November was measured, not worked around.** That day every process ran
 `runAnalysis.sh --compile`, so several builds ran at once in one `build/`. From one binary built once, 5 processes

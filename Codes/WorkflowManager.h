@@ -146,17 +146,6 @@ class WorkflowManager
       std::cout << "------------------------------------------------" << std::endl;
     }
 
-    // The groups are checked here too, when they all ran in this process: a grouping that would race under --jobs is
-    // then found by any run of the configuration, not only by the first parallel one.
-    if (runsAllGroups && groupNames.size() > 1) {
-      std::map<std::string, std::vector<OpenRecord::OpenedFile>> openedByGroup;
-      for (const OpenRecord::OpenedFile& o : OpenRecord::Opened())
-        openedByGroup[groupOfBlock.at(o.block)].push_back(o);
-      for (const std::string& shared : OpenRecord::SharedBetweenGroups(openedByGroup))
-        Logger::Warn("WorkflowManager: two groups of active_tasks share a file, so they cannot run in parallel "
-                     "(--jobs): {}. Put those blocks in one group.", shared);
-    }
-
     std::cout << "==================================================" << std::endl;
     Logger::Info("WorkflowManager: ALL TASKS COMPLETED SUCCESSFULLY!");
     std::cout << "==================================================" << std::endl;
@@ -179,7 +168,6 @@ class WorkflowManager
   std::vector<std::string> activeTasksList;
   std::vector<std::string> groupNames;
   std::map<std::string, std::string> groupOfBlock; // every block of active_tasks -> its group
-  bool runsAllGroups{true};
   // Contains the instantiated tasks, each carrying its own config block name
   std::vector<ScheduledTask> activeTasks;
 
@@ -233,7 +221,6 @@ class WorkflowManager
   {
     // A block in two groups would run twice, in two processes when the groups run in parallel. A group name written
     // twice is refused when the file is loaded (JsonConfig::LoadDocument).
-    runsAllGroups = group.empty();
     for (const auto& member : JsonConfig::RequireObject(workflowNode, "active_tasks", "workflow").GetObject()) {
       const std::string name = member.name.GetString();
       const std::string ctx = std::format("workflow.active_tasks.{}", name);

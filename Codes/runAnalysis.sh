@@ -158,7 +158,6 @@ CONFIG_NAME=$(basename "$JSON_PATH" .json)
 LOG_FILE="../Logs/log_output_${CONFIG_NAME}${GROUP:+_$GROUP}.log"
 mkdir -p "$(dirname "$LOG_FILE")"
 
-
 echo "=========================================================="
 echo "Starting Phi-Strangeness analysis..."
 echo "Keyword mapped : $KEYWORD"

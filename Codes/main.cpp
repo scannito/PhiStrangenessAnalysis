@@ -23,7 +23,8 @@ std::string RunFile(const std::string& runDir, const std::string& group, const c
 
 // The groups of a parallel run (runAnalysis.sh -j) judged together, from what each process left in 'runDir': every
 // group of the configuration must have left both files. Reports the files one group wrote and another opened, and
-// the warnings of all groups; 1 when a file was shared or a group left nothing.
+// the warnings of all groups; 1 when a file was shared or a group left nothing. Every group, because --jobs runs them
+// all: a parallel run of some of them would have to tell this function which.
 int CheckRun(const WorkflowManager& manager, const std::string& runDir)
 {
   std::map<std::string, std::vector<OpenRecord::OpenedFile>> openedByGroup;
