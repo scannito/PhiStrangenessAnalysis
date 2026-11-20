@@ -1062,6 +1062,20 @@ time a stale entry misleads someone. Since 7 November 2026 the inactive blocks t
 top-level object `inactive_task_blocks` (README, *`workflow.inactive_tasks` and `inactive_task_blocks`*), so the same
 check would also compare the list with the keys of that object.
 
+**A result does not record which maps and purities it was made with (19 November 2026).** The modes are separate
+runs with separate configurations on purpose (the owner): `mc` is rerun only when the MC production changes, `data`
+often. So a `data` run reads `Corrections/…Corrections.root` and `Purities/…Purity.root` as they are on disk, written
+by an earlier run of another mode, and nothing ties the result to that version: rerun `mc` on a new production (the
+updated LHC26ae MC) without `data`, and the results on disk were made with maps that no longer exist, unnoticed. The
+binning stamps catch a different binning, not a different version; the record of opened files (`RootIO::BlockScope`)
+only sees files the run itself writes. The correlation tasks print the provenance of the trigger, purity and
+corrections files they read (`RootIO::PrintProvenance`, `CorrelationTask.h`, `CorrelationTaskBase.h`), and keep none
+of it. To do, agreed with the owner: copy into the provenance of the output, per file read, the facts that identify it
+(production time, commit, MC train record, its config block), so that a result leads back to the maps and purities
+behind it, and a rerun of `mc` shows which results used the previous ones. Provenance, so it never throws. A warning
+when an input is newer than the results made from it can come on top. A chain that reruns `mc`, `purity` and `data`
+together is not wanted: avoiding it is why the modes are separate.
+
 **Splitting RootIOHelpers further — a suggestion, not a decision.** The header now
 holds two families: file access (open, get, navigate) and the records written into
 those files (binning stamps, provenance). Both touch `TDirectory`, so by mechanism
