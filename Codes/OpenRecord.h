@@ -110,9 +110,16 @@ inline std::optional<std::vector<OpenedFile>> Read(const std::string& path)
   if (!in)
     return std::nullopt;
   std::vector<OpenedFile> opened;
-  std::string mode, block, file;
-  while (std::getline(in, mode, '\t') && std::getline(in, block, '\t') && std::getline(in, file))
-    opened.push_back({mode == "W", block, file});
+  std::string line;
+  for (int lineNumber = 1; std::getline(in, line); ++lineNumber) {
+    // As Note writes it: W or R, block, path. Anything else is not a record line, and is not read as a read.
+    const std::size_t first = line.find('\t');
+    const std::size_t second = first == std::string::npos ? first : line.find('\t', first + 1);
+    const std::string mode = line.substr(0, first);
+    if (second == std::string::npos || (mode != "W" && mode != "R"))
+      throw std::runtime_error(std::format("[FATAL] OpenRecord: '{}' line {} is not a record line: '{}'", path, lineNumber, line));
+    opened.push_back({mode == "W", line.substr(first + 1, second - first - 1), line.substr(second + 1)});
+  }
   return opened;
 }
 
