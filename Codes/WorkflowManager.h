@@ -238,12 +238,9 @@ class WorkflowManager
       const std::string name = member.name.GetString();
       const std::string ctx = std::format("workflow.active_tasks.{}", name);
       // The name is a word of the shell script that launches the groups and part of file names: nothing else.
-      // The first character is not '-', which runAnalysis.sh would take for an option.
-      if (name.empty() || !std::isalnum(static_cast<unsigned char>(name.front())) ||
-          !std::ranges::all_of(name, [](unsigned char c) { return std::isalnum(c) || c == '_' || c == '-' || c == '.'; }))
-        throw std::runtime_error(std::format("[FATAL] WorkflowManager: the group name '{}' in active_tasks must start "
-                                             "with a letter or a digit and hold only letters, digits, '_', '-' and '.'.",
-                                             name));
+      if (name.empty() || !std::ranges::all_of(name, [](unsigned char c) { return std::isalnum(c) || c == '_'; }))
+        throw std::runtime_error(std::format(
+          "[FATAL] WorkflowManager: the group name '{}' in active_tasks must hold only letters, digits and '_'.", name));
       groupNames.push_back(name);
       int index = 0;
       for (const auto& taskValue : JsonConfig::ToArray(member.value, name, "workflow.active_tasks")) {
