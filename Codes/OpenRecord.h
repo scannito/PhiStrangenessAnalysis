@@ -37,10 +37,9 @@ struct OpenedFile {
 namespace Detail
 {
 struct State {
-  std::string currentBlock;                                // empty outside a workflow block: nothing is recorded
-  std::map<std::string, std::set<std::string>> openedBy;   // canonical path -> the blocks that opened it
-  std::vector<OpenedFile> opened;                          // every open of this workflow, in order
-  std::ofstream sink;                                      // the same, written out for runAnalysis.sh -j, if asked
+  std::string currentBlock;        // empty outside a workflow block: nothing is recorded
+  std::vector<OpenedFile> opened;  // every open of this workflow, in order (canonical paths)
+  std::ofstream sink;              // the same, written out for runAnalysis.sh -j, if asked
 };
 
 inline State& GetState()
@@ -70,19 +69,18 @@ inline void Note(const std::string& path, bool write, std::string_view errCtx)
     Logger::Warn("{}: '{}' cannot be made canonical ({}): the check of which blocks open it only sees this spelling.",
                  errCtx, path, ec.message());
   const std::string key = ec ? path : canonical.string();
-  std::set<std::string>& blocks = state.openedBy[key];
 
+  // A few hundred opens in a whole run: the list is scanned, rather than kept a second time indexed by file.
   if (write) {
-    for (const std::string& other : blocks) {
-      if (other != block)
+    for (const OpenedFile& o : state.opened) {
+      if (o.path == key && o.block != block)
         throw std::runtime_error(std::format(
           "[FATAL] {}: block '{}' writes '{}', which block '{}' of this run has already opened: if '{}' read it, it read "
           "the version of a previous run, and if it wrote it, this block clears or replaces what it wrote. List the "
           "writer before its readers in active_tasks, or give two writers different output_prefix values.",
-          errCtx, block, path, other, other));
+          errCtx, block, path, o.block, o.block));
     }
   }
-  blocks.insert(block);
   state.opened.push_back({write, block, key});
   // One line per open, flushed: a process that dies leaves the lines of what it opened before.
   if (state.sink.is_open())
@@ -90,11 +88,7 @@ inline void Note(const std::string& path, bool write, std::string_view errCtx)
 }
 
 // A new workflow in this process: the files the previous one opened are not this run's.
-inline void Clear()
-{
-  Detail::GetState().openedBy.clear();
-  Detail::GetState().opened.clear();
-}
+inline void Clear() { Detail::GetState().opened.clear(); }
 
 // What the blocks of this workflow opened, in order.
 inline const std::vector<OpenedFile>& Opened() { return Detail::GetState().opened; }
