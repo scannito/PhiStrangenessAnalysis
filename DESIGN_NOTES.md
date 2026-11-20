@@ -1076,6 +1076,17 @@ behind it, and a rerun of `mc` shows which results used the previous ones. Prove
 when an input is newer than the results made from it can come on top. A chain that reruns `mc`, `purity` and `data`
 together is not wanted: avoiding it is why the modes are separate.
 
+**`JSONConfigs/` in folders per collision system — a possibility, not a decision (20 November 2026).** Today the
+directory holds 27 files: the workflow configurations with the system as a suffix (`globalConfigDatapp.json`,
+`globalConfigDatappref.json`), the `fitConfig_<dataset>.json` (all pp) and `extrapConfig.json`. With two systems the
+suffix sorts them as folders would, so a split buys little now. It becomes worth it with a third system (OO, for which
+`MCSimulations/` already has scripts), or when the per-dataset fit configurations make the listing hard to read
+(a `fit/` subfolder would then separate fit configurations from workflow ones). Two things to handle when it is done:
+the log names come from the configuration's file name (`Logs/log_output_<config>.log`, `Logs/run_<config>_<time>/`),
+so files of different systems with one name in their folders would share a log unless the system stays in the name;
+and the paths written inside the configurations (`fit_config_file`, `"../JSONConfigs/…"`) and in `runAnalysis.sh`,
+`FitModelSelection/selection.py`, README and CLAUDE.md move with them.
+
 **Splitting RootIOHelpers further — a suggestion, not a decision.** The header now
 holds two families: file access (open, get, navigate) and the records written into
 those files (binning stamps, provenance). Both touch `TDirectory`, so by mechanism
