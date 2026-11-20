@@ -6,9 +6,9 @@
 #include "IAnalysisTask.h"
 #include "Logger.h"
 #include "MCTask.h"
+#include "OpenRecord.h"
 #include "PhiFitTask.h"
 #include "PurityTask.h"
-#include "RootIOHelpers.h"
 
 #include "rapidjson/document.h"
 
@@ -56,32 +56,6 @@ class WorkflowManager
 
   // The names of the groups of 'active_tasks', in the order written: what runAnalysis.sh -j launches.
   const std::vector<std::string>& GroupNames() const { return groupNames; }
-
-  // The files that one group wrote and another opened, given what each group's blocks opened: one description each,
-  // naming the group/block pairs. Groups that share a file cannot run in parallel: the reader gets whichever version
-  // is there when it opens it. Used on the record of a whole run in one process (RunWorkflow) and on the records of
-  // the processes of a parallel one (phistrangeanalysis --check-run).
-  static std::vector<std::string> FilesSharedBetweenGroups(const std::map<std::string, std::vector<RootIO::OpenedFile>>& openedByGroup)
-  {
-    struct Use {
-      std::set<std::string> groups, writers, openers;
-    };
-    std::map<std::string, Use> byPath;
-    for (const auto& [group, opened] : openedByGroup) {
-      for (const RootIO::OpenedFile& o : opened) {
-        Use& use = byPath[o.path];
-        use.groups.insert(group);
-        (o.write ? use.writers : use.openers).insert(std::format("{}/{}", group, o.block));
-      }
-    }
-    std::vector<std::string> shared;
-    for (const auto& [path, use] : byPath) {
-      if (!use.writers.empty() && use.groups.size() > 1)
-        shared.push_back(std::format("'{}' written by {}, read by {}", path, Logger::Join(use.writers, " "),
-                                     use.openers.empty() ? "nobody else" : Logger::Join(use.openers, " ")));
-    }
-    return shared;
-  }
 
   void BuildWorkflow()
   {
@@ -133,11 +107,11 @@ class WorkflowManager
     std::cout << "WorkflowManager: Running analysis workflow..." << std::endl;
     std::cout << "------------------------------------------------" << std::endl;
 
-    RootIO::ClearOpenRecord();
+    OpenRecord::Clear();
     for (auto& [configBlockName, task] : activeTasks) {
-      // Names the block in the record of the files it opens (RootIO::BlockScope): a block that would write a file
+      // Names the block in the record of the files it opens (OpenRecord::BlockScope): a block that would write a file
       // another block of this run has opened stops the run.
-      RootIO::BlockScope scope(configBlockName);
+      OpenRecord::BlockScope scope(configBlockName);
       std::cout << "\n>>> [STARTING TASK] " << configBlockName << " <<<" << std::endl;
 
       // Generate the final merged JSON configuration (resolving N-levels of inheritance)
@@ -175,10 +149,10 @@ class WorkflowManager
     // The groups are checked here too, when they all ran in this process: a grouping that would race under --jobs is
     // then found by any run of the configuration, not only by the first parallel one.
     if (runsAllGroups && groupNames.size() > 1) {
-      std::map<std::string, std::vector<RootIO::OpenedFile>> openedByGroup;
-      for (const RootIO::OpenedFile& o : RootIO::OpenedFiles())
+      std::map<std::string, std::vector<OpenRecord::OpenedFile>> openedByGroup;
+      for (const OpenRecord::OpenedFile& o : OpenRecord::Opened())
         openedByGroup[groupOfBlock.at(o.block)].push_back(o);
-      for (const std::string& shared : FilesSharedBetweenGroups(openedByGroup))
+      for (const std::string& shared : OpenRecord::SharedBetweenGroups(openedByGroup))
         Logger::Warn("WorkflowManager: two groups of active_tasks share a file, so they cannot run in parallel "
                      "(--jobs): {}. Put those blocks in one group.", shared);
     }
@@ -253,7 +227,7 @@ class WorkflowManager
 
   // 'active_tasks' is an object of named groups, each a list of blocks run in that order. A group is the unit that can
   // run in a process of its own (runAnalysis.sh -j): it must not open a file another group writes, which the driver
-  // checks after the run from the files each process opened (RootIO::WriteOpenRecordTo). One shape for every
+  // checks after the run from the files each process opened (OpenRecord::WriteTo). One shape for every
   // configuration, a single group where nothing runs in parallel: a configuration still written as a list stops here.
   void ParseWorkflowTasks(const rapidjson::Value& workflowNode, const std::string& group)
   {

@@ -1,5 +1,5 @@
 #include "Logger.h"
-#include "RootIOHelpers.h"
+#include "OpenRecord.h"
 #include "RunAnalysisChain.h"
 #include "WorkflowManager.h"
 
@@ -9,10 +9,12 @@
 #include <filesystem>
 #include <iostream>
 #include <map>
+#include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
-// The files a group of a parallel run leaves in its run directory: the files it opened (RootIO::WriteOpenRecordTo) and
+// The files a group of a parallel run leaves in its run directory: the files it opened (OpenRecord::WriteTo) and
 // its warnings (Logger::WriteSummaryTo). The one place that names them.
 std::string RunFile(const std::string& runDir, const std::string& group, const char* extension)
 {
@@ -24,20 +26,20 @@ std::string RunFile(const std::string& runDir, const std::string& group, const c
 // the warnings of all groups; 1 when a file was shared or a group left nothing.
 int CheckRun(const WorkflowManager& manager, const std::string& runDir)
 {
-  std::map<std::string, std::vector<RootIO::OpenedFile>> openedByGroup;
+  std::map<std::string, std::vector<OpenRecord::OpenedFile>> openedByGroup;
   bool complete = true;
   for (const std::string& group : manager.GroupNames()) {
-    const std::string record = RunFile(runDir, group, ".opens");
-    if (!std::filesystem::exists(record) || !Logger::AddSummaryFrom(RunFile(runDir, group, ".summary"))) {
+    std::optional<std::vector<OpenRecord::OpenedFile>> opened = OpenRecord::Read(RunFile(runDir, group, ".opens"));
+    if (!opened || !Logger::AddSummaryFrom(RunFile(runDir, group, ".summary"))) {
       Logger::Error("check-run: group '{}' left no record of its run in '{}': it did not reach its end, and the files "
                     "it opened are not known.", group, runDir);
       complete = false;
       continue;
     }
-    openedByGroup[group] = RootIO::ReadOpenRecord(record, "check-run");
+    openedByGroup[group] = std::move(*opened);
   }
 
-  const std::vector<std::string> shared = WorkflowManager::FilesSharedBetweenGroups(openedByGroup);
+  const std::vector<std::string> shared = OpenRecord::SharedBetweenGroups(openedByGroup);
   for (const std::string& file : shared)
     Logger::Error("check-run: two groups of active_tasks shared a file: {}. Its content depends on the order the "
                   "processes ran in: put those blocks in one group and regenerate the file.", file);
@@ -104,7 +106,7 @@ int main(int argc, char* argv[])
       return 0;
     }
     if (!runDir.empty())
-      RootIO::WriteOpenRecordTo(RunFile(runDir, group, ".opens"));
+      OpenRecord::WriteTo(RunFile(runDir, group, ".opens"));
 
     const int status = RunAnalysisChain(configFile, baseConfigFile, group);
     if (!runDir.empty())

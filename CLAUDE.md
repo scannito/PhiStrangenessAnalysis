@@ -266,7 +266,7 @@ strings.
   `ParticleTask::AnalysisBinning`).
 - One namespace per helper header, in `PascalCase` and named after the file, without
   `Helpers` when the file has it: `BinningUtils`, `RootIO` (`RootIOHelpers.h`),
-  `JsonConfig` (`JsonConfigHelpers.h`), `HistogramUtils`, `RunEnvironment`, `Logger`, `IONames`, `AnalysisStructures`, `TrainConfig`.
+  `JsonConfig` (`JsonConfigHelpers.h`), `HistogramUtils`, `RunEnvironment`, `Logger`, `IONames`, `AnalysisStructures`, `TrainConfig`, `OpenRecord`.
   What a namespace keeps to itself goes in a nested `Detail`, capitalised like the rest. One public nested namespace
   exists, `JsonConfig::Dpl`: the values as DPL writes a task's options ("0"/"1", `key._M_elems[i]`), kept apart so
   that a key of the framework's own configuration is never read with them.
@@ -315,8 +315,8 @@ question, and which one is right depends on what it costs to lose the contents.
 A new task that writes into a file somebody else also writes into belongs in row two.
 
 "Somebody else" is another run, never another block of the same run. Within one run a file has one writing block,
-listed before every block that reads it, and `OpenOrThrow` stops the run otherwise (`RootIO::BlockScope`, the record
-of the files each block opens). The check is per file, so two engines (`Extract1D`, `Extract2D`) sharing one
+listed before every block that reads it, and `OpenOrThrow` stops the run otherwise (`OpenRecord.h`, the record of
+the files each block opens). The check is per file, so two engines (`Extract1D`, `Extract2D`) sharing one
 `PhiAssocSpectra.root` have to be two runs.
 
 ## Cling constraints

@@ -159,7 +159,7 @@ communicate through files: `phi_fit_task` writes the trigger-yield matrices that
 
 Within one run a file has one writing block, listed before every block that reads it: a
 block that writes a file another block of the run has already opened stops the run
-(`RootIO::BlockScope`). A group is what runs in a process of its own with `--jobs`, so the
+(`OpenRecord.h`). A group is what runs in a process of its own with `--jobs`, so the
 blocks that share a file belong to one group; `data` and `purity` have one group per period,
 the other modes a single group `all`. A block listed twice, in one group or in two, stops the
 run.

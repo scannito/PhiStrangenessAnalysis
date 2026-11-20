@@ -2,6 +2,7 @@
 
 #include "BinningUtils.h"
 #include "Logger.h"
+#include "OpenRecord.h"
 #include "RunEnvironment.h"
 
 #include "TDirectory.h"
@@ -14,12 +15,10 @@
 #include <concepts>
 #include <filesystem>
 #include <format>
-#include <fstream>
 #include <map>
 #include <memory>
 #include <stdexcept>
 #include <string>
-#include <set>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -42,73 +41,8 @@ inline void CreateDirectoriesOrThrow(const std::filesystem::path& dir, std::stri
     throw std::runtime_error(std::format("[FATAL] {}: cannot create the directory '{}': {}", errCtx, dir.string(), ec.message()));
 }
 
-// The files each block of a workflow run opens, so that a run whose blocks would read a stale file or overwrite each
-// other's output stops instead of giving wrong numbers. Within one run every file another task reads is looked up by
-// name: a block that reads a file before the block that writes it has run reads the previous run's version, with the
-// right stamps and no error; and of two blocks writing one file the second clears or replaces what the first wrote,
-// after a third may already have read it. Process state, like the Logger counters; WorkflowManager clears it when a
-// workflow starts.
-// One open of a file by a block of the workflow, as the record keeps it.
-struct OpenedFile {
-  bool write;
-  std::string block;
-  std::string path;
-};
-
 namespace Detail
 {
-struct OpenRecord {
-  std::string currentBlock;                                // empty outside a workflow block: nothing is recorded
-  std::map<std::string, std::set<std::string>> openedBy;   // canonical path -> the blocks that opened it
-  std::vector<OpenedFile> opened;                          // every open of this workflow, in order
-  std::ofstream sink;                                      // the same, written out for runAnalysis.sh -j, if asked
-};
-
-inline OpenRecord& Record()
-{
-  static OpenRecord record;
-  return record;
-}
-
-// Before the file is opened: RECREATE has replaced it by the time TFile::Open returns. A file is written by one block
-// of a run, before every block that reads it; a block may read and then write its own files (the projection caches).
-// The rule is per file, while the framework owns a file per subtree ({binning_name}, Extract1D/Extract2D): one
-// binning_name per run leaves the two engines of one PhiAssocSpectra.root as the only shared write that would be
-// legitimate, and no configuration has it; within one run, two engines sharing a file have to be two runs.
-inline void RecordOpen(const std::string& path, bool write, std::string_view errCtx)
-{
-  OpenRecord& record = Record();
-  if (record.currentBlock.empty())
-    return;
-  const std::string& block = record.currentBlock;
-
-  // One file is spelled in more than one way: a full path in corrections_file, directory + prefix + name where it is
-  // written. A path that cannot be made canonical is recorded as written, and a second spelling of it is then missed.
-  std::error_code ec;
-  const std::filesystem::path canonical = std::filesystem::weakly_canonical(path, ec);
-  if (ec)
-    Logger::Warn("{}: '{}' cannot be made canonical ({}): the check of which blocks open it only sees this spelling.",
-                 errCtx, path, ec.message());
-  const std::string key = ec ? path : canonical.string();
-  std::set<std::string>& blocks = record.openedBy[key];
-
-  if (write) {
-    for (const std::string& other : blocks) {
-      if (other != block)
-        throw std::runtime_error(std::format(
-          "[FATAL] {}: block '{}' writes '{}', which block '{}' of this run has already opened: if '{}' read it, it read "
-          "the version of a previous run, and if it wrote it, this block clears or replaces what it wrote. List the "
-          "writer before its readers in active_tasks, or give two writers different output_prefix values.",
-          errCtx, block, path, other, other));
-    }
-  }
-  blocks.insert(block);
-  record.opened.push_back({write, block, key});
-  // One line per open, flushed: a process that dies leaves the lines of what it opened before.
-  if (record.sink.is_open())
-    record.sink << (write ? "W" : "R") << '\t' << block << '\t' << key << std::endl;
-}
-
 inline std::unique_ptr<TFile> OpenChecked(const std::string& path, const char* mode, std::string_view errCtx)
 {
   std::unique_ptr<TFile> f(TFile::Open(path.c_str(), mode));
@@ -127,54 +61,11 @@ inline std::unique_ptr<TFile> OpenChecked(const std::string& path, const char* m
 }
 } // namespace Detail
 
-// A new workflow in this process: the files the previous one opened are not this run's.
-inline void ClearOpenRecord()
-{
-  Detail::Record().openedBy.clear();
-  Detail::Record().opened.clear();
-}
-
-// What the blocks of this workflow opened, in order.
-inline const std::vector<OpenedFile>& OpenedFiles() { return Detail::Record().opened; }
-
-// Writes the record to 'path' as well, one line per open: W or R, block, canonical path, tab-separated. The groups of
-// a parallel run are separate processes, so the files one group writes and another opens are only seen by putting
-// the records together (runAnalysis.sh -j). Read back by ReadOpenRecord.
-inline void WriteOpenRecordTo(const std::string& path)
-{
-  Detail::Record().sink.open(path, std::ios::trunc);
-  if (!Detail::Record().sink)
-    throw std::runtime_error(std::format("[FATAL] RootIO: cannot write the record of opened files to '{}'", path));
-}
-
-inline std::vector<OpenedFile> ReadOpenRecord(const std::string& path, std::string_view errCtx)
-{
-  std::ifstream in(path);
-  if (!in)
-    throw std::runtime_error(std::format("[FATAL] {}: cannot read the record of opened files '{}'", errCtx, path));
-  std::vector<OpenedFile> opened;
-  std::string mode, block, file;
-  while (std::getline(in, mode, '\t') && std::getline(in, block, '\t') && std::getline(in, file))
-    opened.push_back({mode == "W", block, file});
-  return opened;
-}
-
-// Names the workflow block that is running, for the record of the files it opens, until it goes out of scope: a
-// block that throws leaves no name behind.
-class BlockScope
-{
- public:
-  explicit BlockScope(std::string block) { Detail::Record().currentBlock = std::move(block); }
-  ~BlockScope() { Detail::Record().currentBlock.clear(); }
-  BlockScope(const BlockScope&) = delete;
-  BlockScope& operator=(const BlockScope&) = delete;
-};
-
 inline std::unique_ptr<TFile> OpenOrThrow(const std::string& path, const char* mode, std::string_view errCtx)
 {
   // Every caller spells its mode in capitals; "" is TFile's default, a read.
   const std::string_view modeName(mode);
-  Detail::RecordOpen(path, !(modeName.empty() || modeName == "READ"), errCtx);
+  OpenRecord::Note(path, !(modeName.empty() || modeName == "READ"), errCtx);
   // A file to be updated is checked on a read-only handle first. The UPDATE handle, closed by the throw above, would
   // write back what ROOT recovered, and the next run would find a file that looks sound. Measured on 19 November 2026
   // (ROOT 6.36.10), on a file created and never closed: kRecovered 1 on every READ open, also repeated; one UPDATE

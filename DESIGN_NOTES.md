@@ -1067,7 +1067,7 @@ runs with separate configurations on purpose (the owner): `mc` is rerun only whe
 often. So a `data` run reads `Corrections/…Corrections.root` and `Purities/…Purity.root` as they are on disk, written
 by an earlier run of another mode, and nothing ties the result to that version: rerun `mc` on a new production (the
 updated LHC26ae MC) without `data`, and the results on disk were made with maps that no longer exist, unnoticed. The
-binning stamps catch a different binning, not a different version; the record of opened files (`RootIO::BlockScope`)
+binning stamps catch a different binning, not a different version; the record of opened files (`OpenRecord.h`)
 only sees files the run itself writes. The correlation tasks print the provenance of the trigger, purity and
 corrections files they read (`RootIO::PrintProvenance`, `CorrelationTask.h`, `CorrelationTaskBase.h`), and keep none
 of it. To do, agreed with the owner: copy into the provenance of the output, per file read, the facts that identify it

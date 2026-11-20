@@ -2,9 +2,9 @@
 
 // Facts about the run itself: when it happened and which code produced it.
 //
-// Deliberately free of ROOT. It is the one header in the framework that compiles
-// with the standard library alone, which is what makes it testable with a plain
-// compiler instead of only through the interpreter - and the reason it is not in
+// Deliberately free of ROOT, like Logger.h and OpenRecord.h: it compiles with the
+// standard library alone, which is what makes it testable with a plain compiler
+// instead of only through the interpreter - and the reason it is not in
 // RootIOHelpers.h, where everything else touches a TFile.
 
 #include <algorithm>
