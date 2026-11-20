@@ -41,3 +41,8 @@ OldComparison/investigation/
 # The plots made on request (PDFs of the summaries, the three-method ratios, the comparisons), one folder per day: they
 # show unpublished results and are regenerable from their specifications, so they stay out of this public repository.
 Figures/
+
+# What runAnalysis.sh leaves in Logs/ besides the logs: the directory of every --jobs run (the copied binary, each
+# group's log, record of opened files and summary of warnings) and the lock of the checkout.
+Logs/run_*/
+Logs/.runAnalysis.lock

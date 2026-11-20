@@ -71,10 +71,10 @@ inline OpenRecord& Record()
 }
 
 // Before the file is opened: RECREATE has replaced it by the time TFile::Open returns. A file is written by one block
-// of a run, before every block that reads it; a block may read and then write its own files (the projection caches). The rule is per file, while the framework owns a file per subtree
-// ({binning_name}, Extract1D/Extract2D): one binning_name per run leaves the two engines of one PhiAssocSpectra.root
-// as the only shared write that would be legitimate, and no configuration has it; within one run, two engines sharing
-// a file have to be two runs.
+// of a run, before every block that reads it; a block may read and then write its own files (the projection caches).
+// The rule is per file, while the framework owns a file per subtree ({binning_name}, Extract1D/Extract2D): one
+// binning_name per run leaves the two engines of one PhiAssocSpectra.root as the only shared write that would be
+// legitimate, and no configuration has it; within one run, two engines sharing a file have to be two runs.
 inline void RecordOpen(const std::string& path, bool write, std::string_view errCtx)
 {
   OpenRecord& record = Record();
