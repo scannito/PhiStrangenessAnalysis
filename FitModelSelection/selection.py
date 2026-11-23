@@ -21,6 +21,12 @@ START_GAP = 0.5  # NLL: the configured start "lost" when the winner is lower by 
 CANDIDATES = {
     "k0s": [("DSCB", "Chebychev1"), ("DSCB", "Chebychev2"), ("DSCB", "Chebychev3"),
             ("DSCB+Gaussian", "Chebychev1"), ("DSCB+Gaussian", "Chebychev2"), ("DSCB+Gaussian", "Chebychev3")],
+    # the K0S reflection in the Lambda's mass: a step (ErfStep) next to the combinatorial background; the last models
+    # tried (DESIGN_NOTES.md section 13), to be revised with trains that reject it
+    "lambda": [("DSCB", "Chebychev2+ErfStep"), ("DSCB", "Bernstein2+ErfStep"), ("DSCB", "Bernstein3+ErfStep"),
+               ("DSCB+Gaussian", "Chebychev2+ErfStep"), ("DSCB+Gaussian", "Bernstein2+ErfStep"), ("DSCB+Gaussian", "Bernstein3+ErfStep")],
+    "antilambda": [("DSCB", "Chebychev2+ErfStep"), ("DSCB", "Bernstein2+ErfStep"), ("DSCB", "Bernstein3+ErfStep"),
+                   ("DSCB+Gaussian", "Chebychev2+ErfStep"), ("DSCB+Gaussian", "Bernstein2+ErfStep"), ("DSCB+Gaussian", "Bernstein3+ErfStep")],
     "xi": [("DSCB", "Chebychev1"), ("DSCB", "Chebychev2")],
     "omega": [("DSCB", "Chebychev1"), ("DSCB", "Chebychev2"), ("Gaussian", "Chebychev1"), ("Gaussian", "Chebychev2")],
     "pi_tpc": [("DSCB", "Gaussian")],
