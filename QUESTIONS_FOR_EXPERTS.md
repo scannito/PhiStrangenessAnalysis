@@ -241,3 +241,69 @@ candidates have the same pairs per candidate in both windows, which the sideband
 **Meanwhile.** The code keeps the method it had, R_hist (`from_fit: false`), now counted on the window the pairs were
 selected in (the correction above). Measurements: `~/alice/claude-sandbox/sideband-check/` (the outputs of the three
 versions) and `~/alice/claude-sandbox/tools/` (`sbexcess`, `sbslope`, `r3`), not in the repository.
+
+---
+
+## Run-condition (RCT) and other data-taking selections on the MC generated side
+
+**Opened 21 November 2026.** O2Physics `phiStrangeCorrelator` (`EventSelectionProducer::defaultEventSelection`,
+`cfgRCTLabel`, commit `973f0d902` on the branch `phistrange-ccdb-ownership`); here `EfficiencyCalculator::ComputeEventLoss`
+and `CorrelationTaskBase::GenerateSpectraAndTrends`.
+
+**Context.** The producer can now reject reconstructed collisions of data-taking intervals that the Run Condition
+Table flags as bad for the chosen detectors (`RCTFlagsChecker`, label `CBT`, `CBT_hadronPID`, ...). It does so for
+data and for MC reconstructed collisions; the generated MC collisions (`processMCGen`, `processMCGenWPhi`, INEL>0
+only) do not see it. The same holds for the time-frame and ITS-ROF border cuts (`kNoTimeFrameBorder`,
+`kNoITSROFrameBorder`) the MC reconstructed selection already applies. These selections are about the detector and
+the data taking, not about the event: none of them depends on what the generator produced.
+
+In anchored MC a generated collision has a BC, hence a run and a time, and `BcSels` carries the same RCT bits as
+`EvSels`, so the selection can be applied on the generated side too. Two PWGLF tasks do it, as an option, default off:
+`cascqaanalysis` and `v0qaanalysis` (`applyRCTOnGen` and `applyBcBorderCutsOnGen`, O2Physics #16463 and #16837,
+"for a better efficiency interpretation"). Most tasks apply RCT on reconstructed collisions only.
+
+**Where it enters here.** The event loss is generated collisions with a selected reconstructed collision over all
+generated INEL>0 collisions (`ComputeEventLoss`), and it divides the trigger count on its own
+(`effectiveTriggers /= eventLossCorr` in `GenerateSpectraAndTrends`). A selection applied to the reconstructed side
+only lowers it by the fraction f of MC collisions it removes, and that fraction goes straight into the corrected
+trigger count. In the per-particle signal loss over event loss it cancels, since the removal does not depend on the
+event's content.
+
+**Numbers.** None yet. f is measured by the producer itself: in an MC run with `cfgRCTLabel` set, the drop from the
+bin "With at least a gen coll" to the bin "RCTFlags cut" of `hEventSelectionMC`. With MC anchored to good runs only,
+f should be close to zero for the RCT. The border cuts remove collisions whatever the run; their fraction is the
+drop over the bins "kNoTimeFrameBorder" and "kNoITSROFrameBorder" of the same histogram (not measured yet).
+
+**The question.**
+1. Should data-taking selections (RCT, time-frame and ITS-ROF borders) be part of the event loss, i.e. corrected for
+   as an inefficiency, or applied to both the reconstructed and the generated MC collisions so that they cancel?
+2. If they should cancel: is the BC of the `McCollision` (`BcSels`) the accepted way, as in `cascqaanalysis`?
+3. Is it acceptable instead to leave the RCT out of the MC altogether, on the ground that anchored productions use
+   good runs only?
+
+**Meanwhile.** `cfgRCTLabel` stays empty in the MC productions used for corrections (there is then nothing to cancel)
+and may be set in data. The border cuts are applied as before, reconstructed side only. O2Physics handoff, point 3.I.
+
+---
+
+## The Λ feed-down from Ξ decays
+
+**What it is about.** The Λ (and anti-Λ) associated with a φ include those from Ξ decays, which are not primary. The
+measurement wants the primary Λ, so the secondary ones must be removed. The data trains already record what is needed
+for it: `v0-reduced-cand-producer/k0sReducedCandidates/h2LambdaFromXi` and `h2AntiLambdaFromXi` (O2Physics #18061).
+Nothing in the framework reads them yet.
+
+**Options.**
+1. A scale factor per pT bin (fraction of primaries) applied to the Λ spectrum, as for a single-particle measurement.
+2. A feed-down correlation: the φ–Ξ correlation, folded with the Ξ→Λ decay kinematics, subtracted from the φ–Λ one.
+   It keeps the angular structure, which a scale factor assumes to be the same for primary and secondary Λ.
+
+**What the answer changes.** The Λ yields and the ratios Λ/π, anti-Λ/π and Λ/K0S. Whether option 1 is enough depends
+on whether secondary Λ correlate with the φ like primary ones.
+
+**The question.**
+1. Which of the two is accepted for a φ–Λ correlation measurement, or is there a standard way in PWGLF?
+2. Is the fraction from `h2LambdaFromXi` (data, with the Ξ measured) preferred over the one from MC?
+
+**Meanwhile.** The Λ is measured without the correction (the owner, 23 November 2026), and the configuration refuses
+`feed_down` for it until it is implemented (`DESIGN_NOTES.md` section 13).
