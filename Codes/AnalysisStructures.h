@@ -41,10 +41,9 @@ struct AssocParticleConfig {
       dirName(dirNameOverride.value_or(DefaultDirName(name))),
       mass(AnalysisConstants::GetMass(name)) {}
 
-  // How the O2 task names its pair directories: "phiK0S", "phiXi", "phiPi".
-  // Unlike the mass this is only a default, because several species can share one
-  // directory - as Lambda and AntiLambda would, the histogram name still carrying
-  // the species while the folder is shared.
+  // How the O2 task names its pair directories: "phiK0S", "phiLambda", "phiAntiLambda".
+  // Unlike the mass this is only a default: a production may name a species' directory
+  // otherwise, the histogram name still carrying the species.
   static std::string DefaultDirName(const std::string& particle) { return std::format("phi{}", particle); }
 };
 

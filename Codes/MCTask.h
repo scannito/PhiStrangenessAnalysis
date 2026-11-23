@@ -127,9 +127,9 @@ class MCTask : public IAnalysisTask
       std::string name = JsonConfig::RequireString(p, "name", ctx);
 
       // Default: the particle name lowercased, which is how the O2 task names
-      // its output directories. Override it when several species share one
-      // directory - Lambda and AntiLambda both live under "lambda" - since the
-      // histogram name still carries the species, only the folder is shared.
+      // its output directories ("lambda", "antilambda"). Override it for a
+      // production whose directory of a species is named otherwise: the
+      // histogram name still carries the species, only the folder differs.
       std::string dirName = name;
       std::ranges::transform(dirName, dirName.begin(), [](unsigned char c) { return std::tolower(c); });
       dirName = JsonConfig::OptionalString(p, "dir_name", dirName, ctx);
