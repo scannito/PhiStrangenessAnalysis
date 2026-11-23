@@ -5,6 +5,7 @@
 #include "BinningUtils.h"
 #include "IONames.h"
 #include "HistogramUtils.h"
+#include "Logger.h"
 
 #include "TH1.h"
 #include "TH2.h"
@@ -17,7 +18,9 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <stdexcept>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -34,18 +37,66 @@ class EfficiencyCalculator
   // Purely static class
   EfficiencyCalculator() = delete;
 
+  // What a binomial ratio does with a bin that has entries in the numerator and none in the denominator, which
+  // TH1::Divide would leave at 0 in silence. A denominator empty in every bin while the numerator is not stops the
+  // run in both cases.
+  enum class EmptyDenominator {
+    Fatal,  // impossible: the numerator counts a subset of the denominator, bin by bin
+    Counted // possible: counted and reported, the bin stays at 0 (the caller says why it can happen)
+  };
+
+  // num / den with "B", for a numerator that counts a subset of the denominator, named 'name' and otherwise a clone
+  // of 'num'. Only the bins inside the axes are looked at, the ones a map keeps.
+  template <typename THType>
+  static std::unique_ptr<THType> BinomialRatio(const THType* num, const TH1* den, const std::string& name,
+                                               EmptyDenominator emptyDenominator, std::string_view errCtx)
+  {
+    if (num->GetDimension() != den->GetDimension() || num->GetNcells() != den->GetNcells())
+      throw std::runtime_error(std::format("[FATAL] {}: '{}' and '{}' do not have the same bins.", errCtx, num->GetName(), den->GetName()));
+    if (num->Integral() > 0 && den->Integral() <= 0)
+      throw std::runtime_error(std::format("[FATAL] {}: '{}' has entries and '{}', which it is a subset of, has none. The "
+                                           "production fills the one and not the other: it has to be produced again.",
+                                           errCtx, num->GetName(), den->GetName()));
+    int emptyBins = 0;
+    for (int cell = 0; cell < num->GetNcells(); ++cell) {
+      if (!num->IsBinUnderflow(cell) && !num->IsBinOverflow(cell) && num->GetBinContent(cell) > 0 && den->GetBinContent(cell) <= 0)
+        ++emptyBins;
+    }
+    if (emptyBins > 0 && emptyDenominator == EmptyDenominator::Fatal)
+      throw std::runtime_error(std::format("[FATAL] {}: {} bins have entries in '{}' and none in '{}', which it is a subset "
+                                           "of bin by bin. The production fills the two differently: it has to be produced again.",
+                                           errCtx, emptyBins, num->GetName(), den->GetName()));
+    if (emptyBins > 0)
+      Logger::Warn("{}: {} bins of '{}' have entries in '{}' and none in '{}': they are left at 0.", errCtx, emptyBins, name,
+                   num->GetName(), den->GetName());
+
+    std::unique_ptr<THType> ratio(static_cast<THType*>(num->Clone(name.c_str())));
+    ratio->SetDirectory(0);
+    ratio->Divide(num, den, 1.0, 1.0, "B");
+    return ratio;
+  }
+
   // Computes the Global Event Selection Efficiency (Event Loss)
   // Returns a 1D histogram, owned by the caller. Both inputs must exist: the callers read them with GetUniqueOrThrow.
   static std::unique_ptr<TH1> ComputeEventLoss(const TH1* hEventMultGenAssocReco, const TH1* hEventMultGen)
   {
-    std::unique_ptr<TH1> hEventLoss(static_cast<TH1*>(hEventMultGenAssocReco->Clone(IONames::kEventLoss.c_str())));
+    // Both filled with the multiplicity of the generated collision: a subset bin by bin.
+    std::unique_ptr<TH1> hEventLoss = BinomialRatio(hEventMultGenAssocReco, hEventMultGen, IONames::kEventLoss,
+                                                                     EmptyDenominator::Fatal,
+                                                                     "EfficiencyCalculator: event loss");
     hEventLoss->SetTitle("Event Selection Efficiency;Multiplicity Percentile (%);Efficiency");
-    hEventLoss->SetDirectory(0);
-
-    hEventLoss->Divide(hEventMultGenAssocReco, hEventMultGen, 1.0, 1.0, "B");
 
     return hEventLoss;
   }
+
+  // The two ratios of every map. The signal loss divides two counts of generated particles, at the same generated
+  // kinematics: a subset bin by bin. The efficiency divides reconstructed candidates, at their reconstructed pT and y,
+  // by the generated particles they come from, at the generated ones: a candidate can migrate into a bin without
+  // generated particles (one, a Lambda at 6.4-7 GeV/c, in the productions of November 2026), so single bins are
+  // counted; a denominator empty throughout still stops the run (the productions up to November 2026 filed every
+  // generated anti-Lambda under the Lambda).
+  static constexpr EmptyDenominator kEfficiencyEmptyBins = EmptyDenominator::Counted;
+  static constexpr EmptyDenominator kSignalLossEmptyBins = EmptyDenominator::Fatal;
 
   // Computes the 3D correction map: efficiency, signal loss or their product, by mode
   static std::unique_ptr<TH3> Compute3DCorrectionMap(const AnalysisStructures::LoadedMC& data, ParticleCorrectionMode mode = ParticleCorrectionMode::EfficiencyOnly)
@@ -56,13 +107,14 @@ class EfficiencyCalculator
     std::unique_ptr<TH3> h3MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH3>(data.h4MCGenAssocReco.get(), cuts, {1, 2, 3}, std::format("h3{}MCGenAssocRecoTemp", data.name));
     std::unique_ptr<TH3> h3MCReco = HistogramUtils::ProjectTHnSparse<TH3>(data.h4MCReco.get(), cuts, {1, 2, 3}, std::format("h3{}MCRecoTemp", data.name));
 
+    const std::string ctx = std::format("EfficiencyCalculator: '{}' 3D map", data.name);
     // Calculate 3D Efficiency (Reco / GenAssocReco)
-    std::unique_ptr<TH3> h3Efficiency(static_cast<TH3*>(h3MCReco->Clone(std::format("h3{}EfficiencyTemp", data.name).c_str())));
-    h3Efficiency->Divide(h3MCReco.get(), h3MCGenAssocReco.get(), 1.0, 1.0, "B");
+    std::unique_ptr<TH3> h3Efficiency = BinomialRatio(h3MCReco.get(), h3MCGenAssocReco.get(), std::format("h3{}EfficiencyTemp", data.name),
+                                                                      kEfficiencyEmptyBins, ctx);
 
     // Calculate 3D Signal Loss (GenAssocReco / Gen)
-    std::unique_ptr<TH3> h3SignalLoss(static_cast<TH3*>(h3MCGenAssocReco->Clone(std::format("h3{}SignalLossTemp", data.name).c_str())));
-    h3SignalLoss->Divide(h3MCGenAssocReco.get(), data.h3MCGen.get(), 1.0, 1.0, "B");
+    std::unique_ptr<TH3> h3SignalLoss = BinomialRatio(h3MCGenAssocReco.get(), data.h3MCGen.get(), std::format("h3{}SignalLossTemp", data.name),
+                                                                      kSignalLossEmptyBins, ctx);
 
     // Compute total 3D correction map: Efficiency, Signal Loss or Efficiency * Signal Loss
     // Named for what it is: the CCDB name is given where the file is written (RootIO::WriteCcdbFile).
@@ -103,13 +155,14 @@ class EfficiencyCalculator
     std::unique_ptr<TH2> h2MCGenAssocReco = HistogramUtils::ProjectTHnSparse<TH2>(data.h4MCGenAssocReco.get(), cuts, {3, 2}, std::format("h2{}MCGenAssocRecoTemp", data.name));
     std::unique_ptr<TH2> h2MCReco = HistogramUtils::ProjectTHnSparse<TH2>(data.h4MCReco.get(), cuts, {3, 2}, std::format("h2{}MCRecoTemp", data.name));
 
+    const std::string ctx = std::format("EfficiencyCalculator: '{}' 2D map", data.name);
     // Calculate 2D Efficiency (Reco / GenAssocReco)
-    std::unique_ptr<TH2> h2Efficiency(static_cast<TH2*>(h2MCReco->Clone(std::format("h2{}EfficiencyTemp", data.name).c_str())));
-    h2Efficiency->Divide(h2MCReco.get(), h2MCGenAssocReco.get(), 1.0, 1.0, "B");
+    std::unique_ptr<TH2> h2Efficiency = BinomialRatio(h2MCReco.get(), h2MCGenAssocReco.get(), std::format("h2{}EfficiencyTemp", data.name),
+                                                                      kEfficiencyEmptyBins, ctx);
 
     // Calculate 2D Signal Loss (GenAssocReco / Gen)
-    std::unique_ptr<TH2> h2SignalLoss(static_cast<TH2*>(h2MCGenAssocReco->Clone(std::format("h2{}SignalLossTemp", data.name).c_str())));
-    h2SignalLoss->Divide(h2MCGenAssocReco.get(), h2MCGen.get(), 1.0, 1.0, "B");
+    std::unique_ptr<TH2> h2SignalLoss = BinomialRatio(h2MCGenAssocReco.get(), h2MCGen.get(), std::format("h2{}SignalLossTemp", data.name),
+                                                                      kSignalLossEmptyBins, ctx);
 
     // Compute total 2D correction map: Efficiency, Signal Loss or Efficiency * Signal Loss
     // Named for what it is: the CCDB name is given where the file is written (RootIO::WriteCcdbFile).
@@ -230,7 +283,7 @@ class EfficiencyCalculator
 
     auto collapse = [&](const TH1* h) {
       const auto [integral, error] = HistogramUtils::IntegralAndErrorWholeBins(h, multBinning.front(), multBinning.back());
-      auto c = std::make_unique<TH1D>("", "", 1, 0., 1.);
+      auto c = std::make_unique<TH1D>(std::format("{}_analysisRange", h->GetName()).c_str(), "", 1, 0., 1.);
       c->SetDirectory(0);
       c->Sumw2();
       HistogramUtils::SetBinValueAndError(c.get(), 0, {integral, error});
@@ -276,15 +329,18 @@ class EfficiencyCalculator
     DivideCounts(const TH1* h1MCGen, const TH1* h1MCGenAssocReco, const TH1* h1MCReco,
                  const std::string& particle, const std::string& multTag, IONames::SpectrumBinning binning)
   {
-    // "B" on both: the reconstructed are a subset of the generated-associated,
-    // which are a subset of the generated, so the two ratios are binomial.
-    std::unique_ptr<TH1> efficiency = HistogramUtils::MakeRatioHist(
+    // Binomial both: the reconstructed are a subset of the generated-associated,
+    // which are a subset of the generated.
+    const std::string ctx = std::format("EfficiencyCalculator: '{}' {}", particle, multTag);
+    std::unique_ptr<TH1> efficiency = BinomialRatio(
       h1MCReco, h1MCGenAssocReco, IONames::CorrectionMapName(particle, IONames::CorrectionMap::Efficiency, multTag, binning),
-      ";p_{T} (GeV/#it{c});Acc #times #epsilon", 1.0, 1.0, "B");
+      kEfficiencyEmptyBins, ctx);
+    efficiency->SetTitle(";p_{T} (GeV/#it{c});Acc #times #epsilon");
 
-    std::unique_ptr<TH1> signalLoss = HistogramUtils::MakeRatioHist(
+    std::unique_ptr<TH1> signalLoss = BinomialRatio(
       h1MCGenAssocReco, h1MCGen, IONames::CorrectionMapName(particle, IONames::CorrectionMap::SignalLoss, multTag, binning),
-      ";p_{T} (GeV/#it{c});Signal loss", 1.0, 1.0, "B");
+      kSignalLossEmptyBins, ctx);
+    signalLoss->SetTitle(";p_{T} (GeV/#it{c});Signal loss");
 
     return {std::move(efficiency), std::move(signalLoss)};
   }
