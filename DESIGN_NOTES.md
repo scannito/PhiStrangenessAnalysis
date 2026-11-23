@@ -1786,6 +1786,45 @@ How it enters the correlation (a scale factor on the spectrum, or a feed-down co
 to be decided. In the correction structure it is an optional per-particle correction, accepted only for the
 species that have it; until it is implemented, a configuration that asks for it must throw, not be ignored.
 
+The Λ comes back as an associated species without it (the owner, 23 November 2026): its results will include the Λ
+from Ξ decays until the correction exists, and `QUESTIONS_FOR_EXPERTS.md` asks how it should enter. The data trains
+already hold what it needs, `v0-reduced-cand-producer/k0sReducedCandidates/h2LambdaFromXi` (and `h2AntiLambdaFromXi`).
+
+**Λ and anti-Λ, where they stand (23 November 2026).** Separate species, as in O2Physics.
+- Done: masses (`AnalysisConstants.h`), source binning in the MC `global_binning`, Λ in `mc_base_settings_updated`
+  (analysis pT 0.8 1.2 1.6 2.0 2.4 3.0 4.2 6.4).
+- Anti-Λ is left out of `mc_particles`: every MC production up to November 2026 filed the generated anti-Λ under the
+  Λ (`std::abs` on the PDG code in `phiStrangeCorrelation`), so its generated histograms are empty, and the Λ maps
+  divide Λ candidates by generated Λ and anti-Λ (about half the true efficiency). Fixed in O2Physics, not yet merged;
+  MC trains with the fix are needed for both, then anti-Λ goes back in and `mc` is rerun.
+- Left out of the CCDB uploader (`h2EffMapsUpload.yaml`) until then.
+- Purity: a fit-model study per period on `h3LambdaCandidatesMass` / `h3AntiLambdaCandidatesMass` first, then their
+  models in the `fitConfig_<dataset>.json` and the purity keys in `purity_particles` / `purity_sources`.
+- Correlation blocks (`associated_particles`, `corrections.particles`, `yield_ratios` Λ/π, anti-Λ/π, Λ/K0S) once the
+  data trains have Λ and anti-Λ switched on in `activeCorrelationTypes`.
+
+**To solve: the competing-mass rejection is off in the trains, for the Λ and for the K0S (23 November 2026).** In
+`phiStrangeCorrelator` (`v0-reduced-cand-producer`) the rejection of a K0S among the Λ candidates (|M(ππ) − m_K0S| <
+`rejMassLambda`) and of a Λ among the K0S ones sit under `furtherV0Selection`, which is 0 in the data trains of
+22 October; the same flag gates the cτ cuts and the K0S Armenteros cut, so switching it on changes the K0S selection
+too. With it off, a K0S → π⁺π⁻ whose π⁺ the TPC cannot tell from a proton (|nσ_p| < 4 at high momentum) enters the
+Λ's p π⁻ mass with a kinematic lower edge: 1.103 GeV/c² at pT 1 GeV/c, 1.092 at 3.5 (computed over the decay angle),
+and 14 % of the reflected K0S fall in 1.08-1.15, under the Λ peak too. The Λ among the K0S, with the proton taken for a
+pion, has an upper edge in M(ππ): 0.467 at pT 0.3-0.5, 0.530 at 0.8-1.2, beyond 0.55 above 1.6 GeV/c. In the K0S fits
+(2026 HighIRac) no step shows: a falling `ErfStep` at that edge in the 176 cells of pT 0.3-1.6 made the fits worse
+(flagged 54 → 173) and moved the purity by 0.977-1.018 (median 0.998), so the reflection is absorbed by the polynomial
+at the 2 % level. What each rejection would remove (kinematics, before PID): 5-6 % of the Λ (the K0S rejection, above
+1 GeV/c) and 5-6 % of the K0S (the Λ rejection); the MC applies the same cut if its trains run with it. What was tried for the Λ purity (sandbox `sb-evloss`, branch
+`lambda-purity-study`, 2026 HighIRac, 396 fits per species; flagged fits, Λ / anti-Λ):
+- the K0S models (DSCB, DSCB+Gaussian; Chebychev1-3): 324 / 344, the polynomial cannot follow the step;
+- a step `ErfStep` (1 + erf((m − edge)/width), non-negative) summed to Chebychev2: 307 / 302; to Bernstein2/3:
+  273 / 283, 132 / 166 without the Bernstein coefficients at 0 (a shape, not a failure; the owner, 23 November);
+- the edge per pT cell from the kinematics (± 2 MeV): above 2 GeV/c the background follows the data, step included;
+  below about 1.6 GeV/c the edge falls under the Λ peak, where the fit cannot tell it from the signal's tail, so the
+  purity there depends on the model. Only removing the reflection (the rejection, or an MC template) settles it.
+The study waits for the decision on the next trains: with the rejection on the background changes and the study is
+redone; with it off, the step model is what there is. `ErfStep` and the study configurations are on that branch only.
+
 The π needs the fraction of primaries (the pions from weak decays and from the material are not part of the
 measurement; the user, 16 October 2026). Nothing provides it today: the framework has no such correction, and
 the O2Physics task only selects `isPhysicalPrimary()` at generator level. Same treatment in the structure: an
