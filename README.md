@@ -518,7 +518,7 @@ The headers are layered: nothing in a lower layer includes anything from a highe
 
 | File | |
 |---|---|
-| `DynamicRooFitter.h` | The only fitter, used by `PhiFitTask` and `PurityTask`. RooFit engine driven entirely by JSON: builds signal and background PDFs from names (`BkgSourav1/2`, `BkgMattia`, `Chebychev<n>`, `Bernstein<n>`, `RelBWKK`, …), owns every `RooAbsArg` it creates. |
+| `DynamicRooFitter.h` | The only fitter, used by `PhiFitTask` and `PurityTask`. RooFit engine driven entirely by JSON: builds signal and background PDFs from names (`BkgSourav1/2`, `BkgMattia`, `Chebychev<n>`, `Bernstein<n>`, `RelBWKK`, `ErfStep`, …), owns every `RooAbsArg` it creates. |
 | `SpectrumExtrapolator.h` | Extrapolates the unmeasured parts of a spectrum, below and above the measured bins within `domain_range`, and propagates the uncertainty (*The extrapolated yield*). Replaced the ALICE-standard `YieldMean` (now in `OldCodes/`) after reproducing it number for number. |
 | `ExtrapolationModelFactory.h` | Builds the `TF1` model (Lévy–Tsallis, …) with its initial parameters. |
 | `FitQualityRecorder.h` | The `FitQuality` tree of the two fit tasks and the one rule that flags a fit (*Fit quality*). |

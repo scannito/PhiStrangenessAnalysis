@@ -742,6 +742,16 @@ class DynamicRooFitter
     } else if (modelType == "Exponential") {
       RooRealVar* slope = param("slope");
       pdf = Own<RooExponential>(name.c_str(), "Exponential", *obs, *slope);
+    } else if (modelType == "ErfStep") {
+      // A step at 'edge' over |width|, flat beyond it, rising with a positive width and falling with a negative one:
+      // a two-body decay reconstructed under a wrong mass hypothesis has a kinematic edge. The K0S -> pi+pi- with the
+      // pi+ taken for a proton starts at 1.092 GeV/c^2 in the Lambda's p pi- at pT 3.5 GeV/c (1.103 at 1 GeV/c), where
+      // the TPC no longer tells the two apart; the Lambda in the K0S's pi+pi- ends at 0.530 at pT 0.8-1.2 (the purity
+      // studies of 23 November 2026, DESIGN_NOTES.md section 13). Non-negative everywhere. A term of a sum with the
+      // combinatorial background, "Bernstein3+ErfStep".
+      RooRealVar* edge = param("edge");
+      RooRealVar* width = param("width");
+      pdf = Own<RooGenericPdf>(name.c_str(), "Erf step", "1.0 + TMath::Erf((@0 - @1) / @2)", RooArgList(*obs, *edge, *width));
     } else if (modelType == "BkgSourav1") {
       // Custom Phase-Space Background for Phi -> K+ K-
       // Formula: 1.0 + c1*M + c2*sqrt(M - 2*m_K)
