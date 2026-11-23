@@ -518,9 +518,21 @@ class DynamicRooFitter
   // configuration fixed it, and it stays fixed.
   void Stage(std::initializer_list<Held> held)
   {
-    for (const Held& h : held)
-      if (!h.var->isConstant())
-        staged.push_back(h);
+    for (const Held& h : held) {
+      if (h.var->isConstant()) {
+        continue;
+      }
+      // The value can come from the code (the Chebychev's last coefficient at 0), the limits from the configuration. A
+      // range that excludes it is a legitimate choice (a top coefficient kept positive) that the staged start, an
+      // internal strategy, must not overrule: the hold is left out, instead of being clipped silently to a limit (ROOT
+      // up to 6.36) or throwing from setVal (from 6.38).
+      if (h.at < h.var->getMin() || h.at > h.var->getMax()) {
+        Logger::Debug("{}: '{}' not held at {} for the staged start, outside its limits [{}, {}]", Who(),
+                      h.var->GetName(), h.at, h.var->getMin(), h.var->getMax());
+        continue;
+      }
+      staged.push_back(h);
+    }
   }
 
   // Creates ROOT variables(RooRealVar) starting from the configuration.

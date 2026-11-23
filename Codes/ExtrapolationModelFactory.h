@@ -164,8 +164,8 @@ class ExtrapolationModelFactory
         f1->SetParameter(i, scaledVal);
         f1->SetParError(i, std::abs(scaledVal) * 0.05 + 0.001);
 
-        // Apply parameter limits only if a valid range is provided in JSON (min < max)
-        // E.g., a JSON array like [2.0, 0.0, 0.0] leaves the parameter unbounded
+        // The configuration has min < max (BaseConfigManager::ReadParam stops the run otherwise); the scaled range is
+        // unordered only for a "norm" scaled by a spectrum maximum <= 0, which leaves that parameter unbounded.
         if (scaledMin < scaledMax) {
           f1->SetParLimits(i, scaledMin, scaledMax);
         }

@@ -93,7 +93,9 @@ class BaseConfigManager
  private:
   // [value, min, max] to let it float, a single value to fix it. Both forms accept numbers
   // written as strings, like every other number in these configurations. A whole parameter
-  // every time: a fixed one has min and max at zero, not whatever an earlier pass left.
+  // every time: a fixed one has min and max at zero, not whatever an earlier pass left. A free one needs
+  // min < max and the value between them, for the RooFit and the TF1 parameters alike: a start outside its limits is
+  // moved or refused by ROOT, never used as written. So a free parameter always has limits.
   static AnalysisStructures::MathParam ReadParam(const rapidjson::Value& value, std::string_view paramName, std::string_view errCtx)
   {
     if (value.IsArray()) {
@@ -103,7 +105,15 @@ class BaseConfigManager
                                              "needs exactly three, [value, min, max].",
                                              errCtx, paramName, values.size()));
       }
-      return {.val = values[0], .min = values[1], .max = values[2], .isConstant = false};
+      // A start outside its own limits is not what the configuration says, whatever ROOT does with it: up to 6.36
+      // RooRealVar moves it to the nearest limit without a word, from 6.38 setVal throws without naming the cell.
+      const double val = values[0], min = values[1], max = values[2];
+      if (!(min < max && min <= val && val <= max)) {
+        throw std::runtime_error(std::format("[FATAL] {}: parameter '{}' is [{}, {}, {}]; a free parameter needs "
+                                             "min < max and the value between them.",
+                                             errCtx, paramName, val, min, max));
+      }
+      return {.val = val, .min = min, .max = max, .isConstant = false};
     }
 
     // Anything else must be a single number: ToNumber says so by name if it is not.
