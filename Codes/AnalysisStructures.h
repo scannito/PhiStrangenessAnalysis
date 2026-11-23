@@ -267,6 +267,7 @@ struct FitDiagnostics {
   std::vector<std::string> atLowerLimit;
   std::vector<std::string> atUpperLimit;
   std::vector<std::string> upperIsShape; // parameters whose model calls their upper limit a shape (see the DSCB's)
+  std::vector<std::string> lowerIsShape; // the same at the lower limit (the Bernstein coefficients at 0)
   std::string start;                // the DoFit start that won: "config", "yields" or "staged"
   double nllConfig{0.0};            // the NLL the "config" start reached (minNll is the winner's): never below it
 };

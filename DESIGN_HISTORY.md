@@ -359,7 +359,10 @@ Other parameters keep note 09's test.
 the tree). The DSCB does for its tail exponents n1 and n2: at a large n the power-law tail is as steep as an
 exponential, which is a shape the data choose, not a fit stopped by its box. `FitQualityRecorder::Reasons`, the one
 verdict, skips the upper limit of those parameters and nothing else; the tree keeps the fact. Only the upper end: an n
-on its lower limit (1) is still a fit pushed against the box (the owner's choice).
+on its lower limit (1) is still a fit pushed against the box (the owner's choice). The same at the lower end since
+23 November 2026 (`lowerIsShape`): a floating Bernstein coefficient whose range starts at 0 sits there when the
+background touches zero, which the model can describe (the owner, after the Lambda purity study, where most fits with
+a Bernstein background had one at 0).
 
 **Chebychev<n> and Bernstein<n>** through one branch each, the order read from the name (`PolynomialOrder`, a regex
 `family + "([1-9][0-9]*)"`: `Chebychev0` or `Chebychev01` is not a polynomial but an unknown model, which stops the

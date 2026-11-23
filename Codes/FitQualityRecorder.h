@@ -172,11 +172,16 @@ class FitQualityRecorder
       reasons.emplace_back("covQual < 3");
     if (fit.numInvalidNLL > 0)
       reasons.emplace_back("invalid NLL evaluations");
-    for (const std::string& name : fit.atLowerLimit)
-      reasons.push_back(std::format("{} at its lower limit", name));
-    for (const std::string& name : fit.atUpperLimit) // not one its model calls a shape there (the DSCB's tail n)
-      if (std::ranges::find(fit.upperIsShape, name) == fit.upperIsShape.end())
-        reasons.push_back(std::format("{} at its upper limit", name));
+    // A parameter at a limit, unless its model calls that limit a shape: a Bernstein coefficient at 0, the DSCB's
+    // tail n at its upper limit.
+    auto atLimit = [&](const std::vector<std::string>& at, const std::vector<std::string>& isShape, const char* end) {
+      for (const std::string& name : at) {
+        if (std::ranges::find(isShape, name) == isShape.end())
+          reasons.push_back(std::format("{} at its {} limit", name, end));
+      }
+    };
+    atLimit(fit.atLowerLimit, fit.lowerIsShape, "lower");
+    atLimit(fit.atUpperLimit, fit.upperIsShape, "upper");
     return reasons;
   }
 
@@ -204,6 +209,7 @@ class FitQualityRecorder
     visit("atLowerLimit", &row.fit.atLowerLimit);
     visit("atUpperLimit", &row.fit.atUpperLimit);
     visit("upperIsShape", &row.fit.upperIsShape);
+    visit("lowerIsShape", &row.fit.lowerIsShape);
     visit("start", &row.fit.start);
     visit("nllConfig", &row.fit.nllConfig);
   }

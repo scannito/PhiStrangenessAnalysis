@@ -284,6 +284,7 @@ class DynamicRooFitter
   };
   std::vector<Held> staged;
   std::vector<std::string> upperIsShape; // declared where the model is built (the DSCB), passed on with the diagnostics
+  std::vector<std::string> lowerIsShape; // the same at the lower limit (the Bernstein)
 
   std::unique_ptr<RooArgSet> parameters; // every parameter of the model
   std::unique_ptr<RooArgSet> configured; // their configured values, which every start begins from
@@ -372,7 +373,7 @@ class DynamicRooFitter
   // count (2537: those Minuit pushed onto the bound, where its sine mapping leaves them at a distance that grows with
   // the range), then a gap from 1 to 10 counts (34), then from 10 counts up (real small yields). The cell's counts were
   // tried as the scale first, and cut through the first group (0.003 counts in a cell of 25000). Which end is recorded,
-  // and which parameters their model calls a shape at the upper end: whether that is a problem is
+  // and which parameters their model calls a shape at either end: whether that is a problem is
   // FitQualityRecorder::Reasons' to say.
   AnalysisStructures::FitDiagnostics DiagnosticsOf(const RooFitResult& result, double counts) const
   {
@@ -396,6 +397,7 @@ class DynamicRooFitter
         d.atUpperLimit.emplace_back(name);
     }
     d.upperIsShape = upperIsShape;
+    d.lowerIsShape = lowerIsShape;
     return d;
   }
 
@@ -730,6 +732,11 @@ class DynamicRooFitter
             "a negative coefficient lets the background go below zero.",
             Who(), modelType, v->GetName(), Lowest(*v)));
         }
+        // A floating coefficient at 0, where that range starts, is a background that touches zero there, a shape the
+        // model can describe, and not a fit that ran out of room (the owner, 23 November 2026). Declared here, judged
+        // in FitQualityRecorder::Reasons.
+        if (!v->isConstant() && v->getMin() == 0.0)
+          lowerIsShape.emplace_back(v->GetName());
       }
       pdf = Own<RooBernstein>(name.c_str(), modelType.c_str(), *obs, coefficients);
     } else if (modelType == "Exponential") {
