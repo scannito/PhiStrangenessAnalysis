@@ -1493,7 +1493,8 @@ online signal window (`onlinePhiMassWindows`, already read for this task). Point
 - `n_sigma_integration` (a window of n σ around the fitted peak, per cell) cannot match a fixed online window. It
   was suggested to the owner; why, and how it could be done online (a window per pT bin, or n σ around a
   parametrised mass and width), is still to be understood.
-- The pions (`pidTPCMax`, `pidTOFMax`) are left aside until the online choices behind them are understood.
+- The pions (`pidTPCMax`, `pidTOFMax`, `tofPIDThreshold`): the online choices are now understood and partly changed
+  (24 November 2026); what the framework has to read and check is in section 13, *The π*.
 - **The efficiency and the mass window** (open, the owner, 15 November 2026: to be thought through, nothing
   decided). The pairs are counted in the online mass window of the associated species, and the purity describes
   that window; the efficiency maps of `mc_task` come from the default wagon (`mc_base_path`
@@ -1830,6 +1831,153 @@ measurement; the user, 16 October 2026). Nothing provides it today: the framewor
 the O2Physics task only selects `isPhysicalPrimary()` at generator level. Same treatment in the structure: an
 optional per-particle correction, accepted only for the π, throwing until it is implemented. Where the fraction
 comes from (MC, or a fit of the DCA distribution in data) is still to be decided.
+
+### The π: one TOF threshold online, the nσ window's efficiency from data (24 November 2026)
+
+Decided with the owner, after the comparison with the pre-framework analysis (`OldComparison/OLD_VS_NEW_ANALYSIS.md`,
+untracked, section 9). O2Physics side done on the branch `phistrange-ccdb-ownership` (not merged); framework side
+not started.
+
+**What is counted online.**
+- **The producer** (`pion-track-producer` in `phiStrangeCorrelator`) applies the track cuts, requires the TOF from
+  `tofPIDThreshold` up (`cfgIsTOFChecked`; 0.5 GeV/c in every train), and applies the K/p rejection (a track
+  compatible with K or p in the TPC is rejected unless the TOF is used and excludes it).
+- **The correlation task** counts a π inside $|n\sigma_{TPC}| <$ `pidTPCMax`, and inside $|n\sigma_{TOF}| <$
+  `pidTOFMax` as well, but only from `tofPIDThreshold` up.
+
+**The history.** The task's window had the threshold in #15469 (March 2026) and lost it in #15770 (April 2026), with
+no reason recorded. From then until the change of 24 November it cut nσ_TOF on every track that had a TOF signal, at
+any pT, and the K/p rejection did the same. Now the producer writes the column `UseTOFInPID` (pT ≥ `tofPIDThreshold`
+and a TOF signal), which replaces `HasTOF`. `InNSigmaRegion` and the K/p rejection both read that column, so the
+threshold exists in one place and the task keeps no copy of it.
+
+**Why the change.** The pre-framework analysis used the TPC alone below 0.5 GeV/c and the TOF above; it fitted the
+nσ and had no PID in its efficiency.
+- **The mixed sample.** Before the change, between 0.3 and 0.5 GeV/c only the tracks with TOF (4 % to 30 % of the
+  tracks, growing with pT) passed the TOF cut, so the efficiency there depended on TOF matching and mismatch.
+- **The MC.** Measured on 2024 with the MC of 20 July, the MC reproduces the window's efficiency where there is no
+  TOF (MC/data 0.995 at 0.2-0.3 GeV/c). Once the TOF enters it loses 3-5 % more pions than the data at 0.3-0.5 and
+  about 10 % more above 0.5 (MC/data about 0.90). The data value is a lower bound, so the MC/data ratio is an upper
+  bound.
+- **The step.** Between 0.4-0.5 and 0.5-0.6 GeV/c the efficiency ratio new/old falls 9 % (0.760 to 0.694), while the
+  data are continuous. The 9 % step of the new π efficiency at 0.5 GeV/c therefore comes from the MC. It accounts
+  for about half of the 7.5 % gap in K0S/π.
+- **No purity lost.** Below the threshold the TPC separates the pion alone; the `pi_tpc` purity is about 1.
+
+**What O2Physics now provides.**
+- **`pion-track-producer`, data and MC alike:** `h4PionTPCTOFnSigma`, a THnSparse of (multiplicity, pT, nσ_TPC,
+  nσ_TOF) for the selected tracks with a TOF signal, and `h3PionTPCnSigmaNoTOF`, a TH3 of nσ_TPC for those without.
+  The same pair exists for the true primary pions in MC reconstruction (`h4RecMCPionTPCTOFnSigma`,
+  `h3RecMCPionTPCnSigmaNoTOF`). They are split by the TOF signal, not by `UseTOFInPID`, so below the threshold the
+  tracks with TOF still show what a TOF cut would remove there.
+- **The old histograms are the sums of the new ones**, and they are kept until the framework reads the new ones
+  (then removed in O2Physics):
+  - `h3PionTPCnSigma` = `h3PionTPCnSigmaNoTOF` + the projection of `h4PionTPCTOFnSigma` on (0, 1, 2). The
+    projection has no range on the TOF axis, so it includes that axis's under- and overflow.
+  - `h3PionTOFnSigma` = the projection on (0, 1, 3), plus the tracks without TOF in its underflow (nσ_TOF = −999,
+    `PIDTOF.h`).
+  - Above the threshold `h3PionTPCnSigmaNoTOF` is empty.
+- **The correlation task: nothing new, a switch.** `pi/h4PiMCReco` is cut in the nσ window only if
+  `selectPionInSigRegion` is on, as the pairs are and as every other species is with its own `select<X>InSigRegion`.
+  The MC trains (`DataFile/pp/DeltaY/MC/*.train.json`) have it on in the default wagon `phi-strange-correlation`, while
+  the strange species have theirs off there, and on in `_TightAssoc`. With it off in the default MC wagon,
+  `h4PiMCReco / h3PiMCGen` is the efficiency of tracking, TOF matching and the producer's selection, without the
+  window. A separate histogram without the window, filled whatever the switch says, was written and dropped (24
+  November 2026): it took the switch's role away from it.
+- **The window's efficiency as the MC sees it** needs no wagon: it is the fraction of the producer's `RecMC`
+  histograms inside the window, $f^{MC}_{win}$ (below the threshold the TPC projection of the 2D plus `NoTOF`, inside
+  $|n\sigma_{TPC}| <$ `pidTPCMax`; above it the 2D inside both windows). Those histograms hold exactly the tracks the
+  producer writes into `PionTracksMcReco`, the population `h4PiMCReco` counts. So
+  $\varepsilon_{MC}\times f^{MC}_{win}$ is the windowed efficiency of today, from a production with the switch off.
+  Not identical to it: $f^{MC}_{win}$ is integrated over y and z_vtx; the producer's pT binning (`binspTPi` of `pion-track-producer`) is its
+  own configurable, not the task's `binspTPi`. The multiplicity is the same: the `RecMC` histograms are filled with
+  the generated `centFT0M` (McCentFT0Ms) of the collision, as the event selection and the task are
+  (`phi_strange_utils::multPercentile` in the producer, 25 November 2026; before it they had the reconstructed one).
+
+**What the framework has to do (not started).**
+1. **Purity of the counted sample** (`purity_task`, new `hist_name` keys):
+   - below the threshold, the TPC fit over all the tracks: `NoTOF` plus the TPC projection of the 2D, which is what
+     `pi_tpc` does today on the old histogram;
+   - above the threshold, the 2D: the band $|n\sigma_{TOF}| <$ `pidTOFMax` projected and nσ_TPC fitted over the whole
+     range, and the other way round. These are two estimates of one purity, the cross-check that the old TPC/TOF
+     average was;
+   - counts summed, never purities averaged:
+     $$P = \frac{S_{\text{no TOF}} + S_{\text{TOF}}}{N_{\text{no TOF}} + N_{\text{TOF}}}$$
+   - `pi_tof` as it is today (TOF over every track) then has no reader.
+2. **The window's efficiency from data**, from the same fits:
+   $$\varepsilon_{win} = \frac{\pi\ \text{in the window}}{\text{all}\ \pi}$$
+   The π correction becomes counts × purity / (ε_MC without the window × ε_win). This does on single tracks what the
+   old fit did on the pairs. ε_win has two sources, chosen in the configuration and recorded in the provenance:
+   **data** (these fits, the correction) and **MC** ($f^{MC}_{win}$ above, the correction of today, kept as the
+   fallback and as the comparison: data/MC is the window's systematic). It is legitimate because the window's efficiency is a property of the track (TPC and
+   TOF response), not of the pair. It may depend on multiplicity (TOF mismatch grows with occupancy); the
+   histograms have the multiplicity axis.
+3. **`mc_task`**:
+   - the π map from `h4PiMCReco` of a wagon with `selectPionInSigRegion` off. `mc_task` already reads the train
+     record of its input (`TrainConfig::Devices`); it must read that key of the wagon the map comes from and stop if
+     it disagrees with what the configuration expects (window in the map, or ε_win applied here). Without it, a map
+     with the window times an ε_win counts the window twice, and a map without it and no ε_win not at all, both
+     silently;
+   - $f^{MC}_{win}$, written next to the map as a histogram with real edges, for the fallback and the comparison.
+4. **The TOF mismatch.**
+   - **The bias.** A π with a wrong TOF time is a true π lost by the window, but a fit of nσ_TOF puts it in the
+     background. Unmodelled, it makes ε_win too high.
+   - **Up to about 0.6-0.7 GeV/c.** Fitting nσ_TOF inside the TPC π band recognises those pions as π, as long as the
+     TPC separates π from K.
+   - **Above that.** The mismatch fraction has to come from the MC, where it is known. The `RecMC` histograms
+     compare the nσ shapes of data and MC.
+   - **What to check first.** Below the threshold, inside the TPC π band of `h4PionTPCTOFnSigma`, check whether the
+     tracks with $|n\sigma_{TOF}| > 3$ are flat (mismatch: confirms the change) or peaked (K, e: to reconsider).
+5. **Checks** (the rule of section 12: what is counted online and what describes it offline must agree):
+   - the fit's integration windows equal `pidTPCMax` / `pidTOFMax`;
+   - `tofPIDThreshold` is the same on every device read and is an edge of the purity's pT binning. A bin across it
+     holds both regimes and must stop the run.
+6. **Online efficiency.** If the π efficiency is ever applied online (`applyEfficiency`), the map uploaded must be
+   the one without the window, and ε_win is applied here; the pair weight still factorises.
+
+**The order of the switch.** Today `mc_task` reads the π map from the default wagon and applies no ε_win, which is
+right only while that wagon has `selectPionInSigRegion` on. So:
+1. the framework first: ε_win with its two sources and the record check of item 3 (the existing MC productions,
+   switch on, keep working with "window in the map");
+2. then the default MC wagon with `selectPionInSigRegion` = 0; `_TightAssoc` stays on, and `h4PiMCReco` there
+   divided by the default's is the MC window counted on the pairs' own selection, a closure of $f^{MC}_{win}$;
+3. the data wagons keep it on: the pairs are counted in the window, only the efficiency changes.
+The other order (the switch first) lowers the π yields by the window's efficiency, about 3 % below 0.5 GeV/c and 8-10
+% above, with no error.
+
+**Still outside: the K/p rejection.** It acts before every histogram of the producer, the new ones included, so
+nothing measures it. At 2-3 GeV/c the data lose about 25 % more than the MC predicts, where the bands merge. It
+needs histograms filled before the rejection (or the rejection off in a test wagon).
+
+### Multiplicity: generated in MC, reconstructed in data (25 November 2026)
+
+Noted with the owner as possible work, nothing decided.
+
+**What is used now.**
+- **In MC**, every histogram with a multiplicity axis uses the generated FT0M percentile of the collision
+  (`McCentFT0Ms`): in the event selection, in the efficiencies of `phiStrangeCorrelation`, and since 25 November in
+  the pion producer's `RecMC` histograms. The producer reads it through `phi_strange_utils::multPercentile`, written
+  once in `phiStrangeCorrelator.cxx`.
+- **In data**, the classes are in the reconstructed `centFT0M`.
+- **Why both sides of an efficiency use the generated one.** A reconstructed collision in MC has its own `centFT0M`
+  too. Binning the reconstructed side in it and the generated side in the generated one would put the migration
+  between classes inside the efficiency, which would then need unfolding to go back to the generated multiplicity.
+  With the generated one on both sides, the efficiency is a clean ratio.
+- **What is left open.** Applying it to data classes in reconstructed multiplicity assumes that the migration is
+  negligible.
+
+**What could be done.**
+1. **Measure the migration of events.** A 2D of reconstructed against generated `centFT0M` per collision, in
+   `EventSelectionProducer::processMCReco`, is the response matrix of the events:
+   - its diagonal fraction per class says how large the migration is. The narrow classes (0-1 %, 1-5 %) are where it
+     is largest in proportion;
+   - it corrects what is counted per event: events per class, normalisation, φ triggers per class, event loss.
+2. **The response for particles, if efficiencies are ever unfolded.** An efficiency counts particles, and an event
+   weighs as many particles (or pairs) as it carries, which correlates with its multiplicity. So the migration of
+   particles is not that of events, and the per-event 2D does not unfold an efficiency. That needs the reconstructed
+   multiplicity as an axis next to the generated one in the particle histograms (`h4<X>MCReco`, for instance).
+3. **Reweighting.** Both responses depend on the MC's multiplicity distribution. If it differs from the data's, the
+   response has to be reweighted to the data before it is used.
 
 ### Decisions still open
 
