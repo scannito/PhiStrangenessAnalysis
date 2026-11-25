@@ -8,6 +8,7 @@
 #include "TDirectory.h"
 #include "TKey.h"
 #include "TNamed.h"
+#include "TParameter.h"
 #include "TFile.h"
 #include "TH1.h"
 #include "TH1D.h"
@@ -17,6 +18,7 @@
 #include <format>
 #include <map>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <span>
@@ -343,6 +345,34 @@ inline void RequireMatchingBinningStamp(TDirectory* dir, const std::string& name
 // find it themselves, and decide whether it is created (writing) or only looked up (reading),
 // so that no caller spells either. A file that keeps several records side by side
 // (comparison_task: one per input, next to its own) qualifies them with 'record'.
+// A typed fact one task writes for another to read (CLAUDE.md, Conventions): TParameter<bool> for a yes/no fact,
+// TParameter<double> for a number that is one per production, not per cell. In 'dir', under 'name'.
+template <class T>
+void WriteParameter(TDirectory* dir, const std::string& name, T value)
+{
+  dir->cd();
+  TParameter<T>(name.c_str(), value).Write(nullptr, TObject::kOverwrite);
+}
+
+// The value of the TParameter<T> 'name' in 'dir'; nullopt when 'dir' is null or holds nothing of that name (a file
+// written before the fact existed, or without what it is read from). An object of another class under the name stops
+// the run. 'where' names the file in the message.
+template <class T>
+std::optional<T> TryReadParameter(TDirectory* dir, const std::string& name, std::string_view where, std::string_view errCtx)
+{
+  if (!dir)
+    return std::nullopt;
+  std::unique_ptr<TObject> object(dir->Get(name.c_str()));
+  if (!object)
+    return std::nullopt;
+  const auto* fact = dynamic_cast<const TParameter<T>*>(object.get());
+  if (!fact) {
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' in {} is a {}, not a {}.", errCtx, name, where,
+                                         object->ClassName(), TParameter<T>::Class_Name()));
+  }
+  return fact->GetVal();
+}
+
 namespace Detail
 {
 inline const std::string kProvenanceDir{"Provenance"};

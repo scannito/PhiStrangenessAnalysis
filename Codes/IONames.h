@@ -57,6 +57,12 @@ inline const std::string kPurityFile{"Purity.root"};             // PurityTask -
 // had no train configuration. CorrelationTask compares it with the weight of its own pairs, which must be the same for
 // the per-trigger yield to be right (CorrelationTaskBase::CheckOnlineCorrections).
 inline const std::string kPhiWeightedOnline{"PhiWeightedOnline"};
+// MCTask -> CorrelationTask: the selection the map of a particle was counted with online (TrainConfig::WritePionSelection,
+// which names its facts), next to the maps of the binning.
+inline std::vector<std::string> OnlineSelectionPath(const std::string& binningName, std::string_view particle)
+{
+  return {binningName, "OnlineSelection", std::string(particle)};
+}
 // Written by both correlation tasks, CorrelationTask and CorrelationWPDGTask: the results, and the
 // projections of one associated particle, which a later run reads back (use_projection_cache).
 inline const std::string kSpectraFile{"PhiAssocSpectra.root"};

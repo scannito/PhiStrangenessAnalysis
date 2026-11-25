@@ -9,7 +9,6 @@
 
 #include "TH1D.h"
 #include "TH2D.h"
-#include "TParameter.h"
 
 #include <algorithm>
 #include <format>
@@ -158,20 +157,16 @@ class CorrelationTask : public CorrelationTaskBase
   std::optional<OnlineWeighting> ReadTriggerPhiWeighting(TFile* triggerFile, const std::string& triggerPath,
                                                          const std::vector<std::string>& summaryPath) const
   {
-    std::unique_ptr<TObject> object(triggerFile->Get(RootIO::ObjectPath(summaryPath, IONames::kPhiWeightedOnline).c_str()));
-    if (!object) {
+    const std::optional<bool> weighted = RootIO::TryReadParameter<bool>(
+      RootIO::FindPath(triggerFile, summaryPath), IONames::kPhiWeightedOnline, std::format("trigger file '{}'", triggerPath), GetName());
+    if (!weighted) {
       Logger::Warn("{}: the trigger file '{}' does not say whether its phi was weighted online, so the triggers are not "
                    "compared with the pairs. Re-run phi_fit_task on it (after Macros/downloadHYOutput.py if its input "
                    "has no train configuration).",
                    GetName(), triggerPath);
       return std::nullopt;
     }
-    const auto* fact = dynamic_cast<const TParameter<bool>*>(object.get());
-    if (!fact) {
-      throw std::runtime_error(std::format("[FATAL] {}: '{}' in '{}' is a {}, not the TParameter<bool> phi_fit_task writes.",
-                                           GetName(), IONames::kPhiWeightedOnline, triggerPath, object->ClassName()));
-    }
-    return OnlineWeighting{fact->GetVal(), std::format("trigger file '{}'", triggerPath)};
+    return OnlineWeighting{*weighted, std::format("trigger file '{}'", triggerPath)};
   }
 
   // The phi mass windows phi_fit_task integrated each cell of the triggers in (IONames::PhiMassWindow), against those the

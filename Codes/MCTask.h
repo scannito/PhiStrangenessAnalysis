@@ -84,6 +84,8 @@ class MCTask : public IAnalysisTask
     // CorrelationTaskBase::LoadTrainInputs does, so that one file written two ways is opened once.
     struct InputFile {
       std::unique_ptr<TFile> file;
+      std::vector<TrainConfig::Record> records;
+      std::vector<TrainConfig::Device> devices; // point into records
       std::string production;
     };
     std::map<std::string, InputFile> openInputFiles;
@@ -92,13 +94,13 @@ class MCTask : public IAnalysisTask
       const auto [input, isNew] = openInputFiles.try_emplace(std::filesystem::path(path).lexically_normal().string());
       if (isNew) {
         input->second.file = RootIO::OpenOrThrow(path, "READ", GetName());
-        // Nothing in the record is compared with these maps yet (the selections, the mass windows: DESIGN_NOTES.md
-        // section 12), but a record that is not of this file stops the run, as in every reader of the records:
-        // recording it would record a false production.
-        const std::vector<TrainConfig::Record> records = TrainConfig::Load(path, GetName());
-        const std::vector<TrainConfig::Device> devices = TrainConfig::Devices(records, mcBasePath, GetName());
-        input->second.production = TrainConfig::Describe(devices);
-        for (const auto& device : devices) {
+        // A record that is not of this file stops the run, as in every reader of the records: recording it would
+        // record a false production. Of the selections only the pion's is read from it yet (stamped next to its map, for
+        // the correlation tasks to compare); the mass windows of the other species are not (DESIGN_NOTES.md section 12).
+        input->second.records = TrainConfig::Load(path, GetName());
+        input->second.devices = TrainConfig::Devices(input->second.records, mcBasePath, GetName());
+        input->second.production = TrainConfig::Describe(input->second.devices);
+        for (const auto& device : input->second.devices) {
           Logger::Info("{}: '{}' was produced by {}.", GetName(), path, TrainConfig::Source(device));
         }
       }
@@ -144,6 +146,18 @@ class MCTask : public IAnalysisTask
       // The production the maps of this particle come from, one key per particle: each map is uploaded alone
       const InputFile& input = getOrOpenFile(particleInputFile);
       provenance[TrainConfig::ProvenanceKey(std::format("mc_{}", name))] = input.production;
+      // The selection the pion map is counted with, the same in every part of a sum; not known without a record
+      if (name == "Pi") {
+        pionSelection = TrainConfig::OnlinePionSelection(input.devices, GetName());
+        if (pionSelection) {
+          Logger::Info("{}: Pion map counted with: {} ({}).", GetName(), TrainConfig::DescribePionSelection(pionSelection->value),
+                       pionSelection->source);
+        } else {
+          Logger::Warn("{}: the selection the pion map is counted with is not known (no train configuration for '{}'): it "
+                       "is not stamped, and the correlation tasks cannot compare it with that of their pairs.",
+                       GetName(), particleInputFile);
+        }
+      }
 
       AnalysisStructures::LoadedMC data;
       data.name = name;
@@ -377,6 +391,9 @@ class MCTask : public IAnalysisTask
     // in the names, and stamped (RootIO::RequireMatchingBinningStamp).
     RootIO::WriteBinningStamp(RootIO::MakePath(outputFile.get(), {globalCfgs.binningName}), RootIO::kStampMult,
                               multBinning);
+    if (pionSelection) {
+      TrainConfig::WritePionSelection(outputFile.get(), globalCfgs.binningName, pionSelection->value);
+    }
 
     RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
 
@@ -418,4 +435,7 @@ class MCTask : public IAnalysisTask
   std::unique_ptr<TH1F> hEventMultGen;
 
   CorrectionMode particleCorrectionMode{CorrectionMode::EfficiencyOnly};
+
+  // The selection the pion map was counted with, from the record of its MC input; empty without the pion or the record
+  std::optional<TrainConfig::Sourced<TrainConfig::PionSelection>> pionSelection;
 };

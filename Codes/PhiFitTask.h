@@ -22,7 +22,6 @@
 #include "TH1D.h"
 #include "TH2D.h"
 #include "TH3F.h"
-#include "TParameter.h"
 
 #include <cmath>
 #include <format>
@@ -183,7 +182,7 @@ class PhiFitTask : public IAnalysisTask
     h2SidebandWindowLow->Write(nullptr, TObject::kOverwrite);
     h2SidebandWindowHigh->Write(nullptr, TObject::kOverwrite);
     if (phiWeightedOnline) {
-      TParameter<bool>(IONames::kPhiWeightedOnline.c_str(), *phiWeightedOnline).Write(nullptr, TObject::kOverwrite);
+      RootIO::WriteParameter(summaryDir, IONames::kPhiWeightedOnline, *phiWeightedOnline);
     }
 
     // The trigger matrices cross into CorrelationTask, so this file is a link in

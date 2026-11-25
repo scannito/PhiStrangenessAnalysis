@@ -304,6 +304,10 @@ class CorrelationTaskBase : public IAnalysisTask
   // device read; empty when not known (no train configuration) or for generator-level containers, which have none.
   // Compared by CorrelationTask with the windows of its triggers.
   std::optional<TrainConfig::Sourced<TrainConfig::PhiMassWindows>> onlinePhiMassWindows;
+  // The selection the pion pairs were counted with (CheckOnlineMassWindows), the same on every device read; read only when
+  // a pion map is applied here, and compared with it (CheckPionMapSelection). Empty otherwise, when not known (no train
+  // configuration), or for generator-level containers.
+  std::optional<TrainConfig::Sourced<TrainConfig::PionSelection>> onlinePionSelection;
   std::vector<AnalysisStructures::LoadedAssocData> loadedDataCollection;
 
   // Read from the input files in Init(), never from the configuration
@@ -811,12 +815,15 @@ class CorrelationTaskBase : public IAnalysisTask
   // The mass window each associated species was kept in online (TrainConfig::OnlineMassWindow), the same for every device
   // read, said in the log; compared with the purity windows by CorrelationTask (DESIGN_NOTES.md section 12). Generator-
   // level containers are filled without isAssocValid, so no window applies to them. The pion has none: its online cut
-  // is in n sigma. The phi windows too, signal and sideband (TrainConfig::OnlinePhiMassWindows): the same on every
-  // device, or the pairs mix two selections, whichever task reads them; compared with the triggers by CorrelationTask.
+  // is in n sigma, with the producer's TOF rule (TrainConfig::OnlinePionSelection), read here as well and compared with
+  // the pion map by CheckPionMapSelection. The phi windows too, signal and sideband (TrainConfig::OnlinePhiMassWindows):
+  // the same on every device, or the pairs mix two selections, whichever task reads them; compared with the triggers
+  // by CorrelationTask.
   void CheckOnlineMassWindows(const std::vector<TrainConfig::Device>& devices)
   {
     onlineMassWindows.reset();
     onlinePhiMassWindows.reset();
+    onlinePionSelection.reset();
     if (!ReadsOnlineWeightedContainers() || devices.empty()) {
       return;
     }
@@ -840,6 +847,49 @@ class CorrelationTaskBase : public IAnalysisTask
         (*onlineMassWindows)[p.name] = *window;
       }
     }
+    if (corrections && corrections->ParticlesWithEfficiency().contains("Pi")) {
+      onlinePionSelection = TrainConfig::OnlinePionSelection(devices, GetName());
+      if (onlinePionSelection) {
+        Logger::Info("{}: Online selection of the pion: {} ({}).", GetName(),
+                     TrainConfig::DescribePionSelection(onlinePionSelection->value), onlinePionSelection->source);
+      }
+    }
+  }
+
+  // The selection the pion map was counted with, stamped by mc_task (TrainConfig::WritePionSelection), against the one
+  // the pairs were counted with (onlinePionSelection). While no efficiency of the n sigma window is applied here, the
+  // map must hold the window the pairs were counted in, and the producer's TOF rule must be the same: a map with
+  // another selection corrects pairs it did not count, by a few percent and silently (DESIGN_NOTES.md section 13,
+  // "The π"). Only for a map applied here; not known on either side is a warning, and nothing is compared.
+  void CheckPionMapSelection(TFile* correctionsFile, const std::string& correctionsPath) const
+  {
+    if (!ReadsOnlineWeightedContainers()) {
+      return; // generator-level containers: no selection online
+    }
+    const std::string where = std::format("corrections file '{}'", correctionsPath);
+    const std::optional<TrainConfig::PionSelection> map =
+      TrainConfig::ReadPionSelection(correctionsFile, globalCfgs.binningName, where, GetName());
+    if (!map) {
+      Logger::Warn("{}: the {} does not say which selection its pion map was counted with (written before 25 November 2026, "
+                   "or from an MC without a train configuration): it is not compared with that of the pairs. Re-run mc_task.",
+                   GetName(), where);
+      return;
+    }
+    if (!onlinePionSelection) {
+      Logger::Warn("{}: the selection the pion pairs were counted with is not known (no train configuration): the pion map "
+                   "({}) is not compared with it.",
+                   GetName(), TrainConfig::DescribePionSelection(*map));
+      return;
+    }
+    if (*map != onlinePionSelection->value) {
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: the pion map of the {} was counted with\n  {}\nand the pairs with\n  {} ({}).\nWhile no efficiency of the "
+        "n sigma window is applied here, the map must hold the selection of the pairs. Re-run mc_task on an MC production "
+        "whose phiStrangeCorrelation and pion-track-producer ran like those of the data (DESIGN_NOTES.md section 13, \"The π\").",
+        GetName(), where, TrainConfig::DescribePionSelection(*map), TrainConfig::DescribePionSelection(onlinePionSelection->value),
+        onlinePionSelection->source));
+    }
+    Logger::Info("{}: Pion map counted with the selection of the pairs.", GetName());
   }
 
   // -------------------------------------------------------------------------
@@ -944,6 +994,10 @@ class CorrelationTaskBase : public IAnalysisTask
 
       const std::vector<double>& targetBinning = PtBinningOf(particle, GetName());
       const MapOf of = particle == "Phi" ? MapOf::Phi : MapOf::Associated;
+      // The efficiency is the map counted online (h4PiMCReco); the signal loss is not, and carries no selection
+      if (particle == "Pi" && pc.efficiency) {
+        CheckPionMapSelection(correctionsFile.get(), correctionsPath);
+      }
 
       const bool applyEfficiencyBinned = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Binned;
       const bool applyEfficiencyIntegrated = pc.efficiency && pc.efficiency->mult == AnalysisStructures::MultDependence::Integrated;

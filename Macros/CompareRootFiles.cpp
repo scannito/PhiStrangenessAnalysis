@@ -4,7 +4,7 @@
 //
 // Exact equality on purpose, contents, errors and bin edges: a refactoring that changes a
 // number in the last bit has changed something. Histograms (any dimension), THnSparse,
-// TGraph, TTree (entries, branches, values), TObjString, TParameter<bool> and the titles of plain
+// TGraph, TTree (entries, branches, values), TObjString, TParameter<bool> and <double>, and the titles of plain
 // TNamed are compared; canvases are skipped (they hold drawn copies of the rest), and so is every
 // directory whose name starts with "Provenance" (timestamp, commit; ComparisonTask copies its
 // inputs' into Provenance_numerator and Provenance_denominator).
@@ -115,6 +115,14 @@ static void notCompared(const std::string& path, const std::string& what)
 {
   std::printf("NOT COMPARED %s: %s\n", path.c_str(), what.c_str());
   ++nNotCompared;
+}
+
+// A typed fact one task writes for another to read (RootIO::WriteParameter): the same class and the same value
+template <typename T>
+static bool sameParameter(TObject* a, TObject* b)
+{
+  auto* pb = dynamic_cast<TParameter<T>*>(b);
+  return pb && static_cast<TParameter<T>*>(a)->GetVal() == pb->GetVal();
 }
 
 static bool isProvenance(const std::string& name) { return name.rfind("Provenance", 0) == 0; }
@@ -256,10 +264,11 @@ static void walk(TDirectory* da, TDirectory* db, const std::string& prefix)
     } else if (dynamic_cast<TCanvas*>(oa)) {
       --nCompared;
       ++nSkipped; // drawn copies of what is compared above
-    } else if (auto* pa = dynamic_cast<TParameter<bool>*>(oa)) {
-      // A yes/no fact one task writes for another to compare (IONames::kPhiWeightedOnline)
-      auto* pb = dynamic_cast<TParameter<bool>*>(ob);
-      if (!pb || pa->GetVal() != pb->GetVal())
+    } else if (dynamic_cast<TParameter<bool>*>(oa)) {
+      if (!sameParameter<bool>(oa, ob))
+        report(path, "value differs");
+    } else if (dynamic_cast<TParameter<double>*>(oa)) {
+      if (!sameParameter<double>(oa, ob))
         report(path, "value differs");
     } else if (oa->IsA() == TNamed::Class()) {
       if (std::string(oa->GetTitle()) != ob->GetTitle())

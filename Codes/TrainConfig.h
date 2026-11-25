@@ -21,6 +21,7 @@
 // exists means O2Physics renamed it: it stops the run, since a guess would be the silent failure this file is for.
 
 #include "AnalysisStructures.h"
+#include "IONames.h"
 #include "JsonConfigHelpers.h"
 #include "Logger.h"
 #include "RootIOHelpers.h"
@@ -282,6 +283,36 @@ inline std::vector<Record> Load(const std::string& dataFile, std::string_view er
   return records;
 }
 
+namespace Detail
+{
+// The device 'name' of a record, in whichever wagon has it: a producer is in every wagon that depends on it, with the
+// same options, since the train runs it once. 'from' says in the message what asked for it.
+inline Device FindInAnyWagon(const Record& record, const std::string& name, std::string_view from, std::string_view errCtx)
+{
+  std::optional<Device> found;
+  for (const auto& entry : Wagons(record).GetObject()) {
+    const rapidjson::Value* options = entry.value.IsObject() ? JsonConfig::OptionalMember(entry.value, name.c_str()) : nullptr;
+    if (!options || !options->IsObject())
+      continue;
+    if (found && *found->options != *options) {
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: '{}' has the device '{}' in wagons {} and {} with different options, while one train runs it once "
+        "(a device in several wagons is a producer, and a task run twice is named with _id<wagon id>): the record is "
+        "inconsistent. Download it again (Macros/downloadHYOutput.py, overwrite).",
+        errCtx, record.path, name, found->wagonId, entry.name.GetString()));
+    }
+    if (!found) {
+      found = Device{&record, entry.name.GetString(), name, options};
+    }
+  }
+  if (!found) {
+    throw std::runtime_error(std::format("[FATAL] {}: '{}' has no device '{}' in any wagon (from '{}').",
+                                         errCtx, record.path, name, from));
+  }
+  return *found;
+}
+} // namespace Detail
+
 // The device that wrote 'basePath' (base_path_data, base_path_me or a hist_name, as the task block writes it), in every
 // record: each record holds its wagons' options at the date of its own train, and in a sum they may differ. The first
 // component of the path names the device. With a _id<wagon id> suffix, the device of that wagon: Hyperloop adds it to
@@ -304,27 +335,7 @@ inline std::vector<Device> Devices(const std::vector<Record>& records, std::stri
       devices.push_back({&record, *wagonId, name, options});
       continue;
     }
-    std::optional<Device> found;
-    for (const auto& entry : Wagons(record).GetObject()) {
-      const rapidjson::Value* options = entry.value.IsObject() ? JsonConfig::OptionalMember(entry.value, name.c_str()) : nullptr;
-      if (!options || !options->IsObject())
-        continue;
-      if (found && *found->options != *options) {
-        throw std::runtime_error(std::format(
-          "[FATAL] {}: '{}' has the device '{}' in wagons {} and {} with different options, while one train runs it once "
-          "(a device in several wagons is a producer, and a task run twice is named with _id<wagon id>): the record is "
-          "inconsistent. Download it again (Macros/downloadHYOutput.py, overwrite).",
-          errCtx, record.path, name, found->wagonId, entry.name.GetString()));
-      }
-      if (!found) {
-        found = Device{&record, entry.name.GetString(), name, options};
-      }
-    }
-    if (!found) {
-      throw std::runtime_error(std::format("[FATAL] {}: '{}' has no device '{}' in any wagon (from '{}').",
-                                           errCtx, record.path, name, basePath));
-    }
-    devices.push_back(*found);
+    devices.push_back(Detail::FindInAnyWagon(record, name, basePath, errCtx));
   }
   return devices;
 }
@@ -486,6 +497,145 @@ inline PhiMassWindows OnlinePhiMassWindows(const Device& device)
 inline std::string DescribePhiMassWindows(const PhiMassWindows& windows)
 {
   return std::format("signal {}, sideband {}", DescribeMassWindow(windows.signal), DescribeMassWindow(windows.sideband));
+}
+
+// The selection of the associated pion, as the options of a train make it (DESIGN_NOTES.md section 13, "The π"): the
+// n sigma window phiStrangeCorrelation counts it in, and the TOF rule of pion-track-producer, whose tracks it reads.
+// The facts, not their options: the producer's own pidTPCMax and pidTOFMax are arrays of its K/p rejection, not the
+// window, and the rule is told by the name of the threshold's option (O2Physics renamed it when its meaning changed).
+// A correction map holds the selection of the device that filled it, so mc_task stamps it next to the pion map and the
+// correlation tasks compare it with that of their pairs (CorrelationTaskBase::CheckPionMapSelection).
+struct PionSelection {
+  // |nσ_TPC| < tpcMax, and |nσ_TOF| < tofMax where the TOF enters the PID; absent when selectPionInSigRegion is off,
+  // and every pion the producer passed is counted.
+  struct Window {
+    double tpcMax;
+    double tofMax;
+    bool operator==(const Window&) const = default;
+  };
+  std::optional<Window> window;
+  bool tofRequired;      // cfgIsTOFChecked: tracks without TOF rejected from minPtTOF up
+  // The producer's threshold. Compared even where it acts on nothing (the old rule with the TOF not required, in no
+  // train so far): a stop that was not needed, never a number let through.
+  double minPtTOF;
+  bool tofInPIDFromMinPt; // the rule of minPtTOFInPID: the TOF enters the PID (window, K/p rejection) from minPtTOF up
+                          // and never below. Otherwise that of tofPIDThreshold: wherever the track has a TOF signal
+  // Exact, as Range's: every value is read from the DPL text of a record by the same function, or written from one
+  // as a double and read back unchanged.
+  bool operator==(const PionSelection&) const = default;
+};
+
+inline const std::string kPionProducer{"pion-track-producer"};
+
+// The selection of the pion counted by 'correlation', a phiStrangeCorrelation device, with the producer of its train.
+// The device must have run in the DeltaY vs DeltaPhi mode, the only one in which isAssocValid applies the window: in
+// another, a window switched on would be absent from what it counted, and the facts would say it is there.
+inline PionSelection OnlinePionSelection(const Device& correlation, std::string_view errCtx)
+{
+  RequireDeltaYvsDeltaPhi(correlation);
+  const rapidjson::Value& options = *correlation.options;
+  const std::string where = Source(correlation);
+  PionSelection selection{};
+  if (JsonConfig::Dpl::RequireBool(options, "selectPionInSigRegion", where)) {
+    selection.window = PionSelection::Window{
+      JsonConfig::ToNumber(JsonConfig::RequireMember(options, "pidTPCMax", where), "pidTPCMax", where),
+      JsonConfig::ToNumber(JsonConfig::RequireMember(options, "pidTOFMax", where), "pidTOFMax", where)};
+  }
+
+  const Device producer = Detail::FindInAnyWagon(*correlation.record, kPionProducer, where, errCtx);
+  const rapidjson::Value& producerOptions = *producer.options;
+  const std::string producerWhere = Source(producer);
+  selection.tofRequired = JsonConfig::Dpl::RequireBool(producerOptions, "cfgIsTOFChecked", producerWhere);
+  const rapidjson::Value* newRule = JsonConfig::OptionalMember(producerOptions, "minPtTOFInPID");
+  const rapidjson::Value* oldRule = JsonConfig::OptionalMember(producerOptions, "tofPIDThreshold");
+  if (!newRule == !oldRule) {
+    throw std::runtime_error(std::format("[FATAL] {}: {} has {} of minPtTOFInPID and tofPIDThreshold, where one is "
+                                         "expected: O2Physics changed the option again, or the record is broken.",
+                                         errCtx, producerWhere, newRule ? "both" : "neither"));
+  }
+  selection.tofInPIDFromMinPt = newRule != nullptr;
+  selection.minPtTOF = JsonConfig::ToNumber(newRule ? *newRule : *oldRule, newRule ? "minPtTOFInPID" : "tofPIDThreshold", producerWhere);
+  return selection;
+}
+
+// For the messages: "|nσ_TPC| < 3, |nσ_TOF| < 3 where the TOF is used; TOF required from 0.5 GeV/c; the TOF in the PID
+// from 0.5 GeV/c (minPtTOFInPID)".
+inline std::string DescribePionSelection(const PionSelection& selection)
+{
+  const std::string window = selection.window ? std::format("n sigma window |nσ_TPC| < {}, |nσ_TOF| < {} where the TOF is used",
+                                                            selection.window->tpcMax, selection.window->tofMax)
+                                              : std::string("no n sigma window (selectPionInSigRegion off)");
+  const std::string required = selection.tofRequired ? std::format("TOF required from {} GeV/c", selection.minPtTOF)
+                                                     : std::string("TOF not required (cfgIsTOFChecked off)");
+  const std::string rule = selection.tofInPIDFromMinPt
+                             ? std::format("the TOF in the PID from {} GeV/c (minPtTOFInPID)", selection.minPtTOF)
+                             : std::string("the TOF in the PID wherever the track has it (tofPIDThreshold, the rule before O2Physics 977ad4acc)");
+  return std::format("{}; {}; {}", window, required, rule);
+}
+
+// The selection of the pion counted by every device, the same for all of them (SameOnAllDevices); empty without devices
+inline std::optional<Sourced<PionSelection>> OnlinePionSelection(const std::vector<Device>& devices, std::string_view errCtx)
+{
+  return SameOnAllDevices(devices, [&](const Device& device) { return OnlinePionSelection(device, errCtx); },
+                          DescribePionSelection, "the selection of the pion", errCtx);
+}
+
+// The selection a pion map was counted with, stamped next to it: MCTask writes it into Corrections.root, the correlation
+// tasks read it back (CorrelationTaskBase::CheckPionMapSelection). One TParameter per fact, in the pion's
+// IONames::OnlineSelectionPath, named here, next to their only writer and reader.
+inline const std::string kStampPionNSigmaWindow{"NSigmaWindow"};
+inline const std::string kStampPionTPCMax{"NSigmaTPCMax"};
+inline const std::string kStampPionTOFMax{"NSigmaTOFMax"};
+inline const std::string kStampPionTOFRequired{"TOFRequired"};
+inline const std::string kStampPionMinPtTOF{"MinPtTOF"};
+inline const std::string kStampPionTOFInPIDFromMinPt{"TOFInPIDFromMinPt"};
+
+// The maxima only with the window, which they belong to.
+inline void WritePionSelection(TDirectory* file, const std::string& binningName, const PionSelection& selection)
+{
+  TDirectory* dir = RootIO::MakePath(file, IONames::OnlineSelectionPath(binningName, "Pi"));
+  RootIO::WriteParameter(dir, kStampPionNSigmaWindow, selection.window.has_value());
+  if (selection.window) {
+    RootIO::WriteParameter(dir, kStampPionTPCMax, selection.window->tpcMax);
+    RootIO::WriteParameter(dir, kStampPionTOFMax, selection.window->tofMax);
+  }
+  RootIO::WriteParameter(dir, kStampPionTOFRequired, selection.tofRequired);
+  RootIO::WriteParameter(dir, kStampPionMinPtTOF, selection.minPtTOF);
+  RootIO::WriteParameter(dir, kStampPionTOFInPIDFromMinPt, selection.tofInPIDFromMinPt);
+}
+
+namespace Detail
+{
+// A fact of a stamp already found: missing, the stamp is not one WritePionSelection wrote, and the run stops.
+template <class T>
+T RequireFact(TDirectory* dir, const std::string& name, std::string_view where, std::string_view errCtx)
+{
+  const std::optional<T> value = RootIO::TryReadParameter<T>(dir, name, where, errCtx);
+  if (!value) {
+    throw std::runtime_error(std::format("[FATAL] {}: {} has the pion selection without '{}'. Re-run mc_task.", errCtx, where, name));
+  }
+  return *value;
+}
+} // namespace Detail
+
+// The selection WritePionSelection wrote, or nullopt when there is none: a file from before the stamps, or from an MC
+// input without a train configuration. 'where' names the file in the messages.
+inline std::optional<PionSelection> ReadPionSelection(TDirectory* file, const std::string& binningName, std::string_view where,
+                                                      std::string_view errCtx)
+{
+  TDirectory* dir = RootIO::FindPath(file, IONames::OnlineSelectionPath(binningName, "Pi"));
+  const std::optional<bool> hasWindow = RootIO::TryReadParameter<bool>(dir, kStampPionNSigmaWindow, where, errCtx);
+  if (!hasWindow)
+    return std::nullopt;
+  PionSelection selection{};
+  if (*hasWindow) {
+    selection.window = PionSelection::Window{Detail::RequireFact<double>(dir, kStampPionTPCMax, where, errCtx),
+                                             Detail::RequireFact<double>(dir, kStampPionTOFMax, where, errCtx)};
+  }
+  selection.tofRequired = Detail::RequireFact<bool>(dir, kStampPionTOFRequired, where, errCtx);
+  selection.minPtTOF = Detail::RequireFact<double>(dir, kStampPionMinPtTOF, where, errCtx);
+  selection.tofInPIDFromMinPt = Detail::RequireFact<bool>(dir, kStampPionTOFInPIDFromMinPt, where, errCtx);
+  return selection;
 }
 
 // The provenance key of an input's train configuration, for the role of the input it describes.
