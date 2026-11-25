@@ -1493,7 +1493,7 @@ online signal window (`onlinePhiMassWindows`, already read for this task). Point
 - `n_sigma_integration` (a window of n σ around the fitted peak, per cell) cannot match a fixed online window. It
   was suggested to the owner; why, and how it could be done online (a window per pT bin, or n σ around a
   parametrised mass and width), is still to be understood.
-- The pions (`pidTPCMax`, `pidTOFMax`, `tofPIDThreshold`): the online choices are now understood and partly changed
+- The pions (`pidTPCMax`, `pidTOFMax`, `minPtTOFInPID`, formerly `tofPIDThreshold`): the online choices are now understood and partly changed
   (24 November 2026); what the framework has to read and check is in section 13, *The π*.
 - **The efficiency and the mass window** (open, the owner, 15 November 2026: to be thought through, nothing
   decided). The pairs are counted in the online mass window of the associated species, and the purity describes
@@ -1840,16 +1840,22 @@ not started.
 
 **What is counted online.**
 - **The producer** (`pion-track-producer` in `phiStrangeCorrelator`) applies the track cuts, requires the TOF from
-  `tofPIDThreshold` up (`cfgIsTOFChecked`; 0.5 GeV/c in every train), and applies the K/p rejection (a track
+  `minPtTOFInPID` up (`cfgIsTOFChecked`; 0.5 GeV/c in every train), and applies the K/p rejection (a track
   compatible with K or p in the TPC is rejected unless the TOF is used and excludes it).
 - **The correlation task** counts a π inside $|n\sigma_{TPC}| <$ `pidTPCMax`, and inside $|n\sigma_{TOF}| <$
-  `pidTOFMax` as well, but only from `tofPIDThreshold` up.
+  `pidTOFMax` as well, but only from `minPtTOFInPID` up.
 
 **The history.** The task's window had the threshold in #15469 (March 2026) and lost it in #15770 (April 2026), with
 no reason recorded. From then until the change of 24 November it cut nσ_TOF on every track that had a TOF signal, at
-any pT, and the K/p rejection did the same. Now the producer writes the column `UseTOFInPID` (pT ≥ `tofPIDThreshold`
+any pT, and the K/p rejection did the same. Now the producer writes the column `UseTOFInPID` (pT ≥ the threshold
 and a TOF signal), which replaces `HasTOF`. `InNSigmaRegion` and the K/p rejection both read that column, so the
 threshold exists in one place and the task keeps no copy of it.
+
+**The option was renamed with its meaning** (25 November 2026): `tofPIDThreshold` became `minPtTOFInPID`. The values
+are the same before and after, the rule is not, and the rule changes the K/p rejection as well as the window. So a
+train record says which rule a production ran with by the key it holds: `tofPIDThreshold` is the old rule (TOF on
+every track that has it), `minPtTOFInPID` the new. Not the presence of `h4PionTPCTOFnSigma` in the file, which comes
+from another commit and may reach master separately; not the `package_tag`, which needs dates kept by hand.
 
 **Why the change.** The pre-framework analysis used the TPC alone below 0.5 GeV/c and the TOF above; it fitted the
 nσ and had no PID in its efficiency.
@@ -1913,11 +1919,8 @@ nσ and had no PID in its efficiency.
    TOF response), not of the pair. It may depend on multiplicity (TOF mismatch grows with occupancy); the
    histograms have the multiplicity axis.
 3. **`mc_task`**:
-   - the π map from `h4PiMCReco` of a wagon with `selectPionInSigRegion` off. `mc_task` already reads the train
-     record of its input (`TrainConfig::Devices`); it must read that key of the wagon the map comes from and stop if
-     it disagrees with what the configuration expects (window in the map, or ε_win applied here). Without it, a map
-     with the window times an ε_win counts the window twice, and a map without it and no ε_win not at all, both
-     silently;
+   - the π map from `h4PiMCReco` of a wagon with `selectPionInSigRegion` off;
+   - the selection the map was counted with, stamped next to it (the check of item 5);
    - $f^{MC}_{win}$, written next to the map as a histogram with real edges, for the fallback and the comparison.
 4. **The TOF mismatch.**
    - **The bias.** A π with a wrong TOF time is a true π lost by the window, but a fit of nσ_TOF puts it in the
@@ -1928,16 +1931,50 @@ nσ and had no PID in its efficiency.
      compare the nσ shapes of data and MC.
    - **What to check first.** Below the threshold, inside the TPC π band of `h4PionTPCTOFnSigma`, check whether the
      tracks with $|n\sigma_{TOF}| > 3$ are flat (mismatch: confirms the change) or peaked (K, e: to reconsider).
-5. **Checks** (the rule of section 12: what is counted online and what describes it offline must agree):
-   - the fit's integration windows equal `pidTPCMax` / `pidTOFMax`;
-   - `tofPIDThreshold` is the same on every device read and is an edge of the purity's pT binning. A bin across it
-     holds both regimes and must stop the run.
+5. **Checks** (the rule of section 12: what is counted online and what describes it offline must agree). Designed
+   with both review agents before any code (25 November 2026); the first is to be written now, the others wait for
+   item 1.
+   - **The map against the pairs.** Without it, a map with the window times an ε_win counts the window twice, and
+     a map without it and no ε_win not at all, both silently; and an MC of one TOF rule corrects data of the other.
+     - **The facts.** One function of `TrainConfig` turns the options into facts, so that their meaning is written
+       once:
+       - from the correlation device: the window on (`selectPionInSigRegion` and `analysisMode` 2, the rule
+         `isAssocValid` applies to `h4PiMCReco` as to the pairs), its scalar `pidTPCMax` and `pidTOFMax`;
+       - from `pion-track-producer`: `cfgIsTOFChecked`, and the rule with its threshold (`minPtTOFInPID`, or the
+         old rule when the record has `tofPIDThreshold`). The producer's own `pidTPCMax`/`pidTOFMax` are arrays of
+         the K/p rejection, not the window.
+     - **Both sides call it.** The correlation tasks on their data devices, inside `CheckOnlineMassWindows`, through
+       `SameOnAllDevices`; that also requires the threshold to be the same on every data device. `mc_task` on the
+       device of its MC input, writing the facts as `TParameter`s next to the π maps of `Corrections.root`, per
+       particle (`input_mc_file` may differ per particle).
+     - **`mc_task` records, the correlation task decides.** What the map must hold depends on whether ε_win is
+       applied, a setting of the correlation block: a key in the mc block would be a second copy of it, and could
+       not prove that the `Corrections.root` read came from that run.
+     - **The rule.** The producer facts are always equal between MC and data: the map's selection is the pairs'.
+       The window facts are equal while no ε_win is applied; after the switch the rule becomes "the map has no
+       window, and ε_win's window is the pairs'". The same stamps serve both.
+     - **When it fires.** Only when the π efficiency is applied offline (`corrections.particles.Pi.acceptance_efficiency`):
+       a map applied online, or generator-level containers, have nothing to compare. A `Corrections.root` without the
+       stamps (every one so far) is a `Logger::Warn`, not compared, as `PhiWeightedOnline` is.
+     - `Macros/CompareRootFiles.cpp` learns `TParameter<double>`, or the stamps show as NOT COMPARED.
+     - Rejected: the stamps as histograms (a per-production scalar, not a number per cell); a configuration key
+       checked by each side (two copies of one fact, which an old or foreign `Corrections.root` passes); reading the
+       MC record back from the provenance of `Corrections.root` (documentation turned into a contract, and without
+       the producer). The strange species keep their mass windows out of it until their maps' window is decided
+       (section 12).
+   - **The purity against the window: with item 1.** Its per-cell window stamps carry both windows, TPC and TOF (or
+     none), and are compared with the window above cell by cell. Not before: a key saying whether `pi_tpc` or
+     `pi_tof` fitted TPC or TOF would be left over, and `pi_tpc` (TPC over every track) is not the counted sample
+     above the threshold anyway. Until then the existing warning of `PurityWindowsToCompare` stays.
+   - **The threshold as a pT edge: with item 1.** It matters where bins are merged before a fit, the purity's and
+     ε_win's: a merged bin across the threshold holds both regimes and must stop the run. For the map alone a bin
+     across the step is a bin average, not a wrong number.
 6. **Online efficiency.** If the π efficiency is ever applied online (`applyEfficiency`), the map uploaded must be
    the one without the window, and ε_win is applied here; the pair weight still factorises.
 
 **The order of the switch.** Today `mc_task` reads the π map from the default wagon and applies no ε_win, which is
 right only while that wagon has `selectPionInSigRegion` on. So:
-1. the framework first: ε_win with its two sources and the record check of item 3 (the existing MC productions,
+1. the framework first: ε_win with its two sources and the check of item 5 (the existing MC productions,
    switch on, keep working with "window in the map");
 2. then the default MC wagon with `selectPionInSigRegion` = 0; `_TightAssoc` stays on, and `h4PiMCReco` there
    divided by the default's is the MC window counted on the pairs' own selection, a closure of $f^{MC}_{win}$;
