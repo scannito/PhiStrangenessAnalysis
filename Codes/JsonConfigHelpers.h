@@ -7,6 +7,7 @@
 #include "rapidjson/stringbuffer.h"
 #include "rapidjson/writer.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <format>
 #include <fstream>
@@ -484,8 +485,9 @@ inline void RequireKnownKeys(const rapidjson::Value& node, const std::set<std::s
 
 // ---------------------------------------------------------------------------
 // Values as DPL writes the options of a task, which is how they come in the train records of TrainConfig.h: a boolean
-// as "0" or "1", a std::array as key._M_elems[i]. In a namespace of their own because they accept what the readers above
-// refuse: a key of the framework's configuration, where a boolean is true or false, must never be read with them.
+// as "0" or "1", a std::array as key._M_elems[i], a std::vector as {"values": [...]}. In a namespace of their own
+// because they accept what the readers above refuse: a key of the framework's configuration, where a boolean is true or
+// false, must never be read with them.
 // ---------------------------------------------------------------------------
 namespace Dpl
 {
@@ -511,11 +513,13 @@ inline bool RequireBool(const rapidjson::Value& node, std::string_view key, std:
   return ToBool(RequireMember(node, name.c_str(), errCtx), key, errCtx);
 }
 
-// A std::array<bool, N> as DPL writes it, key._M_elems[0] ... [N-1], where element i stands for names[i]: the names
-// whose element is true. Exactly N elements, contiguous: one missing or one more means the array is not the one the
-// names describe.
-inline std::set<std::string> RequireSelected(const rapidjson::Value& node, std::string_view key,
-                                             std::span<const std::string> names, std::string_view errCtx)
+namespace Detail
+{
+// A std::array<bool, N>, key._M_elems[0] ... [N-1], where element i stands for names[i], an order known only from the
+// O2Physics source. Exactly N elements, contiguous: one missing or one more means the array is not the one the names
+// describe.
+inline std::set<std::string> SelectedFromElements(const rapidjson::Value& node, std::string_view key,
+                                                  std::span<const std::string> names, std::string_view errCtx)
 {
   std::set<std::string> selected;
   for (std::size_t i = 0; i <= names.size(); ++i) {
@@ -533,6 +537,36 @@ inline std::set<std::string> RequireSelected(const rapidjson::Value& node, std::
   }
   return selected;
 }
+
+// A std::vector<std::string>, {"values": [...]}: the names listed, in any order, each one of the names.
+inline std::set<std::string> SelectedFromList(const rapidjson::Value& list, std::string_view key,
+                                              std::span<const std::string> names, std::string_view errCtx)
+{
+  std::set<std::string> selected;
+  for (const rapidjson::Value& value : RequireArray(list, "values", errCtx)) {
+    std::string species = ToString(value, std::format("{}.values", key), errCtx);
+    if (std::ranges::find(names, species) == names.end())
+      throw std::runtime_error(std::format("[FATAL] {}: '{}' lists '{}', which is none of {}.", errCtx, key, species, Logger::Join(names)));
+    selected.insert(std::move(species));
+  }
+  return selected;
+}
+} // namespace Detail
+
+// The names switched on, as DPL writes them, in either form, told apart by the keys: a list of the names switched on
+// (key itself) or a std::array of switches (key._M_elems[i]).
+inline std::set<std::string> RequireSelected(const rapidjson::Value& node, std::string_view key,
+                                             std::span<const std::string> names, std::string_view errCtx)
+{
+  const std::string name(key);
+  if (const rapidjson::Value* list = TryObject(node, name.c_str(), errCtx))
+    return Detail::SelectedFromList(*list, key, names, errCtx);
+  const std::string firstElement = std::format("{}._M_elems[0]", key);
+  if (OptionalMember(node, firstElement.c_str()))
+    return Detail::SelectedFromElements(node, key, names, errCtx);
+  throw std::runtime_error(std::format("[FATAL] {}: '{}' missing, in either form (a list of names, or {}._M_elems[i]).", errCtx, key, key));
+}
+
 // A std::pair of numbers as DPL writes it: key.first and key.second, each a number or a string holding one.
 inline std::pair<double, double> RequirePair(const rapidjson::Value& node, std::string_view key, std::string_view errCtx)
 {

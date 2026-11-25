@@ -72,9 +72,9 @@ struct Device {
   const rapidjson::Value* options;
 };
 
-// phiStrangeCorrelation's activeCorrelationTypes, element by element (K0S, Lambda, AntiLambda, Xi, Omega, Pion), in the
-// framework's names.
-inline const std::array<std::string, 6> kAssocSpecies{"K0S", "Lambda", "AntiLambda", "Xi", "Omega", "Pi"};
+// The species of phiStrangeCorrelation's activeCorrelationTypes, in the framework's names, which are the task's
+// (AssocParticleLabels): the order of its elements where it is a std::array, the names it lists where it is a list.
+inline const auto kAssocSpecies = std::to_array<std::string>({"K0S", "Lambda", "AntiLambda", "Xi", "Omega", "Pi"});
 
 // "<record>: wagon <id>, device '<name>'", for the messages.
 inline std::string Source(const Device& device)
