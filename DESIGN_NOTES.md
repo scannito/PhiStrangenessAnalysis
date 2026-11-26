@@ -594,6 +594,41 @@ The fit is no way out as it stands: with `me_normalization: "fit"` and the 2D en
 `data pp` 2024, 19 October) the same four cells give a0 = -0.059 in the first (left unnormalised) and a
 fit status 1 in the other three, whose a0 is used as it is.
 
+**The mixed event pooled over multiplicity. Proposed, to decide (12 and 26 November 2026).** Today each cell
+(species, multiplicity class, φ pT, associated pT, signal or sideband) is divided by its own mixed event, which has
+only about 3.4 times the statistics of the same event. For the rare species and the sparse cells this gives the
+empty cells above, same-event pairs dropped where the mixed event has no entry (`Divide` says nothing), a ratio
+SE/ME biased upward where the mixed event is sparse (E[1/ME] > 1/E[ME]), and a noisy normalisation whose error is
+not propagated. A study of 12 November (outside the repository) measured:
+- **the shape in Δy does not depend on multiplicity** within statistics for K0S, Ξ and Ω (χ²/ndf about 1, each cell
+  against the pool without it); the π, with about 10⁷ pairs per cell, shows a real dependence of about 1-1.5 % at
+  the edges of |Δy| < 1;
+- **it depends strongly on φ pT and associated pT, by 10-25 %**: the Δy acceptance comes from the η acceptance
+  converted into y, which depends on pT and mass. So: pool over multiplicity, never over pT;
+- **pooled over the ten classes**, about 10 times more statistics, no empty cell left except 2 sideband cells of
+  LHC26ag; the yields move by 1-5 % at |Δy| < 1 where statistics are fine (π, K0S, merged Ξ and Ω), by tens of
+  percent for the Ω of 2023 and of single LowIR periods, whose current numbers are not reliable at that level.
+
+The h-strangeness correlation analysis (analysis notes of September 2024 and May 2026) builds the mixed event per
+multiplicity, z vertex (2 cm), trigger pT and associated pT, normalised on the average of the bins at Δη = 0, finds
+it poorly filled (in O2Physics the mixing stays within one time frame), and takes one z-vertex bin and the pT
+integral as default; in May 2026 its h-cascade systematics list the mixed event "as a function of multiplicity"
+among the variations, so its default appears to be integrated over multiplicity too (a reading of the variation
+list; section III-B still describes it per class). It can integrate over pT because it works in Δη, whose acceptance
+does not depend on pT; in Δy we cannot.
+
+What it would be, when decided (design review with both agents before any code, as for anything new):
+- a declared key, e.g. `me_pooling: "none" | "multiplicity"`, written even at its default (it changes numbers);
+- the raw projections (counts, or sums of weights where the containers are weighted online) summed over the classes,
+  then normalised at Δy = 0, and each class divided by it; the per-class mixed event as a systematic variation, which
+  also covers the 1-1.5 % of the π and K0S;
+- first the check that the classes being summed share the other axes (φ pT, associated pT, Δy): the mixed-event
+  and sideband containers are cut by index and their axes are not compared today.
+
+It is a framework change. The O2Physics task needs nothing: its mixed event is already filled per multiplicity
+class, and summing the classes is done here. The only lever online is statistics, `cfgNoMixedEvents` (the depth
+of the mixing buffer), at the cost of CPU in the trains.
+
 **Spectra in Δφ: to be looked at (30 October 2026).** `projection_axis: "delta_phi"` is supported in principle, the
 2D engine projects on Δφ, but it is refused at `Init` in every engine for now, at the owner's choice: what a spectrum
 in Δφ is has never been defined. `ConstructSpectrum` integrates each cell over |x| < `delta_y_limits`, and
