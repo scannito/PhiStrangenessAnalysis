@@ -1798,7 +1798,11 @@ directories) installs both executables. Not yet done: a run on data, the PR desc
    entry (`fillCorrelationHistogram`), so it is no reference for point 3 either.
    Done on the branch (`ac7d93fde`, 12 November; the user chose discard and count): the check is per particle;
    a φ that fails is dropped before the trigger count and its pairs, an associate per pair, and each is counted
-   in `zeroEfficiency/{SE,ME}/h3<particle>` over multiplicity, pT and y. Reading the counter here is still to do.
+   over multiplicity, pT and y: the φ in `zeroEfficiency/SE/h3Phi` (once per candidate; the mixed event's φ are the
+   same candidates and are not counted again), the associates per pair in `zeroEfficiency/{SE,ME}/h3<particle>`. The
+   candidates beyond the last pT bin of a map, dropped by the same rule, are counted alike in `outOfMap/` (27
+   November: until then they were dropped uncounted, 34 φ of 8549 in a local data run). Reading the counters here is
+   still to do.
 
 ### Phases
 
