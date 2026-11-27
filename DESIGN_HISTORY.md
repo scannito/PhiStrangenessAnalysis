@@ -1897,3 +1897,26 @@ in between it was refused by name; the owner preferred a key whose values are th
 cannot hold is still refused, as a value and not as a combination: `"signals"` where no final signals are written
 (`run_mode: "legacy"`, the WPDG task). Base configurations migrated (`true` → `"projections"`, `false` →
 `"rebuild"`; `use_signal_cache` was `false` everywhere).
+
+## The projection cache stamped per section
+
+Until 27 November 2026 the binning stamps and the provenance of a projection cache sat at `{binning_name}`, shared by
+its two sections, `Extract1D` and `Extract2D`, which are built by different runs. A rebuild of one section with
+another associated pT binning was therefore refused (give a distinct `binning_name`, or delete the file): rewriting the
+shared stamps would have left the sibling's projections under stamps that were not theirs. The refusal compared the
+associated pT binning only; the multiplicity and trigger pT stamps were overwritten unchecked. Once a rebuild emptied
+its section (the entry above), the refusal guarded nothing but the shared stamps, and both review agents pointed at
+the simpler end state, which the owner chose: each section carries its own stamps and provenance, read back from the
+section on reuse. A rebuild empties its section at the end of `Init` (`ClearOwnSection`) and stamps it in `Terminate`
+(`StampProjectionCaches`), once the build is complete, so a run that stops halfway leaves a section with no stamps,
+which a reuse refuses. The provenance written there is the one in force when the binnings were resolved, before the
+extrapolation, which shapes neither the projections nor the signals. A rebuild replaces its section whatever the
+binning, and the cache moved to row two of *How a task opens the file it writes* (`CLAUDE.md`), whose third row
+read "`UPDATE`, no clearing: the owned subtree is defended by REFUSING". Clearing and refusing are opposite answers to
+the same question, and which one is right depends on what it costs to lose the contents: here, the rebuild is the
+request to lose them. Caches built before have their stamps and provenance one level up, which a rebuild leaves in
+place: delete those files and rebuild. `ShowProvenance.C` reads the provenance of a section too, as `scheme/section`.
+
+Still with the old layout: the spectra file, `PhiAssocSpectra.root`, keeps its multiplicity and trigger-pT stamps
+and its provenance at `{binning_name}`, over the two sections written by different runs (`comparison_task` reads them
+there). Raised by the review, left to the owner.

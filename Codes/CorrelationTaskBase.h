@@ -176,6 +176,11 @@ class CorrelationTaskBase : public IAnalysisTask
     // of their own, this is what will say which method produced them.
     RootIO::WriteProvenance(outputFile.get(), globalCfgs.binningName, provenance);
 
+    // Last, as the projections are complete: a run that stops halfway leaves a cache section with no stamps, which a
+    // reuse refuses, and not one that claims a build it does not hold.
+    if (RebuildsProjections())
+      StampProjectionCaches();
+
     // =========================================================================
     // 2. Write Yield Ratios across species (into a dedicated "Ratios" directory)
     // =========================================================================
@@ -297,6 +302,9 @@ class CorrelationTaskBase : public IAnalysisTask
 
   // Filled in Init, written into the spectra file in Terminate
   std::map<std::string, std::string> provenance;
+  // What it held when the binnings were resolved (ResolveBinningAndCache), before what does not shape the projections
+  // and signals (the extrapolation): written into each rebuilt projection cache in Terminate
+  std::map<std::string, std::string> cacheProvenance;
   // Per associated species, the mass window it was kept in online (CheckOnlineMassWindows):
   //  - no map (nullopt): not known, no train configuration (no device read); nothing can be compared.
   //  - a map without the species: the species has no mass window to have (the pion, cut online in n sigma).
@@ -1084,22 +1092,18 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
-  // Binning resolution and projection cache provenance, in one step.
+  // Binning resolution, from the projection cache when it is read.
   //
   // The binning always comes from a file, never from the configuration:
   //   producing the cache -> from the axes of the THnSparse being projected
   //   reusing the cache   -> from the stamps, which describe what is in it
   // and in both cases it is verified against the declared production.
   //
-  // The two are done together on purpose. Doing them apart is what would allow
-  // indexing one binning while labelling another, or reusing a cache built with
-  // a different one - and the stamps only mean something if they are written by
-  // whoever resolved the binning.
+  // A rebuilt cache is stamped with the binnings resolved here (multBinning, ptPhiBinning, each particle's binning),
+  // and with the provenance as it stands here, by StampProjectionCaches in Terminate: once the build is complete.
   //
-  // The stamps live INSIDE the binning_name directory, next to the projections
-  // they describe. The file is opened UPDATE precisely so several schemes can
-  // coexist, each in its own directory: a stamp at the file root would be shared
-  // between them and would reject that legitimate case.
+  // The stamps live INSIDE the section (binning_name/Extract1D or Extract2D), next to the projections they describe:
+  // the two sections are built by different runs, and a stamp shared by them could describe only one.
   // -------------------------------------------------------------------------
   // A binning that must be common to every associated particle: taken from the
   // first one, then required to match on the others. Without this the last
@@ -1128,7 +1132,7 @@ class CorrelationTaskBase : public IAnalysisTask
     for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
       auto& particle = assocParticles[pIdx];
       TFile* cacheFile = projectionFiles[pIdx].get();
-      const std::string ctx = std::format("{}, scheme '{}'", cacheFile->GetName(), globalCfgs.binningName);
+      const std::string ctx = std::format("{}, '{}'", cacheFile->GetName(), RootIO::MakeDirPath(SectionPath()));
 
       // Resolved for THIS particle, then merged into the common ones below.
       std::vector<double> mult;
@@ -1142,59 +1146,25 @@ class CorrelationTaskBase : public IAnalysisTask
         mult = globalCfgs.ResolveMultBinning(source->GetAxis(0), origin);
         ptPhi = globalCfgs.ResolvePtBinning("Phi", source->GetAxis(1), origin);
         particle.binning = globalCfgs.ResolvePtBinning(particle.name, source->GetAxis(2), origin);
-
-        TDirectory* schemeDir = RootIO::MakePath(cacheFile, {globalCfgs.binningName});
-
-        // The stamps below are shared by the two sections of the scheme (Extract1D, Extract2D), and this run rebuilds
-        // only its own (ClearOwnSection empties it): rewriting them with another binning would leave the sibling's
-        // projections under stamps that are not theirs. Only the associated pT binning is compared; the multiplicity
-        // and trigger pT ones are verified on reuse against the configuration.
-        const std::vector<double> previous = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtAssoc, ctx);
-        if (!previous.empty()) {
-          const std::string diff = BinningUtils::Compare(previous, particle.binning, "existing file", "current run");
-          if (!diff.empty()) {
-            throw std::runtime_error(std::format(
-              "[FATAL] {}: {} already holds projections built with a different pT binning:\n{}"
-              "Overwriting would leave projections of both binnings under the same scheme. Either give this "
-              "binning a distinct 'binning_name', so the two live in separate directories, or delete the file.",
-              GetName(), ctx, diff));
-          }
-        }
-
-        RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtAssoc, particle.binning);
-        RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhi);
-        RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, mult);
-
-        // The stamps say WITH WHAT BINNING these projections were built. They cannot
-        // say WHAT THEY WERE BUILT FROM, and two productions can share a binning - so
-        // a cache reused across them matches on every check there is and holds the
-        // projections of the wrong input. Recording the config block is what makes
-        // that answerable at all; ShowProvenance.C can also read it back, which on
-        // these files it previously could not.
-        //
-        // Documentation and not a check, like everywhere else provenance is written:
-        // nothing reads it on reuse yet. Turning it into a cache key - and with it
-        // deciding automatically whether the cache is usable - is a separate step,
-        // and one that must not land while files are being rebuilt. See DESIGN_NOTES.
-        RootIO::WriteProvenance(cacheFile, globalCfgs.binningName,
-                                provenance);
+        // The section is emptied at the end of Init (ClearOwnSection) and stamped with these in Terminate
       } else {
-        TDirectory* schemeDir = RootIO::FindPath(cacheFile, {globalCfgs.binningName});
-        if (!schemeDir) {
-          throw std::runtime_error(std::format(
-            "[FATAL] {}: cache requested but scheme '{}' does not exist in {}. "
-            "Run once with 'projection_cache': 'rebuild'.",
-            GetName(), globalCfgs.binningName, cacheFile->GetName()));
+        TDirectory* sectionDir = RootIO::FindPath(cacheFile, SectionPath());
+        if (!sectionDir) {
+          throw std::runtime_error(
+            std::format("[FATAL] {}: cache requested but {} does not exist. Run once with 'projection_cache': 'rebuild'.", GetName(), ctx));
         }
 
-        particle.binning = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtAssoc, ctx);
-        ptPhi = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtPhi, ctx);
-        mult = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampMult, ctx);
+        particle.binning = RootIO::ReadBinningStamp(sectionDir, RootIO::kStampPtAssoc, ctx);
+        ptPhi = RootIO::ReadBinningStamp(sectionDir, RootIO::kStampPtPhi, ctx);
+        mult = RootIO::ReadBinningStamp(sectionDir, RootIO::kStampMult, ctx);
 
+        // No stamps: a build that did not complete, or a cache built before 27 November 2026, whose stamps sit one
+        // level up and stay there after a rebuild: its file is best deleted and rebuilt.
         if (particle.binning.empty() || ptPhi.empty() || mult.empty()) {
           throw std::runtime_error(std::format(
-            "[FATAL] {}: {} carries no binning stamps, so the binning its projections "
-            "were built with is unknown. Rebuild it with 'projection_cache': 'rebuild'.",
+            "[FATAL] {}: {} carries no binning stamps, so the binning its projections were built with is unknown (a "
+            "build that did not complete, or a cache file from before 27 November 2026: delete it). Rebuild it with "
+            "'projection_cache': 'rebuild'.",
             GetName(), ctx));
         }
 
@@ -1213,6 +1183,8 @@ class CorrelationTaskBase : public IAnalysisTask
     }
 
     VerifyTriggerAxes();
+    if (RebuildsProjections())
+      cacheProvenance = provenance;
   }
 
   // -------------------------------------------------------------------------
@@ -1761,10 +1733,8 @@ class CorrelationTaskBase : public IAnalysisTask
     const std::string finalDir = JsonConfig::RequireString(taskConfig, "output_dir_final", GetName());
     outputFile = RootIO::OpenOrThrow(std::format("{}{}{}", finalDir, outputPrefix, IONames::kSpectraFile), "UPDATE", GetName());
 
-    // UPDATE and not RECREATE here too, and for a different reason: the cache is
-    // expensive to rebuild, so a scheme directory that already holds projections of
-    // another binning must be REFUSED rather than silently replaced. That guard lives
-    // in ResolveBinningAndCache and only has something to guard if the file survives.
+    // UPDATE and not RECREATE here too: a rebuild rewrites only its own section (RestartProjectionCache), and the
+    // other Extract1D/2D, built by another run, stays.
     const char* projMode = RebuildsProjections() ? "UPDATE" : "READ";
     for (const auto& p : assocParticles) {
       projectionFiles.push_back(
@@ -1784,16 +1754,40 @@ class CorrelationTaskBase : public IAnalysisTask
   // new objects with nothing to tell them apart. UPDATE and not RECREATE because only this subtree is ours: another
   // 'binning_name', or the other Extract1D/2D, belongs to somebody else and stays.
   // The same holds for the section of each projection cache when it is rebuilt (projection_cache "rebuild", asked
-  // for explicitly, the binning already checked against its stamps by ResolveBinningAndCache): the projections
-  // whose names the current configuration no longer produces (the mixed events of the other me_mult, for one) would
-  // otherwise stay, and a later run with the cache on could read them. Emptied, a cache holds exactly its last build,
-  // and a run asking for something it does not hold stops at the missing object.
+  // for explicitly): the projections whose names the current configuration no longer produces (the mixed events of
+  // the other me_mult, for one) would otherwise stay, and a later run with the cache on could read them. Emptied, a
+  // cache holds exactly its last build, and a run asking for something it does not hold stops at the missing object;
+  // its stamps go with it, and come back in Terminate (StampProjectionCaches).
   void ClearOwnSection()
   {
     RootIO::ClearPath(outputFile.get(), SectionPath());
     if (RebuildsProjections()) {
       for (const auto& file : projectionFiles)
         RootIO::ClearPath(file.get(), SectionPath());
+    }
+  }
+
+  // Stamps the section of each rebuilt projection cache with the binnings it was built with (ResolveBinningAndCache).
+  // The stamps are the section's own: Extract1D and Extract2D are built apart, so each says what it holds, and a
+  // rebuild with another binning under the same binning_name replaces its section and touches nothing else.
+  void StampProjectionCaches() const
+  {
+    // The stamps say WITH WHAT BINNING these projections were built. They cannot
+    // say WHAT THEY WERE BUILT FROM, and two productions can share a binning - so
+    // a cache reused across them matches on every check there is and holds the
+    // projections of the wrong input. Recording the config block is what makes
+    // that answerable at all; ShowProvenance.C can also read it back.
+    //
+    // Documentation and not a check, like everywhere else provenance is written:
+    // nothing reads it on reuse yet. Turning it into a cache key - and with it
+    // deciding automatically whether the cache is usable - is a separate step,
+    // and one that must not land while files are being rebuilt. See DESIGN_NOTES.
+    for (size_t pIdx = 0; pIdx < projectionFiles.size(); ++pIdx) {
+      TDirectory* sectionDir = RootIO::MakePath(projectionFiles[pIdx].get(), SectionPath());
+      RootIO::WriteBinningStamp(sectionDir, RootIO::kStampPtAssoc, assocParticles[pIdx].binning);
+      RootIO::WriteBinningStamp(sectionDir, RootIO::kStampPtPhi, ptPhiBinning);
+      RootIO::WriteBinningStamp(sectionDir, RootIO::kStampMult, multBinning);
+      RootIO::WriteProvenance(sectionDir, "", cacheProvenance);
     }
   }
 

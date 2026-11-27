@@ -460,8 +460,8 @@ written, and they already carry the mixed-event normalisation and the correction
 which `me_normalization` (or `apply_mixed_events`, or `corrections`) made them: a run with `fit` and the
 cache off, then one with `bins_at_zero` and the cache on, gives the first run's numbers (up to 9.6% on
 the K0S) under a provenance that says `bins_at_zero`. The hole existed for the corrections before; the
-declared normalisation widens it. The general fix, rather than one check per key: stamp the scheme
-directory, when the L2 cache is written, with the settings that change its numbers, and refuse a mismatch
+declared normalisation widens it. The general fix, rather than one check per key: stamp the cache
+section, when the L2 cache is written, with the settings that change its numbers, and refuse a mismatch
 on read, as `RootIO::RequireMatchingBinningStamp` does for the binning.
 
 **A key retired by a migration still passes when a parent declares its replacement.** Found by the same
@@ -1023,8 +1023,8 @@ rather than throwing, so the comparison runs and says out loud, per stamp, what 
 could not verify. Which is the honest outcome: the assertion is still yours, it is
 just made once at conversion time instead of once per JSON entry.
 
-One thing to fix if that route is taken: the wording of that warning is written for
-the projection cache — it ends with "delete the cache files" — and would read as a
+One thing to check if that route is taken: the wording of that warning was written for
+the projection cache — it ended with "delete the cache files" — and would read as a
 non sequitur in a comparison.
 
 ---

@@ -290,14 +290,13 @@ strings.
 
 ## How a task opens the file it writes
 
-Three regimes, and the choice is about **ownership of the file**, not about taste.
+Two regimes, and the choice is about **ownership of the file**, not about taste.
 Opening mode and clearing are two separate decisions:
 
 | | when | who |
 |---|---|---|
 | `RECREATE` | the whole file is this task's | `ComparisonTask`, the per-particle maps |
-| `UPDATE` + `RootIO::ClearPath` | the file is shared; the owned subtree is rewritten from scratch | `CorrelationTask`, `CorrelationWPDGTask` (`PhiAssocSpectra.root`), `MCTask` (`Corrections.root`), `PhiFitTask` (`PhiDataHistograms.root`), `PurityTask` (`Purity.root`); the last three own `{binning_name}`, so that two schemes coexist in one file |
-| `UPDATE`, refusing, then clearing on a rebuild | the file is shared; a rebuild asked for explicitly rewrites the section from scratch, and one whose associated pT binning differs from the stamps the two sections share is REFUSED | the projection caches |
+| `UPDATE` + `RootIO::ClearPath` | the file is shared; the owned subtree is rewritten from scratch | `CorrelationTask`, `CorrelationWPDGTask` (`PhiAssocSpectra.root`, and the projection caches when `projection_cache` is `"rebuild"`), `MCTask` (`Corrections.root`), `PhiFitTask` (`PhiDataHistograms.root`), `PurityTask` (`Purity.root`); the last three own `{binning_name}`, so that two schemes coexist in one file |
 
 `UPDATE` says "this file may hold things that are not mine" - another
 `binning_name`, the other `Extract1D`/`Extract2D`. `ClearPath` says "and what IS
@@ -306,17 +305,10 @@ shape leaves both generations in the file and nothing says which is current; wit
 `RECREATE` instead of the pair, the siblings are destroyed along with the stale
 objects.
 
-The third row is not an oversight. A projection cache costs too much to rebuild for
-it to be replaced silently: it is rebuilt only when asked (`projection_cache:
-"rebuild"`), and then its section is cleared with the task's own (`ClearOwnSection`, the
-last step of `Init`), so that the projections the configuration no longer names (the
-mixed events of the other `me_mult`) do not stay beside the new ones for a run with
-the cache on to read (27 November 2026, replacing a stamp per such key). The refusal
-that remains is about the sibling: the binning stamps sit at `{binning_name}`, shared
-by `Extract1D` and `Extract2D`, so a rebuild of one section with another associated
-pT binning would leave the other's projections under stamps that are not theirs -
-see `ResolveBinningAndCache`. Clearing and refusing are opposite answers to the same
-question, and which one is right depends on what it costs to lose the contents.
+The projection caches are rebuilt only when asked (`projection_cache: "rebuild"`): the
+section is emptied at the end of `Init` and stamped, with its own binnings and
+provenance, when the build is complete (`DESIGN_HISTORY.md`, *The projection cache
+stamped per section*, for why they no longer refuse another binning).
 
 A new task that writes into a file somebody else also writes into belongs in row two.
 

@@ -444,9 +444,10 @@ starts, the high one dashed.
 
 - `rebuild` reads the `THnSparse`, empties the section of the cache (`Extract1D` or `Extract2D`) and writes it again:
   the projections of every cell and, with `run_mode: "optimized"`, the final signals. The cache then holds exactly its
-  last build; a different associated pT binning under the same `binning_name` is refused.
+  last build. The section carries its own binning stamps and provenance, so another binning under the same
+  `binning_name` replaces that section (`Extract1D` or `Extract2D`) and leaves the other as it was.
 - `projections` reuses the projections instead of re-projecting the `THnSparse`, and runs the calculator. The cached
-  histograms are named by interval, and each cache also carries a *binning stamp* — an empty histogram whose axis is
+  histograms are named by interval, and each cache section also carries a *binning stamp* — an empty histogram whose axis is
   the binning it was built with. On reuse the stamp is compared with the current run and a mismatch is fatal before
   anything is read, naming the edge that differs.
 - `signals` (`correlation_task` with `run_mode: "optimized"` only) goes further: it reads back the final signals of

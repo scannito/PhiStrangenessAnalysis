@@ -38,10 +38,29 @@
 namespace
 {
 
+// The facts of one "Provenance" directory below 'owner', if it has one.
+std::map<std::string, std::string> ReadProvenanceBelow(TDirectory* owner)
+{
+  std::map<std::string, std::string> facts;
+  TDirectory* prov = owner->GetDirectory("Provenance");
+  if (!prov || !prov->GetListOfKeys())
+    return facts;
+  for (TObject* provObj : *prov->GetListOfKeys()) {
+    auto* provKey = static_cast<TKey*>(provObj);
+    TObject* entry = provKey->ReadObj();
+    if (auto* named = dynamic_cast<TNamed*>(entry))
+      facts[named->GetName()] = named->GetTitle();
+    delete entry;
+  }
+  return facts;
+}
+
 // The provenance sits one level below the binning scheme, whose name is not known
 // in advance and may differ between files. Rather than guessing it, walk the top
 // level and take whatever contains a "Provenance" directory: the layout is
 // {schemeName}/Provenance, and the scheme name is exactly what we want to report.
+// A projection cache keeps one per section, {schemeName}/{Extract1D|Extract2D}/Provenance
+// (since 27 November 2026), reported as "scheme/section".
 std::map<std::string, std::map<std::string, std::string>> ReadAllProvenance(TFile* file)
 {
   std::map<std::string, std::map<std::string, std::string>> perScheme;
@@ -54,21 +73,13 @@ std::map<std::string, std::map<std::string, std::string>> ReadAllProvenance(TFil
     if (!scheme)
       continue;
 
-    TDirectory* prov = scheme->GetDirectory("Provenance");
-    if (!prov || !prov->GetListOfKeys())
-      continue;
-
-    std::map<std::string, std::string> facts;
-    for (TObject* provObj : *prov->GetListOfKeys()) {
-      auto* provKey = static_cast<TKey*>(provObj);
-      TObject* entry = provKey->ReadObj();
-      if (auto* named = dynamic_cast<TNamed*>(entry))
-        facts[named->GetName()] = named->GetTitle();
-      delete entry;
-    }
-
-    if (!facts.empty())
+    if (auto facts = ReadProvenanceBelow(scheme); !facts.empty())
       perScheme[key->GetName()] = facts;
+
+    for (TObject* subObj : *scheme->GetListOfKeys())
+      if (TDirectory* section = scheme->GetDirectory(subObj->GetName()))
+        if (auto facts = ReadProvenanceBelow(section); !facts.empty())
+          perScheme[std::string(key->GetName()) + "/" + subObj->GetName()] = facts;
   }
   return perScheme;
 }
