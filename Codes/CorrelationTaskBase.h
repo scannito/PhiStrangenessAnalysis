@@ -540,7 +540,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // The index is in the context because a missing 'name' leaves nothing else to
       // identify the entry by.
       const std::string ctx = std::format("{} associated_particles[{}]", GetName(), idx++);
-      JsonConfig::RequireKnownKeys(sp, {"name", "dir_name"}, ctx);
+      JsonConfig::RequireKnownKeys(sp, {"name", "dir_name", "me_mult"}, ctx);
 
       std::string particle = JsonConfig::RequireString(sp, "name", ctx);
 
@@ -548,7 +548,13 @@ class CorrelationTaskBase : public IAnalysisTask
       // overrides it - see AssocParticleConfig for the rule. The binning stays
       // empty: it is resolved from the input files in ResolveBinningAndCache(),
       // once the containers are open.
-      assocParticles.emplace_back(particle, JsonConfig::TryString(sp, "dir_name", ctx));
+      // me_mult: required, with no default, since it changes the numbers. The shape was found independent of
+      // multiplicity in Delta y, with the 1D engine only (DESIGN_NOTES.md section 6).
+      const auto& config = assocParticles.emplace_back(particle, RequireMultDependence(sp, "me_mult", ctx), JsonConfig::TryString(sp, "dir_name", ctx));
+      if (config.meMult == AnalysisStructures::MultDependence::Integrated && Engine2D())
+        throw std::runtime_error(std::format("[FATAL] {}: 'me_mult: integrated' is not supported with the 2D engine: the shape of the mixed "
+                                             "event in (Delta phi, Delta y) has not been checked against multiplicity. Use 'me_mult: binned'.",
+                                             ctx));
     }
   }
 
@@ -654,8 +660,7 @@ class CorrelationTaskBase : public IAnalysisTask
       AnalysisStructures::ParticleCorrections pc;
       if (const rapidjson::Value* efficiencyNode = JsonConfig::TryObject(entry, "acceptance_efficiency", pctx)) {
         const std::string actx = std::format("{}.acceptance_efficiency", pctx);
-        pc.efficiency = AnalysisStructures::EfficiencyCorrection{JsonConfig::RequireEnum<AnalysisStructures::MultDependence>(
-          *efficiencyNode, "mult", {{"binned", AnalysisStructures::MultDependence::Binned}, {"integrated", AnalysisStructures::MultDependence::Integrated}}, actx)};
+        pc.efficiency = AnalysisStructures::EfficiencyCorrection{RequireMultDependence(*efficiencyNode, "mult", actx)};
       }
       if (JsonConfig::OptionalBool(entry, "signal_loss", false, pctx))
         pc.signalLoss = AnalysisStructures::SignalLossCorrection{};
@@ -1035,14 +1040,16 @@ class CorrelationTaskBase : public IAnalysisTask
   // readable by the other.
   // -------------------------------------------------------------------------
   // Per (multiplicity, trigger pT, associated pT) cell.
-  // The cut that selects one cell of the h5Phi{X}Data* containers, whose axes are (mult, pT(phi), pT(assoc), dy, dphi).
-  static std::vector<HistogramUtils::AxisToCut> CellCuts(int multBin, int ptPhiBin, int ptAssocBin)
+  // One cell of the h5Phi{X}Data* containers, whose axes are (mult, pT(phi), pT(assoc), dy, dphi): its cut and its name.
+  // No class: the union of the classes, the whole multiplicity axis.
+  CorrelationCalculator::Cell DataCell(const AnalysisStructures::AssocParticleConfig& config, std::optional<int> multBin, int ptPhiBin, int ptAssocBin) const
   {
-    return {HistogramUtils::AxisToCut::Bin(0, multBin), HistogramUtils::AxisToCut::Bin(1, ptPhiBin),
-            HistogramUtils::AxisToCut::Bin(2, ptAssocBin)};
+    return {{multBin ? HistogramUtils::AxisToCut::Bin(0, *multBin) : HistogramUtils::AxisToCut::Whole(0),
+             HistogramUtils::AxisToCut::Bin(1, ptPhiBin), HistogramUtils::AxisToCut::Bin(2, ptAssocBin)},
+            std::format("h1Phi{}Data{}", config.name, CellSuffix(config, multBin, ptPhiBin, ptAssocBin))};
   }
 
-  std::string CellSuffix(const AnalysisStructures::AssocParticleConfig& config, int multBin, int ptPhiBin, int ptAssocBin) const
+  std::string CellSuffix(const AnalysisStructures::AssocParticleConfig& config, std::optional<int> multBin, int ptPhiBin, int ptAssocBin) const
   {
     return std::format("_{}_ptPhi{}_{}",
                        IONames::MultTag(multBinning, multBin),
@@ -1106,6 +1113,7 @@ class CorrelationTaskBase : public IAnalysisTask
       // Resolved for THIS particle, then merged into the common ones below.
       std::vector<double> mult;
       std::vector<double> ptPhi;
+      const bool meIntegrated = particle.meMult == AnalysisStructures::MultDependence::Integrated;
 
       if (!useProjectionCache) {
         // h5Phi{X}Data* axes: (mult, pT(phi), pT(assoc), dy, dphi)
@@ -1136,6 +1144,8 @@ class CorrelationTaskBase : public IAnalysisTask
         RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtAssoc, particle.binning);
         RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhi);
         RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, mult);
+        // In the section, next to the mixed events it describes: Extract1D and Extract2D are built apart
+        RootIO::WriteParameter(RootIO::MakePath(cacheFile, SectionPath()), RootIO::kStampMEMultIntegrated, meIntegrated);
 
         // The stamps say WITH WHAT BINNING these projections were built. They cannot
         // say WHAT THEY WERE BUILT FROM, and two productions can share a binning - so
@@ -1169,6 +1179,17 @@ class CorrelationTaskBase : public IAnalysisTask
             "were built with is unknown. Rebuild it with 'use_projection_cache': false.",
             GetName(), ctx));
         }
+
+        // A cache section answers for the me_mult it was last built with. Without the stamp it predates the key and holds
+        // the per-class mixed events only, which a run with the union's does not find (the names differ); without the
+        // section, ProjectionCacheDir says so.
+        if (const std::optional<bool> built =
+              RootIO::TryReadParameter<bool>(RootIO::FindPath(cacheFile, SectionPath()), RootIO::kStampMEMultIntegrated, ctx, GetName());
+            built && *built != meIntegrated)
+          throw std::runtime_error(std::format(
+            "[FATAL] {}: {} holds mixed events with {} = {}, and the me_mult of {} asks for {}. Rebuild it with "
+            "'use_projection_cache': false.",
+            GetName(), ctx, RootIO::kStampMEMultIntegrated, *built, particle.name, meIntegrated));
 
         // The cache is the source of truth here, but it still has to be the
         // production we think we are working on.
@@ -1662,13 +1683,16 @@ class CorrelationTaskBase : public IAnalysisTask
         TDirectory* qaDir = withQA ? RootIO::MakePath(qaFiles.at(pIdx).get(), logicalPath) : nullptr;
 
         for (int ptAssocBin : BinningUtils::BinIndices(config.binning)) {
-          const std::vector<HistogramUtils::AxisToCut> axesToCut = CellCuts(multBin, ptPhiBin, ptAssocBin);
+          // The same event's cell and the mixed event's, which differ in the class alone. With me_mult integrated the
+          // union's mixed event is projected again for every class, the same object each time: a cost, not a difference.
+          const CorrelationCalculator::Cell cell = DataCell(config, multBin, ptPhiBin, ptAssocBin);
+          const CorrelationCalculator::Cell meCell = DataCell(config, config.MEMultBin(multBin), ptPhiBin, ptAssocBin);
 
           double assocCorrection = Correction(config.name, multBin, ptAssocBin);
           double totalCorrection = phiCorrection * assocCorrection;
 
           std::unique_ptr<TH1> h1FinalSignal = corrCalculator.ExtractCorrectedSignal(
-            data, {.axesToCut = axesToCut, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .histNameBase = std::format("h1Phi{}Data{}", config.name, CellSuffix(config, multBin, ptPhiBin, ptAssocBin)), .ioDir = targetDir, .qaDir = qaDir});
+            data, {.cell = cell, .meCell = meCell, .totalCorrection = totalCorrection, .triggerBkgRatio = triggerBkgRatio, .ioDir = targetDir, .qaDir = qaDir});
 
           if (ptPhiBin == 0) {
             std::string accumName = std::format("h1Phi{}DataSignal{}", config.name, CellSuffix(config, multBin, ptAssocBin));
@@ -1873,7 +1897,14 @@ class CorrelationTaskBase : public IAnalysisTask
     }
   }
 
-  // The sideband and the mixed events are cut with the bin indices of the signal (CellCuts) and divided by or
+  // A per-class or multiplicity-integrated choice, spelled the same in every key that makes one
+  static AnalysisStructures::MultDependence RequireMultDependence(const rapidjson::Value& node, const char* key, std::string_view errCtx)
+  {
+    return JsonConfig::RequireEnum<AnalysisStructures::MultDependence>(
+      node, key, {{"binned", AnalysisStructures::MultDependence::Binned}, {"integrated", AnalysisStructures::MultDependence::Integrated}}, errCtx);
+  }
+
+  // The sideband and the mixed events are cut with the bin indices of the signal (DataCell) and divided by or
   // subtracted from it bin by bin; the binnings are resolved from the signal alone (ResolveBinningAndCache). A
   // container with other axes would be read from the wrong cells, and TH1::Divide does not stop on different edges.
   // The most likely cause is a mixed event of another production, which comes from its own file.

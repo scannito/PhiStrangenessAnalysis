@@ -337,7 +337,7 @@ class MCTask : public IAnalysisTask
       // loss of the class, drawn on the summary canvases and written. The tag, the colour and the draw option all
       // follow from the class.
       auto summarise = [&](EfficiencyCalculator::Maps1D maps, std::optional<int> multBin) {
-        const std::string multTag = multBin ? IONames::MultTag(multBinning, *multBin) : IONames::MultUnionTag(multBinning);
+        const std::string multTag = IONames::MultTag(multBinning, multBin);
         const int color = globalCfgs.GetSpectraColor(multBin);
         const char* option = multBin == 0 ? "" : "SAME";
 

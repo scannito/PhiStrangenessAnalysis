@@ -344,13 +344,16 @@
         "run_mode": "legacy",
         "associated_particles": [
             {
-                "name": "K0S"
+                "name": "K0S",
+                "me_mult": "binned"
             },
             {
-                "name": "Xi"
+                "name": "Xi",
+                "me_mult": "integrated"
             },
             {
-                "name": "Pi"
+                "name": "Pi",
+                "me_mult": "binned"
             }
         ],
         "apply_mixed_events": true,
@@ -429,16 +432,20 @@
         "use_projection_cache": false,
         "associated_particles": [
             {
-                "name": "K0S"
+                "name": "K0S",
+                "me_mult": "binned"
             },
             {
-                "name": "Xi"
+                "name": "Xi",
+                "me_mult": "integrated"
             },
             {
-                "name": "Omega"
+                "name": "Omega",
+                "me_mult": "integrated"
             },
             {
-                "name": "Pi"
+                "name": "Pi",
+                "me_mult": "binned"
             }
         ],
         "purity_sources": [
@@ -601,13 +608,16 @@
         "output_prefix": "MCClosureWPDG_",
         "associated_particles": [
             {
-                "name": "K0S"
+                "name": "K0S",
+                "me_mult": "binned"
             },
             {
-                "name": "Xi"
+                "name": "Xi",
+                "me_mult": "integrated"
             },
             {
-                "name": "Pi"
+                "name": "Pi",
+                "me_mult": "binned"
             }
         ],
         "apply_mixed_events": true,

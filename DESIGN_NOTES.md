@@ -629,6 +629,41 @@ It is a framework change. The O2Physics task needs nothing: its mixed event is a
 class, and summing the classes is done here. The only lever online is statistics, `cfgNoMixedEvents` (the depth
 of the mixing buffer), at the cost of CPU in the trains.
 
+**Implemented (26 November 2026), after the design review of both agents:** `me_mult: "binned" | "integrated"`, the
+vocabulary of `acceptance_efficiency.mult`, required in every entry of `associated_particles` (per species, below). The mixed event has a
+cell of its own (`CorrelationCalculator::Request::meCell`, a cut with its name): with `integrated` it is the projection
+over the whole multiplicity axis (`AxisToCut::Whole(0)`, which equals the sum of the classes since the analysis
+binning is the file's), named after the union (`mult0-100`). A projection cache holds the mixed events of the value it
+was last built with, and possibly the other's from an earlier build, stale: it records which (`me_mult_integrated`,
+a `TParameter<bool>` in the section, `Extract1D` or `Extract2D`, next to the mixed events), and a run with the other value stops. With `integrated` the union's
+mixed event is projected again for every class, the same object each time (a cost, not a difference). Refused with
+the 2D engine until its shape is checked. Before it: the
+sideband and mixed-event containers are required to have the signal's axes (`RequireSameAxesAsSignal`, the P1 of the
+study), when the containers are read; a projection cache built before that was not checked. Still open:
+- the systematic for Ξ and Ω (the per-class mixed event measures mostly their statistical noise; pooling over
+  neighbouring classes is the candidate), the owner's call;
+- the pooled mixed event is shared by every class, so its per-bin errors and its normalisation are 100 % correlated
+  across classes; the trends treat them as independent (with P3, the normalisation term belongs at trend level, with
+  N_eff = (Σw)²/Σw² where the containers are weighted online);
+- the online-efficiency blocks pool their weighted mixed event too; their shape against multiplicity was not tested
+  (the owner: not refused, looked at if something does not add up);
+- a pooled mixed event still empty at zero (2 sideband cells of LHC26ag) now affects every class of its cell (P5).
+
+**Why per species (measured 26 November 2026, 2023, offline- and online-efficiency blocks, ratio integrated/binned
+of the per-trigger spectra).** `binned` reproduces the previous output exactly (every file compared). With
+`integrated`:
+- at |Δy| < 0.1 the π and K0S do not move (1.000-1.003), the normalisation being there;
+- at |Δy| < 1 they acquire a **slope in multiplicity**: π 1.009 (0-1 %) to 0.988 (70-100 %), K0S 1.031 to 0.980. It
+  is the real dependence of the shape on multiplicity, landing on the classes at the edges since the pool is
+  dominated by the classes with most statistics; for the K0S of 2023 larger than the study's estimate on the merged
+  LowIR (0.984-1.008). The slope is the observable, so the π and K0S keep their own mixed event;
+- the Ξ moves by 0.81-1.07 per class with no pattern, the Ω by much more, some yields negative either way: the noise
+  of the per-class mixed event, which is what pooling removes. The 470 cells of 2023 whose mixed event could not be
+  normalised (divided by raw counts) became none;
+- run time +4 %.
+Owner, 26 November 2026: `binned` for π and K0S, `integrated` for Ξ and Ω; "at most they are all set alike", and the
+full chain on every dataset will be run.
+
 **Spectra in Δφ: to be looked at (30 October 2026).** `projection_axis: "delta_phi"` is supported in principle, the
 2D engine projects on Δφ, but it is refused at `Init` in every engine for now, at the owner's choice: what a spectrum
 in Δφ is has never been defined. `ConstructSpectrum` integrates each cell over |x| < `delta_y_limits`, and

@@ -25,6 +25,10 @@
 namespace AnalysisStructures
 {
 
+// Per multiplicity class, or integrated over the classes: of an efficiency map (acceptance_efficiency.mult) or of the
+// mixed event (associated_particles[].me_mult).
+enum class MultDependence { Binned, Integrated };
+
 struct AssocParticleConfig {
   std::string name;            // e.g., "K0S", "Pi"
   std::string dirName;         // e.g., "phiK0S", "phiPi"
@@ -32,14 +36,25 @@ struct AssocParticleConfig {
                                // construction time no file is open yet
   double mass;                 // Follows from the name, so it is not a parameter -
                                // a caller cannot pair "K0S" with the wrong mass
+  // me_mult: each class divided by its own mixed event (Binned) or by the one of the union of the classes
+  // (Integrated). Per species: the shape of the mixed event depends on multiplicity by 2-5 % for the pi and K0S, and
+  // the per-class one is too sparse for the Xi and Omega (DESIGN_NOTES.md section 6). No default: it changes a number.
+  MultDependence meMult;
 
   // The override is an optional rather than a string so that the struct owns both
   // the rule and the decision whether to apply it: the caller hands over what the
   // configuration said, including the fact that it said nothing.
-  AssocParticleConfig(std::string name_, std::optional<std::string> dirNameOverride = std::nullopt)
+  AssocParticleConfig(std::string name_, MultDependence meMult_, std::optional<std::string> dirNameOverride = std::nullopt)
     : name(std::move(name_)),
       dirName(dirNameOverride.value_or(DefaultDirName(name))),
-      mass(AnalysisConstants::GetMass(name)) {}
+      mass(AnalysisConstants::GetMass(name)),
+      meMult(meMult_) {}
+
+  // The multiplicity class of the mixed event that divides class multBin: the same one, or none, the union (me_mult)
+  std::optional<int> MEMultBin(int multBin) const
+  {
+    return meMult == MultDependence::Binned ? std::optional<int>(multBin) : std::nullopt;
+  }
 
   // How the O2 task names its pair directories: "phiK0S", "phiLambda", "phiAntiLambda".
   // Unlike the mass this is only a default: a production may name a species' directory
@@ -68,8 +83,6 @@ struct LoadedCorrections {
 // some species. An optional is a variant of "absent" and the correction, so a
 // correction that is not applied has no settings to disagree with - which is what the
 // independent flags it replaces could not guarantee.
-
-enum class MultDependence { Binned, Integrated };
 
 struct EfficiencyCorrection {
   MultDependence mult; // No default: it changes a number, so the JSON says it

@@ -44,12 +44,20 @@ class CorrelationCalculator
     AxisTarget projectionAxis{AxisTarget::DeltaY_Y};              // projection_axis, the same for every cell of a run; Delta phi only with the 2D engine, and refused by the tasks for now
   };
 
-  // One extraction: the cell to cut, the corrections to apply, where to read and write.
+  // One cell of the containers: the cut that selects it and the name its projections are written and read under, in
+  // one object, since the name is what a cache is read by.
+  struct Cell {
+    std::vector<HistogramUtils::AxisToCut> cuts;
+    std::string nameBase;
+  };
+
+  // One extraction: the cell to cut, the corrections to apply, where to read and write. The mixed event has a cell of
+  // its own, which is the same event's or a wider one (me_mult: the union of the multiplicity classes).
   struct Request {
-    const std::vector<HistogramUtils::AxisToCut>& axesToCut;
+    const Cell& cell;
+    const Cell& meCell;
     double totalCorrection;
     double triggerBkgRatio;
-    std::string histNameBase;
     TDirectory* ioDir{nullptr};                                // projections cache, written or read
     TDirectory* qaDir{nullptr};                                // QA objects (2D engine with doMoreQA)
     std::optional<AnalysisStructures::Range> orthogonalCut{};  // range on the other axis (2D engine)
@@ -88,8 +96,8 @@ class CorrelationCalculator
   struct Inputs {
     static constexpr bool k2D = std::is_base_of_v<TH2, H>;
 
-    explicit Inputs(const std::string& base)
-      : nameSig(std::format("{}Signal{}", base, Suffix())), nameSb(std::format("{}Sideband{}", base, Suffix())), nameMeSig(std::format("{}MESignal{}", base, Suffix())), nameMeSb(std::format("{}MESideband{}", base, Suffix())) {}
+    Inputs(const Cell& cell, const Cell& meCell)
+      : nameSig(std::format("{}Signal{}", cell.nameBase, Suffix())), nameSb(std::format("{}Sideband{}", cell.nameBase, Suffix())), nameMeSig(std::format("{}MESignal{}", meCell.nameBase, Suffix())), nameMeSb(std::format("{}MESideband{}", meCell.nameBase, Suffix())) {}
 
     const std::string nameSig, nameSb, nameMeSig, nameMeSb;
     std::unique_ptr<H> sig, sb, meSig, meSb;
@@ -118,7 +126,7 @@ class CorrelationCalculator
   template <typename H>
   Inputs<H> ReadFromCache(const Request& req) const
   {
-    Inputs<H> in(req.histNameBase);
+    Inputs<H> in(req.cell, req.meCell);
     in.sig = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameSig, "CorrelationCalculator");
     in.sb = RootIO::GetUniqueOrWarn<H>(req.ioDir, in.nameSb, "CorrelationCalculator");
     if (opt.applyME) {
@@ -137,17 +145,17 @@ class CorrelationCalculator
   Inputs<H> ProjectAndCache(const AnalysisStructures::LoadedAssocData& data, const Request& req) const
   {
     const std::vector<int> projAxes = Inputs<H>::ProjAxes();
-    Inputs<H> in(req.histNameBase);
-    in.sig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSignal.get(), req.axesToCut, projAxes, in.nameSig);
+    Inputs<H> in(req.cell, req.meCell);
+    in.sig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSignal.get(), req.cell.cuts, projAxes, in.nameSig);
     if (data.h5DataSideband)
-      in.sb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSideband.get(), req.axesToCut, projAxes, in.nameSb);
+      in.sb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataSideband.get(), req.cell.cuts, projAxes, in.nameSb);
 
     if (opt.applyME) {
-      in.meSig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESignal.get(), req.axesToCut, projAxes, in.nameMeSig);
+      in.meSig = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESignal.get(), req.meCell.cuts, projAxes, in.nameMeSig);
       if (in.sb) {
         if (!data.h5DataMESideband)
           throw std::runtime_error(std::format("[FATAL] CorrelationCalculator: a sideband for {} without its mixed-event sideband THnSparse", data.name));
-        in.meSb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESideband.get(), req.axesToCut, projAxes, in.nameMeSb);
+        in.meSb = HistogramUtils::ProjectTHnSparse<H>(data.h5DataMESideband.get(), req.meCell.cuts, projAxes, in.nameMeSb);
       }
     }
 
@@ -289,7 +297,7 @@ class CorrelationCalculator
   std::unique_ptr<TH1> Extract2D(const AnalysisStructures::LoadedAssocData& data, const Request& req) const
   {
     // Short names for the body below, which is the engine as it was.
-    const std::string& histNameBase = req.histNameBase;
+    const std::string& histNameBase = req.cell.nameBase;
     const double totalCorrection = req.totalCorrection;
     const double triggerBkgRatio = req.triggerBkgRatio;
     TDirectory* qaDir = req.qaDir;
@@ -454,7 +462,7 @@ class CorrelationCalculator
     }
 
     // 4. Final Subtraction
-    std::unique_ptr<TH1> h1FinalSignal(static_cast<TH1*>(in.sig->Clone(req.histNameBase.c_str())));
+    std::unique_ptr<TH1> h1FinalSignal(static_cast<TH1*>(in.sig->Clone(req.cell.nameBase.c_str())));
     h1FinalSignal->SetDirectory(0);
     if (in.sb && req.triggerBkgRatio > 0)
       h1FinalSignal->Add(in.sb.get(), -1);

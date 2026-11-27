@@ -123,6 +123,11 @@ inline std::string MultTag(std::span<const double> multBinning, int multBin)
 // class, so a task writes it only where BinningUtils::HasMultUnion says it is something else.
 // The name of the union, for a reader: with a single class, the class's, which is the union.
 inline std::string MultUnionTag(std::span<const double> multBinning) { return MultTag(BinningUtils::Whole(multBinning), 0); }
+// A class, or the union of them all where there is none (the std::optional<int> of "a class or the union").
+inline std::string MultTag(std::span<const double> multBinning, std::optional<int> multBin)
+{
+  return multBin ? MultTag(multBinning, *multBin) : MultUnionTag(multBinning);
+}
 // A pT interval, "pt1.2-1.6"; the trigger's is "ptPhi" + BinLabel, where both appear in one name.
 inline std::string PtTag(std::span<const double> ptBinning, int ptBin)
 {
