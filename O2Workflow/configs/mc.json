@@ -1,0 +1,170 @@
+{
+  "mc-collision-converter": "",
+  "propagation-service": {
+    "processRealData": "false",
+    "processMonteCarlo": "true",
+    "processRealDataWithPID": "false",
+    "processMonteCarloWithPID": "false"
+  },
+  "mult-cent-table": {
+    "processRun2": "false",
+    "processRun3": "true",
+    "processRun3WithGlobalCounters": "false",
+    "processMFT": "false",
+    "processMonteCarlo": "true",
+    "processMonteCarlo2Mults": "false",
+    "processCentralityRun2": "false",
+    "processCentralityRun3": "true"
+  },
+  "mc-centrality": {
+    "ccdbUrl": "http://alice-ccdb.cern.ch",
+    "enabledTables": {
+      "labels_rows": [
+        "McCentFV0As",
+        "McCentFT0Ms",
+        "McCentFT0As",
+        "McCentFT0Cs",
+        "McCentFT0CVariant1s",
+        "McCentFT0CVariant2s",
+        "McCentFDDMs",
+        "McCentNTPVs",
+        "McCentNGlobals",
+        "McCentMFTs"
+      ],
+      "labels_cols": [
+        "enable"
+      ],
+      "values": [
+        [
+          "-1"
+        ],
+        [
+          "-1"
+        ],
+        [
+          "-1"
+        ],
+        [
+          "-1"
+        ],
+        [
+          "-1"
+        ],
+        [
+          "-1"
+        ],
+        [
+          "-1"
+        ],
+        [
+          "-1"
+        ],
+        [
+          "-1"
+        ],
+        [
+          "-1"
+        ]
+      ]
+    },
+    "recalibrateCentrality": "false",
+    "recalibrateMode": "1",
+    "minEntries": "100",
+    "doNotCrashOnNull": "false",
+    "assignCentralityPerCandidate": "false",
+    "centralitySamplingSeed": "137",
+    "binsPercentile": {
+      "values": [
+        "0",
+        "0",
+        "1",
+        "5",
+        "10",
+        "15",
+        "20",
+        "30",
+        "40",
+        "50",
+        "60",
+        "70",
+        "80",
+        "90",
+        "100"
+      ]
+    },
+    "binsPercentileFine": {
+      "values": [
+        "0",
+        "0",
+        "0.001",
+        "0.01",
+        "1",
+        "5",
+        "10",
+        "15",
+        "20",
+        "25",
+        "30",
+        "40",
+        "50",
+        "60",
+        "70",
+        "80",
+        "90",
+        "100"
+      ]
+    },
+    "binsMultiplicity": {
+      "values": [
+        "1000",
+        "0",
+        "5000"
+      ]
+    },
+    "path": "Users/f/fercoles/MCCentrality",
+    "verbose": "false"
+  },
+  "phi-meson-cand-producer": {
+    "processData": "false",
+    "processMCReco": "true",
+    "processMCGen": "false"
+  },
+  "event-selection-producer": {
+    "processData": "false",
+    "processMCReco": "true",
+    "processMCGen": "true",
+    "processDataWPhi": "false",
+    "processMCRecoWPhi": "false",
+    "processMCGenWPhi": "false"
+  },
+  "v0-reduced-cand-producer": {
+    "processData": "false",
+    "processMCReco": "true"
+  },
+  "cascade-reduced-cand-producer": {
+    "processData": "false",
+    "processMCReco": "true"
+  },
+  "pion-track-producer": {
+    "processData": "false",
+    "processMCReco": "true"
+  },
+  "phi-strange-correlation": {
+    "processPhiAssocSEDataLike": "false",
+    "processPhiAssocSEMCWithPDG": "true",
+    "processPhiK0SMEDataLike": "false",
+    "processPhiK0SMEMCWithPDG": "true",
+    "processPhiLambdaMEDataLike": "false",
+    "processPhiLambdaMEMCWithPDG": "true",
+    "processPhiAntiLambdaMEDataLike": "false",
+    "processPhiAntiLambdaMEMCWithPDG": "true",
+    "processPhiXiMEDataLike": "false",
+    "processPhiXiMEMCWithPDG": "true",
+    "processPhiOmegaMEDataLike": "false",
+    "processPhiOmegaMEMCWithPDG": "true",
+    "processPhiPionMEDataLike": "false",
+    "processPhiPionMEMCWithPDG": "true",
+    "processParticleEfficiency": "true",
+    "processMCGenClosure": "true"
+  }
+}

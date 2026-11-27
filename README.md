@@ -47,6 +47,7 @@ consequences in particular:
 | `JSONConfigs/` | Analysis configurations, one file per campaign (`globalConfigMCpp.json`, …), plus the shared `globalConfigBase<system>.json`. |
 | `Macros/` | Standalone diagnostic, conversion and plotting macros, independent of the chain. |
 | `HYConfigs/` | HEPData / Yield configuration inputs. |
+| `O2Workflow/` | How the O²Physics producer and task are run on a local AO2D: the run script and its configurations (`O2Workflow/README.md`). |
 | `DataFile/` | Input `AnalysisResults*.root` from O² and the produced outputs. |
 | `Logs/` | One log per run, named after the configuration. |
 | `OldCodes/`, `OldDataFile/` | Previous monolithic macros and retired headers (`YieldMean.h`, `FitPhiSignalAndBkg.h`), kept for reference. |

@@ -1,0 +1,61 @@
+{
+  "propagation-service": {
+    "processRealData": "true",
+    "processMonteCarlo": "false",
+    "processRealDataWithPID": "false",
+    "processMonteCarloWithPID": "false"
+  },
+  "mult-cent-table": {
+    "processRun2": "false",
+    "processRun3": "true",
+    "processRun3WithGlobalCounters": "false",
+    "processMFT": "false",
+    "processMonteCarlo": "false",
+    "processMonteCarlo2Mults": "false",
+    "processCentralityRun2": "false",
+    "processCentralityRun3": "true"
+  },
+  "phi-meson-cand-producer": {
+    "processData": "true",
+    "processMCReco": "false",
+    "processMCGen": "false"
+  },
+  "event-selection-producer": {
+    "processData": "true",
+    "processMCReco": "false",
+    "processMCGen": "false",
+    "processDataWPhi": "false",
+    "processMCRecoWPhi": "false",
+    "processMCGenWPhi": "false"
+  },
+  "v0-reduced-cand-producer": {
+    "processData": "true",
+    "processMCReco": "false"
+  },
+  "cascade-reduced-cand-producer": {
+    "processData": "true",
+    "processMCReco": "false"
+  },
+  "pion-track-producer": {
+    "processData": "true",
+    "processMCReco": "false"
+  },
+  "phi-strange-correlation": {
+    "processPhiAssocSEDataLike": "true",
+    "processPhiAssocSEMCWithPDG": "false",
+    "processPhiK0SMEDataLike": "true",
+    "processPhiK0SMEMCWithPDG": "false",
+    "processPhiLambdaMEDataLike": "true",
+    "processPhiLambdaMEMCWithPDG": "false",
+    "processPhiAntiLambdaMEDataLike": "true",
+    "processPhiAntiLambdaMEMCWithPDG": "false",
+    "processPhiXiMEDataLike": "true",
+    "processPhiXiMEMCWithPDG": "false",
+    "processPhiOmegaMEDataLike": "true",
+    "processPhiOmegaMEMCWithPDG": "false",
+    "processPhiPionMEDataLike": "true",
+    "processPhiPionMEMCWithPDG": "false",
+    "processParticleEfficiency": "false",
+    "processMCGenClosure": "false"
+  }
+}
