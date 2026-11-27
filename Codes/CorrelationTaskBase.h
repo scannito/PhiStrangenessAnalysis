@@ -1855,15 +1855,39 @@ class CorrelationTaskBase : public IAnalysisTask
       data.name = config.name;
       if (readContainers) {
         data.h5DataSignal = read(inputFile.get(), basePath, config, kinds.signal);
+        // The others are cut with the signal's bin indices: read, then required to have its axes
+        auto readLikeSignal = [&](TFile* file, std::string_view path, std::string_view kind) {
+          auto container = read(file, path, config, kind);
+          RequireSameAxesAsSignal(data.h5DataSignal.get(), inputFile->GetName(), container.get(), file->GetName());
+          return container;
+        };
         if (!kinds.sideband.empty())
-          data.h5DataSideband = read(inputFile.get(), basePath, config, kinds.sideband);
+          data.h5DataSideband = readLikeSignal(inputFile.get(), basePath, kinds.sideband);
         if (applyME) {
-          data.h5DataMESignal = read(inputMEFile.get(), basePathME, config, kinds.meSignal);
+          data.h5DataMESignal = readLikeSignal(inputMEFile.get(), basePathME, kinds.meSignal);
           if (!kinds.meSideband.empty())
-            data.h5DataMESideband = read(inputMEFile.get(), basePathME, config, kinds.meSideband);
+            data.h5DataMESideband = readLikeSignal(inputMEFile.get(), basePathME, kinds.meSideband);
         }
       }
       loadedDataCollection.push_back(std::move(data));
+    }
+  }
+
+  // The sideband and the mixed events are cut with the bin indices of the signal (CellCuts) and divided by or
+  // subtracted from it bin by bin; the binnings are resolved from the signal alone (ResolveBinningAndCache). A
+  // container with other axes would be read from the wrong cells, and TH1::Divide does not stop on different edges.
+  // The most likely cause is a mixed event of another production, which comes from its own file.
+  static void RequireSameAxesAsSignal(const THnSparse* signal, std::string_view signalFile, const THnSparse* other, std::string_view otherFile)
+  {
+    if (other->GetNdimensions() != signal->GetNdimensions())
+      throw std::runtime_error(std::format("[FATAL] '{}' in '{}' has {} axes and '{}' in '{}' {}: they are cut and combined bin by bin.",
+                                           signal->GetName(), signalFile, signal->GetNdimensions(), other->GetName(), otherFile,
+                                           other->GetNdimensions()));
+    for (int axis = 0; axis < signal->GetNdimensions(); ++axis) {
+      const std::string_view title = signal->GetAxis(axis)->GetTitle();
+      const std::string what = title.empty() ? std::format("axis {}", axis) : std::format("axis {} ({})", axis, title);
+      BinningUtils::RequireSameAxis(signal->GetAxis(axis), other->GetAxis(axis), std::format("{} {} in '{}'", signal->GetName(), what, signalFile),
+                                    std::format("{} {} in '{}'", other->GetName(), what, otherFile));
     }
   }
 
