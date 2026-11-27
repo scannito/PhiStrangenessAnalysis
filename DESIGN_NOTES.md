@@ -455,7 +455,7 @@ engine give the same contents and extrapolated K0S trend errors that differ by u
 two modes fit in a different order). Runs of one mode on the same inputs are identical.
 
 **The L2 signal cache does not say which settings produced it.** Found by the review of
-19 October 2026. With `use_signal_cache` the final signals of a cell are read back as they were
+19 October 2026. With `use_signal_cache` (since 27 November 2026 `projection_cache: "signals"`) the final signals of a cell are read back as they were
 written, and they already carry the mixed-event normalisation and the corrections. Nothing records
 which `me_normalization` (or `apply_mixed_events`, or `corrections`) made them: a run with `fit` and the
 cache off, then one with `bins_at_zero` and the cache on, gives the first run's numbers (up to 9.6% on
@@ -1031,7 +1031,7 @@ non sequitur in a comparison.
 
 ## 8. Deciding by itself whether the projection cache is usable
 
-`use_projection_cache` is set by hand, and the obvious wish is for the task to work
+`projection_cache` (`use_projection_cache` until 27 November 2026) is set by hand, and the obvious wish is for the task to work
 it out: build the projections the first time, reuse them afterwards. It is worth
 writing down why that is not a matter of checking whether the file exists.
 
@@ -1420,18 +1420,17 @@ reason (about 40 `Write` calls, in `CorrelationCalculator`, `CorrelationTaskBase
 check at each: a `TCanvas` or a `TTree` writes differently from a histogram, and the output must stay identical
 (`CompareRootFiles`).
 
-**The signal cache records nothing (30 October 2026).** `use_signal_cache` reads, from the projection files,
+**The signal cache records nothing (30 October 2026).** `use_signal_cache` (since 27 November 2026 `projection_cache: "signals"`) reads, from the projection files,
 the per-cell signals (`h1Phi{X}Final...`) a previous run committed, and skips the calculator. Nothing says which
 run that was or with which corrections, purities and background ratios: the projection files carry binning
-stamps, not the provenance of the signals. And a run with `use_projection_cache` (on in
+stamps, not the provenance of the signals. And a run that reads the cache (`projection_cache: "projections"` in
 `correlation_base_settings`) opens those files read-only, so it cannot update the signals: until 30 October it
 tried, and ROOT refused with an error of its own outside `Logger`; now it does not try. The next
 `use_signal_cache` run reads the signals of whatever run last wrote them, and says so with a `Logger::Warn`, in
 the run whose numbers are at risk. The fix belongs on the reading side: a provenance record (or a fingerprint of the
 corrections and settings that shape the signal) written with the signals and compared when they are read, so
 that a stale cache stops the run as a binning mismatch does. The other way out is to remove the signal cache:
-`use_signal_cache` is `false` in both base configurations (`globalConfigBasepp.json`, `globalConfigBaseppref.json`)
-and no configuration turns it on, so a feature nobody uses would no longer need defending (suggested on 2 November
+no configuration asks for `"signals"`, so a feature nobody uses would no longer need defending (suggested on 2 November
 2026). Not done: the owner to decide between the fingerprint and the removal.
 
 ---

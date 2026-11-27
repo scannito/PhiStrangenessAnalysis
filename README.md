@@ -285,7 +285,7 @@ the classes (`mult0-100`), fitted on its own merged distribution; the union is n
 | Key | | Notes |
 |---|---|---|
 | `apply_mixed_events`, `apply_extrapolation`, `apply_purity` | required | |
-| `use_projection_cache` | required | |
+| `projection_cache` | required | `rebuild`, `projections` or `signals`: what the projection files give the run. See *Cache and provenance* below. It replaced `use_projection_cache` and `use_signal_cache` on 27 November 2026. |
 | `use_2d_engine` | required | The engine: `true` builds the 2D one (SE/ME projected on (Δφ, Δy), divided bin by bin), but only in `correlation_task` with `run_mode: "optimized"`; with `legacy` or in `correlation_wpdg_task`, which always build the 1D engine, `true` is refused at `Init`. The engine also chooses the output section, `Extract2D` or `Extract1D`. |
 | `me_normalization` | required | `bins_at_zero` or `fit`: how the mixed event is scaled to 1 at zero separation, in either engine. See `DESIGN_NOTES.md` section 6. The base configurations say `bins_at_zero`, which is what the 1D engine always did; the 2D engine always used `fit`, so a block that switches the 2D engine on must say `fit` to reproduce its past numbers. |
 | `projections_dir` | required | Where the trigger file of `phi_fit_task` is read and the projection caches are written. |
@@ -296,11 +296,11 @@ the classes (`mult0-100`), fitted on its own merged distribution; the union is n
 | `corrections_file` | required | Only when `corrections` is not `null`: the `Corrections` file, with all three corrections. |
 | `on_invalid_correction_bin` | required | Only when `corrections` is not `null`: `warn` or `stop`, what a bin at or below zero (or not a number) in a map that is applied does. See below. The base configurations say `warn`. |
 | `extrapolation_config_file` | required | Only when extrapolation is on. |
-| `associated_particles` | required | Array of `{name, dir_name, me_mult}`. `me_mult`, required: `binned` or `integrated`, each multiplicity class divided by its own mixed event, or all of them by the mixed event of the union of the classes (summed, then normalised), named after the union (`mult0-100`) in the projection cache. Per species: the shape of the mixed event in Δy depends on multiplicity by 2-5 % for the π and K0S, whose per-class mixed event has enough statistics, while for the Ξ and Ω the per-class one is too sparse (`DESIGN_NOTES.md` section 6). The base configurations say `binned` for the π and K0S, `integrated` for the Ξ and Ω; `binned` everywhere is what the analysis did before 26 November 2026. Refused with the 2D engine, where it has not been checked. Required also with `apply_mixed_events: false`, as `me_normalization` is. A projection cache (one file per species) holds its last build only, so after a change of `me_mult` a run with the cache on stops at the missing mixed event: rebuild it once with `use_projection_cache: false`. |
+| `associated_particles` | required | Array of `{name, dir_name, me_mult}`. `me_mult`, required: `binned` or `integrated`, each multiplicity class divided by its own mixed event, or all of them by the mixed event of the union of the classes (summed, then normalised), named after the union (`mult0-100`) in the projection cache. Per species: the shape of the mixed event in Δy depends on multiplicity by 2-5 % for the π and K0S, whose per-class mixed event has enough statistics, while for the Ξ and Ω the per-class one is too sparse (`DESIGN_NOTES.md` section 6). The base configurations say `binned` for the π and K0S, `integrated` for the Ξ and Ω; `binned` everywhere is what the analysis did before 26 November 2026. Refused with the 2D engine, where it has not been checked. Required also with `apply_mixed_events: false`, as `me_normalization` is. A projection cache (one file per species) holds its last build only, so after a change of `me_mult` a run with the cache on stops at the missing mixed event: rebuild it once with `projection_cache: "rebuild"`. |
 | `purity_sources` | required | Array of `{name, purity_key}`, read from `{purity_prefix}Purity.root` in `input_dir_purity`. |
 | `delta_y_limits` | required | The \|Δy\| windows the spectra are integrated over; each must fall on a bin edge of the Δy axis. |
 | `yield_ratios` | optional | Array of `{numerator, denominator, label?}`. |
-| `use_signal_cache`, `do_more_qa` | optional | |
+| `do_more_qa` | optional | |
 | `run_mode`, `projection_axis` | required | See enumerations above. |
 | `purity_prefix`, `trigger_prefix`, `output_prefix` | required | The prefixes of the files read and written; `""` for none. The WPDG task reads `output_prefix` alone. |
 
@@ -440,22 +440,21 @@ starts, the high one dashed.
 
 ### Cache and provenance
 
-`use_projection_cache` reuses projections written by a previous run instead of
-re-projecting the `THnSparse`. The cached histograms are named by interval, and each
-cache also carries a *binning stamp* — an empty histogram whose axis is the binning it
-was built with. On reuse the stamp is compared with the current run and a mismatch is
-fatal before anything is read, naming the edge that differs. A rebuild
-(`use_projection_cache: false`) with the same binning empties the section of the cache
-(`Extract1D` or `Extract2D`) before writing it, so the cache holds exactly its last
-build; a different binning under the same `binning_name` is refused.
+`projection_cache` says what the projection files (one per associated particle) give the run:
 
-`use_signal_cache` (`run_mode: "optimized"` only) goes further: it reads back the final
-signals of every cell, written by a previous run in the same files, and skips the
-calculator. Those signals already carry the mixed-event normalisation and the
-corrections, and nothing yet records which settings produced them: a run that changes
-`me_normalization`, `me_mult`, `apply_mixed_events` or `corrections` and turns this cache on gets
-the previous run's numbers, with no error. Run once with it off after changing any of
-them (`DESIGN_NOTES.md` section 5).
+- `rebuild` reads the `THnSparse`, empties the section of the cache (`Extract1D` or `Extract2D`) and writes it again:
+  the projections of every cell and, with `run_mode: "optimized"`, the final signals. The cache then holds exactly its
+  last build; a different associated pT binning under the same `binning_name` is refused.
+- `projections` reuses the projections instead of re-projecting the `THnSparse`, and runs the calculator. The cached
+  histograms are named by interval, and each cache also carries a *binning stamp* — an empty histogram whose axis is
+  the binning it was built with. On reuse the stamp is compared with the current run and a mismatch is fatal before
+  anything is read, naming the edge that differs.
+- `signals` (`correlation_task` with `run_mode: "optimized"` only) goes further: it reads back the final signals of
+  every cell and skips the calculator. Those signals already carry the mixed-event normalisation and the corrections,
+  and nothing yet records which settings produced them: a run that changes `me_normalization`, `me_mult`,
+  `apply_mixed_events` or `corrections` and reads them gets the previous run's numbers, with no error. Run once with
+  `rebuild` and `run_mode: "optimized"` after changing any of them (`DESIGN_NOTES.md` section 5): `projections` opens
+  the files read-only and does not write the signals.
 
 ### Fit quality
 

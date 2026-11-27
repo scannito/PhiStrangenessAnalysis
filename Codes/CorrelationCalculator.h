@@ -35,9 +35,10 @@ class CorrelationCalculator
   // What the calculator does, fixed for a run. Built with designated initialisers, so the
   // call site says which switch is which; what it does not write is off.
   struct Options {
-    // Named as the tasks name them, after their configuration keys, so one switch has one name in both layers.
+    // Named as the tasks name them, after their configuration keys, so one switch has one name in both layers
+    // (readProjectionCache: the bool the calculator needs of projection_cache, which has three values).
     bool applyME{false};            // apply_mixed_events: divide by the mixed event
-    bool useProjectionCache{false}; // use_projection_cache: read the projections from ioDir instead of projecting the THnSparse
+    bool readProjectionCache{false}; // projection_cache other than "rebuild": read the projections from ioDir instead of projecting the THnSparse
     bool engine2D{false};           // the 2D engine (Extract2D) instead of the 1D one (Extract1D)
     bool doMoreQA{false};           // do_more_qa: write the 2D and 1D QA objects into qaDir (2D engine only)
     MENormalization meNormalization{MENormalization::BinsAtZero}; // me_normalization, always set by the tasks
@@ -114,7 +115,7 @@ class CorrelationCalculator
   template <typename H>
   Inputs<H> LoadOrProject(const AnalysisStructures::LoadedAssocData& data, const Request& req) const
   {
-    return opt.useProjectionCache ? ReadFromCache<H>(req) : ProjectAndCache<H>(data, req);
+    return opt.readProjectionCache ? ReadFromCache<H>(req) : ProjectAndCache<H>(data, req);
   }
 
   // Reads only. The sideband may be missing (a warning, not an error); with mixed events, a
@@ -127,7 +128,7 @@ class CorrelationCalculator
   Inputs<H> ReadFromCache(const Request& req) const
   {
     static constexpr std::string_view ctx =
-      "CorrelationCalculator, projection cache (it holds its last build only: rebuild it with 'use_projection_cache': false)";
+      "CorrelationCalculator, projection cache (it holds its last build only: rebuild it with 'projection_cache': 'rebuild')";
     Inputs<H> in(req.cell, req.meCell);
     in.sig = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameSig, ctx);
     in.sb = RootIO::GetUniqueOrWarn<H>(req.ioDir, in.nameSb, "CorrelationCalculator");

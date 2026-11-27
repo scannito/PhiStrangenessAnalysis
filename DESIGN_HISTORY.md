@@ -1886,3 +1886,14 @@ choice, by emptying the section on every rebuild (`ClearOwnSection`, the last st
 been checked against the stamps one level up): the cache holds exactly its last build, a run asking for what it does
 not hold stops at the missing object, and the protection covers every future key that renames projections instead of
 needing one stamp per key. The cost: switching `me_mult` back and forth re-projects each time.
+
+## One key for the projection cache
+
+`use_projection_cache` (bool) and `use_signal_cache` (bool, optional) became one required key, `projection_cache`:
+`"rebuild"`, `"projections"` or `"signals"` (27 November 2026, the owner). Two booleans had a combination with no
+meaning: the signal cache with the projection cache off, which loaded every `THnSparse` for nothing and, once a
+rebuild emptied the cache section (previous entry), would have deleted the signals before reading them. For the day
+in between it was refused by name; the owner preferred a key whose values are the three things a run can do. What
+cannot hold is still refused, as a value and not as a combination: `"signals"` where no final signals are written
+(`run_mode: "legacy"`, the WPDG task). Base configurations migrated (`true` → `"projections"`, `false` →
+`"rebuild"`; `use_signal_cache` was `false` everywhere).

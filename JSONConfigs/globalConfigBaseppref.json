@@ -300,11 +300,10 @@
                 "purity_key": "pi_tpc"
             }
         ],
-        "use_projection_cache": true,
+        "projection_cache": "projections",
         "use_2d_engine": false,
         "me_normalization": "bins_at_zero",
         "projection_axis": "delta_y",
-        "use_signal_cache": false,
         "do_more_qa": false,
         "delta_y_limits": [
             1.0,
@@ -435,7 +434,7 @@
             }
         },
         "apply_extrapolation": true,
-        "use_projection_cache": false,
+        "projection_cache": "rebuild",
         "use_2d_engine": false,
         "projection_axis": "delta_y",
         "me_normalization": "bins_at_zero",

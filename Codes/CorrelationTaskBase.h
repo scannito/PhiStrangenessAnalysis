@@ -281,7 +281,14 @@ class CorrelationTaskBase : public IAnalysisTask
   AnalysisSettings globalCfgs;
 
   bool applyME{false}, applyExtrapolation{false};
-  bool useProjectionCache{false}, use2DEngine{false};
+  bool use2DEngine{false};
+  // projection_cache: what the projection files give this run. "rebuild" projects the THnSparse and rewrites them (the
+  // projections and, in run_mode "optimized", the final signals); "projections" reads the projections and runs the
+  // calculator; "signals" reads the final signals and skips it (CorrelationTask in run_mode "optimized" only).
+  enum class ProjectionCache { Rebuild,
+                               Projections,
+                               Signals };
+  ProjectionCache projectionCache{ProjectionCache::Rebuild}; // always set from projection_cache, required
   std::optional<AnalysisStructures::CorrectionsConfig> corrections; // Empty: no correction is applied here
 
   std::unique_ptr<TH1> hEventLoss;
@@ -404,7 +411,12 @@ class CorrelationTaskBase : public IAnalysisTask
 
     provenance = RootIO::StartProvenance(JsonConfig::Serialize(taskConfig));
 
-    useProjectionCache = JsonConfig::RequireBool(taskConfig, "use_projection_cache", GetName());
+    // Required, as every key a rename left behind (CLAUDE.md, Configuration): it replaced use_projection_cache and
+    // use_signal_cache on 27 November 2026, and a configuration still using them stops here by name.
+    projectionCache = JsonConfig::RequireEnum<ProjectionCache>(
+      taskConfig, "projection_cache",
+      {{"rebuild", ProjectionCache::Rebuild}, {"projections", ProjectionCache::Projections}, {"signals", ProjectionCache::Signals}},
+      GetName());
     use2DEngine = JsonConfig::RequireBool(taskConfig, "use_2d_engine", GetName());
     // Required, with no default: it changes the numbers (CLAUDE.md, Configuration).
     meNormalization = JsonConfig::RequireEnum<CorrelationCalculator::MENormalization>(
@@ -456,13 +468,14 @@ class CorrelationTaskBase : public IAnalysisTask
   }
 
   // -------------------------------------------------------------------------
-  // Which engine of CorrelationCalculator runs, decided once. A task says whether it can build
-  // the 2D engine at all (CorrelationTask in run_mode "optimized"; RunLegacy, which the WPDG task
-  // always runs, builds the 1D one); use_2d_engine asks for it. Everything that depends
-  // on the engine - the calculators, SectionDirName, the checks below - asks Engine2D().
+  // Which engine of CorrelationCalculator runs, decided once. A task says whether this run goes through
+  // RunOptimized (CorrelationTask in run_mode "optimized"), which builds the engine use_2d_engine asks for and
+  // writes and reads the final signals of projection_cache "signals"; RunLegacy, which the WPDG task always runs,
+  // builds the 1D one and has no final signals. Everything that depends on the engine - the calculators,
+  // SectionDirName, the checks below - asks Engine2D().
   // -------------------------------------------------------------------------
-  virtual bool CanBuild2DEngine() const { return false; }
-  bool Engine2D() const { return use2DEngine && CanBuild2DEngine(); }
+  virtual bool RunsOptimized() const { return false; }
+  bool Engine2D() const { return use2DEngine && RunsOptimized(); }
 
   // Whether the containers read are ones the train can weight with the efficiency: not those at generator level (the
   // WPDG task with is_pure_gen, filled by processMCGenClosure without any weight), which nothing online corrects
@@ -504,10 +517,12 @@ class CorrelationTaskBase : public IAnalysisTask
   // Options and set in one place only would stay off in the other. doMoreQA is CorrelationTask's alone.
   CorrelationCalculator::Options CalculatorOptions(bool doMoreQA = false) const
   {
-    return {.applyME = applyME, .useProjectionCache = useProjectionCache, .engine2D = Engine2D(), .doMoreQA = doMoreQA, .meNormalization = meNormalization, .projectionAxis = projectionAxis};
+    return {.applyME = applyME, .readProjectionCache = !RebuildsProjections(), .engine2D = Engine2D(), .doMoreQA = doMoreQA, .meNormalization = meNormalization, .projectionAxis = projectionAxis};
   }
 
-  // The settings that need an engine this run will not build. Both used to pass in silence:
+  // The settings that need what this run will not do: projection_cache "signals", whose final signals only RunOptimized
+  // writes and reads (with RunLegacy it was ignored in silence until 27 November 2026), and the engine settings. Both of
+  // these used to pass in silence:
   // use_2d_engine true where only the 1D engine runs (the results went under
   // "Extract2D"), and projection_axis "delta_phi" with the 1D engine, which projects on Delta y
   // only and gave Delta y spectra (Delta phi in the 1D engine is open: DESIGN_NOTES.md section 6). Delta phi is, for
@@ -515,7 +530,12 @@ class CorrelationTaskBase : public IAnalysisTask
   // Refused at Init, before any data is loaded.
   void RequireEngineSettingsSupported() const
   {
-    if (use2DEngine && !CanBuild2DEngine())
+    if (projectionCache == ProjectionCache::Signals && !RunsOptimized())
+      throw std::runtime_error(std::format(
+        "[FATAL] {}: projection_cache 'signals' reads the final signals that run_mode 'optimized' of correlation_task "
+        "caches, and this run (run_mode 'legacy', or the WPDG task) has none. Use 'projections'.",
+        GetName()));
+    if (use2DEngine && !RunsOptimized())
       throw std::runtime_error(std::format(
         "[FATAL] {}: use_2d_engine is true, but this run builds the 1D engine (run_mode 'legacy', "
         "or the WPDG task, which always does). Set it to false, or use run_mode 'optimized' for the 2D engine.",
@@ -1114,7 +1134,7 @@ class CorrelationTaskBase : public IAnalysisTask
       std::vector<double> mult;
       std::vector<double> ptPhi;
 
-      if (!useProjectionCache) {
+      if (RebuildsProjections()) {
         // h5Phi{X}Data* axes: (mult, pT(phi), pT(assoc), dy, dphi)
         const THnSparse* source = loadedDataCollection[pIdx].h5DataSignal.get();
         const std::string origin = source->GetName();
@@ -1163,7 +1183,7 @@ class CorrelationTaskBase : public IAnalysisTask
         if (!schemeDir) {
           throw std::runtime_error(std::format(
             "[FATAL] {}: cache requested but scheme '{}' does not exist in {}. "
-            "Run once with 'use_projection_cache': false.",
+            "Run once with 'projection_cache': 'rebuild'.",
             GetName(), globalCfgs.binningName, cacheFile->GetName()));
         }
 
@@ -1174,7 +1194,7 @@ class CorrelationTaskBase : public IAnalysisTask
         if (particle.binning.empty() || ptPhi.empty() || mult.empty()) {
           throw std::runtime_error(std::format(
             "[FATAL] {}: {} carries no binning stamps, so the binning its projections "
-            "were built with is unknown. Rebuild it with 'use_projection_cache': false.",
+            "were built with is unknown. Rebuild it with 'projection_cache': 'rebuild'.",
             GetName(), ctx));
         }
 
@@ -1745,7 +1765,7 @@ class CorrelationTaskBase : public IAnalysisTask
     // expensive to rebuild, so a scheme directory that already holds projections of
     // another binning must be REFUSED rather than silently replaced. That guard lives
     // in ResolveBinningAndCache and only has something to guard if the file survives.
-    const char* projMode = ProjectionFilesReadOnly() ? "READ" : "UPDATE";
+    const char* projMode = RebuildsProjections() ? "UPDATE" : "READ";
     for (const auto& p : assocParticles) {
       projectionFiles.push_back(
         RootIO::OpenOrThrow(std::format("{}{}{}", projectionsDir, outputPrefix, IONames::ProjectionFile(p.name)), projMode, GetName()));
@@ -1755,15 +1775,15 @@ class CorrelationTaskBase : public IAnalysisTask
     }
   }
 
-  // The projection files are read, not written, when the projections come from them: the cache is not rebuilt.
-  bool ProjectionFilesReadOnly() const { return useProjectionCache; }
+  // The projection files are written only when this run rebuilds them; otherwise they are read.
+  bool RebuildsProjections() const { return projectionCache == ProjectionCache::Rebuild; }
 
   // The last step of Init, once the whole configuration has been read (the extrapolation classes included), so that a
   // mistake in it does not cost the previous production. This run rewrites its whole section directory, so whatever
   // a previous one left there - produced when the layout or the object names were different - would sit beside the
   // new objects with nothing to tell them apart. UPDATE and not RECREATE because only this subtree is ours: another
   // 'binning_name', or the other Extract1D/2D, belongs to somebody else and stays.
-  // The same holds for the section of each projection cache when it is rebuilt (use_projection_cache false, asked
+  // The same holds for the section of each projection cache when it is rebuilt (projection_cache "rebuild", asked
   // for explicitly, the binning already checked against its stamps by ResolveBinningAndCache): the projections
   // whose names the current configuration no longer produces (the mixed events of the other me_mult, for one) would
   // otherwise stay, and a later run with the cache on could read them. Emptied, a cache holds exactly its last build,
@@ -1771,7 +1791,7 @@ class CorrelationTaskBase : public IAnalysisTask
   void ClearOwnSection()
   {
     RootIO::ClearPath(outputFile.get(), SectionPath());
-    if (!ProjectionFilesReadOnly()) {
+    if (RebuildsProjections()) {
       for (const auto& file : projectionFiles)
         RootIO::ClearPath(file.get(), SectionPath());
     }
@@ -1809,7 +1829,7 @@ class CorrelationTaskBase : public IAnalysisTask
     return path;
   }
 
-  // The directory of one particle's projections. With use_projection_cache on it is looked
+  // The directory of one particle's projections. Read from the cache, it is looked
   // up, not created, and it is missing when the cache was never built for this binning and
   // section (Extract1D and Extract2D are separate, see SectionDirName). The calculator, given
   // the null directory, could only say that none was provided: this says which file, which
@@ -1817,13 +1837,13 @@ class CorrelationTaskBase : public IAnalysisTask
   TDirectory* ProjectionCacheDir(size_t pIdx, const std::vector<std::string>& logicalPath) const
   {
     TFile* file = projectionFiles[pIdx].get();
-    if (!useProjectionCache)
+    if (RebuildsProjections())
       return RootIO::MakePath(file, logicalPath);
     if (TDirectory* dir = RootIO::FindPath(file, logicalPath))
       return dir;
     throw std::runtime_error(std::format(
-      "[FATAL] {}: use_projection_cache is on, but '{}' has no '{}': the projections of {} were never cached "
-      "for this binning and section ({}). Run once with use_projection_cache false to build the cache.",
+      "[FATAL] {}: projection_cache reads the cache, but '{}' has no '{}': the projections of {} were never cached "
+      "for this binning and section ({}). Run once with projection_cache 'rebuild' to build the cache.",
       GetName(), RootIO::FileNameOf(file), RootIO::MakeDirPath(logicalPath), assocParticles[pIdx].name, SectionDirName()));
   }
 
@@ -1847,12 +1867,12 @@ class CorrelationTaskBase : public IAnalysisTask
   };
 
   // loadedDataCollection, one entry per associated particle in their order. The containers come from the data file
-  // and, when applyME, from the mixed-event file, each opened here with its base path; with use_projection_cache
+  // and, when applyME, from the mixed-event file, each opened here with its base path; with the cache read
   // nothing is opened or read, and the entry holds the name alone. (The WPDG task opens the data file once more, for
   // its trigger: read-only, and cheaper than two ways of handing a file over.)
   void LoadAssocData(const rapidjson::Value& taskConfig, const AssocContainerKinds& kinds)
   {
-    const bool readContainers = !useProjectionCache;
+    const bool readContainers = RebuildsProjections();
     Logger::Info("{}: {}", GetName(), readContainers ? "Cache DISABLED. Loading heavy THnSparse data..." : "Cache ENABLED. Skipping THnSparse loading.");
 
     std::unique_ptr<TFile> inputFile, inputMEFile;

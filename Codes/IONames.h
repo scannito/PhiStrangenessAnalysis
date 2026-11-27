@@ -64,7 +64,7 @@ inline std::vector<std::string> OnlineSelectionPath(const std::string& binningNa
   return {binningName, "OnlineSelection", std::string(particle)};
 }
 // Written by both correlation tasks, CorrelationTask and CorrelationWPDGTask: the results, and the
-// projections of one associated particle, which a later run reads back (use_projection_cache).
+// projections of one associated particle, which a later run reads back (projection_cache).
 inline const std::string kSpectraFile{"PhiAssocSpectra.root"};
 inline std::string ProjectionFile(std::string_view particle) { return std::format("Phi{}DataHistograms.root", particle); }
 

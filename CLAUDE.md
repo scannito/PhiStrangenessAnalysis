@@ -176,7 +176,7 @@ the keys the JSON actually contains. A run that leans on a C++ default leaves no
 trace of which value was in force, and changing that default later silently
 reinterprets every file already produced. `projection_axis` was spelled out in
 `correlation_base_settings` for exactly this reason, at its default value, before it became required (30 October 2026);
-`use_signal_cache` and `do_more_qa`, which change no number, keep their defaults.
+`do_more_qa`, which changes no number, keeps its default.
 
 The converse holds too, and it is why the `dir_name` entries came out, and the
 `trend_composition` key with them (its two values computed the same yield): a key that
@@ -307,8 +307,8 @@ shape leaves both generations in the file and nothing says which is current; wit
 objects.
 
 The third row is not an oversight. A projection cache costs too much to rebuild for
-it to be replaced silently: it is rebuilt only when asked (`use_projection_cache:
-false`), and then its section is cleared with the task's own (`ClearOwnSection`, the
+it to be replaced silently: it is rebuilt only when asked (`projection_cache:
+"rebuild"`), and then its section is cleared with the task's own (`ClearOwnSection`, the
 last step of `Init`), so that the projections the configuration no longer names (the
 mixed events of the other `me_mult`) do not stay beside the new ones for a run with
 the cache on to read (27 November 2026, replacing a stamp per such key). The refusal

@@ -25,8 +25,7 @@ class CorrelationTask : public CorrelationTaskBase
                        Optimized };
 
   std::string GetName() const override { return "correlation_task"; }
-  // RunOptimized builds the engine use_2d_engine asks for; RunLegacy builds the 1D one.
-  bool CanBuild2DEngine() const override { return runMode == RunMode::Optimized; }
+  bool RunsOptimized() const override { return runMode == RunMode::Optimized; }
 
   void Init(const rapidjson::Value& taskConfig, const AnalysisSettings& globalSettings) override
   {
@@ -36,13 +35,6 @@ class CorrelationTask : public CorrelationTaskBase
 
     applyPurity = JsonConfig::RequireBool(taskConfig, "apply_purity", GetName());
 
-    useSignalCache = JsonConfig::OptionalBool(taskConfig, "use_signal_cache", useSignalCache, GetName());
-    // The signal cache lives in the projection files, which a rebuild empties at the end of Init (ClearOwnSection)
-    if (useSignalCache && !useProjectionCache)
-      throw std::runtime_error(std::format("[FATAL] {}: use_signal_cache reads the signals cached in the projection files, which "
-                                           "use_projection_cache false rebuilds from scratch. Turn use_projection_cache on, or "
-                                           "use_signal_cache off.",
-                                           GetName()));
     doMoreQA = JsonConfig::OptionalBool(taskConfig, "do_more_qa", doMoreQA, GetName());
     // Required, with no default: it chooses the engine (CLAUDE.md, Configuration).
     runMode = JsonConfig::RequireEnum<RunMode>(taskConfig, "run_mode",
@@ -151,7 +143,7 @@ class CorrelationTask : public CorrelationTaskBase
   RunMode runMode{RunMode::Legacy}; // always set from run_mode, required: initialised only to be determinate
 
   bool applyPurity{false};
-  bool useSignalCache{false}, doMoreQA{false};
+  bool doMoreQA{false};
 
   std::string purityPrefix{""}, triggerPrefix{""};
 
@@ -402,27 +394,28 @@ class CorrelationTask : public CorrelationTaskBase
     // MODE A: SUPER CACHE MANAGEMENT (LEVEL 2)
     // If active, completely bypasses the CorrelationCalculator and heavy loops.
     // =========================================================================
-    if (useSignalCache) {
-      Logger::Info("{}: Super Cache (Signal L2) is ON. Skipping Calculator.", GetName());
+    if (projectionCache == ProjectionCache::Signals) {
+      Logger::Info("{}: projection_cache 'signals': reading the cached final signals, skipping the calculator.", GetName());
       // Here, where the numbers are at risk, and not in the run that cannot update the cache.
-      Logger::Warn("{}: use_signal_cache reads the signals an earlier run cached, and nothing records which corrections, "
+      Logger::Warn("{}: projection_cache 'signals' reads the signals an earlier run cached, and nothing records which corrections, "
                    "purities and background ratios that run applied: they are not verified (DESIGN_NOTES, \"The signal "
                    "cache records nothing\").",
                    GetName());
 
+      std::vector<TDirectory*> sourceDirs;
+      for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx)
+        sourceDirs.push_back(ProjectionCacheDir(pIdx, logicalPath));
+      // A legacy rebuild empties the same section and writes no final signals
+      const std::string ctx = std::format("{} (projection_cache 'signals'; run once with 'rebuild' and run_mode 'optimized' if the "
+                                          "signals were never cached)",
+                                          GetName());
+
       for (int multBin : BinningUtils::BinIndices(multBinning)) {
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           const auto& config = assocParticles[pIdx];
-          TDirectory* sourceDir = RootIO::FindPath(projectionFiles[pIdx].get(), logicalPath);
-          if (!sourceDir)
-            throw std::runtime_error(std::format("[FATAL] {}: use_signal_cache is on, but '{}' has no '{}'. Run with "
-                                                 "use_signal_cache false first.",
-                                                 GetName(), projectionFiles[pIdx]->GetName(), RootIO::MakeDirPath(logicalPath)));
-
-          const std::string ctx = std::format("{} (use_signal_cache; run with it false first if the signal was never cached)", GetName());
           for (int ptAssocBin : BinningUtils::BinIndices(config.binning))
             h1PhiAssocNoPtPhi[pIdx][multBin][ptAssocBin] = RootIO::GetUniqueOrThrow<TH1>(
-              sourceDir, std::format("h1Phi{}Final{}", config.name, CellSuffix(config, multBin, ptAssocBin)), ctx);
+              sourceDirs[pIdx], std::format("h1Phi{}Final{}", config.name, CellSuffix(config, multBin, ptAssocBin)), ctx);
         }
         GenerateSpectraAndTrends(multBin);
       }
@@ -443,7 +436,7 @@ class CorrelationTask : public CorrelationTaskBase
       // Written only once per multiplicity bin after trigger aggregation; not at all when the projection files are
       // read-only, and the cache then keeps what the run that last wrote it put there.
       // =======================================================================
-      if (!ProjectionFilesReadOnly()) {
+      if (RebuildsProjections()) {
         Logger::Info("Multiplicity bin {} completed. Committing results to Level 2 Cache...", multBin);
         for (size_t pIdx = 0; pIdx < assocParticles.size(); ++pIdx) {
           RootIO::MakePath(projectionFiles[pIdx].get(), logicalPath)->cd();
