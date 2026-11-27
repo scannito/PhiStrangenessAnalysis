@@ -539,6 +539,42 @@ cells and of the other two procedures (1.335 against 1.335 and 1.338 in 2024, of
 A status other than 0 does not mean an unusable covariance. The warning should say what was observed (the status) and
 leave "not extrapolated" to `warnIfEmpty`; as it stands it tells the reader to throw away a good point.
 
+**The `WTrigger` corrections are the minimum-bias ones** (27 November 2026). The data blocks
+`correlation_task_online_efficiency_no_phi_*` correct the associated yields of φ-triggered events with the event loss
+and the signal loss / event loss of `*_WTrigger_*_Corrections.root`, made by `mc_task` from the `WTrigger` MC trains
+(`eventSelectionType` 1, `processMCRecoWPhi`, `processMCGenWPhi`): both are meant to be measured in events with a φ.
+No `WTrigger` train applied the φ condition, on either side. Measured on all 34 `WTrigger` outputs downloaded through
+`effBatchDownload.yaml` (20 July to 23 November, pp and pp_ref): in every one of the 22 that have a no-trigger twin the
+event loss and the ratio match the twin to the third or fourth digit (2026 HighIRac, 22 October: 0.6631 and 1.149 for
+the K0S, against 0.6634 and 1.149), and the task counts all the selected reconstructed events (1.17·10⁹) while the
+producer flags 6.0·10⁶ with a φ. Two causes in O2Physics, both independent of the configuration, which was right:
+
+- *Reconstructed side.* The task's filter was
+  `(eventSelectionType == 0 && defaultSel == true) || (eventSelectionType == 1 && defaultSel == true && phimesonSel == true)`.
+  DPL has no expression operator for a `Configurable` against a number (`Framework/Expressions.h`, `BINARY_OP_NODES`:
+  `Configurable` only against a node or a column), so `eventSelectionType == 0` went through `Configurable::operator T()`
+  and became a C++ constant when the `Filter` member was built, with the default 0: the filter was `defaultSel` alone,
+  whatever was configured. The `if (eventSelectionType == 0)` in the process code read the configured 1, which is why
+  the φ maps of the `WTrigger` files are empty. The one-level filter of the branch,
+  `selectionLevel > as<uint8_t>(eventSelectionType)`, goes through `as<>`, a placeholder that DPL updates from the
+  configuration.
+- *Generated side.* `PhimesonCandidatesMcGen` was indexed to `Collisions` and filled with the `McCollision` index, so
+  `processMCGenWPhi`, over `McCollisions`, received the candidates of the whole DF: every event of a DF with one
+  candidate in the window passed. Fixed by `6062e25b5`. With `trueGenPhi` the true φ was also written with a mass of
+  0, outside the window, so no generated event passed: fixed by `8fad67fd5`.
+
+Measured with the branch code on a local MC AO2D (LHC24f4d, 112408 generated INEL>0 events, `O2Workflow/`): with
+`trueGenPhi` 1, 1509 generated events with a φ, and signal loss / event loss in them about 1.00-1.05 for K0S and π
+against 1.13 without the condition; 90 to 204 events, so the direction is measured and the size is not.
+
+What follows, in order: the two commits (on `phistrange-ccdb-ownership`, not yet upstream) reach the Hyperloop
+package; the `WTrigger` MC trains are rerun with `trueGenPhi` 1; the data wagon `OnlineEfficiencyNoPhi`, which runs
+with `eventSelectionType` 0 and `processData`, gets `eventSelectionType` 1 and `processDataWPhi` (the wagons with 0 do
+not change: in the local data run their signal pairs are identical); `mc_task` is rerun on the `WTrigger` blocks and
+the `no_phi` blocks after it. The check on the first new train: its event loss differs from the twin's, and the
+events counted by the task are those the producer flags. Until then the `no_phi` results carry minimum-bias
+corrections.
+
 ---
 
 ## 6. Physics questions still open
