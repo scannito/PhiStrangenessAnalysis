@@ -1874,3 +1874,15 @@ is now checked on a read-only handle first.
 a run reads but no block of it writes, such as `Corrections` from an older production, which no candidate covered;
 and the fingerprint of the headers in the provenance, read from disk when each process starts, which a header edited
 during a parallel run would make disagree with the binary (to be written into the binary at build time, separately).
+
+## The projection cache emptied on a rebuild
+
+With `me_mult` (26 November 2026) the names of the cached mixed events came to depend on a key: per class
+(`..._mult10-15_...`) or of the union (`..._mult0-100_...`). A rebuild overwrote only the names it produced, so a cache
+rebuilt with the other value held both generations, and a later run with the cache on could read the stale one: a
+mixed event of another production, with no error. The first answer was a stamp in each cache section,
+`me_mult_integrated` (a `TParameter<bool>`), checked on reuse. It was replaced on 27 November 2026, at the owner's
+choice, by emptying the section on every rebuild (`ClearOwnSection`, the last step of `Init`, after the binning has
+been checked against the stamps one level up): the cache holds exactly its last build, a run asking for what it does
+not hold stops at the missing object, and the protection covers every future key that renames projections instead of
+needing one stamp per key. The cost: switching `me_mult` back and forth re-projects each time.

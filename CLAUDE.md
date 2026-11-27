@@ -297,7 +297,7 @@ Opening mode and clearing are two separate decisions:
 |---|---|---|
 | `RECREATE` | the whole file is this task's | `ComparisonTask`, the per-particle maps |
 | `UPDATE` + `RootIO::ClearPath` | the file is shared; the owned subtree is rewritten from scratch | `CorrelationTask`, `CorrelationWPDGTask` (`PhiAssocSpectra.root`), `MCTask` (`Corrections.root`), `PhiFitTask` (`PhiDataHistograms.root`), `PurityTask` (`Purity.root`); the last three own `{binning_name}`, so that two schemes coexist in one file |
-| `UPDATE`, no clearing | the file is shared; the owned subtree is defended by REFUSING | the projection caches |
+| `UPDATE`, refusing, then clearing on a rebuild | the file is shared; a rebuild asked for explicitly rewrites the section from scratch, and one whose associated pT binning differs from the stamps the two sections share is REFUSED | the projection caches |
 
 `UPDATE` says "this file may hold things that are not mine" - another
 `binning_name`, the other `Extract1D`/`Extract2D`. `ClearPath` says "and what IS
@@ -307,9 +307,15 @@ shape leaves both generations in the file and nothing says which is current; wit
 objects.
 
 The third row is not an oversight. A projection cache costs too much to rebuild for
-it to be replaced silently, so ownership there is exercised by throwing when the
-directory already holds projections of another binning - see
-`ResolveBinningAndCache`. Clearing and refusing are opposite answers to the same
+it to be replaced silently: it is rebuilt only when asked (`use_projection_cache:
+false`), and then its section is cleared with the task's own (`ClearOwnSection`, the
+last step of `Init`), so that the projections the configuration no longer names (the
+mixed events of the other `me_mult`) do not stay beside the new ones for a run with
+the cache on to read (27 November 2026, replacing a stamp per such key). The refusal
+that remains is about the sibling: the binning stamps sit at `{binning_name}`, shared
+by `Extract1D` and `Extract2D`, so a rebuild of one section with another associated
+pT binning would leave the other's projections under stamps that are not theirs -
+see `ResolveBinningAndCache`. Clearing and refusing are opposite answers to the same
 question, and which one is right depends on what it costs to lose the contents.
 
 A new task that writes into a file somebody else also writes into belongs in row two.

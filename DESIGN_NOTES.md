@@ -633,9 +633,8 @@ of the mixing buffer), at the cost of CPU in the trains.
 vocabulary of `acceptance_efficiency.mult`, required in every entry of `associated_particles` (per species, below). The mixed event has a
 cell of its own (`CorrelationCalculator::Request::meCell`, a cut with its name): with `integrated` it is the projection
 over the whole multiplicity axis (`AxisToCut::Whole(0)`, which equals the sum of the classes since the analysis
-binning is the file's), named after the union (`mult0-100`). A projection cache holds the mixed events of the value it
-was last built with, and possibly the other's from an earlier build, stale: it records which (`me_mult_integrated`,
-a `TParameter<bool>` in the section, `Extract1D` or `Extract2D`, next to the mixed events), and a run with the other value stops. With `integrated` the union's
+binning is the file's), named after the union (`mult0-100`). A projection cache holds its last build only (a rebuild
+empties the section, `ClearOwnSection`), so a run with the other value stops at the missing mixed event. With `integrated` the union's
 mixed event is projected again for every class, the same object each time (a cost, not a difference). Refused with
 the 2D engine until its shape is checked. Before it: the
 sideband and mixed-event containers are required to have the signal's axes (`RequireSameAxesAsSignal`, the P1 of the

@@ -37,6 +37,12 @@ class CorrelationTask : public CorrelationTaskBase
     applyPurity = JsonConfig::RequireBool(taskConfig, "apply_purity", GetName());
 
     useSignalCache = JsonConfig::OptionalBool(taskConfig, "use_signal_cache", useSignalCache, GetName());
+    // The signal cache lives in the projection files, which a rebuild empties at the end of Init (ClearOwnSection)
+    if (useSignalCache && !useProjectionCache)
+      throw std::runtime_error(std::format("[FATAL] {}: use_signal_cache reads the signals cached in the projection files, which "
+                                           "use_projection_cache false rebuilds from scratch. Turn use_projection_cache on, or "
+                                           "use_signal_cache off.",
+                                           GetName()));
     doMoreQA = JsonConfig::OptionalBool(taskConfig, "do_more_qa", doMoreQA, GetName());
     // Required, with no default: it chooses the engine (CLAUDE.md, Configuration).
     runMode = JsonConfig::RequireEnum<RunMode>(taskConfig, "run_mode",

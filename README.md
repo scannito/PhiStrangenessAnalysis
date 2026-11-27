@@ -296,7 +296,7 @@ the classes (`mult0-100`), fitted on its own merged distribution; the union is n
 | `corrections_file` | required | Only when `corrections` is not `null`: the `Corrections` file, with all three corrections. |
 | `on_invalid_correction_bin` | required | Only when `corrections` is not `null`: `warn` or `stop`, what a bin at or below zero (or not a number) in a map that is applied does. See below. The base configurations say `warn`. |
 | `extrapolation_config_file` | required | Only when extrapolation is on. |
-| `associated_particles` | required | Array of `{name, dir_name, me_mult}`. `me_mult`, required: `binned` or `integrated`, each multiplicity class divided by its own mixed event, or all of them by the mixed event of the union of the classes (summed, then normalised), named after the union (`mult0-100`) in the projection cache. Per species: the shape of the mixed event in Δy depends on multiplicity by 2-5 % for the π and K0S, whose per-class mixed event has enough statistics, while for the Ξ and Ω the per-class one is too sparse (`DESIGN_NOTES.md` section 6). The base configurations say `binned` for the π and K0S, `integrated` for the Ξ and Ω; `binned` everywhere is what the analysis did before 26 November 2026. Refused with the 2D engine, where it has not been checked. Required also with `apply_mixed_events: false`, as `me_normalization` is. A projection cache (one file per species) records in each section the value its mixed events were built with (`me_mult_integrated`), and a run with the other one stops: rebuild it once with `use_projection_cache: false`. |
+| `associated_particles` | required | Array of `{name, dir_name, me_mult}`. `me_mult`, required: `binned` or `integrated`, each multiplicity class divided by its own mixed event, or all of them by the mixed event of the union of the classes (summed, then normalised), named after the union (`mult0-100`) in the projection cache. Per species: the shape of the mixed event in Δy depends on multiplicity by 2-5 % for the π and K0S, whose per-class mixed event has enough statistics, while for the Ξ and Ω the per-class one is too sparse (`DESIGN_NOTES.md` section 6). The base configurations say `binned` for the π and K0S, `integrated` for the Ξ and Ω; `binned` everywhere is what the analysis did before 26 November 2026. Refused with the 2D engine, where it has not been checked. Required also with `apply_mixed_events: false`, as `me_normalization` is. A projection cache (one file per species) holds its last build only, so after a change of `me_mult` a run with the cache on stops at the missing mixed event: rebuild it once with `use_projection_cache: false`. |
 | `purity_sources` | required | Array of `{name, purity_key}`, read from `{purity_prefix}Purity.root` in `input_dir_purity`. |
 | `delta_y_limits` | required | The \|Δy\| windows the spectra are integrated over; each must fall on a bin edge of the Δy axis. |
 | `yield_ratios` | optional | Array of `{numerator, denominator, label?}`. |
@@ -444,7 +444,10 @@ starts, the high one dashed.
 re-projecting the `THnSparse`. The cached histograms are named by interval, and each
 cache also carries a *binning stamp* — an empty histogram whose axis is the binning it
 was built with. On reuse the stamp is compared with the current run and a mismatch is
-fatal before anything is read, naming the edge that differs.
+fatal before anything is read, naming the edge that differs. A rebuild
+(`use_projection_cache: false`) with the same binning empties the section of the cache
+(`Extract1D` or `Extract2D`) before writing it, so the cache holds exactly its last
+build; a different binning under the same `binning_name` is refused.
 
 `use_signal_cache` (`run_mode: "optimized"` only) goes further: it reads back the final
 signals of every cell, written by a previous run in the same files, and skips the

@@ -126,13 +126,15 @@ class CorrelationCalculator
   template <typename H>
   Inputs<H> ReadFromCache(const Request& req) const
   {
+    static constexpr std::string_view ctx =
+      "CorrelationCalculator, projection cache (it holds its last build only: rebuild it with 'use_projection_cache': false)";
     Inputs<H> in(req.cell, req.meCell);
-    in.sig = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameSig, "CorrelationCalculator");
+    in.sig = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameSig, ctx);
     in.sb = RootIO::GetUniqueOrWarn<H>(req.ioDir, in.nameSb, "CorrelationCalculator");
     if (opt.applyME) {
-      in.meSig = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameMeSig, "CorrelationCalculator");
+      in.meSig = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameMeSig, ctx);
       if (in.sb)
-        in.meSb = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameMeSb, "CorrelationCalculator");
+        in.meSb = RootIO::GetUniqueOrThrow<H>(req.ioDir, in.nameMeSb, ctx);
     }
     return in;
   }

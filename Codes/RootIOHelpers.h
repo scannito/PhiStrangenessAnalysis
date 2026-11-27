@@ -252,10 +252,6 @@ inline void ClearPath(TDirectory* baseDir, const std::vector<std::string>& pathN
 inline const std::string kStampMult{"binning_mult"};
 inline const std::string kStampPtPhi{"binning_ptPhi"};
 inline const std::string kStampPtAssoc{"binning_ptAssoc"};
-// In each section of a projection cache (Extract1D, Extract2D), one level below them: whether its mixed events are
-// those of the union of the multiplicity classes (me_mult: integrated), a TParameter<bool>. The other value's may be in
-// the section too, from an earlier build, and stale.
-inline const std::string kStampMEMultIntegrated{"me_mult_integrated"};
 
 // Records a binning inside a file as an empty TH1D whose axis IS the binning.
 // Storing it as a histogram rather than as a bare array means it reads back

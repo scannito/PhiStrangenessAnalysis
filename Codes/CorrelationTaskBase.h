@@ -1113,7 +1113,6 @@ class CorrelationTaskBase : public IAnalysisTask
       // Resolved for THIS particle, then merged into the common ones below.
       std::vector<double> mult;
       std::vector<double> ptPhi;
-      const bool meIntegrated = particle.meMult == AnalysisStructures::MultDependence::Integrated;
 
       if (!useProjectionCache) {
         // h5Phi{X}Data* axes: (mult, pT(phi), pT(assoc), dy, dphi)
@@ -1126,9 +1125,10 @@ class CorrelationTaskBase : public IAnalysisTask
 
         TDirectory* schemeDir = RootIO::MakePath(cacheFile, {globalCfgs.binningName});
 
-        // Projections from an earlier run under the SAME scheme name are still
-        // there: if that run used a different binning, the ones whose bin range
-        // no longer exists are not overwritten and would survive as garbage.
+        // The stamps below are shared by the two sections of the scheme (Extract1D, Extract2D), and this run rebuilds
+        // only its own (ClearOwnSection empties it): rewriting them with another binning would leave the sibling's
+        // projections under stamps that are not theirs. Only the associated pT binning is compared; the multiplicity
+        // and trigger pT ones are verified on reuse against the configuration.
         const std::vector<double> previous = RootIO::ReadBinningStamp(schemeDir, RootIO::kStampPtAssoc, ctx);
         if (!previous.empty()) {
           const std::string diff = BinningUtils::Compare(previous, particle.binning, "existing file", "current run");
@@ -1144,8 +1144,6 @@ class CorrelationTaskBase : public IAnalysisTask
         RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtAssoc, particle.binning);
         RootIO::WriteBinningStamp(schemeDir, RootIO::kStampPtPhi, ptPhi);
         RootIO::WriteBinningStamp(schemeDir, RootIO::kStampMult, mult);
-        // In the section, next to the mixed events it describes: Extract1D and Extract2D are built apart
-        RootIO::WriteParameter(RootIO::MakePath(cacheFile, SectionPath()), RootIO::kStampMEMultIntegrated, meIntegrated);
 
         // The stamps say WITH WHAT BINNING these projections were built. They cannot
         // say WHAT THEY WERE BUILT FROM, and two productions can share a binning - so
@@ -1179,17 +1177,6 @@ class CorrelationTaskBase : public IAnalysisTask
             "were built with is unknown. Rebuild it with 'use_projection_cache': false.",
             GetName(), ctx));
         }
-
-        // A cache section answers for the me_mult it was last built with. Without the stamp it predates the key and holds
-        // the per-class mixed events only, which a run with the union's does not find (the names differ); without the
-        // section, ProjectionCacheDir says so.
-        if (const std::optional<bool> built =
-              RootIO::TryReadParameter<bool>(RootIO::FindPath(cacheFile, SectionPath()), RootIO::kStampMEMultIntegrated, ctx, GetName());
-            built && *built != meIntegrated)
-          throw std::runtime_error(std::format(
-            "[FATAL] {}: {} holds mixed events with {} = {}, and the me_mult of {} asks for {}. Rebuild it with "
-            "'use_projection_cache': false.",
-            GetName(), ctx, RootIO::kStampMEMultIntegrated, *built, particle.name, meIntegrated));
 
         // The cache is the source of truth here, but it still has to be the
         // production we think we are working on.
@@ -1776,7 +1763,19 @@ class CorrelationTaskBase : public IAnalysisTask
   // a previous one left there - produced when the layout or the object names were different - would sit beside the
   // new objects with nothing to tell them apart. UPDATE and not RECREATE because only this subtree is ours: another
   // 'binning_name', or the other Extract1D/2D, belongs to somebody else and stays.
-  void ClearOwnSection() { RootIO::ClearPath(outputFile.get(), SectionPath()); }
+  // The same holds for the section of each projection cache when it is rebuilt (use_projection_cache false, asked
+  // for explicitly, the binning already checked against its stamps by ResolveBinningAndCache): the projections
+  // whose names the current configuration no longer produces (the mixed events of the other me_mult, for one) would
+  // otherwise stay, and a later run with the cache on could read them. Emptied, a cache holds exactly its last build,
+  // and a run asking for something it does not hold stops at the missing object.
+  void ClearOwnSection()
+  {
+    RootIO::ClearPath(outputFile.get(), SectionPath());
+    if (!ProjectionFilesReadOnly()) {
+      for (const auto& file : projectionFiles)
+        RootIO::ClearPath(file.get(), SectionPath());
+    }
+  }
 
   // Where the associated particle of that name is in assocParticles, if it is one: the configuration names particles.
   std::optional<size_t> AssocIndex(std::string_view name) const
